@@ -100,19 +100,40 @@ try {
     assert.ok(firstPath && secondPath && firstPath !== secondPath, `需要两张首页图：${firstPath} / ${secondPath}`);
     assert.match(await page.locator('#heroList .a-hero-item').first().innerText(), /封面/, '第一张默认就是封面');
     // 用鼠标事件手动拖（dragTo() 只派发一次 dragover，落点常不成立）。量坐标前先滚进视口 —— 鼠标坐标是视口坐标，元素在屏外时指针落到窗口外、drop 不触发。
-    await page.locator('#heroList').scrollIntoViewIfNeeded();
-    await page.waitForTimeout(100);
-    const dragSrc = page.locator('#heroList .a-hero-item').first();
-    const dragDst = page.locator('#heroList .a-hero-item').nth(1);
-    const sbox = await dragSrc.boundingBox();
-    const dbox = await dragDst.boundingBox();
-    await page.mouse.move(sbox.x + sbox.width / 2, sbox.y + sbox.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(sbox.x + sbox.width / 2 + 20, sbox.y + sbox.height / 2, { steps: 5 });
-    // 落点取目标格「中线略下、右缘」：既表示插到它后面，又不像右下角那样落到 900px 视口外（指针出窗口就不触发 drop）。
-    await page.mouse.move(dbox.x + dbox.width - 3, dbox.y + dbox.height / 2 + 12, { steps: 15 });
-    await page.mouse.up();
-    await page.waitForTimeout(150);
+    // 原生 DnD 的落点由 dragover 的 requestAnimationFrame 计算；最后一步 move 后要留一帧，否则 drop 时 dropBefore 还是 null。
+    const dragFirstToSecond = async () => {
+      await page.locator('#heroList').scrollIntoViewIfNeeded();
+      await page.waitForTimeout(120);
+      const src = page.locator('#heroList .a-hero-item').first();
+      const dst = page.locator('#heroList .a-hero-item').nth(1);
+      await src.scrollIntoViewIfNeeded();
+      await dst.scrollIntoViewIfNeeded();
+      await page.waitForTimeout(120);
+      const sbox = await src.boundingBox();
+      const dbox = await dst.boundingBox();
+      await page.mouse.move(sbox.x + sbox.width / 2, sbox.y + sbox.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(sbox.x + sbox.width / 2 + 20, sbox.y + sbox.height / 2, { steps: 6 });
+      // 落点取目标格「中线略下、右缘」：既表示插到它后面，又不像右下角那样落到 900px 视口外（指针出窗口就不触发 drop）。
+      await page.mouse.move(dbox.x + dbox.width - 3, dbox.y + dbox.height / 2 + 12, { steps: 18 });
+      await page.waitForTimeout(220);
+      await page.mouse.up();
+    };
+    const reordered = async () => {
+      try {
+        await page.waitForFunction(([a, b]) => {
+          const paths = [...document.querySelectorAll('#heroList .a-hero-item')].map((el) => el.dataset.path);
+          return paths[0] === a && paths[1] === b;
+        }, [secondPath, firstPath], { timeout: 2500 });
+        return true;
+      } catch { return false; }
+    };
+    let moved = false;
+    for (let attempt = 0; attempt < 2 && !moved; attempt++) {
+      await dragFirstToSecond();
+      moved = await reordered();
+    }
+    assert.ok(moved, '拖到第二格之后应换序');
     assert.deepEqual(await heroPaths(), [secondPath, firstPath], '拖到第二格之后应换序');
     assert.match(await page.locator('#heroList .a-hero-item').first().innerText(), /封面/, '换到第一位的成为封面');
     assert.ok(!(await page.locator('#heroList .a-hero-item').nth(1).innerText()).includes('封面'), '第二位不再是封面');
