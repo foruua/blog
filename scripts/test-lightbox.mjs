@@ -108,9 +108,12 @@ try {
   assert.equal((await imageState(mobile)).zoomed, true);
   await swipe(-80); assert.equal(await count(mobile), '1 / 3');
   assert.equal((await imageState(mobile)).zoomed, true);
-  await mobile.getByRole('button', { name: '还原图片大小', exact: true }).tap();
+  // 还原按钮用 click 而不是 tap：tap 会留下一次触摸手势状态，紧接着用 CDP 发下一段 swipe 时，
+  // Linux/CI 上偶发把新触摸并进上一段手势（还原后第一次滑动不生效）。滑动本身仍走真实 touch 事件。
+  await mobile.getByRole('button', { name: '还原图片大小', exact: true }).click();
   // 还原是异步的：等 is-zoomed 真正摘掉再开始下一段手势，否则 CI 上慢一拍会把滑动当成拖拽。
   await mobile.waitForFunction(() => !document.querySelector('#lightbox .lb-img').classList.contains('is-zoomed'));
+  await mobile.waitForTimeout(400);
   await swipe(120);
   await mobile.waitForFunction(() => document.querySelector('#lightbox .lb-count').textContent === '3 / 3');
   await mobile.locator('#lightbox .lb-zoom:not([disabled])').waitFor();
