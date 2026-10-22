@@ -400,16 +400,28 @@
       zoom.setAttribute('aria-pressed', String(scale > 1));
     };
     const resize = (value) => { scale = Math.max(1, Math.min(4, value)); render(); };
-    const reset = () => {
+    // 结束并清掉当前触摸手势。缩放到 1 时也要清：双指结束后若还剩一个 pointerup 没派发，
+    // 下一次单指滑动会被当成「仍是双指」而吞掉（Linux/CI 的触摸事件更明显）。
+    const clearGestures = () => {
       for (const id of pointers.keys()) if (image.hasPointerCapture?.(id)) image.releasePointerCapture(id);
       pointers.clear(); gesture = pinch = null;
+    };
+    const reset = () => {
+      clearGestures();
       scale = 1; x = y = 0; zoom.disabled = true; boxW = boxH = 0; render();
     };
-    zoom.addEventListener('click', () => resize(scale > 1 ? 1 : 2));
+    zoom.addEventListener('click', () => {
+      const zoomed = scale > 1;
+      if (zoomed) clearGestures();
+      resize(zoomed ? 1 : 2);
+    });
     image.draggable = false;
     image.addEventListener('click', (event) => {
       event.preventDefault(); event.stopPropagation();
-      if (!image.hidden && Date.now() >= ignoreClickUntil) resize(scale > 1 ? 1 : 2);
+      if (image.hidden || Date.now() < ignoreClickUntil) return;
+      const zoomed = scale > 1;
+      if (zoomed) clearGestures();
+      resize(zoomed ? 1 : 2);
     });
     const distance = () => {
       const [a, b] = [...pointers.values()];
