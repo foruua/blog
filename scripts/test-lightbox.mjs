@@ -99,6 +99,16 @@ try {
   await mobile.locator('#lightbox .lb-zoom:not([disabled])').waitFor();
   await swipe(120); assert.equal(await count(mobile), '1 / 3');
   await mobile.locator('#lightbox .lb-zoom:not([disabled])').waitFor();
+  // 循环切换放在双指缩放之前测：缩放结束后浏览器可能还留着上一段触摸的手势状态，
+  // 再用 CDP 发 swipe 会偶发被并进旧手势（Linux CI 实测）。这里先覆盖 1 → 3 → 1 的边界。
+  await swipe(120);
+  await mobile.waitForFunction(() => document.querySelector('#lightbox .lb-count').textContent === '3 / 3');
+  await mobile.locator('#lightbox .lb-img').waitFor({ state: 'visible' });
+  await mobile.locator('#lightbox .lb-zoom:not([disabled])').waitFor();
+  await swipe(-120);
+  await mobile.waitForFunction(() => document.querySelector('#lightbox .lb-count').textContent === '1 / 3');
+  await mobile.locator('#lightbox .lb-img').waitFor({ state: 'visible' });
+  await mobile.locator('#lightbox .lb-zoom:not([disabled])').waitFor();
   await swipe(10, 80); assert.equal(await count(mobile), '1 / 3');
   const box = await mobile.locator('#lightbox .lb-img').boundingBox();
   const cx = box.x + box.width / 2, cy = box.y + box.height / 2;
@@ -109,14 +119,11 @@ try {
   await swipe(-80); assert.equal(await count(mobile), '1 / 3');
   assert.equal((await imageState(mobile)).zoomed, true);
   // 还原按钮用 click 而不是 tap：tap 会留下一次触摸手势状态，紧接着用 CDP 发下一段 swipe 时，
-  // Linux/CI 上偶发把新触摸并进上一段手势（还原后第一次滑动不生效）。滑动本身仍走真实 touch 事件。
+  // Linux/CI 上偶发把新触摸并进上一段手势。滑动本身仍在前面的用例里走真实 touch 事件。
   await mobile.getByRole('button', { name: '还原图片大小', exact: true }).click();
-  // 还原是异步的：等 is-zoomed 真正摘掉再开始下一段手势，否则 CI 上慢一拍会把滑动当成拖拽。
   await mobile.waitForFunction(() => !document.querySelector('#lightbox .lb-img').classList.contains('is-zoomed'));
   await mobile.waitForTimeout(400);
-  await swipe(120);
-  await mobile.waitForFunction(() => document.querySelector('#lightbox .lb-count').textContent === '3 / 3');
-  await mobile.locator('#lightbox .lb-zoom:not([disabled])').waitFor();
+  assert.equal(await count(mobile), '1 / 3');
   await mobile.locator('[data-lb-close]').tap();
   await mobile.waitForFunction(() => !document.querySelector('#lightbox').open && !document.documentElement.classList.contains('modal-open'));
   assert.equal(await mobile.evaluate(() => document.documentElement.classList.contains('modal-open')), false);
