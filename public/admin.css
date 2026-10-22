@@ -398,6 +398,9 @@ body.admin {
   font-size: 1.08rem; font-weight: 700;
   letter-spacing: -.005em; line-height: 1.4;
   overflow-wrap: anywhere;
+  /* 列表标题是主要入口：行内元素默认只有 ~19px 高，加一点纵向 padding 把命中区撑到 24px 以上。
+     行内 padding 不参与行高计算，表格行高不会因此变化。 */
+  padding-block: .25rem;
 }
 .a-table .a-title:hover { color: var(--accent); }
 .a-table .a-num { text-align: right; font-variant-numeric: tabular-nums; }
