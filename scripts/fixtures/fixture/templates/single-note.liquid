@@ -1,0 +1,11 @@
+<article class="fx-post fx-post-note">
+  <header class="fx-post-head">
+    <h1>{{ data.post.title }}</h1>
+    <p class="fx-meta"><time datetime="{{ data.post.datetime }}">{{ data.post.date_cn }}</time></p>
+  </header>
+
+  <div class="fx-prose">{{ data.post.body_html | raw }}</div>
+
+  {{ data.post.pager_html | raw }}
+  {{ data.post.comments_html | raw }}
+</article>

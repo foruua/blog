@@ -1,0 +1,13 @@
+<header class="fx-page-head">
+  <h1>{{ data.title }}</h1>
+</header>
+
+<ul class="fx-notes">
+  {% for p in data.notes %}
+  <li class="fx-note">
+    <a href="{{ p.url }}">{{ p.title }}</a>
+    {% if options.show_excerpts %}<p class="fx-excerpt">{{ p.excerpt }}</p>{% endif %}
+  </li>
+  {% endfor %}
+</ul>
+{{ data.more_html | raw }}

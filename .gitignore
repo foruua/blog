@@ -1,0 +1,26 @@
+# —— 私有状态与运行时数据：不进源码仓库 ——
+.env
+.env.*
+!.env.example
+data/
+content/
+output/
+*.blog-lock/
+.app-secret
+*.pre-restore-*
+.blog-restore-*
+themes/.trash/
+themes/.install-*
+themes/.replace-*
+public/.build/
+
+# —— 依赖与工具产物 ——
+node_modules/
+.DS_Store
+.workbuddy/
+design/
+
+# —— 编辑器 / 系统杂项 ——
+.vscode/
+.idea/
+*.swp

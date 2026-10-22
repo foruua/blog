@@ -1,0 +1,14 @@
+<article class="fx-post">
+  <header class="fx-post-head">
+    <h1>{{ data.post.title }}</h1>
+    <p class="fx-meta">
+      <time datetime="{{ data.post.datetime }}">{{ data.post.date_cn }}</time>
+      {% if data.reading_minutes %}<span>约 {{ data.reading_minutes }} 分钟</span>{% endif %}
+    </p>
+  </header>
+
+  <div class="fx-prose">{{ data.post.body_html | raw }}</div>
+
+  {{ data.post.pager_html | raw }}
+  {{ data.post.comments_html | raw }}
+</article>

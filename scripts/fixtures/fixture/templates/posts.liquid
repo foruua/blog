@@ -1,0 +1,18 @@
+<header class="fx-page-head">
+  <h1>{{ data.title }}</h1>
+</header>
+
+{% if data.empty %}
+<p class="fx-empty">还没有内容。</p>
+{% else %}
+<ul class="fx-list">
+  {% for p in data.posts %}
+  <li class="fx-item">
+    <a href="{{ p.url }}">{{ p.title }}</a>
+    <time datetime="{{ p.datetime }}">{{ p.date }}</time>
+    {% if options.show_excerpts %}<p class="fx-excerpt">{{ p.excerpt }}</p>{% endif %}
+  </li>
+  {% endfor %}
+</ul>
+{{ data.more_html | raw }}
+{% endif %}

@@ -1,0 +1,10 @@
+{
+  "id": "classic",
+  "name": "经典",
+  "version": "1.0.0",
+  "engine": "1",
+  "author": "站点默认",
+  "default": true,
+  "description": "单栏、纸墨金石。",
+  "screenshot": "screenshot.png"
+}

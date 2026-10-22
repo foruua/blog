@@ -1,0 +1,15 @@
+<section class="fx-intro">
+  <h1>{{ site.title }}</h1>
+  <p class="fx-desc">{{ site.desc }}</p>
+</section>
+
+{% if data.has_recent %}
+<section class="fx-recent">
+  <h2>最近更新</h2>
+  <ul>
+  {% for p in data.recent %}
+    <li><a href="{{ p.url }}">{{ p.title }}</a> <time datetime="{{ p.datetime }}">{{ p.relative }}</time></li>
+  {% endfor %}
+  </ul>
+</section>
+{% endif %}

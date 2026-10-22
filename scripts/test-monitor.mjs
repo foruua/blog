@@ -1,0 +1,102 @@
+#!/usr/bin/env node
+// 看门狗状态机：抖动容忍、连续失败告警、恢复告警、不重复打扰。
+// 这部分逻辑出错的两个方向都很糟——不告警等于没监控，乱告警会让人把邮件全标成已读。
+import { createChecker } from './_check.mjs';
+import { createWatchdog } from '../src/monitor.js';
+
+const { check, report } = createChecker();
+
+console.log('\n看门狗状态机');
+console.log('─'.repeat(56));
+
+const quiet = () => {};
+const make = (results) => {
+  const sent = [];
+  let i = 0;
+  const dog = createWatchdog({
+    url: null, intervalMs: 0,
+    check: async () => results[Math.min(i++, results.length - 1)],
+    notify: async (result, meta) => { sent.push({ reason: result.reason, recovered: meta.recovered }); },
+    log: quiet,
+  });
+  return { dog, sent };
+};
+
+const OK = { ok: true, reason: '正常' };
+const BAD = { ok: false, reason: '隧道断开' };
+
+{
+  const { dog, sent } = make([BAD, OK, OK]);
+  await dog.tick();
+  check('T1 首次探测失败不立刻告警（还不知道之前是否正常）', sent.length === 0, JSON.stringify(sent));
+  await dog.tick();
+  check('T2 一次失败后又恢复，不发告警', sent.length === 0, JSON.stringify(sent));
+}
+
+{
+  const { dog, sent } = make([BAD, BAD, BAD, BAD, OK]);
+  await dog.tick();                          // 基线
+  await dog.tick();                          // 连续第 2 次失败 → 告警
+  check('T3 连续失败达到阈值时告警一次', sent.length === 1 && sent[0].recovered === false, JSON.stringify(sent));
+  await dog.tick();                          // 继续失败
+  check('T4 持续故障不重复告警', sent.length === 1, JSON.stringify(sent));
+  await dog.tick();                          // 仍然失败
+  check('T5 仍然只有一封', sent.length === 1, JSON.stringify(sent));
+  await dog.tick();                          // 恢复
+  check('T6 恢复后补发一封恢复通知', sent.length === 2 && sent[1].recovered === true, JSON.stringify(sent));
+}
+
+{
+  const { dog, sent } = make([OK, BAD, OK, OK]);
+  await dog.tick();
+  await dog.tick();
+  check('T7 单次抖动（正常→失败→正常）不告警', sent.length === 0, JSON.stringify(sent));
+}
+
+{
+  // 首轮就坏、且一直坏：阈值到了必须告警，不能因为"没基线"永远沉默。
+  const { dog, sent } = make([BAD, BAD, BAD]);
+  await dog.tick();
+  await dog.tick();
+  check('T8 启动即故障且持续时仍会告警', sent.length === 1, JSON.stringify(sent));
+}
+
+{
+  // 本地备份检查失败要能独立拦住，且不必依赖公网探测（url 故意填一个必然连不上的地址）。
+  const sent = [];
+  const dog = createWatchdog({
+    url: 'https://example.invalid/healthz', intervalMs: 0,
+    checkLocal: () => ({ ok: false, reason: '可恢复备份已过期' }),
+    notify: async (result, meta) => { sent.push({ reason: result.reason, recovered: meta.recovered }); },
+    log: quiet,
+  });
+  await dog.tick(); await dog.tick();
+  check('T9 本地备份过期时告警，且原因是本地判定而非网络失败',
+    sent.length === 1 && sent[0].recovered === false && sent[0].reason === '可恢复备份已过期', JSON.stringify(sent));
+}
+
+{
+  // 内部检查抛异常（如备份目录不可读）时，tick 必须自己接住；否则 Node 的未处理 rejection 会终止进程。
+  const sent = [];
+  const dog = createWatchdog({
+    url: null, intervalMs: 0,
+    check: async () => { const e = new Error('EACCES'); e.code = 'EACCES'; throw e; },
+    notify: async (result, meta) => { sent.push({ reason: result.reason, recovered: meta.recovered }); },
+    log: quiet,
+  });
+  await dog.tick();
+  check('T11 内部检查异常首轮不告警', sent.length === 0, JSON.stringify(sent));
+  await dog.tick();
+  check('T11b 连续异常会按失败处理并告警', sent.length === 1 && sent[0].reason === '监控自检异常', JSON.stringify(sent));
+}
+
+{
+  let notified = 0;
+  const dog = createWatchdog({ url: null, intervalMs: 0, check: async () => OK, notify: async () => { notified++; }, log: quiet });
+  dog.start();
+  await new Promise((r) => setTimeout(r, 50));
+  check('T10 intervalMs=0 时不启动定时器、不探测', notified === 0 && dog.state().failStreak === 0);
+  dog.stop();
+}
+
+process.exit(report() ? 1 : 0);

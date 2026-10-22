@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+{% comment %} 本布局与 src/render/layout.js 的 builtinLayout 保持同构：改外壳结构（#app/#main/灯箱位置）时两处一起改。 {% endcomment %}
+<html lang="{{ site.lang }}"{{ chrome.htmlAttrs }}>
+{{ chrome.head | raw }}
+<body data-page="{{ page.page }}">
+{{ chrome.top | raw }}
+{{ chrome.skip | raw }}
+{{ chrome.progress | raw }}
+
+{{ chrome.toTop | raw }}
+
+<div id="app">
+{{ chrome.header | raw }}
+{{ chrome.drawer | raw }}
+{% if page.page == 'home' %}
+<main id="main" class="home-main" tabindex="-1">
+{{ content | raw }}
+</main>
+{% endif %}
+
+<div class="wrap">
+{% if page.page != 'home' %}
+<main id="main" tabindex="-1">
+{{ content | raw }}
+</main>
+{% endif %}
+
+{{ chrome.footer | raw }}
+</div>
+{{ chrome.emoji | raw }}
+</div>
+{{ chrome.lightbox | raw }}
+
+{{ chrome.scripts | raw }}
+</body>
+</html>

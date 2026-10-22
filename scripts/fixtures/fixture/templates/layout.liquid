@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="{{ site.lang }}"{{ chrome.htmlAttrs }}>
+{{ chrome.head | raw }}
+<body class="fx-body" data-page="{{ page.page }}">
+{{ chrome.top | raw }}
+{{ chrome.skip | raw }}
+{{ chrome.progress | raw }}
+{{ chrome.toTop | raw }}
+<style>:root{--fx-accent: {{ options.accent }};}</style>
+
+<div id="app" class="fx-main">
+{% if options.logo %}<img class="fx-logo" src="{{ options.logo }}" alt="">{% endif %}
+{{ chrome.header | raw }}
+{{ chrome.drawer | raw }}
+<main id="main" tabindex="-1">
+{{ content | raw }}
+</main>
+{{ chrome.footer | raw }}
+{{ chrome.emoji | raw }}
+</div>
+{{ chrome.lightbox | raw }}
+
+{{ chrome.scripts | raw }}
+</body>
+</html>

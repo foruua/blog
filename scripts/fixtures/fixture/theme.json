@@ -1,0 +1,24 @@
+{
+  "id": "fixture",
+  "name": "测试主题",
+  "version": "1.0.0",
+  "engine": "1",
+  "author": "测试夹具",
+  "description": "只给测试用：覆盖全部模板层级，验证层级命中、设置项与外壳拼装。",
+  "screenshot": "screenshot.png",
+  "options": [
+    { "key": "accent", "type": "color", "label": "强调色", "default": "#8a5a2b" },
+    { "key": "show_excerpts", "type": "boolean", "label": "列表显示摘要", "default": true },
+    {
+      "key": "density",
+      "type": "select",
+      "label": "行距",
+      "default": "normal",
+      "options": [
+        { "value": "normal", "label": "常规" },
+        { "value": "compact", "label": "紧凑" }
+      ]
+    },
+    { "key": "logo", "type": "image", "label": "站点图", "default": "" }
+  ]
+}

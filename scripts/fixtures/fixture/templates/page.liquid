@@ -1,0 +1,9 @@
+<article class="fx-page">
+  <header class="fx-post-head">
+    <h1>{{ data.page.title }}</h1>
+  </header>
+
+  <div class="fx-prose">{{ data.page.body_html | raw }}</div>
+
+  {{ data.page.comments_html | raw }}
+</article>
