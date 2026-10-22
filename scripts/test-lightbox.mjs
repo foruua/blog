@@ -109,7 +109,10 @@ try {
   await swipe(-80); assert.equal(await count(mobile), '1 / 3');
   assert.equal((await imageState(mobile)).zoomed, true);
   await mobile.getByRole('button', { name: '还原图片大小', exact: true }).tap();
-  await swipe(120); assert.equal(await count(mobile), '3 / 3');
+  // 还原是异步的：等 is-zoomed 真正摘掉再开始下一段手势，否则 CI 上慢一拍会把滑动当成拖拽。
+  await mobile.waitForFunction(() => !document.querySelector('#lightbox .lb-img').classList.contains('is-zoomed'));
+  await swipe(120);
+  await mobile.waitForFunction(() => document.querySelector('#lightbox .lb-count').textContent === '3 / 3');
   await mobile.locator('#lightbox .lb-zoom:not([disabled])').waitFor();
   await mobile.locator('[data-lb-close]').tap();
   await mobile.waitForFunction(() => !document.querySelector('#lightbox').open && !document.documentElement.classList.contains('modal-open'));
