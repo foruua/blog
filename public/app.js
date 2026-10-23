@@ -470,6 +470,36 @@
     }
     armHeroGesture();
     if (!heroWatchdog) heroWatchdog = setInterval(ensureHeroPlayback, 1500);
+    setupHeroDebug();
+  }
+
+  /* —— 临时诊断（?herodbg=1）：只回答一个问题「到底在不在播」——
+     paused / readyState 在鸿蒙上会骗人（play() resolve、paused=false，但画面不动）。
+     所以同时数三样：currentTime（时间轴）、totalVideoFrames（解码出的帧）、
+     requestVideoFrameCallback 触发次数（真正送到屏幕的帧）。
+     两个帧计数在涨 = 确实在播；屏幕上看不到，那就是被原生层盖住了。
+     不带 ?herodbg=1 时一行都不执行，也不建节点。 */
+  function setupHeroDebug() {
+    if (!/[?&]herodbg=1\b/.test(location.search)) return;
+    const video = heroAutoplayVideos[0];
+    if (!video || document.getElementById('herodbg')) return;
+    const box = document.createElement('pre');
+    box.id = 'herodbg';
+    box.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:2147483647;margin:0;padding:6px 8px;'
+      + 'font:11px/1.45 ui-monospace,Menlo,monospace;background:rgba(0,0,0,.82);color:#fff;white-space:pre-wrap;pointer-events:none';
+    document.body.append(box);
+    const navType = performance.getEntriesByType?.('navigation')?.[0]?.type ?? '?';
+    box.textContent = `UA: ${navigator.userAgent}\nnav: ${navType} vis: ${document.visibilityState}\n`;
+    let rvfc = 0;
+    const onFrame = () => { rvfc += 1; video.requestVideoFrameCallback?.(onFrame); };
+    video.requestVideoFrameCallback?.(onFrame);
+    const frames = () => (video.getVideoPlaybackQuality?.().totalVideoFrames ?? -1);
+    setInterval(() => {
+      const line = `t=${video.currentTime.toFixed(2)} frames=${frames()} rvfc=${rvfc}`
+        + ` rs=${video.readyState} paused=${video.paused} err=${video.error?.code ?? '-'} net=${video.networkState}`;
+      const lines = `${box.textContent}${line}\n`.split('\n');
+      box.textContent = lines.slice(-12).join('\n');
+    }, 500);
   }
 
   /* 首页轮播（多于一张图才渲染）。自动模式 5 秒一张，悬停/聚焦/切走标签页/「减弱动态效果」暂停。 */
