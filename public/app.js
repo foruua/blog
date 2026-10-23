@@ -364,7 +364,8 @@
       heroDbgBox.id = 'herodbg';
       heroDbgBox.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:2147483647;margin:0;padding:6px 8px;'
         + 'font:11px/1.45 ui-monospace,Menlo,monospace;background:rgba(0,0,0,.82);color:#fff;white-space:pre-wrap;pointer-events:none';
-      heroDbgBox.textContent = `UA: ${navigator.userAgent}\n`;
+      const navType = performance.getEntriesByType?.('navigation')?.[0]?.type ?? '?';
+      heroDbgBox.textContent = `UA: ${navigator.userAgent}\nnav: ${navType} vis: ${document.visibilityState}\n`;
       document.body.append(heroDbgBox);
     }
     const lines = `${heroDbgBox.textContent}${line}\n`.split('\n');
@@ -430,6 +431,7 @@
       video.__heroRetryTimer = 0;
       if (!video.isConnected || video.__heroStarted) return;
       video.__heroBlocked = false;   // 冷启动那次被拒是暂时的，再给一次机会
+      heroDbg(`retry#${video.__heroRetryStep} rs=${video.readyState} paused=${video.paused}`);
       playHeroVideo(video);
       retryHeroOnce(video);          // 还没起来就排下一次；起来了 __heroStarted 会挡住
     }, HERO_RETRY_STEPS[step]);
