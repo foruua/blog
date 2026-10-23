@@ -40,11 +40,9 @@ try {
   await page.waitForTimeout(400);
   const navRows = await page.locator('.mnav-panel ul a')
     .evaluateAll((links) => links.map((a) => +a.getBoundingClientRect().height.toFixed(1)));
-  const footHits = await page.locator('.mnav-foot a, .mnav-foot button')
-    .evaluateAll((els) => els.map((el) => +el.getBoundingClientRect().height.toFixed(1)));
   assert.ok(navRows.length >= 5 && navRows.every((h) => h >= 44 && h <= 60), `抽屉行高应在 44–60px：${navRows}`);
-  // 抽屉页脚只剩 RSS 与后台两枚（明暗与配色都搬进上方那条工具行了）。
-  assert.ok(footHits.length >= 2 && footHits.every((h) => h >= 24), `抽屉页脚命中区应 ≥24px：${footHits}`);
+  // 抽屉不再保留 RSS / 后台页脚。
+  assert.equal(await page.locator('.mnav-foot').count(), 0, '抽屉页脚应已移除');
   await page.keyboard.press('Escape');
   await page.waitForTimeout(200);
   for (const [kind, label] of [['post', '文章'], ['note', '笔记']]) {

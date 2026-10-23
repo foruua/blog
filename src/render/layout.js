@@ -347,10 +347,6 @@ function layoutContext({
     <ul>
       ${navDrawerHtml(active, items)}
     </ul>
-    <div class="mnav-foot">
-      <a href="/feed.xml">RSS</a>
-      <a href="/admin" target="_blank" rel="noopener">后台</a>
-    </div>
   </nav>
 </div>`;
 

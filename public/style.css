@@ -826,19 +826,6 @@ body.mnav-open .mnav-panel { transform: none; opacity: 1; }
 }
 .mnav-panel ul a[aria-current="page"] .n-ico,
 .mnav-panel ul a[aria-current="page"] .n-idx { color: var(--accent); }
-.mnav-foot {
-  display: flex; align-items: center; justify-content: space-between; gap: 1.1rem;
-  padding-top: 1rem;
-  font: var(--label-size)/1.6 var(--mono);
-  letter-spacing: var(--label-track); color: var(--muted);
-}
-/* 这两枚（RSS / 后台）是抽屉里唯一没有内距的目标：11.2px 撑出 19.2px 高，拇指按不准。 补内距 + 等量负外边距把命中区撑到 35.2px，版面不动；align-items 必须从 stretch 改成 center。 */
-.mnav-foot a {
-  color: inherit; background: none; border: 0;
-  padding: .5rem 0; margin-block: -.5rem;
-  font: inherit; cursor: pointer;
-}
-.mnav-foot a:hover { color: var(--fg); }
 /* 抽屉打开时锁住底下的页面。锁落在 html 上（写 body 上会被视口传播规则接管）。滚动条一收整页会横跳，用等宽内边距补回（宽度由脚本量）。锁写在窄屏里 —— 宽屏若还留着这个类，拖宽后页面会被永久锁住。 */
 @media (max-width: 620px) {
   html:has(body.mnav-open) { overflow: hidden; }
