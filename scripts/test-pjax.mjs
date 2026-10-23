@@ -203,11 +203,7 @@ try {
     check('T13 静态文件不拦截', E(mk({}, '/style.css'), null) === false);
     // 前台页脚「后台」入口：新窗口打开（target 一设 pjax 就不接管），必须带 noopener。
     const adminLink = w.document.querySelector('footer.site a[href="/admin"]');
-    check('T13b 页脚的「后台」入口：新窗口 + noopener，且不被 pjax 接管',
-      Boolean(adminLink) && adminLink.getAttribute('target') === '_blank'
-      && /\bnoopener\b/.test(adminLink.getAttribute('rel') ?? '')
-      && E(adminLink, null) === false,
-      adminLink ? adminLink.outerHTML : '（没有这个链接）');
+    check('T13b 页脚不再放后台入口（低频操作不占页脚）', !adminLink, adminLink?.outerHTML ?? '');
   }
 
   {

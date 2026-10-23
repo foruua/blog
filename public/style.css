@@ -2509,12 +2509,11 @@ html[data-theme="dark"] .c-flash-bad, html[data-theme="dark"] .c-flash-limited {
 @media (pointer: coarse) { .c-emoji-grid { --emoji-row-height: 2.75rem; } .c-emoji-trigger, .c-emoji-head button, .c-emoji-grid button { min-height: 2.75rem; } .c-emoji-head button { width: 2.75rem; } }
 .c-preview { border: 1px solid var(--rule); border-radius: var(--radius); padding: .9rem; background: var(--bg-soft); }
 
-/* 页脚 */
-
+/* 页脚 · 双端：左边只留法务细字（© / 备案号），右边 RSS 与配色两枚图标。
+   页脚只承载"必须存在"的信息，入口收成 34px 的细线圆钮；手机端不再重复「回到顶部」。 */
 footer.site {
   position: relative;
   margin: var(--sp-5) 0 0;
-  padding: clamp(1.6rem, 3.2vw, 2.2rem) 0 clamp(2rem, 4vw, 3rem);
   color: var(--muted);
   font-size: .88rem; line-height: 1.9;
 }
@@ -2526,30 +2525,77 @@ footer.site::before {
   background: linear-gradient(90deg, transparent, var(--rule-strong) 22%, var(--rule-strong) 78%, transparent);
   opacity: .9;
 }
-/* 页脚：© / RSS / 后台 / 配色 / 回到顶部。全部纯文字（不再有图标）。
-   行高统一为 1：页脚整体是 line-height:1.9，不抹平的话 © 与「配色」的盒子比链接高一档（26.7 vs 24.3px）。
-   对齐用 baseline 而不是 center：链接是 inline-flex（为了 .32rem 的上下内距把命中区撑到 24px+），
-   flex 容器的合成基线取的是盒子中线，center 会让审计的基线探针量出约 5px 的偏差（实测文字矩形其实重合）；
-   改成 baseline 后探针与真实文字基线一致，观感不变。 */
-footer.site .row { display: flex; flex-wrap: wrap; gap: .55rem 1.5rem; justify-content: center; align-items: baseline; line-height: 1; }
-footer.site .row > span { letter-spacing: .06em; }
-footer.site a {
-  /* align-items 必须是 baseline：链接是 flex 容器，flex 的合成基线取第一个 flex item 的基线。
-     center 会让「探针/首项」落在盒子中线，基线审计据此量出约 5px 偏差（文字其实是对齐的，见 .row 的说明）。 */
-  display: inline-flex; align-items: baseline;
-  line-height: 1; letter-spacing: .06em;
-  color: var(--muted); text-decoration: none;
-  /* 命中区补到 24px+（WCAG 2.5.8）：页脚链接本身只有 20px 上下，padding 撑开、负外边距抵消，版面不变 */
-  padding-block: .32rem; margin-block: -.32rem;
+footer.site .foot-inner {
+  box-sizing: border-box;
+  /* 页脚始终在 .wrap 里（内置布局与 classic 主题同构）：左右留白已由 .wrap 的 24px 给足，
+     这里不再补一层，否则内容会比正文/卡片多缩进 24px。 */
+  padding: clamp(1.35rem, 2.5vw, 1.75rem) 0 clamp(1.3rem, 2.4vw, 1.7rem);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem 1.5rem;
+}
+footer.site .foot-legal {
+  display: flex; flex-wrap: wrap;
+  align-items: baseline;
+  gap: .25rem 1.1rem;
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: .72rem; line-height: 1.6;
+  letter-spacing: .09em;
+  color: var(--muted-soft);
+}
+footer.site .foot-legal > span { white-space: nowrap; }
+footer.site .foot-icp {
+  color: var(--muted-soft); text-decoration: none;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .06em;
+  /* 命中区补到 24px+（WCAG 2.5.8）：11.5px 文字 + 上下 .45rem，负外边距抵消，版面不变 */
+  padding-block: .45rem; margin-block: -.45rem;
   transition: color var(--dur-2) var(--ease);
 }
-footer.site a:hover { color: var(--accent); }
-/* ≤1000 浮钮没有右侧留白可站，改由页脚这枚入口兜底；宽屏仍用右下角浮钮。
-   选择器要盖过上面 `footer.site a { display:inline-flex }`（同为类选择器时靠多一个类/元素取胜）。 */
-footer.site a.foot-top { display: none; }
+footer.site .foot-icp:hover { color: var(--accent); }
+footer.site .foot-tools {
+  flex: none;
+  display: flex; align-items: center;
+  gap: .5rem;
+}
+/* RSS 与配色统一成 34px 细线圆钮：图标是主体，圆框只负责把命中区做到触控尺寸。
+   details/summary 自带的三角与默认内距在这里一并抹掉，两枚钮才会等高。 */
+footer.site .foot-ico,
+footer.site .foot-tools .pal > summary {
+  box-sizing: border-box;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 2.15rem; height: 2.15rem;
+  padding: 0; margin: 0;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--bg-elev) 55%, transparent);
+  color: var(--muted);
+  list-style: none;
+  cursor: pointer;
+  transition: color var(--dur-2) var(--ease), border-color var(--dur-2) var(--ease), background var(--dur-2) var(--ease);
+}
+footer.site .foot-tools .pal > summary::-webkit-details-marker { display: none; }
+footer.site .foot-ico:hover,
+footer.site .foot-tools .pal > summary:hover,
+footer.site .foot-tools .pal[open] > summary {
+  color: var(--accent);
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+}
+footer.site .foot-ico svg,
+footer.site .foot-tools .pal .pal-ico {
+  display: block;
+  width: 16px; height: 16px;
+}
+@media (max-width: 380px) {
+  /* 极窄屏（320—380）把法务信息立起来，避免备案号在圆钮旁挤成碎行。 */
+  footer.site .foot-legal { flex-direction: column; gap: .1rem; }
+}
+/* 窄屏不再有页脚入口，右下角浮钮也在这个断点隐藏 —— 手机端彻底不出现「回到顶部」。 */
 @media (max-width: 1000px) {
   .to-top { display: none; }
-  footer.site a.foot-top { display: inline-flex; }
 }
 
 /* 笔记列 */

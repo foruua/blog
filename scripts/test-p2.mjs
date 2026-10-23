@@ -146,11 +146,11 @@ const page = await (await fetch(`${BASE}/p/${SLUG}/`)).text();
     /<a class="to-top" href="#top" aria-label="回到顶部"[^>]*><span aria-hidden="true">↑<\/span><\/a>/.test(body), '');
   check('T63b 按钮在 #app 之外（换页不会被重建）',
     body.indexOf('class="to-top"') < body.indexOf('<div id="app">'), '');
-  check('T64 浮钮仅宽屏常驻；≤1000 隐藏，由页脚「回到顶部」兜底',
+  check('T64 浮钮仅宽屏常驻；≤1000 隐藏，页脚不再重复「回到顶部」',
     /html\.has-js \.to-top \{[^}]*opacity: 0/.test(css)
     && !/^\.to-top \{[^}]*opacity: 0/m.test(css)
     && /@media \(max-width: 1000px\)\s*\{[^}]*\.to-top\s*\{\s*display:\s*none;\s*\}/.test(css)
-    && /class="foot-top" href="#top"/.test(body), '');
+    && !/class="foot-top"/.test(body), '');
   check('T65 滚过一屏就浮现，且用 rAF 节流',
     /\.to-top\.show/.test(css) && /requestAnimationFrame/.test(js)
     && /scrollY > window\.innerHeight\b/.test(js), '');
@@ -437,9 +437,9 @@ const page = await (await fetch(`${BASE}/p/${SLUG}/`)).text();
     uiJs.includes('pal-tm') && uiJs.includes('__theme') && !js.includes('themeToggle'));
   const homeFoot = await (await fetch(`${BASE}/`)).text();
   const postFoot = await (await fetch(`${BASE}/p/${SLUG}/`)).text();
-  check('T10b 页脚有进后台的入口：新窗口打开 + noopener（首页与文章页都有）',
-    homeFoot.includes('<a href="/admin" target="_blank" rel="noopener"')
-    && postFoot.includes('<a href="/admin" target="_blank" rel="noopener"'), '');
+  check('T10b 页脚不再放后台入口（低频操作不占页脚）',
+    !/<footer class="site">[\s\S]*?href="\/admin"[\s\S]*?<\/footer>/.test(homeFoot)
+    && !/<footer class="site">[\s\S]*?href="\/admin"[\s\S]*?<\/footer>/.test(postFoot), '');
   check('T11 增强层不再拉搜索结果', !js.includes('/api/search'));
 }
 

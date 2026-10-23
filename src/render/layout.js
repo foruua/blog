@@ -163,6 +163,8 @@ const searchDrawerForm = () => `<form class="s-drawer-form" action="/search" met
 // 服务端不生成那段 CSS。初始值取当前生效预设 —— 从「青瓷」滑进自定义时观感要接得上，不能一拖就跳色。
 // 入口图标是「右半实心的圆」：明暗 + 色调这对语义一眼可读，14px 缩下去仍是实心/空心的对比（调色盘那种细线会糊）。
 const PAL_ICO = '<svg class="pal-ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="10" cy="10" r="7.2"/><path d="M10 2.8a7.2 7.2 0 0 0 0 14.4z" fill="currentColor" stroke="none"/></svg>';
+// 页脚订阅入口：同一块 20 格画布、1.6 描边。点 + 两道弧，缩到 16px 也读得出是 RSS。
+const RSS_ICO = '<svg class="foot-ico-svg" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="5.1" cy="14.9" r="1.35" fill="currentColor" stroke="none"/><path d="M4.2 10.2a5.6 5.6 0 0 1 5.6 5.6"/><path d="M4.2 4.6A11.2 11.2 0 0 1 15.4 15.8"/></svg>';
 
 // 明暗三态的三枚图标：与 PAL_ICO 同一格画布、同一描边，缩到 16px 仍是实心/空心的对比。
 // 名称不写进按钮里 —— 图标就是那一格的全部内容，名称只留给读屏（aria-label）与悬停（title）。
@@ -211,10 +213,10 @@ const PAL_WHERE = {
 const palettePickerHtml = (palDefault = '', where = 'footer') => {
   const cur = PALETTES.find((p) => p.key === palDefault) ?? PALETTES[0];
   const [id, cls] = PAL_WHERE[where] ?? PAL_WHERE.footer;
-  // 页脚纯文字：不带图标（那一排字里只有它带图标会显得突兀）。
-  const ico = where === 'footer' ? '' : PAL_ICO;
+  // 页脚只剩两枚图标，配色也是其中一枚：不写字，当前色名照旧进 aria-label；抽屉里仍带文字。
+  const txt = where === 'footer' ? '' : '<span class="pal-txt">配色</span>';
   return `<details class="pal${cls}" id="${id}">
-      <summary aria-label="配色（${esc(cur.name)}）">${ico}<span class="pal-txt">配色</span></summary>
+      <summary aria-label="配色（${esc(cur.name)}）" title="配色">${PAL_ICO}${txt}</summary>
       ${palettePanelHtml(cur)}
     </details>`;
 };
@@ -432,14 +434,18 @@ function chromeOf(ctx) {
   </div>
 </header>`,
     drawer: ctx.drawer,
+    // 页脚：左边只留法务细字（© / 备案号），右边两枚图标（RSS / 配色）。
+    // 后台入口与「回到顶部」从页脚撤掉 —— 手机端不再需要第二枚回到顶部（悬浮钮仍按原断点隐藏）。
     footer: `<footer class="site">
-    <div class="row">
-      <span>© ${new Date().getFullYear()}${SITE.author ? ` ${esc(SITE.author)}` : ''}</span>
-      <a href="/feed.xml">RSS</a>
-      <a href="/admin" target="_blank" rel="noopener" title="写作者的控制台">后台</a>
-      ${palettePickerHtml(ctx.palDefault, 'footer')}
-      <a class="foot-top" href="#top">回到顶部</a>
-      ${SITE.icp ? `<a href="https://beian.miit.gov.cn/" rel="nofollow noopener">${esc(SITE.icp)}</a>` : ''}
+    <div class="foot-inner">
+      <div class="foot-legal">
+        <span>© ${new Date().getFullYear()}${SITE.author ? ` ${esc(SITE.author)}` : ''}</span>
+        ${SITE.icp ? `<a class="foot-icp" href="https://beian.miit.gov.cn/" rel="nofollow noopener">${esc(SITE.icp)}</a>` : ''}
+      </div>
+      <nav class="foot-tools" aria-label="页脚工具">
+        <a class="foot-ico" href="/feed.xml" aria-label="RSS 订阅" title="RSS 订阅">${RSS_ICO}</a>
+        ${palettePickerHtml(ctx.palDefault, 'footer')}
+      </nav>
     </div>
   </footer>`,
     emoji: ctx.emojiTpl,

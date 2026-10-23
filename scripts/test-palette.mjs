@@ -72,7 +72,7 @@ function mount({ seed = {}, lazyPalette = false } = {}) {
 // 宽屏那份入口在页脚（#palettePickerF），窄屏那份在抽屉（#palettePickerM）。行为测试统一驱动页脚那份：
 // 抽屉那份默认不显示（.mnav 靠 inert + display 控制），而页脚那份与访客实际点的那枚完全同构。
 const pickerOf = (w) => w.document.getElementById('palettePickerF');
-// 入口文字恒为「配色」，当前是哪套写在 aria-label 的括号里（「配色（青瓷）」）—— 摘要不再随色名伸缩。
+// 页脚入口只留图标，当前是哪套写在 aria-label 的括号里（「配色（青瓷）」）—— 圆钮不随色名伸缩。
 const pickedName = (w) => {
   const label = pickerOf(w)?.querySelector('summary')?.getAttribute('aria-label') || '';
   const m = /^配色（(.+)）$/.exec(label);
@@ -136,17 +136,18 @@ await test('THEME_BOOT 白名单与 PALETTES 一致（含恢复语句，白名�
   assert.ok(THEME_BOOT.includes("localStorage.getItem('palette')"));
 });
 
-await test('「配色」入口：页脚一份 + 抽屉一份，摘要恒为「配色」，明暗三态在上、选项数与清单一致、色样带双点', () => {
+await test('「配色」入口：页脚一份 + 抽屉一份，页脚只留图标、抽屉图标+文字，明暗三态在上、选项数与清单一致、色样带双点', () => {
   const html = layout({ title: '测试', main: '<p>x</p>', canonical: '/' });
   // 宽屏那枚在页脚；页头导航里没有它 —— 配色是低频偏好，放页脚不占导航（test-search 的 M8f 钉着同一条）。
   assert.match(html, /<details class="pal pal-foot" id="palettePickerF">/, '页脚里没有配色入口');
   const nav = /<nav class="nav" aria-label="主导航">[\s\S]*?<\/nav>/.exec(html)?.[0] ?? '';
   assert.doesNotMatch(nav, /class="pal/, '配色入口不该回到页头导航里');
   assert.doesNotMatch(html, /id="themeToggle"/, '页脚那枚明暗按钮应该已经退休（明暗进了配色面板）');
-  // 摘要文字恒为「配色」，当前是哪套进 aria-label —— 入口不再随色名变长变短。
-  // 页脚那份是纯文字（那一排字里只有它带图标会显得突兀），抽屉那份才带图标。
-  assert.match(html, /<summary aria-label="配色（素笺）"><span class="pal-txt">配色<\/span><\/summary>/);
-  assert.match(html, /<details class="pal pal-drawer" id="palettePickerM">[\s\S]*?<summary aria-label="配色（素笺）"><svg class="pal-ico"/);
+  // 页脚那份只剩图标（与 RSS 并排），当前是哪套仍进 aria-label；抽屉那份才是图标 + 文字。
+  assert.match(html, /<details class="pal pal-foot" id="palettePickerF">\s*<summary aria-label="配色（素笺）" title="配色"><svg class="pal-ico"/);
+  const footPicker = /<details class="pal pal-foot"[\s\S]*?<\/details>/.exec(html)?.[0] ?? '';
+  assert.doesNotMatch(footPicker, /pal-txt/, '页脚配色入口不该再带文字');
+  assert.match(html, /<details class="pal pal-drawer" id="palettePickerM">[\s\S]*?<summary aria-label="配色（素笺）"(?: title="配色")?><svg class="pal-ico"/);
   // 入口不再挂当前色样：选中态只由面板里的 ✓ 表示
   assert.doesNotMatch(html, /pal-dot/);
   assert.doesNotMatch(html, /<summary>素笺<\/summary>/);
@@ -220,11 +221,12 @@ await test('点青瓷：立即生效、写 localStorage、面板保持打开、�
   } finally { dom.window.close(); }
 });
 
-await test('入口文字恒为「配色」，当前色名只进 aria-label（首帧就对齐，不用打开面板）', async () => {
+await test('入口只留图标，当前色名只进 aria-label（首帧就对齐，不用打开面板）', async () => {
   const { dom, w } = mount({ seed: { palette: 'ziteng' } });
   try {
     const summary = pickerOf(w).querySelector('summary');
-    assert.equal(summary.textContent, '配色', '入口文字不该再随色名变');
+    assert.equal(summary.textContent.trim(), '', '页脚入口只留图标，不再带文字');
+    assert.ok(summary.querySelector('.pal-ico'), '页脚配色入口缺图标');
     assert.equal(pickedName(w), '紫藤', 'ui.js 首帧没把访客的色名写进 aria-label');
   } finally { dom.window.close(); }
 });
