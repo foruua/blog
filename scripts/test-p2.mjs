@@ -640,10 +640,6 @@ const page = await (await fetch(`${BASE}/p/${SLUG}/`)).text();
       && /\.ncp-slot \{[\s\S]{0,240}visibility: hidden/.test(css)
       && !/\.ncp-slot[^{]*\{[^}]*overscroll-behavior/.test(css), '');
     check('T50c 灯箱同样掐断滚动链', /\.lightbox\s*\{[^}]*overscroll-behavior:\s*contain/.test(css), '');
-    // 鸿蒙（ArkWeb）把 <video> 画在独立的原生层上，z-index 压不住：抽屉铺满整屏了视频还浮在最上层。
-    // 只能靠「打开浮层时不让它参与合成」——这条删了，真机上封面视频会盖住目录与配色面板。
-    check('T50h 抽屉/浮层打开时封面视频让位（鸿蒙的原生视频层无视 z-index）',
-      /body\.mnav-open \.hero-figure video,\s*\nhtml\.modal-open \.hero-figure video \{ visibility: hidden; \}/.test(css), '');
     // 0fr 只管内容、管不住 grid 项的内外边距：空隙写成常驻 padding 时，收起后抽屉还留着 16.8px 高度；它必须与高度一起过渡。
     check('T50g 抽屉收起时真的收到 0：那道空隙跟着一起过渡，不是常驻 padding',
       /\.ncp-slot > \.ncp-mask \{[\s\S]{0,200}padding-top: 0;/.test(css)

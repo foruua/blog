@@ -352,26 +352,7 @@
     clearTimeout(video.__heroPendingTimer);
     video.__heroPendingTimer = 0;
   };
-  /* 临时诊断（?herodbg=1）：鸿蒙上「不播 / 文字被视频盖住」光靠猜改不动，
-     把 UA、readyState、paused、error、每次 play() 的结果摊在页面顶部，截图即可定位。
-     不带这个参数时一行都不执行，也不建节点。 */
-  const heroDebugOn = /[?&]herodbg=1\b/.test(location.search);
-  let heroDbgBox = null;
-  const heroDbg = (line) => {
-    if (!heroDebugOn) return;
-    if (!heroDbgBox) {
-      heroDbgBox = document.createElement('pre');
-      heroDbgBox.id = 'herodbg';
-      heroDbgBox.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:2147483647;margin:0;padding:6px 8px;'
-        + 'font:11px/1.45 ui-monospace,Menlo,monospace;background:rgba(0,0,0,.82);color:#fff;white-space:pre-wrap;pointer-events:none';
-      const navType = performance.getEntriesByType?.('navigation')?.[0]?.type ?? '?';
-      heroDbgBox.textContent = `UA: ${navigator.userAgent}\nnav: ${navType} vis: ${document.visibilityState}\n`;
-      document.body.append(heroDbgBox);
-    }
-    const lines = `${heroDbgBox.textContent}${line}\n`.split('\n');
-    heroDbgBox.textContent = lines.slice(-14).join('\n');
-  };
-  const playHeroVideo = (video, { reset = false } = {}) => {
+  const playHeroVideo = (video, { gesture = false } = {}) => {
     if (!video?.isConnected || !heroAutoplayAllowed() || !heroVideoActive(video)) return;
     // 属性在部分内核里不足以让自动播放生效；muted 必须在 play() 之前就是 true。
     video.muted = true;
@@ -379,34 +360,29 @@
     video.loop = true;
     video.playsInline = true;
     video.setAttribute('webkit-playsinline', 'webkit-playsinline');
-    // 只有用户手势（或页面重新可见）能解除「策略拦截」；同一时间只允许一个 play() 在飞，但不要用 paused 做门槛：
+    // 只有用户手势能解除「策略拦截」；同一时间只允许一个 play() 在飞，但不要用 paused 做门槛：
     // 有的内核在起播被拦时 paused 已经是 false，用 paused 判断会误以为「已经在播」而永远不再重试。
-    // reset 只清「被拦」标记，不动 __heroPending —— 重叠的 play() 会把鸿蒙上尚未落定的起播请求顶掉。
-    if (reset) video.__heroBlocked = false;
+    if (gesture) video.__heroBlocked = false;
     if (video.__heroPending) return;
     if (video.__heroBlocked) { armHeroGesture(); return; }
     video.__heroPending = true;
-    heroDbg(`play → rs=${video.readyState} paused=${video.paused} t=${video.currentTime.toFixed(2)}`);
     let played;
     try {
       played = video.play();
     } catch {
       settleHeroPlay(video);
       video.__heroBlocked = true;
-      retryHeroOnce(video);
       armHeroGesture();
       return;
     }
     if (!played || typeof played.then !== 'function') { settleHeroPlay(video); return; }
     played.then(
-      () => { settleHeroPlay(video); video.__heroBlocked = false; video.__heroStarted = !video.paused; heroDbg(`play ok → paused=${video.paused}`); },
+      () => { settleHeroPlay(video); video.__heroBlocked = false; video.__heroStarted = !video.paused; },
       (error) => {
         settleHeroPlay(video);
-        heroDbg(`play err → ${error?.name ?? error} rs=${video.readyState} err=${video.error?.code ?? '-'}`);
         // 只有自动播放策略拦截需要等手势；其它错误（AbortError、解码失败）交给 canplay / 看门狗。
         if (error && error.name === 'NotAllowedError') {
           video.__heroBlocked = true;
-          retryHeroOnce(video);
           armHeroGesture();
         }
       },
@@ -414,27 +390,8 @@
     // 个别内核会返回一个永不落定的 Promise：留超时，别让 __heroPending 永久卡死。
     video.__heroPendingTimer = setTimeout(() => settleHeroPlay(video), HERO_PLAY_TIMEOUT_MS);
   };
-  const playHeroVideos = (opts) => {
-    for (const video of heroAutoplayVideos) playHeroVideo(video, opts);
-  };
-  /* 冷启动（从浏览器起始页、恢复的会话进来）时首个 play() 常被策略拒掉，而手动刷新同一页却正常 ——
-     鸿蒙上稳定复现，说明那次拒绝多半是"内核还没准备好"，不是真的需要手势。
-     补两次：1.5 秒（拒得快的场景）与 5.5 秒（play() 一直不落定、等 5 秒兜底清掉 pending 之后）。
-     两次都走 __heroPending 闸门 —— 重叠 play() 正是这个内核上"越补越不播"的原因，宁可少补也不能叠。 */
-  const HERO_RETRY_STEPS = [1500, 5500];
-  const retryHeroOnce = (video) => {
-    if (video.__heroRetryTimer) return;
-    const step = video.__heroRetryStep ?? 0;
-    if (step >= HERO_RETRY_STEPS.length) return;
-    video.__heroRetryStep = step + 1;
-    video.__heroRetryTimer = setTimeout(() => {
-      video.__heroRetryTimer = 0;
-      if (!video.isConnected || video.__heroStarted) return;
-      video.__heroBlocked = false;   // 冷启动那次被拒是暂时的，再给一次机会
-      heroDbg(`retry#${video.__heroRetryStep} rs=${video.readyState} paused=${video.paused}`);
-      playHeroVideo(video);
-      retryHeroOnce(video);          // 还没起来就排下一次；起来了 __heroStarted 会挡住
-    }, HERO_RETRY_STEPS[step]);
+  const playHeroVideos = (gesture = false) => {
+    for (const video of heroAutoplayVideos) playHeroVideo(video, { gesture });
   };
   const armHeroGesture = () => {
     if (heroGestureController || typeof AbortController !== 'function') return;
@@ -444,38 +401,13 @@
       controller.abort();
       if (heroGestureController === controller) heroGestureController = null;
       // 手势到来：解除策略拦截标记再试；正在起播的那次仍然不打断。
-      playHeroVideos({ reset: true });
+      playHeroVideos(true);
     };
     for (const type of ['pointerdown', 'touchstart', 'keydown']) {
       document.addEventListener(type, retry, { capture: true, passive: true, signal: controller.signal });
     }
   };
   const stopHeroWatchdog = () => { if (heroWatchdog) { clearInterval(heroWatchdog); heroWatchdog = null; } };
-  /* 鸿蒙上见过一种「假播」：play() 已 resolve、paused 是 false，但 currentTime 一直停在 0，
-     原生层还盖着一枚播放键 —— 只看 paused 的看门狗永远修不到（用户冷启动实测就是这个状态）。
-     这里改看「时间有没有走」：上一拍记到的时间没往前，就 pause() + play() 踢一脚（只踢，不 seek）。
-     只处理 paused=false 的那一支：真的暂停了交给上面那条恢复逻辑，别跟用户的操作抢。 */
-  const kickIfStalled = (video) => {
-    if (video.paused || video.ended || video.seeking || video.readyState < 2) { video.__heroT = -1; return; }
-    const last = video.__heroT;
-    video.__heroT = video.currentTime;
-    if (!(last >= 0)) return;                      // 第一拍只记基线
-    if (video.currentTime > last + 0.05) return;   // 在走，正常
-    if ((video.__heroKicks ?? 0) >= 5) return;     // 踢过 5 次还不行就放手，留给用户点播放
-    const kicks = (video.__heroKicks ?? 0) + 1;
-    video.__heroKicks = kicks;
-    video.__heroStarted = false;
-    video.__heroBlocked = false;
-    video.__heroPending = false;                   // 卡住的那次请求不会再落定，清掉闸门才能重踢
-    try {
-      // 前两次只是 pause+play（轻）；还卡着就 load() 重来一遍 —— 原生播放器与 DOM 脱钩时，
-      // 只有重新装载能把它们拉回同一状态（文件在缓存里，重载不额外走流量）。
-      if (kicks >= 3) video.load();
-      else video.pause();
-    } catch { /* 有的内核此时 pause/load 会抛，忽略 */ }
-    heroDbg(`kick#${kicks} t=${video.currentTime.toFixed(2)} rs=${video.readyState}`);
-    playHeroVideo(video);
-  };
   /* 看门狗只管 auto 封面，而且只在「已经能播却停住」时补一次 play()：加载中不碰，
      被策略拦下也不碰（等手势），避免把尚未落定的起播请求顶掉。ended / 播到最后一帧停住时回到开头。 */
   const ensureHeroPlayback = () => {
@@ -493,21 +425,15 @@
       // 只恢复「确实起播过、后来被系统打断」的视频；首次起播交给 canplay / 手势，避免反复 play() 顶掉加载。
       if (video.__heroStarted && video.paused && !video.__heroPending && !video.__heroBlocked && video.readyState >= 3) {
         playHeroVideo(video);
-        continue;
       }
-      kickIfStalled(video);
     }
   };
   function setupHeroAutoplay(root = document) {
     if (!heroPageEventsBound) {
       heroPageEventsBound = true;
-      // 页面重新可见：当成一次全新的起播机会 —— 上一次「被策略拦下」的标记必须清掉，
-      // 否则后台那次失败的尝试会把后面所有重试都短路掉（「关掉浏览器再进就不自动播」正是这条路径）。
-      document.addEventListener('visibilitychange', () => { if (!document.hidden) playHeroVideos({ reset: true }); });
-      // bfcache 回退不一定发 visibilitychange，补一次 pageshow —— 但**只认 persisted**：
-      // 普通加载也会发 pageshow（persisted=false），那时首屏那次 play() 往往还没落定，
-      // 再补一次会把它顶掉（鸿蒙上表现为「首访干脆不播」）。
-      addEventListener('pageshow', (event) => { if (event.persisted) playHeroVideos({ reset: true }); });
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) playHeroVideos(); });
+      // bfcache 回退不一定会发 visibilitychange，补一次 pageshow。
+      addEventListener('pageshow', () => playHeroVideos());
     }
     if (heroGestureController) { heroGestureController.abort(); heroGestureController = null; }
     heroAutoplayVideos = [...root.querySelectorAll('.hero-figure video')]
@@ -541,17 +467,9 @@
         });
       }
       playHeroVideo(video);
-      retryHeroOnce(video);
     }
     armHeroGesture();
     if (!heroWatchdog) heroWatchdog = setInterval(ensureHeroPlayback, 1500);
-    if (heroDebugOn) {
-      setInterval(() => {
-        const v = heroAutoplayVideos[0];
-        if (!v) return;
-        heroDbg(`state rs=${v.readyState} paused=${v.paused} t=${v.currentTime.toFixed(2)} err=${v.error?.code ?? '-'} net=${v.networkState}`);
-      }, 800);
-    }
   }
 
   /* 首页轮播（多于一张图才渲染）。自动模式 5 秒一张，悬停/聚焦/切走标签页/「减弱动态效果」暂停。 */

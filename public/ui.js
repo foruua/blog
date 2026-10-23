@@ -1,9 +1,5 @@
 (() => {
   'use strict';
-  // 鸿蒙自带浏览器（ArkWeb）把 <video> 画在独立的原生层上：页面内容压不住它 —— 封面文字会被视频盖住、
-  // 抽屉打开时视频还浮在最上层。给 <html> 挂一个类，样式里把封面文字降级到相框下方（见 style.css）。
-  // 用 UA 判断是因为这属于渲染行为差异，没有可探测的 DOM/CSS 特征。
-  if (/\bArkWeb\//i.test(navigator.userAgent)) document.documentElement.classList.add('ua-arkweb');
   const open = (dialog) => {
     if (!dialog.open) {
       window.__prepareScrollLock?.();
