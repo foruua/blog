@@ -298,6 +298,12 @@
       // 先挂标记，让新节点的首次样式计算就落到「不播」那一条（见 style.css html.pjax-swapped），不闪这一下。
       document.documentElement.classList.add('pjax-swapped');
 
+      // 移动内核（尤其鸿蒙）里，被替换掉的 <video> 可能还占着硬件解码器：不先停，新页封面会抢不到资源，
+      // 表现成不自动播或播一遍不循环。只 pause，不动 src，避免触发多余加载/错误事件。
+      container.querySelectorAll('video, audio').forEach(function (media) {
+        try { if (typeof media.pause === 'function') media.pause(); } catch (e) { /* 老内核可能没有 pause */ }
+      });
+
       container.innerHTML = next.innerHTML;
 
       if (push) {
