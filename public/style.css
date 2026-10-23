@@ -2589,8 +2589,12 @@ footer.site .foot-tools .pal .pal-ico {
   display: block;
   width: 16px; height: 16px;
 }
+@media (max-width: 620px) {
+  /* 手机端页脚只留法务细字：RSS 与配色在抽屉里都有入口，不再占页脚一行。 */
+  footer.site .foot-tools { display: none; }
+}
 @media (max-width: 380px) {
-  /* 极窄屏（320—380）把法务信息立起来，避免备案号在圆钮旁挤成碎行。 */
+  /* 极窄屏（320—380）把法务信息立起来，避免备案号挤成碎行。 */
   footer.site .foot-legal { flex-direction: column; gap: .1rem; }
 }
 /* 窄屏不再有页脚入口，右下角浮钮也在这个断点隐藏 —— 手机端彻底不出现「回到顶部」。 */
