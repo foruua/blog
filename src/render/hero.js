@@ -87,6 +87,10 @@ export function heroBlock({ stats = [], imgs = [], layoutKey = '', tone = '', vi
       + `${playing ? ' autoplay' : ''} preload="${clickMode ? (active || !slide ? 'metadata' : 'none') : (playing ? 'metadata' : 'none')}"`
       // 老内核（鸿蒙自带、X5/WebView）只认这个内联播放标记；脚本还会再补一次并显式 play()。
       + ' webkit-playsinline'
+      // 画中画与远程播放是「系统另起一层播放器」的两条合法入口：鸿蒙自带浏览器在首帧还没解出来时
+      // 会顺着它们把播放句柄交给系统播放器，于是视频叠在网页上方播，下载完也不交还。
+      // 封面是装饰性的静音循环，关掉投屏/PiP 不损失可用性。
+      + ' disablepictureinpicture disableremoteplayback'
       + ` data-video-mode="${videoMode}"${clickMode ? '' : lightboxAttrs(im)} aria-label="${esc(heroAlt)}"></video>`;
     const expand = clickMode
       ? `<a class="hero-expand" href="${esc(im.path)}" target="_blank" rel="noopener"${lightboxAttrs(im)} aria-label="在灯箱中播放视频">${expandIcon}</a>`
