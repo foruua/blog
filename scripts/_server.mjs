@@ -5,6 +5,7 @@ import net from 'node:net';
 import { spawn } from 'node:child_process';
 import { DatabaseSync } from 'node:sqlite';
 import { once } from 'node:events';
+import { hasFixtures } from './_fixtures.mjs';
 
 function freePort() {
   return new Promise((resolve, reject) => {
@@ -34,7 +35,7 @@ function cloneDb(src, clearTables = ['comments', 'mail_outbox']) {
   return { dir, dst };
 }
 
-export async function startServer({ env = {}, isolateDb = false, timeoutMs = 20000 } = {}) {
+export async function startServer({ env = {}, isolateDb, timeoutMs = 20000 } = {}) {
   const port = await freePort();
   const base = `http://127.0.0.1:${port}`;
 
@@ -52,8 +53,14 @@ export async function startServer({ env = {}, isolateDb = false, timeoutMs = 200
   };
   // dbFile 一律绝对路径：相对 "data/blog.db" 就是真实库，当临时副本写会改掉用户数据（ui-audit 出过事故）。
   childEnv.DB_FILE = path.resolve(childEnv.DB_FILE ?? 'data/blog.db');
+  // 默认要不要再克隆一份：已经在 fixture 临时根里（_fixtures 给每个套件建的私有目录）就不必克隆 ——
+  // 再克隆一次还会 DELETE comments，把 fixture 预置的评论静默丢掉。只有直接对着 data/blog.db 跑
+  // （手工执行某个套件、没走 _test-env）才需要副本。需要「干净评论表」的套件显式传 true。
+  const isolate = isolateDb ?? !hasFixtures();
   let tmp = null;
-  if (isolateDb) {
+  // 源库还不存在（全新 DATA_DIR）时没什么可克隆的：让服务自己建库并迁移，
+  // 别去 VACUUM 一个不存在的文件（以前会直接抛 unable to open database file）。
+  if (isolate && fs.existsSync(childEnv.DB_FILE)) {
     tmp = cloneDb(childEnv.DB_FILE);
     childEnv.DB_FILE = tmp.dst;
   }

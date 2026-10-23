@@ -7,7 +7,7 @@ import { open, close } from '../db/driver.js';
 import { createRepo } from '../db/repo.js';
 
 const { check, report } = createChecker();
-const srv = await startServer({ isolateDb: true, env: { FEED_REFRESH_MS: '0', LINK_CHECK_MS: '0' } });
+const srv = await startServer({ env: { FEED_REFRESH_MS: '0', LINK_CHECK_MS: '0' } });
 const db = open(srv.dbFile);
 const repo = createRepo(db);
 

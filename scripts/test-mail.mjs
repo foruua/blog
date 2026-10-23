@@ -88,7 +88,7 @@ function decodePart(raw, type) {
 const decodeBody = (raw) => decodePart(raw, 'text/plain');
 const decodeHtml = (raw) => decodePart(raw, 'text/html');
 
-const { createChecker } = await import('./_check.mjs');
+const { createChecker, waitFor } = await import('./_check.mjs');
 const { check, report } = createChecker();
 
 const PASSWORD = requireAdminPassword('test-mail.mjs');
@@ -331,7 +331,7 @@ try {
 
       const pageR = await text('/admin/comments');
       const rApprove = await postForm(`/admin/comments/${replyId}`, { _csrf: csrfOf(pageR), status: 'approved' });
-      await sleep(500);
+      await waitFor(() => smtpA.received.length === before + 1, { timeoutMs: 4000 });
       check('T5o 读者回复通过审核后，会给被回复的人发提醒',
         rApprove.status === 303 && smtpA.received.length === before + 1,
         `status=${rApprove.status} 新信 ${smtpA.received.length - before} 封`);
@@ -381,7 +381,7 @@ try {
       const stillOn = mkReply('只打开过退订页，不该被退订');
       const beforeStillOn = smtpA.received.length;
       await approve(stillOn);
-      await sleep(500);
+      await waitFor(() => smtpA.received.length === beforeStillOn + 1, { timeoutMs: 4000 });
       check('T5v 只打开退订页不会退订（预取链接是安全的）', smtpA.received.length === beforeStillOn + 1,
         `收到 ${smtpA.received.length - beforeStillOn} 封`);
 
@@ -409,7 +409,7 @@ try {
       const resumed = mkReply('撤销后应该能收到');
       const beforeResumed = smtpA.received.length;
       await approve(resumed);
-      await sleep(500);
+      await waitFor(() => smtpA.received.length === beforeResumed + 1, { timeoutMs: 4000 });
       check('T5z 撤销后确实又能收到提醒', smtpA.received.length === beforeResumed + 1,
         `收到 ${smtpA.received.length - beforeResumed} 封`);
 
@@ -434,7 +434,7 @@ try {
       const beforeDeep = smtpA.received.length;
       const pageD = await text('/admin/comments');
       await postForm(`/admin/comments/${deepId}`, { _csrf: csrfOf(pageD), status: 'approved' });
-      await sleep(500);
+      await waitFor(() => smtpA.received.length === beforeDeep + 1, { timeoutMs: 4000 });
       const deepLetter = smtpA.received.at(-1) ?? '';
       check('T5p2 回复「一条回复」时，提醒发给那条回复的作者（不落到根评论作者）',
         smtpA.received.length === beforeDeep + 1
@@ -463,7 +463,7 @@ try {
           body: JSON.stringify({ slug: livePost.slug, author: '老读者', email: EMAIL, body: '免审直发的这一条。', ts: tsTrust, hp_fax: '' }),
         });
         const bodyLive = await resLive.json().catch(() => ({}));
-        await sleep(600);
+        await waitFor(() => smtpA.received.length === beforeLive + 1, { timeoutMs: 4000 });
         const liveId = Number(db.prepare('SELECT id FROM comments ORDER BY id DESC LIMIT 1').get()?.id ?? 0);
 
         check('T5z1 老读者同昵称和邮箱提交 → 直接发布（不再排队）',
@@ -537,7 +537,7 @@ try {
           body: JSON.stringify({ slug: pageSlug, author: '凌云', email: 'page-reader@example.com', body: '测试数据库和', ts: tsPage, hp_fax: '' }),
         });
         const bodyPage = await resPage.json().catch(() => ({}));
-        await sleep(600);
+        await waitFor(() => smtpA.received.length === beforePage + 1, { timeoutMs: 4000 });
         check('T5ab 固定页上的评论能提交',
           resPage.status === 200 && bodyPage.status === 'pending', `${resPage.status} ${bodyPage.status}`);
         check('T5ac 固定页的评论也通知站主',
@@ -562,7 +562,7 @@ try {
         const beforePageReply = smtpA.received.length;
         const pageAdmin = await text('/admin/comments');
         await postForm(`/admin/comments/${pageReplyId}`, { _csrf: csrfOf(pageAdmin), status: 'approved' });
-        await sleep(500);
+        await waitFor(() => smtpA.received.length === beforePageReply + 1, { timeoutMs: 4000 });
         const replyBody = decodeBody(smtpA.received.at(-1) ?? '');
         const replyHref = (/查看完整讨论：(\S+)/.exec(replyBody) ?? [])[1] ?? '';
         check('T5af 回复通知里的链接落在固定页自己的地址上（不是 404 的 /p/<slug>/）',

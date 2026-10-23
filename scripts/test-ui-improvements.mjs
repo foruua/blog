@@ -1,16 +1,16 @@
+import { launchBrowser, loginAdminPage } from './_browser.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import http from 'node:http';
 import { BLANK_PNG } from '../src/avatar/cache.js';
 import { DatabaseSync } from 'node:sqlite';
-import { chromium } from 'playwright';
 import { createFixtures } from './_fixtures.mjs';
 import { startServer } from './_server.mjs';
 import { PROBE } from './ui-audit.mjs';
 
 const fixtures = await createFixtures();
 const srv = await startServer({ env: { ...fixtures.env, FEED_ALLOW_PRIVATE: 'true' } });
-const browser = await chromium.launch();
+const browser = await launchBrowser();
 const db = new DatabaseSync(fixtures.env.DB_FILE);
 try {
   db.prepare("UPDATE posts SET draft=1 WHERE slug='fixture-1'").run();
@@ -259,9 +259,7 @@ try {
 
   // 后台列表的「分隔线同宽」踩过两次坑：删掉友圈题注后首行上方多一截空白；工具行那条线只横跨版心、比行分割线短 25.6px（行是 -.8rem 出血）。
   await page.setViewportSize({ width: 1280, height: 900 });
-  await page.goto(srv.base + '/admin/login');
-  await page.fill('[name=password]', fixtures.env.ADMIN_PASSWORD);
-  await Promise.all([page.waitForURL('**/admin'), page.click('button[type=submit]')]);
+  await loginAdminPage(page, srv.base, fixtures.env.ADMIN_PASSWORD);
   for (const [name, url, barSel, rowSel] of [
     ['友圈', '/admin/feeds', '.a-feeds-bar', '.a-feed'],
     ['友链', '/admin/links', '.a-links-tools', '.a-fl'],

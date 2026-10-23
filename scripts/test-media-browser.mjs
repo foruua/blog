@@ -1,8 +1,8 @@
+import { launchBrowser, loginAdminPage } from './_browser.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import sharp from 'sharp';
-import { chromium } from 'playwright';
 import { createFixtures } from './_fixtures.mjs';
 import { startServer } from './_server.mjs';
 import { normalizeImage } from '../src/media/image.js';
@@ -33,7 +33,7 @@ try {
   for(const [kind,slug] of [['posts','media-check'],['notes','media-note']]) fs.writeFileSync(path.join(fixtures.env.CONTENT_DIR,kind,slug+'.md'),`---\ntitle: 图片验证\nslug: ${slug}\ndate: 2026-01-01\n---\n${body}\n`);
   const postId = repo.getPost('why-single-column').id;
   close(db);
-  server=await startServer({env:fixtures.env}); browser=await chromium.launch({headless:true});
+  server=await startServer({env:fixtures.env}); browser=await launchBrowser({headless:true});
   const liveDb=open(fixtures.env.DB_FILE);
   try { liveDb.prepare("UPDATE posts SET body_html=body_html || ? WHERE slug='media-check'").run(`<p><img src="${server.base}/uploads/tiny.png" alt="绝对地址"></p>`); }
   finally { close(liveDb); }
@@ -70,7 +70,7 @@ try {
         }
       }
     }
-    await page.goto(server.base+'/admin/login'); await page.fill('[name=password]',fixtures.env.ADMIN_PASSWORD); await page.click('button[type=submit]'); await page.waitForURL('**/admin');
+    await loginAdminPage(page, server.base, fixtures.env.ADMIN_PASSWORD);
     for(const route of ['/admin/media',`/admin/media/${firstId}`,'/admin/system']) {
       originalRequests.length=0; await page.goto(server.base+route,{waitUntil:'networkidle'}); assert.deepEqual(originalRequests,[],route);
     }

@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { websiteHost } from '../src/util/url.js';
 
@@ -56,6 +57,13 @@ export function migrate(db, { log = console.log } = {}) {
     name       TEXT NOT NULL,
     applied_at TEXT NOT NULL DEFAULT (datetime('now'))
   )`);
+  // 迁移内容哈希：SQLite 只记版本号，历史迁移被人改过不会有任何提示 —— 已应用的库不重跑，
+  // 新库却按改后的内容建表，两边的 schema 会悄悄分叉。这里记下首跑时的内容，之后对不上就告警。
+  const versionColumns = new Set(db.prepare('PRAGMA table_info(schema_version)').all().map((c) => c.name));
+  if (!versionColumns.has('checksum')) db.exec('ALTER TABLE schema_version ADD COLUMN checksum TEXT');
+  const storedChecksums = new Map(
+    db.prepare('SELECT version, checksum FROM schema_version').all().map((r) => [r.version, r.checksum]),
+  );
 
   const done = new Set(db.prepare('SELECT version FROM schema_version').all().map(r => r.version));
   if (done.has(1) && !done.has(12) && !done.has(13)) {
@@ -77,16 +85,26 @@ export function migrate(db, { log = console.log } = {}) {
   let applied = 0;
   try {
     for (const { name: file, version } of files) {
-      if (done.has(version)) continue;
-
       const sql = fs.readFileSync(path.join(DIR, file), 'utf8');
+      const checksum = crypto.createHash('sha256').update(sql).digest('hex');
+      if (done.has(version)) {
+        const stored = storedChecksums.get(version);
+        if (!stored) {
+          // 老库第一次跑到这里：把当前文件内容记成基线，之后再改就比对得出来。
+          db.prepare('UPDATE schema_version SET checksum = ? WHERE version = ?').run(checksum, version);
+        } else if (stored !== checksum) {
+          log(`[migrate] ⚠ 迁移 ${file} 与记录的内容不一致（历史迁移被改过）：已应用的库不会重跑，新建库会按改后的内容建表`);
+        }
+        continue;
+      }
+
       db.exec('BEGIN');
       try {
         db.exec(sql);
         if (db.prepare('PRAGMA foreign_key_check').all().length) {
           throw new Error('出现了悬挂的外键引用');
         }
-        db.prepare('INSERT INTO schema_version(version, name) VALUES(?, ?)').run(version, file);
+        db.prepare('INSERT INTO schema_version(version, name, checksum) VALUES(?, ?, ?)').run(version, file, checksum);
         db.exec('COMMIT');
         done.add(version);
         log(`[migrate] 已应用 ${file}`);

@@ -10,7 +10,10 @@ export function assertDatabaseClosed(file) {
 // WAL 下 NORMAL 是常规选择：应用崩溃不会丢已提交事务，只可能在 OS/断电时丢最后一个 checkpoint 之后的事务；
 // 换来的是每次提交不再强制 fsync。个人博客这一档取舍划算。
 export function open(file) {
-  fs.mkdirSync(path.dirname(file), { recursive: true });
+  // 目录跟着数据库一起收紧到 0700：库里是评论邮箱密文、SMTP 密码与会话密钥，
+  // 默认 0755 会让同机其他用户列目录名（备份/上传子目录一并暴露）。已存在的目录不改权限——
+  // 那是运维自己的选择，别替人改。
+  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
   const db = new DatabaseSync(file);
   db.__file = file;
   connections.set(path.resolve(file), (connections.get(path.resolve(file)) ?? 0) + 1);

@@ -55,6 +55,24 @@ export function configWarnings() {
   if (IS_PROD && process.env.TRUST_PROXY !== 'true') {
     out.push('TRUST_PROXY 未设为 true：若站点跑在反向代理后面，真实客户端 IP 取不到，按 IP 的限流会退化成全站共用');
   }
+  // —— 下面几条都是「照抄 .env.example 上生产」的典型后果：配置能启动，但安全项静默失效 ——
+  // 本机回环地址豁免：测试服务器与 `npm start` 本地调试都跑在 http://127.0.0.1，那里没有可窃听的链路。
+  const isLoopback = /^https?:\/\/(?:127\.0\.0\.1|localhost|\[::1\])(?::\d+)?(?:\/|$)/.test(SITE.url);
+  if (IS_PROD && !isLoopback && !SITE.url.startsWith('https://')) {
+    out.push(`SITE_URL 不是 https（当前 ${SITE.url}）：后台会话 cookie 不带 Secure，登录态可被明文窃取`);
+  }
+  // 与 FEED_ALLOW_PRIVATE 同类：本机 https 调试才该开，生产开着等于把会话保护关掉。
+  if (process.env.COOKIE_INSECURE === 'true') {
+    out.push('COOKIE_INSECURE=true：后台会话 cookie 不带 Secure，只应在本机 https 调试时打开');
+  }
+  if (IS_PROD && !process.env.MONITOR_TOKEN) {
+    out.push('生产环境未设 MONITOR_TOKEN：/healthz 不返回备份状态，监控会一直报「读不到备份状态」');
+  }
+  // 反过来的一种：域名已经上 https，却忘了 NODE_ENV=production —— 看门狗、日志轮转、资源精简、
+  // 监控鉴权全都还停在开发档，而且没有任何一处会报错。
+  if (!IS_PROD && SITE_URL_ENV?.startsWith('https://')) {
+    out.push(`SITE_URL 是 https 但 NODE_ENV 不是 production（当前 ${process.env.NODE_ENV ?? '未设置'}）：看门狗、日志轮转、资源精简与监控鉴权都不会启用`);
+  }
   return out;
 }
 

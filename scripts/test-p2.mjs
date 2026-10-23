@@ -5,7 +5,7 @@ import { open, close } from '../db/driver.js';
 import { SITE } from '../src/config.js';
 
 const { startServer } = await import('./_server.mjs');
-const srv = await startServer({ isolateDb: true });
+const srv = await startServer();
 const BASE = srv.base;
 const db = open(srv.dbFile);
 

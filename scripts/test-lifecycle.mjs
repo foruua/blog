@@ -1,3 +1,4 @@
+import { loginAdminPage } from './_browser.mjs';
 import './_test-env.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -170,8 +171,7 @@ await test('真实浏览器：新建首次自动保存后刷新恢复正文；�
     const page = await browser.newPage();
     page.on('pageerror', (error) => console.error('browser:', error.message));
     page.on('dialog', (dialog) => dialog.accept());
-    await page.goto(server.base + '/admin/login'); await page.locator('[name=password]').fill(process.env.ADMIN_PASSWORD);
-    await Promise.all([page.waitForURL(server.base + '/admin'), page.locator('button[type=submit]').click()]);
+    await loginAdminPage(page, server.base, process.env.ADMIN_PASSWORD);
     await page.goto(server.base + '/admin/new');
     await page.locator('[name=title]').fill('Lifecycle draft'); await page.locator('[name=body]').fill('saved body');
     try { await page.waitForURL(/\/admin\/edit\/\d+$/); } catch (error) { console.error(await page.locator('#a-save-state').textContent()); throw error; }

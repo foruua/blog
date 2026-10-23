@@ -1,9 +1,9 @@
+import { launchBrowser, loginAdminPage } from './_browser.mjs';
 import './_test-env.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { chromium } from 'playwright';
 import { startIsolated } from './ui-audit.mjs';
 
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aD1sAAAAASUVORK5CYII=', 'base64');
@@ -67,7 +67,7 @@ async function lengthen(page) {
 let browser;
 try {
   for (const mode of ['classic-light', 'classic-dark', 'overlay', 'touch']) {
-    browser = await chromium.launch({ headless: true, ...(mode.startsWith('classic') ? { ignoreDefaultArgs: ['--hide-scrollbars'] } : {}) });
+    browser = await launchBrowser({ headless: true, ...(mode.startsWith('classic') ? { ignoreDefaultArgs: ['--hide-scrollbars'] } : {}) });
     const context = await browser.newContext({ viewport: mode === 'touch' ? { width: 390, height: 844 } : { width: 1280, height: 900 }, colorScheme: mode === 'classic-dark' ? 'dark' : 'light', isMobile: mode === 'touch', hasTouch: mode === 'touch' });
     // 每个新文档都要关掉平滑滚动与动画：本套件在多个页面之间跳，一次性 addStyleTag 只覆盖第一次加载的
     // 那张文档，后面的页面又会回到站点默认的 html{scroll-behavior:smooth} —— 那正是"背景位移 3px"的来源。
@@ -85,7 +85,7 @@ try {
     });
     const page = await context.newPage();
     const errors = []; page.on('pageerror', (error) => errors.push(error.message));
-    await page.goto(instance.base + '/admin/login'); await page.fill('[name=password]', instance.password); await page.click('button[type=submit]'); await page.waitForURL('**/admin');
+    await loginAdminPage(page, instance.base, instance.password);
     await page.goto(instance.base + '/admin/pages');
     if (mode.startsWith('classic')) assert.equal((await geometry(page)).gutter, 0, '先进入无滚动条的短页面');
     // 手机内容页的「写页面」收进右下角悬浮按钮（页头动作在 App 壳下隐藏）。

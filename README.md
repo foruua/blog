@@ -4,7 +4,7 @@ Hono + Node.js 内置 SQLite，服务端渲染 Markdown。支持文章、笔记�
 
 ## 启动
 
-需要 Node.js ≥ 22.13.0；CI 覆盖 Node 22 / 24（`.node-version` 固定 24.22.1 LTS），浏览器测试另需 Playwright Chromium。
+需要 Node.js ≥ 22.22.2（`jsdom@30` 的下限；22.13–22.21 能跑站但跑不了测试）；CI 覆盖 Node 22 / 24（`.node-version` 固定 24.22.1 LTS），浏览器测试另需 Playwright Chromium。
 
 ```sh
 npm ci
@@ -124,7 +124,7 @@ npm run drill
 
 附件包按**内容哈希**命名（`<sha>.assets.json.gz`），并被多份备份共享。它占了整份备份的 99%，内容没变时名字、大小、mtime 都不变，rsync 才会真的跳过；跟着备份名走的话每份备份都得重传三十多 MB。清单里的 `assetsName` 记录实际文件名，老备份（`<name>.assets.json.gz`）仍然可恢复。清理时按引用计数回收：只要还有保留的备份指着它，就不会删。
 
-数据库与上传目录含私有数据，发布代码时排除 `data` 和 `.env`。邮件参数见 `src/mail.js`；设置 SMTP 后可在后台系统页测试邮件。评论通知、看门狗与备份告警先写入 `mail_outbox`，失败按 1 分钟 → 5 分钟 → 15 分钟 → 1 小时 → 6 小时退避重试；全局默认每小时最多 30 封（`MAIL_MAX_PER_HOUR`），后台「设置」页能看到待发/失败数量与最近错误，并可手动重试失败邮件。
+数据库与上传目录含私有数据，发布代码时排除 `data` 和 `.env`。邮件参数见 `src/mail.js`；设置 SMTP 后可在后台系统页测试邮件。评论通知、看门狗与备份告警先写入 `mail_outbox`，失败按 1 分钟 → 5 分钟 → 15 分钟 → 1 小时 → 6 小时 → 12 小时 → 24 小时退避重试（共 8 次后转 failed，`src/mail-outbox.js` 的 `RETRY_STEPS`）；全局默认每小时最多 30 封（`MAIL_MAX_PER_HOUR`），后台「设置」页能看到待发/失败数量与最近错误，并可手动重试失败邮件。
 
 评论邮箱与 SMTP 密码用 AES-GCM 加密后落库，密钥默认在 `DATA_DIR/.app-secret`（600 权限），也可用 `APP_SECRET` 或 `APP_SECRET_FILE` 指定。`APP_SECRET` 至少 32 字节，太短会拒绝启动（`node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` 生成一个）。发信队列 `mail_outbox` 的收件人同样以密文保存（`enc:` 前缀），发信时解密；历史明文行在启动时自动补加密。**密钥不在备份里**：恢复备份到新机器时要一并带上这个文件/环境变量，否则旧邮箱和邮件密码解不开；反过来说，备份泄漏也不会顺带泄漏密钥。老库首次启动会自动把 `settings.app_secret` 搬到该文件并删除库内副本。
 

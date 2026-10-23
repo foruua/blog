@@ -1,7 +1,7 @@
+import { launchBrowser, loginAdminPage } from './_browser.mjs';
 import './_test-env.mjs';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
-import { chromium } from 'playwright';
 import { startIsolated } from './ui-audit.mjs';
 
 // 先建独立夹具，再取其副本，测试不依赖用户是否已经配置订阅源。
@@ -18,14 +18,11 @@ try {
 const instance = await startIsolated();
 let browser;
 try {
-  browser = await chromium.launch({ headless: true });
+  browser = await launchBrowser({ headless: true });
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
-  await page.goto(instance.base + '/admin/login');
-  await page.fill('[name=password]', instance.password);
-  await page.click('button[type=submit]');
-  await page.waitForURL('**/admin');
+  await loginAdminPage(page, instance.base, instance.password);
 
   await page.goto(instance.base + '/admin/feeds');
   const opener = page.locator('[data-feed-open]').first();

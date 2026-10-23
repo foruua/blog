@@ -3,10 +3,15 @@
 .env.*
 !.env.example
 /data/
+/state/
+/backups/
 /content/
 /output/
 *.blog-lock/
 .app-secret
+# 私钥与证书：部署/异地备份用的 pem、key 绝不能被误提交
+*.pem
+*.key
 *.pre-restore-*
 .blog-restore-*
 themes/.trash/

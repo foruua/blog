@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import sharp from 'sharp';
-import { chromium } from 'playwright';
+import { launchBrowser } from './_browser.mjs';
 import { createFixtures } from './_fixtures.mjs';
 import { startServer } from './_server.mjs';
 import { normalizeImage } from '../src/media/image.js';
@@ -37,7 +37,7 @@ try {
   close(db);
 
   server = await startServer({ env: fixtures.env });
-  browser = await chromium.launch({ headless: true });
+  browser = await launchBrowser({ headless: true });
   const page = await browser.newPage({ viewport: { width: 1200, height: 800 } });
   const warnings = [];
   page.on('console', (message) => { if (/aria-hidden/.test(message.text())) warnings.push(message.text()); });

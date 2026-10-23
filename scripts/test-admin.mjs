@@ -7,7 +7,7 @@ import { CONTENT_DIR, UPLOADS_DIR, DATA_DIR } from '../src/config.js';
 import { toLocalInput } from '../src/util/text.js';
 
 const { startServer } = await import('./_server.mjs');
-const srv = await startServer({ isolateDb: true });
+const srv = await startServer();
 const BASE = srv.base;
 const DB_FILE = srv.dbFile;
 import { requireAdminPassword } from './_admin-password.mjs';
@@ -94,16 +94,18 @@ console.log('──────────────────────�
   ✗ 后台登录失败，测试无法继续。
 
   按 Location 看是哪一种失败：
-    curl -s -i -X POST -d "password=<.admin-password.txt 里的密码>&to=/admin" \\
+    curl -s -i -X POST -d "password=<ADMIN_PASSWORD>&to=/admin" \\
       http://127.0.0.1:8787/admin/login | grep -i ^location
       → /admin                     成功
       → /admin/login?e=bad         密码与数据库不一致
       → /admin/login?e=limited     登录尝试过于频繁，等 15 分钟再试
 
-  请使用隔离测试密码重新初始化测试数据。
+  口令来自环境变量 ADMIN_PASSWORD：npm test 会为每个套件生成临时口令与临时库，
+  正常情况下不需要手填。单独跑本脚本时自己给一个，别用真实后台密码：
+    ADMIN_PASSWORD=临时口令 node scripts/test-admin.mjs
 
-  修法（会同时更新提示文件，保证不再脱节）：
-    node scripts/set-password.mjs
+  若临时库已经和口令脱节（手工改过 data/blog.db），用隔离数据重跑：
+    npm test -- --only test-admin
 `);
     process.exit(2);
   }

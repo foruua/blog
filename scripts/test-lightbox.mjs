@@ -1,13 +1,13 @@
+import { launchBrowser, loginAdminPage } from './_browser.mjs';
 import './_test-env.mjs';
 import assert from 'node:assert/strict';
 import sharp from 'sharp';
-import { chromium } from 'playwright';
 import { startServer } from './_server.mjs';
 
 const server = await startServer();
 let browser;
 try {
-  browser = await chromium.launch();
+  browser = await launchBrowser();
   const bytes = await sharp({ create: { width: 1200, height: 800, channels: 3, background: '#64748b' } }).png().toBuffer();
   const mount = async (page) => {
     await page.route('**/__lightbox-*', (route) => route.fulfill({ contentType: 'image/png', body: bytes }));
@@ -130,10 +130,7 @@ try {
   assert.deepEqual(errors, []);
   console.log('✓ 手机真实触摸左右切图、循环切换、纵向不误切、双指缩放、放大后拖动与关闭解锁');
 
-  await desktop.goto(server.base + '/admin/login');
-  await desktop.locator('input[name=password]').fill(process.env.ADMIN_PASSWORD);
-  await desktop.locator('button[type=submit]').click();
-  await desktop.waitForURL('**/admin');
+  await loginAdminPage(desktop, server.base, process.env.ADMIN_PASSWORD);
   await desktop.evaluate(() => {
     const link = document.createElement('a'); link.href = '/__lightbox-admin'; link.dataset.mediaOriginal = ''; link.textContent = '测试原图'; document.body.append(link);
   });

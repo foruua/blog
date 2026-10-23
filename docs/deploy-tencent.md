@@ -40,6 +40,7 @@ sudo ln -sfn /opt/node-v24.22.1-linux-x64 /opt/node24
 
 `/opt/node24` 要同时给 systemd 和发布脚本用；两者不一致时，`sharp` 这类原生模块可能按错误的 ABI 安装。
 
+```sh
 # 服务用户；家目录指向 /srv/blog，但代码目录归 root，避免应用改自己的代码
 sudo useradd --system --no-create-home --home-dir /srv/blog --shell /usr/sbin/nologin blog
 sudo install -d -o root -g root -m 755 /srv/blog /srv/blog-releases
@@ -275,7 +276,7 @@ sudo env BLOG_DEPLOY_APP_ROOT=/srv/blog \
   bash /srv/blog-releases/<版本>/next/scripts/deploy-release.sh rollback /srv/blog-releases/<版本>
 ```
 
-发布目录只保留最近两个版本，足够回滚一层；更早的版本会在发布时清理。
+发布目录默认保留最近 5 个版本（`BLOG_DEPLOY_KEEP_RELEASES` 可改，0 = 不清理），回滚可以往回退不止一层。
 
 ## 9. 排错
 

@@ -7,10 +7,18 @@ import path from 'node:path';
 import { JSDOM, VirtualConsole } from 'jsdom';
 
 const { startServer } = await import('./_server.mjs');
-const srv = await startServer({ isolateDb: true });
+const srv = await startServer();
 const BASE = srv.base;
 
-const { createChecker, sleep } = await import('./_check.mjs');
+const { createChecker, sleep, waitFor } = await import('./_check.mjs');
+
+// 令牌层（:root / 明暗 / 配色预设 / 模态锁）在 base.css，组件在 style.css；页面里两张表都加载，
+// 断言按同一顺序拼起来看 —— 规则搬家不该让用例跟着搬家。
+const cssAll = async () => {
+  const [base, style] = await Promise.all(['base.css', 'style.css']
+    .map(async (f) => (await fetch(`${BASE}/${f}`)).text()));
+  return `${base}\n${style}`;
+};
 const { check, report } = createChecker();
 
 async function mount(url, cookie, seed) {
@@ -322,8 +330,8 @@ try {
       revealed.length > 0 && revealed.every((el) => getVisible(el)),
       `${revealed.filter((el) => !getVisible(el)).length} 张未显示`);
     check('T30d 笔记卡片不再错开入场',
-      !/\.notes > \.note-card:nth-child\(2\)\.is-in/.test(await (await fetch(`${BASE}/style.css`)).text()), '');
-    const css = await (await fetch(`${BASE}/style.css`)).text();
+      !/\.notes > \.note-card:nth-child\(2\)\.is-in/.test(await cssAll()), '');
+    const css = await cssAll();
     check('T30i 没有 View Transition 快照规则，也没有针对到达页的动画覆盖（统一一条路径）',
       !/::view-transition/.test(css) && !/nav-swap/.test(css) && !/#app\.arrive/.test(css), '');
   }
@@ -360,7 +368,7 @@ try {
       Boolean(scrollCall) && scrollCall.behavior === 'instant', JSON.stringify(scrollCall));
 
     const navjs = await (await fetch(`${BASE}/nav.js`)).text();
-    const cssNow = await (await fetch(`${BASE}/style.css`)).text();
+    const cssNow = await cssAll();
     check('T30k nav.js 不再为换页做"首屏落位/错开"这类特殊处理',
       !/animationDelay/.test(navjs) && !/transitionDelay/.test(navjs) && !/getBoundingClientRect/.test(navjs), '');
     check('T30l 刷新与换页没有残留入场动画规则，默认内容不隐藏',
@@ -443,7 +451,7 @@ try {
 
   {
 
-    const css = await (await fetch(`${BASE}/style.css`)).text();
+    const css = await cssAll();
     const navjs = await (await fetch(`${BASE}/nav.js`)).text();
     const { html } = await mount(`${BASE}/`);
     check('T53 无 JS 时配色入口被 CSS 隐藏', /html:not\(\.has-js\) \.pal \{ display: none; \}/.test(css), '');
@@ -462,7 +470,8 @@ try {
     a.setAttribute('href', '/go/why-single-column');
     w.document.body.appendChild(a);
     click(w, a);
-    await sleep(700);
+    // 条件等待：换页是异步的，固定 sleep 在慢机器上会假失败。
+    await waitFor(() => w.location.pathname === '/p/why-single-column/', { timeoutMs: 5000 });
     check('T70 站内 301（/go/ 双向链接）跟着跳到底，不整页刷新',
       w.__marker === 'alive' && w.location.pathname === '/p/why-single-column/',
       `marker=${w.__marker} path=${w.location.pathname}`);
@@ -476,7 +485,7 @@ try {
     check('T71 换页前后 #app 都是干净的（不残留内联样式）',
       !w.document.getElementById('app').getAttribute('style'), `初始 ${w.__vt}`);
     w.matchMedia = () => ({ matches: true });    await w.__nav.navigate(new URL(`${BASE}/notes/`).href);
-    await sleep(400);
+    await waitFor(() => w.location.pathname === '/notes/', { timeoutMs: 5000 });
     check('T72 开了「减少动态效果」时照常换页（不依赖淡入，也不留内联样式）',
       w.location.pathname === '/notes/'
       && !w.document.getElementById('app').getAttribute('style')
@@ -494,7 +503,7 @@ try {
     const settings = [...w.document.querySelectorAll('form')].find((f) => f.getAttribute('action') === '/admin/settings');
     settings.querySelector('#s-page').value = '20';
     submit(w, settings, settings.querySelector('button[type=submit]'));
-    await sleep(800);
+    await waitFor(() => w.document.querySelector('.a-notice'), { timeoutMs: 5000 });
 
     check('T74 后台表单提交后窗口标记还在（没有整页刷新）', w.__marker === 'alive', String(w.__marker));
     check('T74b 提交后地址变成服务端回跳地址', w.location.pathname === '/admin/system' && /w=/.test(w.location.search),
@@ -515,7 +524,7 @@ try {
     check('T75-0 列表页有搜索表单', Boolean(search), '');
     search.querySelector('[name=q]').value = 'fixture';
     submit(w, search);
-    await sleep(700);
+    await waitFor(() => /q=fixture/.test(w.location.search), { timeoutMs: 5000 });
     check('T75 后台搜索（GET 表单）也不整页刷新',
       w.__marker === 'alive' && /q=fixture/.test(w.location.search) && w.history.length === before + 1,
       `marker=${w.__marker} search=${w.location.search} len=${w.history.length}/${before}`);
@@ -529,7 +538,7 @@ try {
     const settings = [...w.document.querySelectorAll('form')].find((f) => f.getAttribute('action') === '/admin/settings');
     settings.querySelector('[name=_csrf]').value = 'forged-token';
     submit(w, settings, settings.querySelector('button[type=submit]'));
-    await sleep(700);
+    await waitFor(() => /(安全令牌|提交失败)/.test(w.document.getElementById('toast')?.textContent ?? ''), { timeoutMs: 5000 });
     check('T76 令牌失效时不换页，只把失败原因提示出来',
       w.__marker === 'alive' && /(安全令牌|提交失败)/.test(w.document.getElementById('toast')?.textContent ?? ''),
       w.document.getElementById('toast')?.textContent ?? '（没有提示）');
@@ -546,7 +555,7 @@ try {
     const pathBefore = w.location.pathname;
     await sleep(300);   // 夹具把最小填表时间压到 200ms
     submit(w, form, form.querySelector('button[type=submit]'));
-    await sleep(1200);
+    await waitFor(() => /等待站主确认/.test(w.document.querySelector('.comments')?.textContent ?? ''), { timeoutMs: 8000 });
     check('T78 评论提交后停在原页（没有整页刷新、没有跳走）',
       w.__marker === 'alive' && w.location.pathname === pathBefore && w.location.search === '',
       `${w.__marker} ${w.location.pathname}${w.location.search}`);
@@ -623,7 +632,7 @@ try {
     form.querySelector('[name=email]').value = 'drawer@example.com';    form.querySelector('[name=body]').value = '抽屉里提交也应该原地更新。';
     await sleep(300);
     submit(w, form, form.querySelector('button[type=submit]'));
-    await sleep(1200);
+    await waitFor(() => /等待站主确认/.test(slot.textContent ?? ''), { timeoutMs: 8000 });
     check('T79e 抽屉里的评论提交后：不跳页、抽屉还开着、内容就地更新',
       w.__marker === 'alive' && w.location.pathname === '/notes/'
       && slot.classList.contains('is-open')
@@ -653,7 +662,7 @@ try {
     body.dispatchEvent(new w.Event('input', { bubbles: true }));
     const before = w.history.length;
     submit(w, form, form.querySelector('[value=save]'));
-    await sleep(2000);
+    await waitFor(() => /已保存/.test(w.document.getElementById('toast')?.textContent ?? ''), { timeoutMs: 8000 });
 
     check('T80b 编辑器保存不整页刷新（窗口标记还在）', w.__marker === 'alive', String(w.__marker));
     check('T80c 保存后仍停在编辑器，并给出"已保存"提示',
@@ -711,7 +720,7 @@ try {
     dlg.dispatchEvent(new wl.Event('close'));   // Esc 关闭时浏览器发的是 close 事件
     check('T81c Esc 关闭（close 事件）也能解锁', !root.classList.contains('modal-open'), root.className);
 
-    const cssLock = await (await fetch(`${BASE}/style.css`)).text();
+    const cssLock = await cssAll();
     check('T81d 样式表里有跨端锁：桌面 overflow + 滚动条补偿，触屏 position:fixed',
       /html\.modal-open \{ overflow: hidden/.test(cssLock)
       && /html\.modal-open body \{ padding-right: var\(--modal-lock-pad/.test(cssLock)

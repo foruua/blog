@@ -130,7 +130,7 @@ fs.rmSync(tmp, { recursive: true, force: true });
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const { startServer } = await import('./_server.mjs');
 const { VERSIONED_ASSETS } = await import('../src/render/layout.js');
-const srv = await startServer({ isolateDb: true });
+const srv = await startServer();
 const BASE = srv.base;
 
 // 克隆库会把 comments 整表清掉（_server.mjs 的 clearTables），所以这里自己造两条：

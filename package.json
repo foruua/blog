@@ -5,7 +5,7 @@
   "type": "module",
   "description": "单栏极简 · 功能不简单的个人独立博客（Hono + node:sqlite）",
   "engines": {
-    "node": ">=22.13.0 <25"
+    "node": ">=22.22.2 <25"
   },
   "scripts": {
     "start": "node --disable-warning=ExperimentalWarning --env-file-if-exists=.env server.js",

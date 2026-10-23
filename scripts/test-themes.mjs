@@ -30,7 +30,7 @@ fs.cpSync(path.resolve('themes/classic'), path.join(themeRoot, 'classic'), { rec
 }
 
 const { startServer } = await import('./_server.mjs');
-const srv = await startServer({ isolateDb: true, env: { THEMES_DIR: themeRoot } });
+const srv = await startServer({ env: { THEMES_DIR: themeRoot } });
 const BASE = srv.base;
 const PASSWORD = process.env.ADMIN_PASSWORD;
 const jar = cookieJar();
