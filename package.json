@@ -14,6 +14,7 @@
     "seed:demo": "node --env-file-if-exists=.env scripts/seed-demo.mjs",
     "backup": "node --env-file-if-exists=.env scripts/backup.mjs",
     "backup:list": "node --env-file-if-exists=.env scripts/backup.mjs --list",
+    "offsite:pull": "bash scripts/pull-offsite.sh",
     "backfill-media": "node --env-file-if-exists=.env scripts/backfill-media.mjs",
     "drill": "node --env-file-if-exists=.env scripts/restore-drill.mjs",
     "restore": "node --env-file-if-exists=.env scripts/restore.mjs",

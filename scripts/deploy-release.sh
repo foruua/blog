@@ -17,6 +17,10 @@ sync_code() {
   # 避免 --delete 把线上安装的主题删掉。
   rsync -a --checksum --delete --filter='protect /themes/***' \
     --exclude='/state/' --exclude='/data' --exclude='/content' --exclude='/.env' "$1/" "$app_root/"
+  # themes 同时是后台上传/删除主题的可写目录；代码同步是 root 做的，交还所有权给服务用户。
+  if [ "$(id -u)" = 0 ] && [ -d "$app_root/themes" ]; then
+    chown -R "$run_user:$run_user" "$app_root/themes"
+  fi
 }
 active="${app_root}.deploy-active"
 rollback() {

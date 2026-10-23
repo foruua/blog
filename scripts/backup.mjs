@@ -3,7 +3,7 @@ import { acquireMaintenanceLock } from '../src/util/lock.js';
 import path from 'node:path';
 import { uploadBackup } from '../src/util/process.js';
 import { open, close } from '../db/driver.js';
-import { DB_FILE, CONTENT_DIR, UPLOADS_DIR, THEMES_DIR } from '../src/config.js';
+import { DB_FILE, CONTENT_DIR, UPLOADS_DIR } from '../src/config.js';
 import { snapshot, listBackups, verifyBackupLite, DEFAULT_DIR, DEFAULT_KEEP, recordOffsiteResult, isRecoverableBackup } from '../src/backup.js';
 
 const argv = process.argv.slice(2);
@@ -40,7 +40,9 @@ if (!Number.isInteger(KEEP) || KEEP < 0) {
 console.log(`\n备份 ${DB_FILE}`);
 console.log('─'.repeat(52));
 
-acquireMaintenanceLock([DB_FILE, CONTENT_DIR, UPLOADS_DIR, THEMES_DIR], 'backup');
+// 主题目录在应用根下，生产环境归 root 只读；服务自身的自动备份也不锁它。
+// 手动备份要求先停服，DB 锁已经能阻止服务并发写，别为了主题锁把发布流程卡死。
+acquireMaintenanceLock([DB_FILE, CONTENT_DIR, UPLOADS_DIR], 'backup');
 const db = open(DB_FILE);
 let result;
 try {

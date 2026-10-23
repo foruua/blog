@@ -21,7 +21,8 @@ const DIR = opt('--dir') ?? process.env.BACKUP_DIR ?? DEFAULT_DIR;
 const FROM = opt('--from');
 const YES = argv.includes('--yes');
 
-acquireMaintenanceLock([DB_FILE, CONTENT_DIR, UPLOADS_DIR, THEMES_DIR], 'restore');
+// 主题目录在应用根下，生产环境归 root 只读；恢复前已停服，DB 锁足够互斥。
+acquireMaintenanceLock([DB_FILE, CONTENT_DIR, UPLOADS_DIR], 'restore');
 const backups = listBackups(DIR);
 if (!backups.length) {
   console.error(`✗ ${DIR} 里没有可用备份`);

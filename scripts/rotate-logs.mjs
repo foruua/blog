@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // 日志轮转 CLI。逻辑在 src/log-rotate.js —— 服务进程里也按同样的口径每小时跑一次
-// （launchd 装不上时靠它兜底），这里只是把它包成一条命令。
+// （systemd/journald 部署不需要），这里只是把它包成一条命令。
 //
 // 用法：node scripts/rotate-logs.mjs [--dir <目录>] [--max-mb 5] [--keep 5] [--dry-run]
 import path from 'node:path';

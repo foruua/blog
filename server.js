@@ -240,8 +240,8 @@ app.use('*', (c, next) => {
 });
 
 // —— 进程内看门狗 ——
-// 出过事的场景是隧道断开（进程活着、公网 530），这时任何「进程内探自己公网地址」的检查都能发现；
-// 反过来进程真挂了，launchd 的 KeepAlive 会在 10 秒内拉起，恢复后看门狗继续工作。
+// 出过事的场景是公网入口断开（进程活着、外部访问失败），这时任何「进程内探自己公网地址」的检查都能发现；
+// 反过来进程真挂了，systemd 的 Restart 会在 3 秒后拉起，恢复后看门狗继续工作。
 // 默认只在生产开，且默认 5 分钟一次；WATCHDOG_INTERVAL_MS=0 关闭。
 const watchdogIntervalMs = envDurationMs(
   process.env.WATCHDOG_INTERVAL_MS,
@@ -475,8 +475,8 @@ if (autoBackupOn) {
   }
 }
 
-// 日志轮转：launchd 只把 stdout 追加进固定文件，自己不会切。这里按小时看一眼大小，
-// 超过阈值就 copytruncate —— 没装 me.uua.logrotate 定时任务时也能自己管住日志体积。
+// 日志轮转：仅文件日志模式需要，systemd 部署走 journald。这里按小时看一眼大小，
+// 超过阈值就 copytruncate，避免文件日志无限增长。
 const logRotateMs = envDurationMs(
   process.env.LOG_ROTATE_INTERVAL_MS,
   isProd ? 3600 * 1000 : 0,
@@ -798,7 +798,7 @@ app.route('/', publicRoutes(repo, {
 
 const server = serve({
   fetch: app.fetch, port: PORT, hostname: HOST,
-  // 源站躲在 cloudflared 后面：Node 默认 5s keep-alive 会让隧道空闲几秒即断、后续回源重新建连。
+  // 源站躲在 Nginx 反向代理后面：Node 默认 5s keep-alive 会让空闲连接很快断开、后续回源重新建连。
   // 拉长到 75s，headersTimeout 在其之上留出余量（Node 要求 headersTimeout > keepAliveTimeout）。
   serverOptions: { keepAliveTimeout: 75000, headersTimeout: 80000 },
 }, (info) => {

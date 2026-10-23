@@ -18,49 +18,48 @@ npm start
 
 默认监听 `http://127.0.0.1:8787`，后台位于 `/admin`。已有数据目录可直接使用。生产环境配置 `SITE_URL`，反向代理部署时按实际情况配置可信代理。
 
-## 重启与停启
+## 生产运行与发布（腾讯云）
 
-本机由 macOS launchd 托管，任务 `me.uua.blog`（`~/Library/LaunchAgents/me.uua.blog.plist`，带 `KeepAlive` 与 `RunAtLoad`）。**直接 `kill` 没用** —— 进程会被立刻重新拉起，启停都要走 launchd：
+生产跑在腾讯云 Ubuntu：Nginx 终止 TLS（Let's Encrypt / certbot）并反代到 `127.0.0.1:8787`，应用由 systemd 的 `blog.service` 托管。代码在 `/srv/blog`，持久化数据在 `/srv/blog/state`（`data` / `content` / `uploads`），发布目录 `/srv/blog-releases`。
 
 ```sh
-UID_N=$(id -u)
-
-# 重启：优雅退出（合并 WAL）后自动拉起
-launchctl kickstart -k gui/$UID_N/me.uua.blog
-
-# 查看状态：state / pid / 上次退出码
-launchctl print gui/$UID_N/me.uua.blog | grep -E "state = |pid = |last exit code"
-
-# 停掉，且不再自动拉起
-launchctl bootout gui/$UID_N/me.uua.blog
-
-# 重新装回并启动
-launchctl bootstrap gui/$UID_N ~/Library/LaunchAgents/me.uua.blog.plist
+systemctl status blog          # 状态
+journalctl -u blog -f          # 日志
+systemctl restart blog         # 重启（停止后由 systemd 拉起）
 ```
 
-输出日志在 `~/.local/share/blog-hosting/blog.log`，错误日志在同目录 `blog.error.log`；启动横幅（地址、内容、评论统计）就在输出日志里。plist 写死了 Node 路径、工作目录与这两个日志路径，换机或换 Node 时改 `ProgramArguments`、`WorkingDirectory` 与 `StandardOutPath` / `StandardErrorPath`。没走 launchd 的环境直接 `npm start` 即可。
-
-日志不轮转会无限长大（9 天就有 5 万行）。`npm run rotate:logs` 按大小切分：超过 5MB 压成 `blog-<时间戳>.log.gz`，同名前缀保留 5 份。用的是 copytruncate——launchd 一直持有日志 fd，改名新建会让进程继续往旧 inode 里写。服务进程内每小时也会跑一次同样的检查，所以就算没装定时任务，日志也不会失控；`me.uua.logrotate` 只是把这件事交给系统做。
-
-## 部署
-
-`scripts/deploy-tencent.sh` 不在代码里写死生产主机/密钥/域名，发布前用环境变量提供：
+发布：
 
 ```sh
 DEPLOY_REMOTE=user@host \
 DEPLOY_KEY=~/.ssh/blog-deploy.pem \
 DEPLOY_DOMAIN=example.com \
+BLOG_DEPLOY_NODE=/opt/node24/bin/node \
 ./scripts/deploy-tencent.sh
 ```
 
-默认服务名 `blog`、应用目录 `/srv/blog`、发布目录 `/srv/blog-releases`、Node 路径 `/usr/bin/node`，可分别用 `BLOG_DEPLOY_SERVICE`、`BLOG_DEPLOY_APP_ROOT`、`BLOG_DEPLOY_RELEASE_ROOT`、`BLOG_DEPLOY_NODE` 覆盖；服务运行用户默认 `blog`，用 `BLOG_DEPLOY_USER` 改；保留最近 N 个发布版本用 `BLOG_DEPLOY_KEEP_RELEASES`（默认 5，0 = 不清理）。发布前会做 Node 语法检查（`.js` 与 `.mjs`）、依赖安装（以服务用户执行，不用 root 跑 postinstall）、静态资源预构建（`npm run build:assets`，随后裁掉 devDependencies）、健康检查，失败自动回滚。
+默认服务名 `blog`、应用目录 `/srv/blog`、发布目录 `/srv/blog-releases`、Node 路径 `/usr/bin/node`，可分别用 `BLOG_DEPLOY_SERVICE`、`BLOG_DEPLOY_APP_ROOT`、`BLOG_DEPLOY_RELEASE_ROOT`、`BLOG_DEPLOY_NODE` 覆盖；服务运行用户默认 `blog`，用 `BLOG_DEPLOY_USER` 改；保留最近 N 个发布版本用 `BLOG_DEPLOY_KEEP_RELEASES`（默认 5，0 = 不清理）。当前生产用官方 Node 24.22.1，装在 `/opt/node24`，所以发布时传 `BLOG_DEPLOY_NODE`，让 `npm ci`、语法检查、备份和恢复演练都用同一个 Node。发布前会做 Node 语法检查（`.js` 与 `.mjs`）、依赖安装（以服务用户执行，不用 root 跑 postinstall）、静态资源预构建（`npm run build:assets`，随后裁掉 devDependencies）、健康检查，失败自动回滚。
+
+生产机的 Nginx 上传上限要覆盖视频：`client_max_body_size` 至少 160m（默认视频上限 128MB），`proxy_read_timeout` / `proxy_send_timeout` 放到 300s。完整装机步骤、DNS/ICP 与异地备份见 [`docs/deploy-tencent.md`](docs/deploy-tencent.md)。
+
+### 发布回滚
+
+发布失败会自动回滚到上一份完整源码。需要手动回滚时：
+
+```sh
+ssh ubuntu@<host>
+sudo env BLOG_DEPLOY_APP_ROOT=/srv/blog \
+  bash /srv/blog-releases/<版本>/next/scripts/deploy-release.sh rollback /srv/blog-releases/<版本>
+```
+
+生产日志走 journald，由系统轮转，不需要额外的日志轮转任务。
 
 ## 监控与告警
 
 站点自监控有两层，探的是同一套指标（公网可达、可完整恢复的备份有多旧、异地备份是否成功）：
 
-- **进程内看门狗**（`src/monitor.js`）：生产环境每 5 分钟探一次自己的公网 `/healthz`。隧道断开这类「进程活着但公网 530」的故障靠它发现；连续 2 次失败才发信，恢复后再发一封，抖动不打扰。`WATCHDOG_INTERVAL_MS=0` 可关闭。
-- **外部探针**（`scripts/monitor.mjs`）：进程挂了它才探得到，用于 launchd / cron / 另一台机器。`npm run monitor`，状态变化时发邮件或打 webhook。
+- **进程内看门狗**（`src/monitor.js`）：生产环境每 5 分钟探一次自己的公网 `/healthz`。反向代理或公网入口断开这类「进程活着但公网不可达」的故障靠它发现；连续 2 次失败才发信，恢复后再发一封，抖动不打扰。`WATCHDOG_INTERVAL_MS=0` 可关闭。
+- **外部探针**（`scripts/monitor.mjs`）：进程挂了它才探得到，建议放在另一台机器上。`npm run monitor`，状态变化时发邮件或打 webhook。异地副本由 Mac 定时 `scripts/pull-offsite.sh` 拉取；配 `MONITOR_OFFSITE_DIR` 后，外部探针会直接检查该目录里最新清单的年龄，不依赖生产机自报异地状态。
 
 告警默认走站点已有的 SMTP（后台「设置」里那套），不需要另配渠道；外部探针要发邮件需设 `MONITOR_MAIL=true`，并且能读到站点的 `data/blog.db` 与 `.app-secret`（否则解不开 SMTP 密码）。跨机器部署建议改用 webhook。`/healthz` 只在带 `MONITOR_TOKEN` 时才返回备份年龄、异地状态、磁盘剩余空间、数据库/WAL 大小与备份 worker 状态（匿名只回 `{ ok, posts, uptimeSec }`）——所以生产必须配这个 token，否则探针会一直报「读不到备份状态」。磁盘低于 `HEALTH_MIN_DISK_FREE_BYTES`（默认 512MB）或 WAL 超过 `HEALTH_MAX_WAL_BYTES`（默认 512MB）时 `/healthz` 也会返回 `ok:false`。
 
@@ -131,7 +130,7 @@ npm run drill
 
 上传分两条路径：后台新前端的 raw 上传（`/admin/api/upload`，`x-raw-upload: 1`）会流式落到系统临时文件再处理，大视频不会整块进 Node 堆；旧的 multipart 表单仍会整块读入内存。两条路径都受单文件上限约束，`MAX_CONCURRENT_UPLOADS`（默认 2）限制同时在飞的上传数，超出时返回 503。要传更大的视频，建议放外置存储/CDN，而不是继续抬高内存上限。
 
-异地备份设 `BACKUP_REMOTE=user@host:/path`（SSH 走 `~/.ssh/config` 或 agent）。异地目录与本地**镜像同步**：本地按 `BACKUP_KEEP` 保留、资产包按引用计数回收，异地照抄这一份，不再按 mtime 删（共享资产包下按时间删必然删坏还能用的备份）。`/healthz` 的 `offsiteBackup.state` 为 `ok` 才算异地成功；也可用 `BACKUP_HOOK` 改走 rclone 等自定义命令。自动备份失败会立即发告警，并按 5 分钟 / 15 分钟 / 1 小时 / 6 小时退避重试；`/healthz` 的 `backupLastError`、`backupNextRetryAt` 记录最近失败与下次重试时间。
+异地副本有两种做法：生产机推送 `BACKUP_REMOTE=user@host:/path`（SSH 走 `~/.ssh/config` 或 agent）；或由另一台机器 pull。当前部署是后者：Mac 上的 launchd 任务 `me.uua.offsite` 每 6 小时跑 `scripts/pull-offsite.sh`，把 `/srv/blog/state/data/backups` 镜像到 `~/.local/share/blog-hosting/offsite-backups`，最新备份超过 48 小时时以非零退出。`/healthz` 的 `offsiteBackup` 只反映生产机自己的推送状态；pull 模式由外部探针的 `MONITOR_OFFSITE_DIR` 检查。推送模式下异地目录与本地**镜像同步**：本地按 `BACKUP_KEEP` 保留、资产包按引用计数回收，异地照抄这一份，不再按 mtime 删（共享资产包下按时间删必然删坏还能用的备份）。推送模式下 `/healthz` 的 `offsiteBackup.state` 为 `ok` 才算异地成功；也可用 `BACKUP_HOOK` 改走 rclone 等自定义命令。自动备份失败会立即发告警，并按 5 分钟 / 15 分钟 / 1 小时 / 6 小时退避重试；`/healthz` 的 `backupLastError`、`backupNextRetryAt` 记录最近失败与下次重试时间。
 
 图片预览默认复用首帧像素，预算为 32MiB；缩略图使用 thumb-v3、响应式图片使用 v4。灯箱默认展示最大档 WebP 变体（体积通常只有原图的百分之几），原图不再进灯箱；动画图（多帧）原图是唯一带全部帧的文件，这类仍回原图，`media.animated` 记录该状态。附件回填和旧派生图清理的写入模式需要先停服，资源锁会阻止并发维护。回填后运行 `npm run sync:content`，再清理旧文件。`npm run cleanup:media` 和 `npm run cleanup:output` 默认只列清单，加 `-- --apply` 才移入回收站。
 

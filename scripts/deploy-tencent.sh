@@ -65,10 +65,22 @@ cd "$release/next"
 chown -R "$BLOG_DEPLOY_USER:$BLOG_DEPLOY_USER" "$release/next"
 user_home="$(getent passwd "$BLOG_DEPLOY_USER" | cut -d: -f6)"
 user_home="${user_home:-/home/$BLOG_DEPLOY_USER}"
-runuser -u "$BLOG_DEPLOY_USER" -- env HOME="$user_home" npm ci --include=dev --registry=https://registry.npmmirror.com
+# npm 默认把缓存放在 $HOME/.npm。远端服务用户的家目录可能是 root 拥有的 /srv/blog，
+# 直接在下面建缓存会 EACCES；用发布目录里的独立缓存，装完即删，也不污染应用根目录。
+npm_cache="$release/.npm-cache"
+install -d -m 700 -o "$BLOG_DEPLOY_USER" -g "$BLOG_DEPLOY_USER" "$npm_cache"
+# npm 的 shebang 走 PATH 里的 node。Node 装在 /opt 这类非标准路径时，
+# 必须让 npm 与运行时用同一个 Node，否则 sharp 等原生模块会按错误的 ABI 安装。
+node_dir="$(dirname "$BLOG_DEPLOY_NODE")"
+run_npm() {
+  runuser -u "$BLOG_DEPLOY_USER" -- env HOME="$user_home" \
+    PATH="$node_dir:/usr/local/bin:/usr/bin:/bin" npm_config_cache="$npm_cache" "$@"
+}
+run_npm npm ci --include=dev --registry=https://registry.npmmirror.com
 # 静态资源在构建期精简并预压成 .br/.gz；构建完再裁掉 devDependencies，生产进程不需要 css-tree/acorn。
-runuser -u "$BLOG_DEPLOY_USER" -- env HOME="$user_home" npm run build:assets
-runuser -u "$BLOG_DEPLOY_USER" -- env HOME="$user_home" npm prune --omit=dev
+run_npm npm run build:assets
+run_npm npm prune --omit=dev
+rm -rf "$npm_cache"
 # 只做语法检查，不启动应用、不执行迁移、不接触持久化数据。
 find . -path ./node_modules -prune -o \( -name '*.js' -o -name '*.mjs' \) -type f -print0 | xargs -0 -r -n 1 "$BLOG_DEPLOY_NODE" --check
 chown -R root:root "$release/next"
