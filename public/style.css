@@ -3455,13 +3455,13 @@ html:not(.has-js) .pal { display: none; }
 
 /* —— 抽屉底部工具条：左 RSS、右配色 ——
    窄屏页脚那排是隐藏的（见 footer.site .foot-tools），这两枚就是手机上唯一的入口，故与页脚同一规格：
-   34px 细线圆钮、图标 16px、悬停转金。工具条不参与目录滚动（滚动收在 ul 里），始终钉在屏幕底部两角。 */
+   34px 细线圆钮、图标 16px、悬停转金。工具条不参与目录滚动（滚动收在 ul 里），始终钉在屏幕底部两角。
+   不画分隔线：目录最后一行自带发丝线，再加一条会变成两条并排的横线。 */
 .mnav-foot {
   flex: none;
   margin-top: auto;
   display: flex; align-items: center; justify-content: space-between;
   padding-top: .85rem;
-  border-top: 1px solid var(--rule-strong);
 }
 .mnav-foot .mnav-ico,
 .mnav-foot .pal > summary {
@@ -3485,7 +3485,7 @@ html:not(.has-js) .pal { display: none; }
 .mnav-foot .mnav-ico svg,
 .mnav-foot .pal .pal-ico { display: block; width: 16px; height: 16px; }
 /* 面板向上展开：入口钉在底部，向下就出屏了（与页脚那枚同一个理由）。右对齐，别越过屏幕右缘。
-   底部再让出工具条上沿那道内距（.85rem）与 6px 间隙 —— 否则面板底边会压过工具条的分隔线。 */
+   底部再让出工具条那段上内距（.85rem）与 6px 间隙 —— 否则面板底边会压到图标头上。 */
 .mnav-foot .pal-panel {
   top: auto; bottom: calc(100% + 1.25rem); right: 0; left: auto;
   /* 留出页头 + 检索那两行：面板从工具条上方展开，别盖住搜索框。 */
