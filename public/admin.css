@@ -2026,7 +2026,7 @@ article.a-preview-sheet > h1 { margin: 0; padding-bottom: 1.5rem; border-bottom:
   .a-tab.on .a-ico { opacity: 1; }
   .a-tab-badge { position: absolute; top: 1px; left: calc(50% + 7px); min-width: 16px; height: 16px;
     padding: 0 4px; display: grid; place-items: center; border-radius: 99px;
-    background: var(--accent); color: var(--bg); font: 600 9px/1 var(--mono); }
+    background: var(--accent); color: var(--bg); font: 600 10px/1 var(--mono); }
 
   /* 内容页的文体分段。 */
   .a-seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; margin: 0 0 14px; padding: 3px;
