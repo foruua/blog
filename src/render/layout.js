@@ -7,7 +7,7 @@ import { emojiPanelTemplate } from '../comments/view.js';
 import { themeRequest } from '../themes/request.js';
 
 // 带内容指纹的静态资源；server.js 也 import 这份生成「可长期缓存」正则——两处必须同一份，否则新增资源必漏。
-export const VERSIONED_ASSETS = ['style.css', 'app.js', 'nav.js', 'admin.css', 'admin.js', 'admin-editor.js', 'media-picker.js', 'editor.js', 'favicon.svg', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png', 'og-default.jpg', 'request.js', 'ui.js', 'search.js', 'palette.js'];
+export const VERSIONED_ASSETS = ['base.css', 'style.css', 'app.js', 'nav.js', 'admin.css', 'admin.js', 'admin-editor.js', 'media-picker.js', 'editor.js', 'favicon.svg', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png', 'og-default.jpg', 'request.js', 'ui.js', 'search.js', 'palette.js'];
 
 // —— 主题钩子 ——
 // server.js 在启动时注入「当前请求该用哪套主题」和「如何渲染主题模板」；测试或未启用主题时保持内置渲染。
@@ -229,8 +229,6 @@ const pageMenuItems = () => [
 ];
 
 
-const navItems = () => [...NAV, ...pageMenuItems()];
-
 // —— 导航图标 —— 20 格画布、1.6 描边、圆头圆角，与「检索」「配色」同一套规格，缩到 14px 仍是一块读得出的轮廓。
 // 按 key 取（导航项用它自己的 key，固定页用 slug）；认不出的落回「折角纸页」—— 站主新加一页不必改代码。
 // 全部 aria-hidden：链接的可访问名仍只有那两个字，读屏不会念出图形。
@@ -274,7 +272,8 @@ const navHtml = (active, more) => {
 
 // 窄屏抽屉是一页满屏目录：图标 + 衬线标题 + 右端等宽序号（序号给眼睛认位置，对辅助技术隐藏）。
 // 图标在左、序号在右 —— 两者分居两端，中间那行字才不被挤成三列。
-const navDrawerHtml = (active, items = navItems()) => items.map(([href, label, key], i) =>
+// 导航项由 themeChrome 算好的 items 传入（与顶部导航同一份）；不再留默认参数，免得漏传时又算一遍 pageMenuItems()。
+const navDrawerHtml = (active, items) => items.map(([href, label, key], i) =>
   `<li><a href="${esc(href)}"${key === active ? ' aria-current="page"' : ''}>${navIco(key)}<span>${esc(label)}</span><span class="n-idx" aria-hidden="true">${String(i + 1).padStart(2, '0')}</span></a></li>`).join('\n      ');
 
 // 站点默认分享图：文章没有首图时用它。layout() 内部兜底与 public.js 的 OG/JSON-LD 共用这一份
@@ -396,6 +395,7 @@ ${ctx.ogH ? `<meta property="og:image:height" content="${ctx.ogH}">` : ''}
 <link rel="icon" href="/favicon.svg?v=${assetVer('favicon.svg')}" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=${assetVer('apple-touch-icon.png')}">
 <link rel="manifest" href="/site.webmanifest">
+<link rel="stylesheet" href="/base.css?v=${assetVer('base.css')}">
 <link rel="stylesheet" href="/style.css?v=${assetVer('style.css')}">
 <meta name="palette-lib" content="/palette.js?v=${assetVer('palette.js')}">
 ${ctx.extraHead}

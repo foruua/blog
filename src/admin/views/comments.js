@@ -112,7 +112,8 @@ export function commentsPage({
 
   const table = (rows, empty, prefix) => `    <div class="a-card a-card-table">
       <table class="a-table a-table-comments">
-        <thead><tr><th class="a-col-author">作者</th><th class="a-col-body">内容</th><th class="a-col-post">文章</th><th class="a-ops">操作</th></tr></thead>
+        <caption class="a-vh">${esc(prefix === 'pending' ? '待审核评论' : '最近评论')}列表：作者、内容、所属文章与操作</caption>
+        <thead><tr><th scope="col" class="a-col-author">作者</th><th scope="col" class="a-col-body">内容</th><th scope="col" class="a-col-post">文章</th><th scope="col" class="a-ops">操作</th></tr></thead>
         <tbody>
 ${rows.length ? rows.map((c) => row(c, prefix)).join('\n') : `        <tr><td colspan="4" class="a-empty">${empty}</td></tr>`}
         </tbody>

@@ -2,7 +2,6 @@
   'use strict';
 
   const request = window.__request;
-  const csrf = window.__csrf;
   const $ = (id) => document.getElementById(id);
 
   let ed = null;
@@ -167,27 +166,8 @@
     setReplyRow(row, row?.previousElementSibling?.querySelector('[data-reply-toggle]') ?? null, false);
   });
 
-  let lazyVideoObserver = null;
-  function setupLazyVideoPreload(root = document) {
-    lazyVideoObserver?.disconnect();
-    lazyVideoObserver = null;
-    const videos = [...root.querySelectorAll('video[data-lazy-preload]')];
-    if (!videos.length) return;
-    if (typeof IntersectionObserver !== 'function') {
-      videos.forEach((v) => { v.preload = 'metadata'; v.removeAttribute('data-lazy-preload'); });
-      return;
-    }
-    lazyVideoObserver = new IntersectionObserver((entries, io) => {
-      for (const entry of entries) {
-        if (!entry.isIntersecting) continue;
-        const video = entry.target;
-        video.preload = 'metadata';
-        video.removeAttribute('data-lazy-preload');
-        io.unobserve(video);
-      }
-    }, { rootMargin: '200px' });
-    videos.forEach((v) => lazyVideoObserver.observe(v));
-  }
+  // 视频懒加载在 request.js 里（前后台同一份）；这里只负责在每次换页时重建 observer。
+  const setupLazyVideoPreload = (root = document) => window.__lazyVideo(root);
 
   function setupPage() {
     setupLazyVideoPreload();
@@ -362,16 +342,9 @@
     let dragged = null;         // 正在拖的格子
     let suppressClick = false;  // 拖完紧接着的那次 click 要吞掉，别误触移除叉
     // 一枚缩略格：原比例图/视频 + 拖拽柄·序号·封面 + 移除叉。「封面」= 第一位。标记要与 views/system.js 首屏那份一致。
-    const isVideoPath = (p) => /\.(?:mp4|webm|mov|m4v)(?:$|[?#])/i.test(String(p));
-    // 与 src/media/video.js 的 heroAspectOf 同口径：优先当前视频，没有视频就 16/9。
-    const heroAr = () => {
-      const video = items.find((it) => isVideoPath(it.path) && Number(it.w) > 0 && Number(it.h) > 0);
-      const a = Math.max(1, Math.round(Number(video?.w) || 16));
-      const b = Math.max(1, Math.round(Number(video?.h) || 9));
-      const gcd = (x, y) => (y ? gcd(y, x % y) : x);
-      const g = gcd(a, b);
-      return `${a / g} / ${b / g}`;
-    };
+    // 视频判断与封面比例都在 request.js 里（与前台、媒体库、服务端 heroAspectOf 同一口径）。
+    const isVideoPath = window.__isVideoPath;
+    const heroAr = () => window.__heroAspect(items);
     const tile = (it, i) => {
       const fig = document.createElement('figure');
       fig.className = 'a-hero-item';
@@ -643,20 +616,8 @@
       for (const f of files) {
         state.textContent = `上传 ${f.name}…`;
         try {
-          const res = await request('/admin/api/upload', {
-            method: 'POST',
-            // 原始文件直传：服务端会流式落到临时文件，128MB 视频不再整块进 Node 堆。
-            headers: {
-              'x-csrf-token': csrf(),
-              'x-raw-upload': '1',
-              'Content-Type': f.type || 'application/octet-stream',
-              'x-file-name': encodeURIComponent(f.name),
-            },
-            body: f,
-            // 首页视频和大图与编辑器上传同一条慢链路：默认 15 秒会在服务端还在处理时先掐断。
-            timeoutMs: 600000,
-          });
-          const out = await res.json();
+          // 原始文件直传（与编辑器插图同一份实现）：服务端流式落临时文件，大视频不整块进 Node 堆。
+          const out = await window.__uploadRaw(f);
           if (!out.ok) { state.textContent = `上传失败：${out.error}`; failed++; continue; }
           if (items.some((it) => it.path === out.url)) { state.textContent = '这个已经在列表里了'; continue; }
           items.push({ path: out.url, w: String(out.width ?? ''), h: String(out.height ?? '') });

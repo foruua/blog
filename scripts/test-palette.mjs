@@ -10,9 +10,14 @@ import { parsePaletteDefault, settings, saveSettings, KEYS } from '../src/settin
 import { createChecker } from './_check.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const css = fs.readFileSync(path.join(root, 'public', 'style.css'), 'utf8');
+// 令牌层（含配色预设块）在 base.css，前台组件在 style.css；页面里按这个顺序加载，断言也按这个顺序拼。
+const css = ['base.css', 'style.css']
+  .map((f) => fs.readFileSync(path.join(root, 'public', f), 'utf8'))
+  .join('\n');
 const appSource = fs.readFileSync(path.join(root, 'public', 'app.js'), 'utf8');
 const uiSource = fs.readFileSync(path.join(root, 'public', 'ui.js'), 'utf8');
+// app.js 依赖 request.js 挂上的共享工具（__lazyVideo 等）；页面里 request.js 永远先执行，这里照搬。
+const requestSource = fs.readFileSync(path.join(root, 'public', 'request.js'), 'utf8');
 // 生成器是经典脚本（挂 globalThis.PaletteLib），页面里以 defer 加载在 ui.js 之前；
 // 这里用 vm 跑同一份文件，不复制逻辑 —— 生成器改了，下面这套扫描断言立刻跟着变。
 const paletteSource = fs.readFileSync(path.join(root, 'public', 'palette.js'), 'utf8');
@@ -61,9 +66,10 @@ function mount({ seed = {}, lazyPalette = false } = {}) {
   assert.ok(boot, '页面里找不到内联主题引导');
   assert.equal(boot, THEME_BOOT, '页面内联的引导与导出的 THEME_BOOT 不一致');
   w.eval(boot);
-  // 页面里的顺序：boot（内联）→ palette.js → ui.js → app.js。ui.js 用 PaletteLib 现算自定义配色。
+  // 页面里的顺序：boot（内联）→ palette.js → request.js → ui.js → app.js。ui.js 用 PaletteLib 现算自定义配色。
   // lazyPalette=true 模拟首次交互时 palette.js 还在异步加载（真实页面里它按需注入）。
   if (!lazyPalette) w.eval(paletteSource);
+  w.eval(requestSource);
   w.eval(uiSource);
   w.eval(appSource);
   return { dom, w, html };

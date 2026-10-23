@@ -158,7 +158,8 @@ const page = await (await fetch(`${BASE}/p/${SLUG}/`)).text();
 
 {
   // 正文目录：刊物开篇那页「细目」—— 金色两位序号 + 发丝线行 + 末端金线收束。
-  const css = await (await fetch(`${BASE}/style.css`)).text();
+  // 令牌（:root / 明暗 / 配色预设）在 base.css，组件在 style.css；下面 T66f 要同时读到两层，按加载顺序拼。
+  const css = (await Promise.all(['base.css', 'style.css'].map(async (f) => (await fetch(`${BASE}/${f}`)).text()))).join('\n');
 
   check('T66 文章页的目录仍是「一行抬头 + 两级条目」这套标记（序号不写进 HTML）',
     /<details class="toc"><summary>目录（\d+ 节）<\/summary>/.test(page)
@@ -591,7 +592,8 @@ const page = await (await fetch(`${BASE}/p/${SLUG}/`)).text();
       && /约 \d+ 分钟/.test(notePage) && /约 \d+ 分钟/.test(postPage),
       `${noteSlug} / ${postSlug}`);
 
-    const css = await (await fetch(`${BASE}/style.css`)).text();
+    // 令牌层（:root / 明暗 / 配色预设 / 模态锁）在 base.css，组件在 style.css；页面里按这个顺序加载。
+    const css = (await Promise.all(['base.css', 'style.css'].map(async (f) => (await fetch(`${BASE}/${f}`)).text()))).join('\n');
 
     check('T51 首屏直接显示，不再有淡入动画',
       !/animation:\s*rise|@keyframes\s+rise/.test(css), '');

@@ -227,19 +227,7 @@
       touch();
       setState(`上传 ${file.name}…`);
       try {
-        const res = await request('/admin/api/upload', {
-          method: 'POST',
-          headers: {
-            'x-csrf-token': csrf(),
-            'x-raw-upload': '1',
-            'Content-Type': file.type || 'application/octet-stream',
-            'x-file-name': encodeURIComponent(file.name),
-          },
-          body: file, signal: controller.signal,
-          // 视频默认上限 128MB，服务端读取窗口 600 秒；前端不能再用通用 15 秒把上传打断。
-          timeoutMs: 600000,
-        });
-        const out = await res.json();
+        const out = await window.__uploadRaw(file, { signal: controller.signal });
         if (disposed) return;
         if (!out.ok) {
           body.value = body.value.replace(marker, () => `![上传失败：${out.error}]()`);

@@ -87,9 +87,10 @@ ${[['post', '文章', '/admin'], ['note', '笔记', '/admin/notes'], ['page', '�
     </form>
     <div class="a-card a-card-table">
       <table class="a-table a-table-posts">
+        <caption class="a-vh">${esc(kindWord)}列表：状态、标题、评论数、时间与链接</caption>
         <thead><tr>
-          <th>状态</th><th>标题</th>
-          <th class="a-num a-hide-sm">评论</th><th class="a-hide-sm">时间</th><th>链接</th>
+          <th scope="col">状态</th><th scope="col">标题</th>
+          <th scope="col" class="a-num a-hide-sm">评论</th><th scope="col" class="a-hide-sm">时间</th><th scope="col">链接</th>
         </tr></thead>
         <tbody>
 ${rows || `        <tr><td colspan="5" class="a-empty">${

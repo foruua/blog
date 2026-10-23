@@ -90,7 +90,7 @@ const headOf = (title) => `<head>
 <meta name="theme-color" content="#faf8f4" media="(prefers-color-scheme:light)">
 <meta name="theme-color" content="#0b0b0d" media="(prefers-color-scheme:dark)">
 <link rel="icon" href="/favicon.svg?v=${assetVer('favicon.svg')}" type="image/svg+xml">
-<link rel="stylesheet" href="/style.css?v=${assetVer('style.css')}">
+<link rel="stylesheet" href="/base.css?v=${assetVer('base.css')}">
 <link rel="stylesheet" href="/admin.css?v=${assetVer('admin.css')}">
 <script>${THEME_BOOT}</script>
 </head>`;

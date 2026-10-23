@@ -4,7 +4,6 @@
 (() => {
   'use strict';
   const request = window.__request;
-  const VIDEO_RE = /\.(?:mp4|webm|mov|m4v)(?:$|[?#])/i;
   const PLACEHOLDER = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
 
   window.__setupMediaPicker = ({ dialog, body, uploadButton, fileInput, onPick, onUpload } = {}) => {
@@ -36,7 +35,7 @@
       session++; controller?.abort(); controller = null;
       videoObserver?.disconnect(); videoObserver = null;
     };
-    const isVideo = (it) => String(it.mime ?? '').startsWith('video/') || VIDEO_RE.test(it.path ?? '');
+    const isVideo = (it) => String(it.mime ?? '').startsWith('video/') || window.__isVideoPath(it.path);
 
     const render = () => {
       // 重绘会把所有 <video> 从 DOM 里换掉；旧的 IntersectionObserver 仍持有这些节点，
@@ -136,27 +135,36 @@
       }
     };
 
-    dialog.addEventListener('close', cancel);
-    dialog.querySelectorAll('[data-picker-cancel]').forEach((btn) => btn.addEventListener('click', () => dialog.close()));
+    // 所有监听器共用一个 signal：dispose 时一次性摘掉。以前只取消在飞的请求，复用同一个 dialog
+    // 时 close/取消/上传监听会一轮轮累加，第 N 次打开就会触发 N 次。
+    const listeners = new AbortController();
+    const on = { signal: listeners.signal };
+    dialog.addEventListener('close', cancel, on);
+    dialog.querySelectorAll('[data-picker-cancel]').forEach((btn) => btn.addEventListener('click', () => dialog.close(), on));
     body.addEventListener('click', (e) => {
       const btn = e.target.closest('.a-picker-item');
       if (!btn) return;
       dialog.close();
       const item = items.find((it) => it.path === btn.dataset.path);
       if (item) onPick?.(item);
-    });
+    }, on);
     uploadButton?.addEventListener('click', () => {
       dialog.close();
       if (onUpload) onUpload();
       else fileInput?.click();
-    });
+    }, on);
 
     return {
       open: () => {
         window.__openDialog(dialog);
         void read();
       },
-      dispose: cancel,
+      dispose: () => {
+        cancel();
+        listeners.abort();
+        videoObserver?.disconnect();
+        videoObserver = null;
+      },
     };
   };
 })();

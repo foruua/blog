@@ -584,29 +584,8 @@
     start();
   }
 
-  // 视频默认 preload=none；进入视口（或笔记展开）后再要 metadata，首帧预览保留，但不在首屏抢带宽。
-  // observer 在每次 pjax 换页时重建：旧节点已从 DOM 移除，必须 disconnect，否则会一直被观察。
-  let lazyVideoObserver = null;
-  function setupLazyVideoPreload(root = document) {
-    lazyVideoObserver?.disconnect();
-    lazyVideoObserver = null;
-    const videos = [...root.querySelectorAll('video[data-lazy-preload]')];
-    if (!videos.length) return;
-    if (typeof IntersectionObserver !== 'function') {
-      videos.forEach((v) => { v.preload = 'metadata'; v.removeAttribute('data-lazy-preload'); });
-      return;
-    }
-    lazyVideoObserver = new IntersectionObserver((entries, io) => {
-      for (const entry of entries) {
-        if (!entry.isIntersecting) continue;
-        const video = entry.target;
-        video.preload = 'metadata';
-        video.removeAttribute('data-lazy-preload');
-        io.unobserve(video);
-      }
-    }, { rootMargin: '200px' });
-    videos.forEach((v) => lazyVideoObserver.observe(v));
-  }
+  // 视频懒加载在 request.js 里（前后台同一份）；这里只负责在每次换页时重建 observer。
+  const setupLazyVideoPreload = (root = document) => window.__lazyVideo(root);
 
   function setupPage() {
     setupLazyVideoPreload();
