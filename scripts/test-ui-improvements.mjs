@@ -41,8 +41,17 @@ try {
   const navRows = await page.locator('.mnav-panel ul a')
     .evaluateAll((links) => links.map((a) => +a.getBoundingClientRect().height.toFixed(1)));
   assert.ok(navRows.length >= 5 && navRows.every((h) => h >= 44 && h <= 60), `抽屉行高应在 44–60px：${navRows}`);
-  // 抽屉不再保留 RSS / 后台页脚。
-  assert.equal(await page.locator('.mnav-foot').count(), 0, '抽屉页脚应已移除');
+  // 抽屉底部工具条：左 RSS、右配色，两枚都贴在屏幕下沿；后台入口仍不回来。
+  const foot = page.locator('.mnav-foot');
+  assert.equal(await foot.count(), 1, '抽屉应有底部工具条');
+  const rssBox = await foot.locator('a[href="/feed.xml"]').boundingBox();
+  const palBox = await foot.locator('#palettePickerM').boundingBox();
+  assert.ok(rssBox && palBox, '工具条里应有 RSS 与配色两枚');
+  assert.ok(rssBox.x + rssBox.width <= palBox.x, `RSS 应在配色左侧：${rssBox.x + rssBox.width} > ${palBox.x}`);
+  const viewport = page.viewportSize();
+  assert.ok(rssBox.y + rssBox.height > viewport.height - 90, `RSS 应贴底：${rssBox.y + rssBox.height} / ${viewport.height}`);
+  assert.ok(palBox.y + palBox.height > viewport.height - 90, `配色应贴底：${palBox.y + palBox.height} / ${viewport.height}`);
+  assert.equal(await foot.locator('a[href^="/admin"]').count(), 0, '后台入口不该回到抽屉');
   await page.keyboard.press('Escape');
   await page.waitForTimeout(200);
   for (const [kind, label] of [['post', '文章'], ['note', '笔记']]) {

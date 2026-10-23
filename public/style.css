@@ -399,9 +399,9 @@ body.mnav-open .mnav { opacity: 1; visibility: visible; transition-delay: 0s, 0s
   padding: calc(1.15rem + env(safe-area-inset-top)) 1.5rem calc(1.4rem + env(safe-area-inset-bottom));
   background: var(--bg-elev);
   overscroll-behavior: contain;
-  /* 配色面板在这里就地展开（不浮层），目录 + 展开的面板在小屏上放不下：整块要能滚。
-     父级 .mnav 的 touch-action:none 只管"别把滚动漏给底下的页面"，这里要把触摸收回来。 */
-  overflow-y: auto;
+  /* 滚动收在目录（ul）里，不放在整块面板上：底部工具条（RSS / 配色）要始终钉在屏幕两角，
+     面板整体可滚的话，目录一长那两枚就被推到折叠线以下了。 */
+  overflow: hidden;
   touch-action: pan-y;
   /* 满屏的入场是"抬起来"而不是"从右边推过来"：一屏的内容没有横向位移可言，横滑会像换页。 */
   transform: translateY(.9rem); opacity: 0;
@@ -423,7 +423,11 @@ body.mnav-open .mnav-panel { transform: none; opacity: 1; }
   background: var(--accent); transform: rotate(45deg);
 }
 .mnav-head .navbtn { padding-right: 0; }
-.mnav-panel ul { list-style: none; margin: .35rem 0 0; padding: 0; flex: 1 1 auto; }
+/* 目录自己滚（见上面 .mnav-panel 的说明）：min-height:0 是让 flex 子项真的能被压缩到可滚。 */
+.mnav-panel ul {
+  list-style: none; margin: .35rem 0 0; padding: 0; flex: 1 1 auto;
+  min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+}
 .mnav-panel ul a {
   display: flex; align-items: center; gap: .95rem;
   /* 行距 = 这一行的上下内距。原 .95rem 实测行高 64.8px，七行要滑半屏（用户报"行距太大"）；
@@ -3292,7 +3296,6 @@ html:not(.has-js) .pal { display: none; }
 .pal > summary:hover,
 .pal[open] > summary { color: var(--fg); }
 .pal-ico { width: 14px; height: 14px; flex: 0 0 auto; display: block; }
-.pal-txt { white-space: nowrap; }
 /* 与 .nav .nsub-panel 同一条规矩：关着就不许占盒子。它是 absolute（包含块是 .pal），UA 那条
    「收起的 <details> 跳过内容」只管绘制、不管布局，于是关着的面板照旧在每页被排一遍
    （页脚那枚 232×371，里面还有色样、滑块、七个按钮）。审计的「关着的浮层连盒子都不占」扫的就是它。 */
@@ -3450,31 +3453,43 @@ html:not(.has-js) .pal { display: none; }
   border-radius: var(--radius-pill);
 }
 
-/* —— 抽屉里这份入口 —— 满屏目录里的一行，与「检索」并排成"工具行"、与目录同一套行距：
-   不再套方框（满屏之后框只会显得像两个孤岛），只靠一条发丝线与下面的目录分开。
-   面板就地展开、不浮层：抽屉自身可滚，浮层会跑出边界（还会被钉住的 body 裁掉）。 */
-.pal-drawer { display: block; }
-.pal-drawer > summary {
-  display: flex; width: 100%; align-items: center; gap: .85rem;
-  padding: .72rem .2rem;
-  border-bottom: 1px solid var(--rule);
-  color: var(--fg-soft); font-family: var(--display); font-size: 1.02rem; letter-spacing: 0;
+/* —— 抽屉底部工具条：左 RSS、右配色 ——
+   窄屏页脚那排是隐藏的（见 footer.site .foot-tools），这两枚就是手机上唯一的入口，故与页脚同一规格：
+   34px 细线圆钮、图标 16px、悬停转金。工具条不参与目录滚动（滚动收在 ul 里），始终钉在屏幕底部两角。 */
+.mnav-foot {
+  flex: none;
+  margin-top: auto;
+  display: flex; align-items: center; justify-content: space-between;
+  padding-top: .85rem;
+  border-top: 1px solid var(--rule-strong);
 }
-.pal-drawer > summary:hover,
-.pal-drawer[open] > summary { color: var(--fg); }
-.pal-drawer > summary:hover .pal-ico,
-.pal-drawer[open] > summary .pal-ico { color: var(--accent); }
-.pal-drawer .pal-ico {
-  width: 15px; height: 15px;
-  transition: color var(--dur-1) var(--ease);
+.mnav-foot .mnav-ico,
+.mnav-foot .pal > summary {
+  box-sizing: border-box;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 2.15rem; height: 2.15rem;
+  padding: 0; margin: 0;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--bg-elev) 55%, transparent);
+  color: var(--muted);
+  list-style: none; cursor: pointer;
+  transition: color var(--dur-2) var(--ease), border-color var(--dur-2) var(--ease), background var(--dur-2) var(--ease);
 }
-.pal-drawer .pal-panel {
-  position: static; width: auto; min-width: 0; max-width: none; max-height: none;
-  /* 就地展开不是浮层：外环与那档重阴影都得摘掉。边框要补回来 —— 页头那份面板已改成"无边框 + 外环"，
-     抽屉这边把阴影一关就什么都不剩了。 */
-  margin-block: .5rem .3rem;
-  border: 1px solid var(--card-bd);
-  box-shadow: none;
+.mnav-foot .pal > summary::-webkit-details-marker { display: none; }
+.mnav-foot .mnav-ico:hover,
+.mnav-foot .pal > summary:hover,
+.mnav-foot .pal[open] > summary {
+  color: var(--accent); border-color: var(--accent-line); background: var(--accent-soft);
+}
+.mnav-foot .mnav-ico svg,
+.mnav-foot .pal .pal-ico { display: block; width: 16px; height: 16px; }
+/* 面板向上展开：入口钉在底部，向下就出屏了（与页脚那枚同一个理由）。右对齐，别越过屏幕右缘。
+   底部再让出工具条上沿那道内距（.85rem）与 6px 间隙 —— 否则面板底边会压过工具条的分隔线。 */
+.mnav-foot .pal-panel {
+  top: auto; bottom: calc(100% + 1.25rem); right: 0; left: auto;
+  /* 留出页头 + 检索那两行：面板从工具条上方展开，别盖住搜索框。 */
+  max-height: calc(100dvh - 16rem);
 }
 
 /* —— 主题预览提示条 ——

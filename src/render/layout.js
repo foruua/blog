@@ -164,7 +164,7 @@ const searchDrawerForm = () => `<form class="s-drawer-form" action="/search" met
 // 入口图标是「右半实心的圆」：明暗 + 色调这对语义一眼可读，14px 缩下去仍是实心/空心的对比（调色盘那种细线会糊）。
 const PAL_ICO = '<svg class="pal-ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="10" cy="10" r="7.2"/><path d="M10 2.8a7.2 7.2 0 0 0 0 14.4z" fill="currentColor" stroke="none"/></svg>';
 // 页脚订阅入口：同一块 20 格画布、1.6 描边。点 + 两道弧，缩到 16px 也读得出是 RSS。
-const RSS_ICO = '<svg class="foot-ico-svg" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="5.1" cy="14.9" r="1.35" fill="currentColor" stroke="none"/><path d="M4.2 10.2a5.6 5.6 0 0 1 5.6 5.6"/><path d="M4.2 4.6A11.2 11.2 0 0 1 15.4 15.8"/></svg>';
+const RSS_ICO = '<svg class="ico-rss" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="5.1" cy="14.9" r="1.35" fill="currentColor" stroke="none"/><path d="M4.2 10.2a5.6 5.6 0 0 1 5.6 5.6"/><path d="M4.2 4.6A11.2 11.2 0 0 1 15.4 15.8"/></svg>';
 
 // 明暗三态的三枚图标：与 PAL_ICO 同一格画布、同一描边，缩到 16px 仍是实心/空心的对比。
 // 名称不写进按钮里 —— 图标就是那一格的全部内容，名称只留给读屏（aria-label）与悬停（title）。
@@ -202,10 +202,10 @@ const palettePanelHtml = (cur) => `<div class="pal-panel">
         </div>
       </div>`;
 
-// 入口只有图标 + 「配色」四个字：当前是哪套不进入口，面板里那一行有 ✓。色名留给读屏（aria-label）。
-// 面板与入口同形，只是外层 details 多一个 pal-drawer：抽屉里它是一条整宽的行，面板就地展开、不浮在页面上。
-// 只有这两处：宽屏是页脚那枚（pal-foot，面板向上展开），窄屏是抽屉那枚。曾经还有页头导航一份，
-// 已按「低频偏好不占导航」撤掉 —— 别再加回来，test-search 的 M8f 会当场失败。
+// 入口只有图标（页脚与抽屉底部各一枚）：当前是哪套不进入口，面板里那一行有 ✓。色名留给读屏（aria-label）。
+// 两处入口都只剩图标：宽屏在页脚（pal-foot），窄屏在抽屉底部工具条（pal-drawer，面板向上展开）。
+// 抽屉那份曾经是「整宽一行、面板就地展开」，现在挪到底部右下角与 RSS 并排 —— 目录里不再占一行。
+// 只有这两处：曾经还有页头导航一份，已按「低频偏好不占导航」撤掉 —— 别再加回来，test-search 的 M8f 会当场失败。
 const PAL_WHERE = {
   drawer: ['palettePickerM', ' pal-drawer'],
   footer: ['palettePickerF', ' pal-foot'],
@@ -213,10 +213,8 @@ const PAL_WHERE = {
 const palettePickerHtml = (palDefault = '', where = 'footer') => {
   const cur = PALETTES.find((p) => p.key === palDefault) ?? PALETTES[0];
   const [id, cls] = PAL_WHERE[where] ?? PAL_WHERE.footer;
-  // 页脚只剩两枚图标，配色也是其中一枚：不写字，当前色名照旧进 aria-label；抽屉里仍带文字。
-  const txt = where === 'footer' ? '' : '<span class="pal-txt">配色</span>';
   return `<details class="pal${cls}" id="${id}">
-      <summary aria-label="配色（${esc(cur.name)}）" title="配色">${PAL_ICO}${txt}</summary>
+      <summary aria-label="配色（${esc(cur.name)}）" title="配色">${PAL_ICO}</summary>
       ${palettePanelHtml(cur)}
     </details>`;
 };
@@ -341,11 +339,14 @@ function layoutContext({
         <span class="nb-ico" aria-hidden="true"></span><span class="nb-close">关闭</span>
       </button>
     </div>
-    ${palettePickerHtml(palDefault, 'drawer')}
     ${searchDrawerForm()}
     <ul>
       ${navDrawerHtml(active, items)}
     </ul>
+    <div class="mnav-foot">
+      <a class="mnav-ico" href="/feed.xml" aria-label="RSS 订阅" title="RSS 订阅">${RSS_ICO}</a>
+      ${palettePickerHtml(palDefault, 'drawer')}
+    </div>
   </nav>
 </div>`;
 

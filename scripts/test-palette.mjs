@@ -142,18 +142,25 @@ await test('THEME_BOOT 白名单与 PALETTES 一致（含恢复语句，白名�
   assert.ok(THEME_BOOT.includes("localStorage.getItem('palette')"));
 });
 
-await test('「配色」入口：页脚一份 + 抽屉一份，页脚只留图标、抽屉图标+文字，明暗三态在上、选项数与清单一致、色样带双点', () => {
+await test('「配色」入口：页脚一份 + 抽屉底部一份，两处都只剩图标，明暗三态在上、选项数与清单一致、色样带双点', () => {
   const html = layout({ title: '测试', main: '<p>x</p>', canonical: '/' });
   // 宽屏那枚在页脚；页头导航里没有它 —— 配色是低频偏好，放页脚不占导航（test-search 的 M8f 钉着同一条）。
   assert.match(html, /<details class="pal pal-foot" id="palettePickerF">/, '页脚里没有配色入口');
   const nav = /<nav class="nav" aria-label="主导航">[\s\S]*?<\/nav>/.exec(html)?.[0] ?? '';
   assert.doesNotMatch(nav, /class="pal/, '配色入口不该回到页头导航里');
   assert.doesNotMatch(html, /id="themeToggle"/, '页脚那枚明暗按钮应该已经退休（明暗进了配色面板）');
-  // 页脚那份只剩图标（与 RSS 并排），当前是哪套仍进 aria-label；抽屉那份才是图标 + 文字。
+  // 两处入口都只剩图标（当前是哪套仍进 aria-label）；抽屉那份从目录里挪到了底部工具条。
   assert.match(html, /<details class="pal pal-foot" id="palettePickerF">\s*<summary aria-label="配色（素笺）" title="配色"><svg class="pal-ico"/);
-  const footPicker = /<details class="pal pal-foot"[\s\S]*?<\/details>/.exec(html)?.[0] ?? '';
-  assert.doesNotMatch(footPicker, /pal-txt/, '页脚配色入口不该再带文字');
-  assert.match(html, /<details class="pal pal-drawer" id="palettePickerM">[\s\S]*?<summary aria-label="配色（素笺）"(?: title="配色")?><svg class="pal-ico"/);
+  assert.match(html, /<details class="pal pal-drawer" id="palettePickerM">\s*<summary aria-label="配色（素笺）" title="配色"><svg class="pal-ico"/);
+  assert.doesNotMatch(html, /pal-txt/, '配色入口不该再带文字');
+  // 抽屉底部：左 RSS、右配色（顺序即位置，真浏览器里的几何由 test-ui-improvements 量）。
+  const foot = /<div class="mnav-foot">[\s\S]*?<\/div>\s*<\/nav>/.exec(html)?.[0] ?? '';
+  assert.match(foot, /<a class="mnav-ico" href="\/feed\.xml" aria-label="RSS 订阅"/, '抽屉底部左边应是 RSS');
+  assert.match(foot, /id="palettePickerM"/, '抽屉底部右边应是配色');
+  assert.ok(foot.indexOf('feed.xml') < foot.indexOf('palettePickerM'), 'RSS 在左、配色在右');
+  // 目录（ul）里不再有配色那一行。
+  const drawerList = /<ul>\s*([\s\S]*?)<\/ul>/.exec(html)?.[1] ?? '';
+  assert.doesNotMatch(drawerList, /class="pal/, '目录里不该再有配色入口');
   // 入口不再挂当前色样：选中态只由面板里的 ✓ 表示
   assert.doesNotMatch(html, /pal-dot/);
   assert.doesNotMatch(html, /<summary>素笺<\/summary>/);
