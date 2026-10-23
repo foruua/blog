@@ -330,6 +330,57 @@
     }
   }
 
+  /* 封面视频的自动播放（auto 模式）。
+     只靠 HTML 的 autoplay/muted/loop 在部分移动内核（鸿蒙自带浏览器、X5/WebView）上会被静默忽略：
+     要么停在首帧不动，要么播一遍就停在最后一帧。这里把属性落成 IDL 再显式 play()；被内核拦下时
+     等 canplay、回到前台或页面首次触摸后再试，loop 再用 ended 兜底。click 模式一根手指都不碰。 */
+  let heroAutoplayVideos = [];
+  let heroAutoplayBound = false;
+  const heroAutoplayAllowed = () => !document.hidden && !lightboxOpen();
+  const playHeroVideo = (video) => {
+    if (!video?.isConnected || !heroAutoplayAllowed()) return;
+    const slide = video.closest('.hero-slide');
+    if (slide && !slide.classList.contains('is-active')) return;
+    // 属性在部分内核里不足以让自动播放生效；muted 必须在 play() 之前就是 true。
+    video.muted = true;
+    video.defaultMuted = true;
+    video.loop = true;
+    video.playsInline = true;
+    video.setAttribute('webkit-playsinline', 'webkit-playsinline');
+    const played = video.play();
+    if (played && typeof played.catch === 'function') played.catch(() => {});
+  };
+  const playHeroVideos = () => { for (const video of heroAutoplayVideos) playHeroVideo(video); };
+  function setupHeroAutoplay(root = document) {
+    heroAutoplayVideos = [...root.querySelectorAll('.hero-figure video')]
+      .filter((video) => video.dataset.videoMode !== 'click');
+    if (!heroAutoplayVideos.length) return;
+    for (const video of heroAutoplayVideos) {
+      if (video.dataset.autoplayReady) { playHeroVideo(video); continue; }
+      video.dataset.autoplayReady = '1';
+      // 这两个属性是旧内核认的「内联播放」开关，属性先写、脚本再补一遍，避免首帧被强制全屏。
+      video.setAttribute('webkit-playsinline', 'webkit-playsinline');
+      video.setAttribute('x5-playsinline', 'x5-playsinline');
+      // 被自动播放策略拦下时，元数据就绪后再试一次（此时 play() 多半能过）。
+      video.addEventListener('canplay', () => playHeroVideo(video));
+      // 内核不支持 loop 时播完会停在最后一帧：回到开头再播一次。
+      video.addEventListener('ended', () => {
+        try { video.currentTime = 0; } catch { /* 有些内核此时禁止 seek，直接 play() 也会从头开始 */ }
+        playHeroVideo(video);
+      });
+      playHeroVideo(video);
+    }
+    if (heroAutoplayBound) return;
+    heroAutoplayBound = true;
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) playHeroVideos(); });
+    // bfcache 回退不一定会发 visibilitychange，补一次 pageshow。
+    addEventListener('pageshow', playHeroVideos);
+    // 有内核要求页面先发生用户手势：首次操作后补播一次。之后仍失败还有 canplay / 回到前台兜底。
+    for (const type of ['pointerdown', 'touchstart', 'keydown']) {
+      document.addEventListener(type, playHeroVideos, { once: true, capture: true, passive: true });
+    }
+  }
+
   /* 首页轮播（多于一张图才渲染）。自动模式 5 秒一张，悬停/聚焦/切走标签页/「减弱动态效果」暂停。 */
   const HERO_AUTO_MS = 5000;
   let heroTimer = null;
@@ -476,6 +527,7 @@
     fillWho();
     decorateLightbox();
     setupHeroVideoClick();
+    setupHeroAutoplay();
     setupHeroCarousel();
     setupCodeCopy();
 

@@ -274,6 +274,8 @@ export function publicRoutes(repo, { comments, crypt, media = null, feeds = null
       const video = `<video class="hero-video" src="${esc(im.path)}"${dims}`
         + `${clickMode ? ' playsinline' : ' muted loop playsinline'}`
         + `${playing ? ' autoplay' : ''} preload="${clickMode ? (active || !slide ? 'metadata' : 'none') : (playing ? 'metadata' : 'none')}"`
+        // 老内核（鸿蒙自带、X5/WebView）只认这个内联播放标记；脚本还会再补一次并显式 play()。
+        + ' webkit-playsinline'
         + ` data-video-mode="${videoMode}"${clickMode ? '' : lightboxAttrs(im)} aria-label="${esc(heroAlt)}"></video>`;
       const expand = clickMode
         ? `<a class="hero-expand" href="${esc(im.path)}" target="_blank" rel="noopener"${lightboxAttrs(im)} aria-label="在灯箱中播放视频">${expandIcon}</a>`
