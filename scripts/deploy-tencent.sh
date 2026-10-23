@@ -55,7 +55,7 @@ rsync -az \
   --exclude='/state/' --exclude='/content/' --exclude='*.blog-lock/' \
   --exclude='/.env' --exclude='.env.*' --exclude='*.pem' \
   --exclude='/.git/' --exclude='/.github/' \
-  --exclude='/output/' --exclude='/.workbuddy/' --exclude='.DS_Store' \
+  --exclude='/output/' --exclude='/.workbuddy/' --exclude='/.workbuddy-ai/' --exclude='.DS_Store' \
   ./ "$remote:$release/next/"
 ssh "${ssh_opts[@]}" "$remote" "sudo -n env $remote_env bash -s -- $(q "$release")" <<'REMOTE'
 set -euo pipefail
