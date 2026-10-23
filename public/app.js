@@ -352,7 +352,14 @@
     clearTimeout(video.__heroPendingTimer);
     video.__heroPendingTimer = 0;
   };
-  const playHeroVideo = (video, { gesture = false } = {}) => {
+  /* 被自动播放策略拦下时封面停在黑框上很难看（鸿蒙还会给它盖一枚原生播放键）。
+     把第一帧解出来当"海报"：seek 到 0.001 而不是 0 —— 有些内核对 0 不做解码；真播起来也从 0.001 继续，肉眼无差。
+     readyState 门槛只到 HAVE_METADATA：封面是 preload="metadata"，此时还没有画面，正是这次 seek 把它拉下来。 */
+  const showHeroFirstFrame = (video) => {
+    if (video.readyState < 1 || video.currentTime > 0.5) return;
+    try { video.currentTime = 0.001; } catch { /* 内核不许 seek 就保持原样 */ }
+  };
+  const playHeroVideo = (video, { reset = false } = {}) => {
     if (!video?.isConnected || !heroAutoplayAllowed() || !heroVideoActive(video)) return;
     // 属性在部分内核里不足以让自动播放生效；muted 必须在 play() 之前就是 true。
     video.muted = true;
@@ -360,9 +367,10 @@
     video.loop = true;
     video.playsInline = true;
     video.setAttribute('webkit-playsinline', 'webkit-playsinline');
-    // 只有用户手势能解除「策略拦截」；同一时间只允许一个 play() 在飞，但不要用 paused 做门槛：
+    // 只有用户手势（或页面重新可见）能解除「策略拦截」；同一时间只允许一个 play() 在飞，但不要用 paused 做门槛：
     // 有的内核在起播被拦时 paused 已经是 false，用 paused 判断会误以为「已经在播」而永远不再重试。
-    if (gesture) video.__heroBlocked = false;
+    // reset 只清「被拦」标记，不动 __heroPending —— 重叠的 play() 会把鸿蒙上尚未落定的起播请求顶掉。
+    if (reset) video.__heroBlocked = false;
     if (video.__heroPending) return;
     if (video.__heroBlocked) { armHeroGesture(); return; }
     video.__heroPending = true;
@@ -372,6 +380,7 @@
     } catch {
       settleHeroPlay(video);
       video.__heroBlocked = true;
+      showHeroFirstFrame(video);
       armHeroGesture();
       return;
     }
@@ -383,6 +392,7 @@
         // 只有自动播放策略拦截需要等手势；其它错误（AbortError、解码失败）交给 canplay / 看门狗。
         if (error && error.name === 'NotAllowedError') {
           video.__heroBlocked = true;
+          showHeroFirstFrame(video);
           armHeroGesture();
         }
       },
@@ -390,8 +400,8 @@
     // 个别内核会返回一个永不落定的 Promise：留超时，别让 __heroPending 永久卡死。
     video.__heroPendingTimer = setTimeout(() => settleHeroPlay(video), HERO_PLAY_TIMEOUT_MS);
   };
-  const playHeroVideos = (gesture = false) => {
-    for (const video of heroAutoplayVideos) playHeroVideo(video, { gesture });
+  const playHeroVideos = (opts) => {
+    for (const video of heroAutoplayVideos) playHeroVideo(video, opts);
   };
   const armHeroGesture = () => {
     if (heroGestureController || typeof AbortController !== 'function') return;
@@ -401,7 +411,7 @@
       controller.abort();
       if (heroGestureController === controller) heroGestureController = null;
       // 手势到来：解除策略拦截标记再试；正在起播的那次仍然不打断。
-      playHeroVideos(true);
+      playHeroVideos({ reset: true });
     };
     for (const type of ['pointerdown', 'touchstart', 'keydown']) {
       document.addEventListener(type, retry, { capture: true, passive: true, signal: controller.signal });
@@ -431,9 +441,11 @@
   function setupHeroAutoplay(root = document) {
     if (!heroPageEventsBound) {
       heroPageEventsBound = true;
-      document.addEventListener('visibilitychange', () => { if (!document.hidden) playHeroVideos(); });
+      // 页面重新可见 / 从 bfcache 回退：当成一次全新的起播机会 —— 上一次「被策略拦下」的标记必须清掉，
+      // 否则后台那次失败的尝试会把后面所有重试都短路掉（鸿蒙上「关掉浏览器再进就不自动播」正是这条路径）。
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) playHeroVideos({ reset: true }); });
       // bfcache 回退不一定会发 visibilitychange，补一次 pageshow。
-      addEventListener('pageshow', () => playHeroVideos());
+      addEventListener('pageshow', () => playHeroVideos({ reset: true }));
     }
     if (heroGestureController) { heroGestureController.abort(); heroGestureController = null; }
     heroAutoplayVideos = [...root.querySelectorAll('.hero-figure video')]

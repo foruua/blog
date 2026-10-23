@@ -398,6 +398,33 @@ try {
       assert.equal(folds[1].querySelector('.nf-rollout').style.height, '', '收完要清掉行内高度，交回给 CSS 终态');
     } finally { w.close(); }
   });
+  await test('封面视频：页面重新可见会清掉「被策略拦下」的标记再重试（鸿蒙关掉浏览器再进就不自动播）', async () => {
+    const html = '<!doctype html><html><body><div id="app"><h1 class="hero-figure"><video class="hero-video" data-video-mode="auto"></video></h1></div></body></html>';
+    const dom = new JSDOM(html, { url: 'https://example.com/', runScripts: 'outside-only', pretendToBeVisual: true });
+    const w = dom.window;
+    w.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
+    const plays = [];
+    // 第一次 play() 按自动播放策略被拒（NotAllowedError），之后放行 —— 模拟"首屏那次被拦"。
+    w.HTMLMediaElement.prototype.play = function play() {
+      plays.push(1);
+      return plays.length === 1
+        ? Promise.reject(Object.assign(new Error('blocked'), { name: 'NotAllowedError' }))
+        : Promise.resolve();
+    };
+    w.HTMLMediaElement.prototype.pause = () => {};
+    const tick = () => new Promise((r) => w.setTimeout(r, 30));
+    try {
+      w.eval(fs.readFileSync(new URL('../public/request.js', import.meta.url), 'utf8'));
+      w.eval(fs.readFileSync(new URL('../public/ui.js', import.meta.url), 'utf8'));
+      w.eval(fs.readFileSync(new URL('../public/app.js', import.meta.url), 'utf8'));
+      await tick();
+      const before = plays.length;
+      assert.ok(before >= 1, '挂载时应先尝试起播一次');
+      w.dispatchEvent(new w.Event('pageshow'));
+      await tick();
+      assert.ok(plays.length > before, 'pageshow 后必须重试：上一次被拦的标记不能把后续重试全短路掉');
+    } finally { w.close(); }
+  });
   await test('单文件损坏不阻塞其余内容入库（且内容管线不卡死）', async () => {
     const dir = path.join(process.env.CONTENT_DIR, 'posts');
     const bad = path.join(dir, 'partial-broken.md');

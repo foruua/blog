@@ -549,6 +549,11 @@ body.mnav-open .mnav-panel { transform: none; opacity: 1; }
 }
 /* 视频外面这层只负责给「点击播放」的标记定位；轮播里它同时是 .hero-slide（叠层与切换仍按原来那套）。 */
 .hero-media { position: relative; display: block; }
+/* 抽屉或浮层打开时把封面视频藏掉：鸿蒙自带浏览器（ArkWeb）把 <video> 画在独立的原生层上，
+   z-index 压不住 —— 抽屉铺满整屏了，视频仍浮在目录与配色面板之上（用户实测截图）。
+   visibility 让它这一帧不参与合成，关掉抽屉自动恢复；播放状态不受影响，回来接着播。 */
+body.mnav-open .hero-figure video,
+html.modal-open .hero-figure video { visibility: hidden; }
 .hero-slide { position: relative; }
 .hero-play {
   position: absolute; inset: 0; margin: auto;
