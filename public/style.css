@@ -691,11 +691,39 @@ html.modal-open .hero-figure video { visibility: hidden; }
 }
 .hero-copy-dark .hero-copy-link:hover { background: rgba(255, 255, 255, .92); }
 
+/* —— 鸿蒙 ArkWeb 降级：原生视频层盖住页面上的一切 ——
+   ArkWeb 把 <video> 画在独立的原生层上，z-index 与父级 stacking context 都管不住：
+   叠在视频上的封面文字永远看不见（抽屉被视频盖住也是同一条，已在上面用 visibility 处理）。
+   这里把「单图/单视频」那种文字直接挂在 <h1 class="hero-figure"> 里的形态，改成相框下方的一行题注：
+   深色字、无遮罩、无投影。轮播那份文字在 .hero-copies 绝对层里，不受影响。
+   类名由 ui.js 按 UA 挂上（\bArkWeb\/），没有可探测的 DOM/CSS 特征可用。 */
+.ua-arkweb .hero-figure > .hero-copy {
+  position: static; inset: auto;
+  display: block;
+  padding: .7rem .55rem .1rem;
+  background: none;
+  color: var(--fg);
+  opacity: 1; visibility: visible;
+}
+.ua-arkweb .hero-figure > .hero-copy .hero-copy-inner { max-width: none; }
+.ua-arkweb .hero-figure > .hero-copy .hero-copy-title,
+.ua-arkweb .hero-figure > .hero-copy .hero-copy-sub {
+  color: var(--fg); text-shadow: none;
+}
+.ua-arkweb .hero-figure > .hero-copy .hero-copy-kicker {
+  color: var(--muted); text-shadow: none;
+}
+.ua-arkweb .hero-figure > .hero-copy .hero-copy-link {
+  color: var(--accent-ink); background: var(--accent-soft); border-color: var(--accent-line);
+}
+
 @media (max-width: 620px) {
   .hero-copy { inset: .35rem; }
   .hero-copy-bottom { padding: 2rem .65rem .7rem; }
   .hero-copy-center .hero-copy-inner { padding: .85rem .9rem; }
   .hero-copy-link { padding: .4rem .7rem; }
+  /* 降级版式在窄屏同样要保持"题注"的样子，别被上面的 .hero-copy-bottom 内距带回去。 */
+  .ua-arkweb .hero-figure > .hero-copy { padding: .65rem .5rem .1rem; }
 }
 
 /* 轮播的几张 slide 叠在同一网格单元（见 .hero-track）。这条 width: 100% 是**审计硬要求**：Chrome 判「图有没有尺寸」看计算样式 IsUnsizedImage()，img 基础规则的 width:auto 在轮播里就成了「没尺寸」；补百分比宽度配合行内 aspect-ratio 才算有尺寸。 */

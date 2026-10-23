@@ -352,6 +352,24 @@
     clearTimeout(video.__heroPendingTimer);
     video.__heroPendingTimer = 0;
   };
+  /* 临时诊断（?herodbg=1）：鸿蒙上「不播 / 文字被视频盖住」光靠猜改不动，
+     把 UA、readyState、paused、error、每次 play() 的结果摊在页面顶部，截图即可定位。
+     不带这个参数时一行都不执行，也不建节点。 */
+  const heroDebugOn = /[?&]herodbg=1\b/.test(location.search);
+  let heroDbgBox = null;
+  const heroDbg = (line) => {
+    if (!heroDebugOn) return;
+    if (!heroDbgBox) {
+      heroDbgBox = document.createElement('pre');
+      heroDbgBox.id = 'herodbg';
+      heroDbgBox.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:2147483647;margin:0;padding:6px 8px;'
+        + 'font:11px/1.45 ui-monospace,Menlo,monospace;background:rgba(0,0,0,.82);color:#fff;white-space:pre-wrap;pointer-events:none';
+      heroDbgBox.textContent = `UA: ${navigator.userAgent}\n`;
+      document.body.append(heroDbgBox);
+    }
+    const lines = `${heroDbgBox.textContent}${line}\n`.split('\n');
+    heroDbgBox.textContent = lines.slice(-14).join('\n');
+  };
   const playHeroVideo = (video, { reset = false } = {}) => {
     if (!video?.isConnected || !heroAutoplayAllowed() || !heroVideoActive(video)) return;
     // 属性在部分内核里不足以让自动播放生效；muted 必须在 play() 之前就是 true。
@@ -367,6 +385,7 @@
     if (video.__heroPending) return;
     if (video.__heroBlocked) { armHeroGesture(); return; }
     video.__heroPending = true;
+    heroDbg(`play → rs=${video.readyState} paused=${video.paused} t=${video.currentTime.toFixed(2)}`);
     let played;
     try {
       played = video.play();
@@ -379,9 +398,10 @@
     }
     if (!played || typeof played.then !== 'function') { settleHeroPlay(video); return; }
     played.then(
-      () => { settleHeroPlay(video); video.__heroBlocked = false; video.__heroStarted = !video.paused; },
+      () => { settleHeroPlay(video); video.__heroBlocked = false; video.__heroStarted = !video.paused; heroDbg(`play ok → paused=${video.paused}`); },
       (error) => {
         settleHeroPlay(video);
+        heroDbg(`play err → ${error?.name ?? error} rs=${video.readyState} err=${video.error?.code ?? '-'}`);
         // 只有自动播放策略拦截需要等手势；其它错误（AbortError、解码失败）交给 canplay / 看门狗。
         if (error && error.name === 'NotAllowedError') {
           video.__heroBlocked = true;
@@ -496,6 +516,13 @@
     }
     armHeroGesture();
     if (!heroWatchdog) heroWatchdog = setInterval(ensureHeroPlayback, 1500);
+    if (heroDebugOn) {
+      setInterval(() => {
+        const v = heroAutoplayVideos[0];
+        if (!v) return;
+        heroDbg(`state rs=${v.readyState} paused=${v.paused} t=${v.currentTime.toFixed(2)} err=${v.error?.code ?? '-'} net=${v.networkState}`);
+      }, 800);
+    }
   }
 
   /* 首页轮播（多于一张图才渲染）。自动模式 5 秒一张，悬停/聚焦/切走标签页/「减弱动态效果」暂停。 */
