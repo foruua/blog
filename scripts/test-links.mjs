@@ -316,6 +316,10 @@ const probeScheme = await probeSite('ftp://example.com/');
 check('D14 非 http(s) 算"死"（地址本身不能用）', probeScheme.state === 'dead' && probeScheme.code === 'bad-scheme', JSON.stringify(probeScheme));
 const probeJunk = await probeSite('这不是地址');
 check('D15 畸形地址算"死"', probeJunk.state === 'dead' && probeJunk.code === 'bad-url', JSON.stringify(probeJunk));
+// 端口白名单与友圈抓取共用一份（src/feeds/fetch.js）：非 Web 端口在 DNS 之前就被拒，一个包都不发。
+const probePort = await probeSite('http://example.com:6379/');
+check('D16 非 Web 端口在解析前被拦掉（端口白名单与友圈共用）',
+  probePort.state === 'dead' && probePort.code === 'bad-port', JSON.stringify(probePort));
 
 // E. <title> 提取（只当悬停提示，不能拿来认人）
 

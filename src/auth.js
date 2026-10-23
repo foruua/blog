@@ -8,6 +8,8 @@ import { atomicWrite } from './util/files.js';
 export const decryptEmail = (crypt, enc) => crypt?.decrypt(enc) ?? '';
 
 const KEY = 'app_secret';
+// 文档（README / .env.example）承诺的密钥长度下限；见 createCrypto 里的校验。
+const MIN_SECRET_BYTES = 32;
 // 密钥不能再跟着数据库走：数据库是备份的一部分，密钥若也在里面，拿到备份的人就能解开所有邮箱与 SMTP 密码。
 // 默认放 DATA_DIR/.app-secret（600）；也可以用 APP_SECRET 或 APP_SECRET_FILE 覆盖。
 const SECRET_FILE = path.resolve(process.env.APP_SECRET_FILE ?? path.join(DATA_DIR, '.app-secret'));
@@ -54,6 +56,23 @@ export function createCrypto(db, { secretFile = SECRET_FILE } = {}) {
       // 文件写不进去时库里的副本就是唯一密钥，必须留着；下次启动继续用它。
       console.warn(JSON.stringify({ event: 'crypto.secret-file-failed', code: error?.code ?? 'FS', legacyKept: true }));
     }
+  }
+
+  // 文档承诺「至少 32 字节」：短密钥等于把 HMAC 签名和 AES 密钥的强度降到可枚举范围。
+  // 显式配置的（APP_SECRET）直接拒绝启动——静默接受才是真正的坑；手工改过密钥文件的只告警，
+  // 因为换掉它会让历史邮箱/邮件密码全部解不开，得由站主自己决定何时轮换。
+  if (envSecret && envSecret.length < MIN_SECRET_BYTES) {
+    throw new Error(`APP_SECRET 至少 ${MIN_SECRET_BYTES} 个字符（可用 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))" 生成）`);
+  }
+  if (!envSecret && fileSecret && fileSecret.length < MIN_SECRET_BYTES) {
+    console.warn(JSON.stringify({ event: 'crypto.short-secret', length: fileSecret.length, min: MIN_SECRET_BYTES }));
+  }
+  // 密钥文件权限过宽：同机其他用户能读到它，等于能解开库里所有邮箱与 SMTP 密码。
+  if (!envSecret && fileSecret) {
+    try {
+      const mode = fs.statSync(secretFile).mode & 0o777;
+      if (mode & 0o077) console.warn(JSON.stringify({ event: 'crypto.secret-file-mode', mode: mode.toString(8) }));
+    } catch { /* 读不到属性就不判断，别因此拦启动 */ }
   }
 
   // 同一个密钥不需要在库里留副本；密钥不同（例如刚设置 APP_SECRET）则保留旧值作为解密回退。

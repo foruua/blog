@@ -16,7 +16,10 @@ const RETRY_STEPS = [
   12 * 3600_000,   // 12 小时
   24 * 3600_000,   // 24 小时
 ];
-const TERMINAL_REASONS = new Set(['not-configured', 'no-recipient', 'no-transport']);
+const TERMINAL_REASONS = new Set(['not-configured', 'no-recipient', 'no-transport', 'unreadable-recipient']);
+// 收件人密文前缀：队列行要随备份/异地副本走，明文邮箱等于把读者地址摊在备份里。
+// 前缀同时是兼容标记——迁移前入队的行没有它，按明文读，不必写数据迁移。
+const ENC_PREFIX = 'enc:';
 // 超过这个年龄的待发信直接作废：审核链接 7 天有效，离线一周后补发的通知没有意义，还可能带旧内容。
 const MAX_AGE_MS = 7 * 86400_000;
 const nowIso = (ms) => new Date(ms).toISOString();
@@ -29,6 +32,7 @@ export function createMailOutbox({
   intervalMs = envInt(process.env.MAIL_RETRY_INTERVAL_MS, 60_000, { min: 5_000, max: 3600_000 }),
   maxPerHour = envInt(process.env.MAIL_MAX_PER_HOUR, 30, { min: 1, max: 10_000 }),
   maxAttempts = 8,
+  crypt = null,
 } = {}) {
   const q = {
     insert: db.prepare(`INSERT INTO mail_outbox
@@ -62,6 +66,15 @@ export function createMailOutbox({
   const backoff = (attempts) => RETRY_STEPS[Math.min(Math.max(0, attempts - 1), RETRY_STEPS.length - 1)];
   const sentInLastHour = () => Number(q.sentLastHour.get(nowIso(now() - 3600_000)).n) || 0;
 
+  // 没有 crypt（单模块测试、旧调用方）时保持明文，语义不变；有 crypt 才加密。
+  const seal = (value) => (crypt?.encrypt && value ? `${ENC_PREFIX}${crypt.encrypt(value)}` : value);
+  const open = (value) => {
+    const raw = String(value ?? '');
+    if (!raw.startsWith(ENC_PREFIX)) return raw;              // 迁移前入队的明文行
+    if (!crypt?.decrypt) return '';                            // 拿到密文却没有密钥：当作读不出
+    return crypt.decrypt(raw.slice(ENC_PREFIX.length)) ?? '';
+  };
+
   function maybePrune() {
     if (now() - lastPrune < 3600_000) return;
     lastPrune = now();
@@ -74,7 +87,7 @@ export function createMailOutbox({
       try { headers = JSON.parse(row.headers_json); } catch { /* 坏 JSON 不阻断投递 */ }
     }
     return {
-      to: row.to_addr,
+      to: open(row.to_addr),
       subject: row.subject,
       text: row.text_body,
       ...(row.html_body ? { html: row.html_body } : {}),
@@ -84,7 +97,7 @@ export function createMailOutbox({
 
   /** 入队；默认立即尝试一次。返回 { queued, id } 或 { queued:false, reason }。 */
   function enqueue(msg, { autoFlush = true } = {}) {
-    const to = headerValue(msg?.to || ownerEmail());
+    const to = seal(headerValue(msg?.to || ownerEmail()));
     // 主题同样可能来自导入数据/评论昵称，和 to 一样在队列入口折叠控制字符。
     const subject = headerValue(msg?.subject);
     const text = String(msg?.text ?? '');
@@ -128,7 +141,14 @@ export function createMailOutbox({
             continue;
           }
           let result;
-          try { result = await deliver(payloadOf(row)); }
+          const payload = payloadOf(row);
+          // 密钥换了/丢了就解不出收件人：重试再多次也没用，直接终态跳过，别让它卡在队列里每轮重试。
+          if (!payload.to) {
+            q.markSkipped.run(nowIso(now()), 'unreadable-recipient', row.id);
+            log(JSON.stringify({ event: 'mail.unreadable-recipient', id: row.id }));
+            continue;
+          }
+          try { result = await deliver(payload); }
           catch (error) { result = { sent: false, reason: error?.message ?? 'deliver-failed' }; }
           if (result?.sent) {
             q.markSent.run(nowIso(now()), row.id);
@@ -198,7 +218,21 @@ export function createMailOutbox({
     };
   }
 
+  // 历史行的收件人是明文：启动时补加密一次，让老备份里的地址也不再裸着。幂等——都带上前缀后不再命中。
+  function sealLegacyRows() {
+    if (!crypt?.encrypt) return;
+    try {
+      const rows = db.prepare(`SELECT id, to_addr FROM mail_outbox
+        WHERE to_addr <> '' AND to_addr NOT LIKE '${ENC_PREFIX}%'`).all();
+      if (!rows.length) return;
+      const update = db.prepare('UPDATE mail_outbox SET to_addr = ? WHERE id = ?');
+      for (const row of rows) update.run(seal(row.to_addr), row.id);
+      log(JSON.stringify({ event: 'mail.addresses-sealed', count: rows.length }));
+    } catch { /* 迁移前的库没有这张表：启动不因此失败 */ }
+  }
+
   function start() {
+    sealLegacyRows();
     if (timer || !(intervalMs > 0)) return;
     void flush().catch((error) => log(JSON.stringify({ event: 'mail.flush-failed', code: error?.code ?? 'INTERNAL' })));
     timer = setInterval(() => {

@@ -201,16 +201,17 @@ sudo env BLOG_DEPLOY_APP_ROOT=/srv/blog \
 生产机自己推自己不算异地。当前做法是家里 Mac 定时从生产机 **pull**：
 
 ```sh
-# 手动跑一次
-npm run offsite:pull
+# 手动跑一次（BLOG_OFFSITE_SOURCE 必填：脚本里不内置生产机地址）
+BLOG_OFFSITE_SOURCE=ubuntu@203.0.113.10 npm run offsite:pull
 
-# 默认拉到哪里、从哪拉，可用环境变量覆盖
+# 从哪拉、拉到哪里、用哪把私钥，都用环境变量给
 BLOG_OFFSITE_SOURCE=ubuntu@203.0.113.10 \
+BLOG_OFFSITE_KEY=$HOME/.ssh/blog-deploy.pem \
 BLOG_OFFSITE_DIR=$HOME/.local/share/blog-hosting/offsite-backups \
 ./scripts/pull-offsite.sh
 ```
 
-脚本用 `rsync --delete` 镜像生产机的 `/srv/blog/state/data/backups`，内容哈希命名的资产包未变化时不会重传；最新备份超过 48 小时会以非零退出。macOS 上用 launchd 每 6 小时跑一次：
+`BLOG_OFFSITE_SOURCE` 缺失时脚本直接以退出码 2 中止（不再有硬编码的兜底主机）；`BLOG_OFFSITE_KEY` 留空则走 ssh-agent / `~/.ssh/config`。脚本用 `rsync --delete` 镜像生产机的 `/srv/blog/state/data/backups`，内容哈希命名的资产包未变化时不会重传；传输有 `--timeout`/`--contimeout`，网络半死不会把下一轮锁死；最新备份超过 48 小时会以非零退出。macOS 上用 launchd 每 6 小时跑一次：
 
 `~/Library/LaunchAgents/me.uua.offsite.plist`：
 
@@ -230,6 +231,8 @@ BLOG_OFFSITE_DIR=$HOME/.local/share/blog-hosting/offsite-backups \
   <dict>
     <key>HOME</key><string>/Users/you</string>
     <key>PATH</key><string>/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>BLOG_OFFSITE_SOURCE</key><string>ubuntu@203.0.113.10</string>
+    <key>BLOG_OFFSITE_KEY</key><string>/Users/you/.ssh/blog-deploy.pem</string>
   </dict>
   <key>RunAtLoad</key><true/>
   <key>StartInterval</key><integer>21600</integer>

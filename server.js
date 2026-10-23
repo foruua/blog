@@ -162,7 +162,7 @@ const crypt = createCrypto(db);
 initMail({ getSetting: repo.getSetting, crypt });
 // 发信队列：通知不再直接从请求里 fire-and-forget，SMTP 抖动时由队列退避重试；全局限流避免被评论洪水打爆邮箱。
 // 队列表在同一个数据库里，随备份一起走；发送失败会保留在后台「设置」页可见。
-const outbox = createMailOutbox({ db, deliver: deliverMail, log: (line) => console.log(line) });
+const outbox = createMailOutbox({ db, deliver: deliverMail, log: (line) => console.log(line), crypt });
 outbox.start();
 const auth = createAdminAuth({ db, crypt });
 const imageInfo = createImageInfo(adminRepo);

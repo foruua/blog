@@ -2,6 +2,16 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
+// 测试进程绝不能继承开发机上的真实外部副作用配置：这些变量一旦从 shell 里带进来，跑一次 npm test 就可能
+// 真的发出邮件、给真实 webhook 打告警、往真实日志目录写、甚至用生产 SMTP 密码投递。需要它们的套件
+// （test-mail 的环境变量兜底、test-health 的令牌）自己通过 startServer({ env }) 显式注入，不走继承。
+export const TEST_ENV_SCRUB = {
+  SMTP_HOST: '', SMTP_PORT: '', SMTP_USER: '', SMTP_PASS: '', SMTP_TLS: '', SMTP_SECURE: '',
+  MAIL_FROM: '', OWNER_EMAIL: '', MONITOR_TOKEN: '', MONITOR_WEBHOOK_URL: '',
+  WATCHDOG_INTERVAL_MS: '0', BLOG_LOG_DIR: '',
+  BACKUP_REMOTE: '', BACKUP_HOOK: '',
+};
+
 // 每套测试拥有全部资源的副本；不读取用户 .env，也不复用真实 content/uploads。
 export async function createFixtures() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'blog-tests-'));
@@ -22,7 +32,7 @@ export async function createFixtures() {
     // 标记/尺寸/alt 照样被 UI 审计量到；回源逻辑由 test-avatar.mjs 用假上游覆盖。
     AVATAR_UPSTREAMS: '',
   };
-  Object.assign(process.env, env);
+  Object.assign(process.env, TEST_ENV_SCRUB, env);
   const cleanup = () => fs.rmSync(root, { recursive: true, force: true });
   process.once('exit', cleanup);
   try {

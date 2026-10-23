@@ -264,6 +264,28 @@ try {
       fs.chmodSync(keyDir, 0o700);
     }
   });
+  await test('APP_SECRET 短于 32 字节时拒绝启动（文档承诺的长度要真的生效）', () => {
+    const dbFile = path.join(work, 'short-secret.sqlite');
+    const db = open(dbFile);
+    db.exec('CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
+    const prev = process.env.APP_SECRET;
+    process.env.APP_SECRET = 'too-short';
+    try {
+      assert.throws(() => createCrypto(db, { secretFile: path.join(work, 'short-secret-file') }), /至少 32/);
+    } finally {
+      process.env.APP_SECRET = prev ?? '';
+      close(db);
+    }
+  });
+  await test('readPostFront 只读内容目录内的文件（被篡改的 file_path 不能变成任意文件读取）', async () => {
+    const { readPostFront } = await import('../src/content/write.js');
+    const inside = path.join(process.env.CONTENT_DIR, 'posts', 'guard.md');
+    fs.writeFileSync(inside, '---\ntitle: 受控文章\n---\n正文');
+    assert.equal(readPostFront(inside).title, '受控文章');
+    assert.deepEqual(readPostFront('/etc/hosts'), {});
+    assert.deepEqual(readPostFront(path.join(process.env.CONTENT_DIR, '..', 'outside.md')), {});
+    assert.deepEqual(readPostFront(''), {});
+  });
   await test('评论行内回复框能就地展开收起（后端还加载了 nav.js，也不能被它抢走点击）', async () => {
     const html = `<!doctype html><html><body><div id="app"><table><tbody>
       <tr><td><a class="a-link" href="/admin/comments/7/reply" data-reply-toggle data-no-pjax aria-expanded="false" aria-controls="reply-row-pending-7">回复</a></td></tr>

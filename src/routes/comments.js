@@ -365,8 +365,11 @@ export function commentRoutes({ repo, comments, crypt, auth = null, notifier = c
     }
 
     const map = { approve: 'approved', spam: 'spam', delete: 'deleted' };
+    // action 来自表单：直接 map[action] 会顺着原型链取到 constructor/__proto__ 这类真值，随后被当状态写进 SQL。
+    if (!Object.hasOwn(map, action)) {
+      return c.html(layout({ title: '评论审核', noindex: true, main: moderatePage(payload, comment, '') }), 400);
+    }
     const next = map[action];
-    if (!next) return c.html(layout({ title: '评论审核', noindex: true, main: moderatePage(payload, comment, '') }), 400);
 
     // 校验 nonce 与状态写入必须在同一事务里重做一次：否则同一封审核邮件被双击/两个标签页并发提交时，
     // 两个请求都能通过前面的检查，最后「删除」与「批准」互相覆盖。

@@ -84,7 +84,8 @@ function commentBody(c, { replyBase = '', canReply = false, depth = 1, replyToAu
 }
 
 export function commentSection({ post, thread, count, flash, tsToken, replyTo = null, idSuffix = '', replyBase = '', page = 1, pages = 1, asAuthor = false, csrf = '', submissionId = '' }) {
-  const notice = flash && FLASH[flash]
+  // flash 来自查询串：用 hasOwn 挡住 constructor/__proto__ 这类原型链键（否则会把函数源码当提示渲染出来）。
+  const notice = flash && Object.hasOwn(FLASH, flash)
     ? `<p class="c-flash c-flash-${esc(flash)}">${esc(FLASH[flash])}</p>` : '';
 
   if (!post.comments_on) {

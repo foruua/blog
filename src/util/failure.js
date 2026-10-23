@@ -19,7 +19,7 @@ export function failureLabel(message) {
   if (/超时/.test(text)) return '超时';
   if (/解析/.test(text)) return '域名解析不了';
   if (/内网|保留地址/.test(text)) return '指向内网地址';
-  if (/格式不对|只支持 http|账号密码/.test(text)) return '地址无效';
+  if (/格式不对|只支持 http|账号密码|端口不在允许范围/.test(text)) return '地址无效';
   if (/网页|JSON Feed|不是订阅源|不是 RSS|根元素/.test(text)) return '不是订阅源';
   if (/空内容/.test(text)) return '对方返回空内容';
   if (/没有(任何)?条目/.test(text)) return '源里没有条目';

@@ -31,6 +31,12 @@ const MAX_REDIRECTS = 3;
 export const ALLOW_PRIVATE_NETWORK = process.env.FEED_ALLOW_PRIVATE === 'true';
 const ALLOW_PRIVATE = ALLOW_PRIVATE_NETWORK;
 
+// 端口白名单：友圈地址来自访客/站主填写的站点，端口不限等于借服务器之手探测任意服务（25、6379、9200…）。
+// 只放常见 Web 端口；友链探活（src/links/check.js）直接复用这一份口径，免得两处规则各自漂移。
+// 本机测试（FEED_ALLOW_PRIVATE=true）跑在随机端口，整体放行。
+export const PUBLIC_WEB_PORTS = new Set(['', '80', '443', '8080', '8443']);
+export const isPublicWebPort = (port) => PUBLIC_WEB_PORTS.has(String(port ?? ''));
+
 /* 地址校验 */
 
 function v4ToInt(ip) {
@@ -182,6 +188,10 @@ async function resolveTarget(raw, { signal, lookup = defaultLookup } = {}) {
   if (!addresses.length) throw new FeedError(`域名解析不了：${host}`, 'dns');
   if (!ALLOW_PRIVATE && addresses.some((a) => isPrivateAddress(a.address, a.family))) {
     throw new FeedError(`指向内网或保留地址，已拒绝（${host}）`, 'private-host');
+  }
+  // 端口白名单放在内网判定之后：私网地址本身更值得优先报出来，而端口检查只看字面量，不会向对方发包。
+  if (!ALLOW_PRIVATE && !isPublicWebPort(url.port)) {
+    throw new FeedError(`地址端口不在允许范围（只允许 80/443/8080/8443，当前 ${url.port}）`, 'bad-port');
   }
   return { url, addresses };
 }

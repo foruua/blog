@@ -51,7 +51,7 @@ ${bar}
         </section>`;
   }
 
-  const notice = flash && FLASH[flash]
+  const notice = flash && Object.hasOwn(FLASH, flash)
     ? `          <p class="ncp-flash ncp-flash-${esc(flash)}">${esc(FLASH[flash])}</p>\n` : '';
 
   // 一条评论都没有时这里什么都不放、直接进撰写区——删这句时内页那句一并删（同一句话只删一边等于没删）。抽屉头上已有「回应」标记行，不必再说"这里还没有人说话"。

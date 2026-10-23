@@ -1,11 +1,13 @@
 import { spawn } from 'node:child_process';
+import { TEST_ENV_SCRUB } from './_fixtures.mjs';
 
 // POSIX 子进程继承套件的进程组，超时或取消时一并结束服务器子进程。
 export function runSuite(suite, { cwd, timeoutMs = 10 * 60 * 1000, env = process.env, stdio = 'inherit', log = console.error } = {}) {
   return new Promise((resolve) => {
     const child = spawn(process.execPath, ['--no-warnings', `scripts/${suite}.mjs`], {
       cwd, env: {
-        ...env, BLOG_TEST_ROOT: '',
+        // 先洗掉开发机上可能导出的真实邮件/监控/日志配置，再让调用方显式传入的值覆盖。
+        ...TEST_ENV_SCRUB, ...env, BLOG_TEST_ROOT: '',
         // 套件即使没走 _fixtures（或父进程显式传了生产值），也不允许把临时备份同步到真实异地目录。
         BACKUP_REMOTE: '', BACKUP_HOOK: '',
       }, stdio, detached: process.platform !== 'win32',

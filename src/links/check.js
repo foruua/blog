@@ -3,7 +3,7 @@
 
 import { createLimiter } from '../util/concurrency.js';
 
-import { fetchDocument, TIMEOUT_MS, ALLOW_PRIVATE_NETWORK } from '../feeds/fetch.js';
+import { fetchDocument, TIMEOUT_MS, ALLOW_PRIVATE_NETWORK, isPublicWebPort } from '../feeds/fetch.js';
 import { decodeEntities } from '../util/entities.js';
 
 export const FAIL_LIMIT = 3;
@@ -18,17 +18,16 @@ export const MAX_PER_ROUND = 40;
 const GONE_HTTP = new Set([404, 410, 451]);
 
 // 访客填写的是任意网址：只探常见 Web 端口，别让服务器去碰 25/6379 这类服务。
-// 本机测试（FEED_ALLOW_PRIVATE=true）使用随机端口，放行。
-const PROBE_PORTS = new Set(['', '80', '443', '8080', '8443']);
+// 白名单与友圈抓取共用（src/feeds/fetch.js），两处口径不会再漂移。本机测试（FEED_ALLOW_PRIVATE=true）使用随机端口，放行。
 const probeTargetOf = (raw) => {
   try {
     const url = new URL(String(raw ?? ''));
-    if (!ALLOW_PRIVATE_NETWORK && !PROBE_PORTS.has(url.port)) return null;
+    if (!ALLOW_PRIVATE_NETWORK && !isPublicWebPort(url.port)) return null;
     return url.href;
   } catch { return null; }
 };
 
-const DEAD_CODES = new Set(['dns', 'timeout', 'network', 'bad-url', 'bad-scheme', 'private-host']);
+const DEAD_CODES = new Set(['dns', 'timeout', 'network', 'bad-url', 'bad-scheme', 'bad-port', 'private-host']);
 
 // 探活只需状态码 + <title>，不必把整页读进内存。首页超过它（2xx 才走到读体）说明对方在正常应答，仍算活，只是没标题。
 const PROBE_MAX_BYTES = 256 * 1024;

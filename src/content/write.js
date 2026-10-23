@@ -15,9 +15,23 @@ export function planFilePath({ kind, slug, existingPath = null, existingKind = k
   return path.join(CONTENT_DIR, dirFor(kind), `${slug}.md`);
 }
 
+// 读 frontmatter 前先确认路径落在 CONTENT_DIR 内：file_path 来自数据库，恢复一份被篡改的备份后
+// 它可能指向任意文件（/etc/passwd、密钥文件），这里再读就成了任意文件读取。词法路径与符号链接都要查。
+function withinContentDir(filePath) {
+  const rel = path.relative(CONTENT_DIR, filePath);
+  if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) return false;
+  try {
+    const real = fs.realpathSync(filePath);
+    const fromRoot = path.relative(fs.realpathSync(CONTENT_DIR), real);
+    return Boolean(fromRoot) && !fromRoot.startsWith('..') && !path.isAbsolute(fromRoot);
+  } catch { return false; }   // 文件不存在或解析失败：当作没有 frontmatter
+}
+
 export function readPostFront(filePath) {
-  if (!filePath || !fs.existsSync(filePath)) return {};
-  return parseFrontmatter(fs.readFileSync(filePath, 'utf8')).data;
+  if (!filePath) return {};
+  const resolved = path.resolve(filePath);
+  if (!withinContentDir(resolved)) return {};
+  return parseFrontmatter(fs.readFileSync(resolved, 'utf8')).data;
 }
 
 export function writePostFile({ filePath, front, body }) {

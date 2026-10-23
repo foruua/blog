@@ -97,6 +97,57 @@ try {
   check('T12 离线超过 7 天的待发信直接作废，不再补发旧审核链接',
     db5.prepare('SELECT status, last_error FROM mail_outbox WHERE id = ?').get(old.id)?.last_error === 'expired');
 
+  // 收件人加密：队列表会随备份/异地副本走，明文邮箱等于把读者地址摊在备份里。
+  {
+    const db6 = freshDb();
+    const sealed = [];
+    const fakeCrypt = {
+      encrypt: (s) => `v1.${Buffer.from(s, 'utf8').toString('base64url')}`,
+      decrypt: (b) => Buffer.from(String(b).replace(/^v1\./, ''), 'base64url').toString('utf8'),
+    };
+    const box = createMailOutbox({
+      db: db6,
+      crypt: fakeCrypt,
+      deliver: async (msg) => { sealed.push(msg); return { sent: true }; },
+      log: () => {},
+      intervalMs: 0,
+    });
+    const e = box.enqueue({ to: 'Reader <reader@example.com>', subject: 'sealed', text: 'x' }, { autoFlush: false });
+    const stored = db6.prepare('SELECT to_addr FROM mail_outbox WHERE id = ?').get(e.id)?.to_addr ?? '';
+    check('T13 队列里的收件人是密文，备份里看不到明文邮箱',
+      stored.startsWith('enc:') && !stored.includes('reader@example.com'), stored);
+
+    // 迁移前入队的明文行：启动时补加密，且照样投递得出去。
+    const at = new Date().toISOString();
+    db6.prepare(`INSERT INTO mail_outbox (to_addr, subject, text_body, status, attempts, next_attempt_at, created_at)
+      VALUES (?,?,?, 'pending', 0, ?, ?)`).run('legacy@example.com', 'legacy', 'y', at, at);
+    box.start(); box.stop();
+    const legacyRow = db6.prepare("SELECT to_addr FROM mail_outbox WHERE subject = 'legacy'").get()?.to_addr ?? '';
+    check('T14 启动时把历史明文收件人补加密',
+      legacyRow.startsWith('enc:') && !legacyRow.includes('legacy@example.com'), legacyRow);
+
+    await box.flush({ force: true });
+    check('T15 加密后的行仍按原地址投递', sealed.length === 2
+      && sealed[0].to === 'Reader <reader@example.com>' && sealed[1].to === 'legacy@example.com',
+      JSON.stringify(sealed.map((m) => m.to)));
+
+    // 密钥换了：解不出收件人的行要进终态，不能每轮都重试。
+    const db7 = freshDb();
+    const broken = createMailOutbox({
+      db: db7,
+      crypt: { encrypt: fakeCrypt.encrypt, decrypt: () => null },
+      deliver: async () => ({ sent: true }),
+      log: () => {},
+      intervalMs: 0,
+    });
+    const b = broken.enqueue({ to: 'owner@example.com', subject: 'lost-key', text: 'x' }, { autoFlush: false });
+    await broken.flush({ force: true });
+    const brokenRow = db7.prepare('SELECT status, last_error FROM mail_outbox WHERE id = ?').get(b.id);
+    check('T16 密钥解不开时进 skipped（unreadable-recipient），不再无限重试',
+      brokenRow?.status === 'skipped' && brokenRow.last_error === 'unreadable-recipient', JSON.stringify(brokenRow));
+    db6.close(); db7.close();
+  }
+
   for (const database of [db, db2, db3, db4, db5]) database.close();
 } catch (error) {
   console.error(error);
