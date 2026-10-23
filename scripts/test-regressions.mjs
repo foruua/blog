@@ -441,6 +441,44 @@ try {
       assert.ok(plays.length > beforeRetry, '1.5 秒补播应生效');
     } finally { w.close(); }
   });
+  await test('封面视频：paused=false 但时间不走（鸿蒙「假播」）→ 看门狗 pause+play 踢一脚', async () => {
+    const html = '<!doctype html><html><body><div id="app"><h1 class="hero-figure"><video class="hero-video" data-video-mode="auto"></video></h1></div></body></html>';
+    const dom = new JSDOM(html, { url: 'https://example.com/', runScripts: 'outside-only', pretendToBeVisual: true });
+    const w = dom.window;
+    w.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
+    // 把定时器收进数组，手动"走一拍"看门狗 —— 真等 1.5s×N 太慢，也没必要。
+    const timers = [];
+    w.setInterval = (fn, ms) => { timers.push({ fn, ms }); return timers.length; };
+    w.clearInterval = () => {};
+    const plays = [], pauses = [];
+    // jsdom 的 paused/readyState 是只读 getter，改成读自定义字段，才能摆出"假播"现场。
+    Object.defineProperty(w.HTMLMediaElement.prototype, 'paused', { configurable: true, get() { return this.__paused ?? true; } });
+    Object.defineProperty(w.HTMLMediaElement.prototype, 'readyState', { configurable: true, get() { return this.__rs ?? 0; } });
+    w.HTMLMediaElement.prototype.play = function play() { plays.push(1); this.__paused = false; return Promise.resolve(); };
+    w.HTMLMediaElement.prototype.pause = function pause() { pauses.push(1); this.__paused = true; };
+    try {
+      w.eval(fs.readFileSync(new URL('../public/request.js', import.meta.url), 'utf8'));
+      w.eval(fs.readFileSync(new URL('../public/ui.js', import.meta.url), 'utf8'));
+      w.eval(fs.readFileSync(new URL('../public/app.js', import.meta.url), 'utf8'));
+      const video = w.document.querySelector('video');
+      // 鸿蒙冷启动实测现场：play() 已 resolve、paused=false、readyState=3，但 currentTime 停在 0。
+      video.__rs = 3; video.__paused = false; video.currentTime = 0;
+      const watchdog = timers.find((t) => t.ms === 1500)?.fn;
+      assert.ok(watchdog, '应装上 1.5 秒看门狗');
+      const before = plays.length;
+      watchdog();                                   // 第一拍只记基线
+      assert.equal(pauses.length, 0, '第一拍不该动手');
+      watchdog();                                   // 第二拍：时间没往前 → 踢
+      assert.equal(pauses.length, 1, '停滞时应当 pause 一次');
+      assert.ok(plays.length > before, '踢完必须重新 play');
+      // 时间在走时不许动手（真播放时每拍 currentTime 都会往前）
+      video.__paused = false; video.currentTime = 2;
+      watchdog();
+      video.currentTime = 3.5;
+      watchdog();
+      assert.equal(pauses.length, 1, '正常播放时看门狗不该碰它');
+    } finally { w.close(); }
+  });
   await test('单文件损坏不阻塞其余内容入库（且内容管线不卡死）', async () => {
     const dir = path.join(process.env.CONTENT_DIR, 'posts');
     const bad = path.join(dir, 'partial-broken.md');

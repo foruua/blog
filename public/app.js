@@ -451,6 +451,31 @@
     }
   };
   const stopHeroWatchdog = () => { if (heroWatchdog) { clearInterval(heroWatchdog); heroWatchdog = null; } };
+  /* 鸿蒙上见过一种「假播」：play() 已 resolve、paused 是 false，但 currentTime 一直停在 0，
+     原生层还盖着一枚播放键 —— 只看 paused 的看门狗永远修不到（用户冷启动实测就是这个状态）。
+     这里改看「时间有没有走」：上一拍记到的时间没往前，就 pause() + play() 踢一脚（只踢，不 seek）。
+     只处理 paused=false 的那一支：真的暂停了交给上面那条恢复逻辑，别跟用户的操作抢。 */
+  const kickIfStalled = (video) => {
+    if (video.paused || video.ended || video.seeking || video.readyState < 2) { video.__heroT = -1; return; }
+    const last = video.__heroT;
+    video.__heroT = video.currentTime;
+    if (!(last >= 0)) return;                      // 第一拍只记基线
+    if (video.currentTime > last + 0.05) return;   // 在走，正常
+    if ((video.__heroKicks ?? 0) >= 5) return;     // 踢过 5 次还不行就放手，留给用户点播放
+    const kicks = (video.__heroKicks ?? 0) + 1;
+    video.__heroKicks = kicks;
+    video.__heroStarted = false;
+    video.__heroBlocked = false;
+    video.__heroPending = false;                   // 卡住的那次请求不会再落定，清掉闸门才能重踢
+    try {
+      // 前两次只是 pause+play（轻）；还卡着就 load() 重来一遍 —— 原生播放器与 DOM 脱钩时，
+      // 只有重新装载能把它们拉回同一状态（文件在缓存里，重载不额外走流量）。
+      if (kicks >= 3) video.load();
+      else video.pause();
+    } catch { /* 有的内核此时 pause/load 会抛，忽略 */ }
+    heroDbg(`kick#${kicks} t=${video.currentTime.toFixed(2)} rs=${video.readyState}`);
+    playHeroVideo(video);
+  };
   /* 看门狗只管 auto 封面，而且只在「已经能播却停住」时补一次 play()：加载中不碰，
      被策略拦下也不碰（等手势），避免把尚未落定的起播请求顶掉。ended / 播到最后一帧停住时回到开头。 */
   const ensureHeroPlayback = () => {
@@ -468,7 +493,9 @@
       // 只恢复「确实起播过、后来被系统打断」的视频；首次起播交给 canplay / 手势，避免反复 play() 顶掉加载。
       if (video.__heroStarted && video.paused && !video.__heroPending && !video.__heroBlocked && video.readyState >= 3) {
         playHeroVideo(video);
+        continue;
       }
+      kickIfStalled(video);
     }
   };
   function setupHeroAutoplay(root = document) {
