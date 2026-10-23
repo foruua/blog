@@ -109,6 +109,45 @@ export function createHtmlCache({
     });
   }
 
+  // 压缩结果缓存在条目上：没有评论表单的页面（首页/列表/友圈/友链/固定页）正文在 TTL 内逐字节不变，
+  // 命中时可以直接复用压缩字节，省掉整页 Brotli。带 ts 令牌的页面不行——令牌每次都要重签，
+  // 压缩字节也就跟着变，只能照旧每次重压。
+  const MIN_COMPRESS_BYTES = 1024;
+  const ENCODINGS = ['br', 'gzip'];
+
+  function compressOnce(body, encoding) {
+    return encoding === 'br'
+      ? brotliAsync(body, { params: { [zlibConstants.BROTLI_PARAM_QUALITY]: 5 } })
+      : gzipAsync(body);
+  }
+
+  // 现压（令牌刷新过、或条目里没有缓存）：优先 Brotli，失败再退 gzip，都失败就发原文。
+  async function compressNow(text, accepted) {
+    const body = Buffer.from(text, 'utf8');
+    if (body.length < MIN_COMPRESS_BYTES) return null;
+    for (const encoding of ENCODINGS) {
+      if (!acceptsEncoding(accepted, encoding)) continue;
+      try { return { body: await compressOnce(body, encoding), encoding }; } catch { /* 换下一种 */ }
+    }
+    return null;
+  }
+
+  async function compressedFor(entry, accepted) {
+    if (entry.body.length < MIN_COMPRESS_BYTES) return null;
+    const body = Buffer.from(entry.body, 'utf8');
+    for (const encoding of ENCODINGS) {
+      if (!acceptsEncoding(accepted, encoding)) continue;
+      const cached = entry.enc?.[encoding];
+      if (cached) return { body: cached, encoding };
+      let out;
+      try { out = await compressOnce(body, encoding); } catch { continue; }
+      // 有令牌的页面下次还得重签，缓存这份压缩字节没有意义。
+      if (!entry.hasTokens) (entry.enc ??= {})[encoding] = out;
+      return { body: out, encoding };
+    }
+    return null;
+  }
+
   async function respond(c, entry, cacheStatus = '') {
     const headers = new Headers(entry.headers);
     headers.set('ETag', `W/${entry.tag}`);
@@ -126,24 +165,20 @@ export function createHtmlCache({
       return;
     }
 
-    const text = cacheStatus === 'HIT' ? refreshTokens(entry.body) : entry.body;
-    const body = Buffer.from(text, 'utf8');
+    const text = cacheStatus === 'HIT' && entry.hasTokens ? refreshTokens(entry.body) : entry.body;
     // 与 hono/compress 同口径：小于 1KB 不压。优先 Brotli，不支持再回 gzip。
-    const accepted = c.req.header('accept-encoding') ?? '';
-    let compressed = null;
-    let contentEncoding = '';
-    if (body.length >= 1024 && acceptsEncoding(accepted, 'br')) {
-      try { compressed = await brotliAsync(body, { params: { [zlibConstants.BROTLI_PARAM_QUALITY]: 5 } }); contentEncoding = 'br'; } catch { /* 失败再试 gzip */ }
-    }
-    if (!compressed && body.length >= 1024 && acceptsEncoding(accepted, 'gzip')) {
-      try { compressed = await gzipAsync(body); contentEncoding = 'gzip'; } catch { /* 压缩失败就发原文，别把页面变成 500 */ }
-    }
+    // 令牌刷新过的正文与条目里的那份不同，必须现压；否则直接吃条目里缓存好的压缩字节。
+    const fresh = text !== entry.body;
+    const compressed = fresh
+      ? await compressNow(text, c.req.header('accept-encoding') ?? '')
+      : await compressedFor(entry, c.req.header('accept-encoding') ?? '');
     if (compressed) {
-      headers.set('Content-Encoding', contentEncoding);
-      headers.set('Content-Length', String(compressed.length));
-      c.res = new Response(compressed, { status: 200, headers });
+      headers.set('Content-Encoding', compressed.encoding);
+      headers.set('Content-Length', String(compressed.body.length));
+      c.res = new Response(compressed.body, { status: 200, headers });
       return;
     }
+    const body = fresh ? Buffer.from(text, 'utf8') : Buffer.from(entry.body, 'utf8');
     headers.set('Content-Length', String(body.length));
     c.res = new Response(body, { status: 200, headers });
   }
@@ -179,14 +214,16 @@ export function createHtmlCache({
     const text = body.toString('utf8');
     // 令牌归一化只影响哈希：正文里仍是当次新签发的令牌，服务端 3 秒防抖检查不受影响。
     const stamp = Math.floor(Date.now() / 3600000);
-    const sealed = text.includes('name="ts"')
+    const hasTokens = text.includes('name="ts"');
+    const sealed = hasTokens
       ? text.replace(/(name="ts" value=")[^"]*(")/g, `$1hb${stamp}$2`)
       : text;
     const tag = `"${crypto.createHash('sha1').update(sealed).digest('base64url')}"`;
     const headers = { 'Content-Type': contentType };
     const language = c.res.headers.get('Content-Language');
     if (language) headers['Content-Language'] = language;
-    const entry = { at: Date.now(), revision, tag, body: text, headers };
+    // hasTokens 决定压缩字节能不能在命中时复用（见 compressedFor）。
+    const entry = { at: Date.now(), revision, tag, body: text, headers, hasTokens, enc: null };
     const cacheStatus = canCache ? 'MISS' : '';
     if (cacheStatus) set(key, entry);
     return respond(c, entry, cacheStatus);

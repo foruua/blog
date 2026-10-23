@@ -27,7 +27,7 @@ const countLinks = (html, src) => {
   return uniq.size;
 };
 
-export function commentRoutes({ repo, comments, crypt, auth = null, notifier = createCommentNotifier({ repo, comments, crypt }) }) {
+export function commentRoutes({ repo, comments, crypt, auth = null, notifier = createCommentNotifier({ repo, comments, crypt }), rateLimited = true }) {
   const app = new Hono({ strict: false });
   const antispam = createAntispam();
   // 「回头客自动填充」必须凭上一次已发布的评论换来的签名 cookie 才能查：只有邮箱不够，
@@ -40,10 +40,13 @@ export function commentRoutes({ repo, comments, crypt, auth = null, notifier = c
     setCookie(c, READER_COOKIE, readerCookieOf(hash), { ...cookieBase(), maxAge: READER_TTL });
   };
   // Hono 的 app.route() 会把子应用 use('*') 中间件提升成父应用全局（任意路径 POST 都会跑到它），故必须逐个端点声明，否则评论限流会顺带限住后台保存等 POST。
-  const writeLimit = publicWriteRateLimit();
-
-  for (const path of ['/api/comments/reader', '/api/comments', '/p/:slug/comment', '/n/:slug/comment', '/:slug/comment', '/moderate/:token', '/unsubscribe/:token']) {
-    app.use(path, writeLimit);
+  // 独立挂载（测试、单模块）时自己带一层限流；server.js 已有一层覆盖同样路径的全局限流，那时传 rateLimited: false，
+  // 否则同一条请求会过两个独立计数桶，实际阈值取决于较严的那个，既难解释也多一次判断。
+  if (rateLimited) {
+    const writeLimit = publicWriteRateLimit();
+    for (const path of ['/api/comments/reader', '/api/comments', '/p/:slug/comment', '/n/:slug/comment', '/:slug/comment', '/moderate/:token', '/unsubscribe/:token']) {
+      app.use(path, writeLimit);
+    }
   }
 
   app.use('*', boundedBody());

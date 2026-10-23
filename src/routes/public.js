@@ -1,12 +1,11 @@
-import { IMAGE_PLACEHOLDER, mediaFallback } from '../media/variants.js';
 import { Hono } from 'hono';
 import { SITE, FRIENDS_PER_PAGE, FRIENDS_PER_SOURCE, LINKS_PER_PAGE } from '../config.js';
 import { settings, heroImages, heroMode, heroVideoMode, heroLayout, heroTone } from '../settings.js';
 import { layout, listBlock, emptyPage, masthead, entriesBlock, moreLink, defaultOgImage } from '../render/layout.js';
 import { notesStream, splitImages } from '../render/notes.js';
 import { withLightbox } from '../render/lightbox.js';
-import { EXPAND_ICON, HERO_IMAGE_SIZES } from '../render/icons.js';
-import { isVideoSource, heroAspectOf } from '../media/video.js';
+import { heroBlock, heroPreload as heroPreloadTag } from '../render/hero.js';
+import { tocHtml, pagerHtml, articleMain, articleJsonLd } from '../render/article.js';
 import { archiveMain } from '../render/archive.js';
 import { pageMain } from '../render/about.js';
 import { searchMain } from '../render/search.js';
@@ -205,141 +204,16 @@ export function publicRoutes(repo, { comments, crypt, media = null, feeds = null
   const heroToneOf = (c) => settingOf(c, 'heroTone', () => heroTone(repo));
 
   function hero(c) {
-    const all = statsOf(c);
-    const posts = all.find((p) => p.kind === 'post')?.n ?? 0;
-    const notes = all.find((p) => p.kind === 'note')?.n ?? 0;
-    const first = all.map((p) => p.first).sort()[0];
-    const since = first ? formatDay(first).slice(0, 4) : String(new Date().getFullYear());
-
-    const imgs = heroImgsOf(c);
-    const heroAlt = SITE.identity;
-    const heroLayoutKey = heroLayoutOf(c);
-    const tone = heroToneOf(c);
-    const hasCopy = (im) => Boolean(im.title || im.subtitle || (im.link && im.linkText));
-    // 每张封面的文字层：位置/字号由版式类控制，内容完全来自首屏数据（无 JS 也能看到第一张）。
-    const heroCopy = (im, active = false) => {
-      const title = esc(im.title ?? '');
-      const subtitle = esc(im.subtitle ?? '');
-      const link = im.link && im.linkText ? String(im.link) : '';
-      const empty = !title && !subtitle && !link;
-      const kicker = heroLayoutKey === 'label' && subtitle ? `<span class="hero-copy-kicker">${subtitle}</span>` : '';
-      const sub = subtitle && heroLayoutKey !== 'label' ? `<span class="hero-copy-sub">${subtitle}</span>` : '';
-      const cta = link
-        ? `<a class="hero-copy-link" href="${esc(link)}"${/^https?:\/\//i.test(link) ? ' target="_blank" rel="noopener"' : ''}>${esc(im.linkText)}</a>`
-        : '';
-      // 单图时标题是 <h1>，里面只能放 phrasing content：这里用 span（CSS 给 block 显示），
-      // 别再换成 div/p —— 浏览器虽能渲染，HTML 校验和读屏的可访问名都会变。
-      return `<span class="hero-copy hero-copy-${heroLayoutKey} hero-copy-${tone}${empty ? ' is-empty' : ''}${active ? ' is-active' : ''}"${active ? '' : ' aria-hidden="true"'}>
-        ${empty ? '' : `<span class="hero-copy-inner">${kicker}${title ? `<span class="hero-copy-title">${title}</span>` : ''}${sub}${cta}</span>`}
-      </span>`;
-    };
-    // 首页所有封面统一用「当前视频」的比例；没有视频时按 16:9。图片可能被裁切，但灯箱仍打开完整图。
-    const heroAspect = heroAspectOf(imgs);
-    const heroRatio = heroAspect.ratio;
-    const heroArStyle = `--hero-ar: ${heroAspect.style}`;
-
-    // 首屏图被 CSS 限在 480px 内，故 sizes 封顶 480——不写浏览器按 100vw 选，桌面端挑最大档，白下十倍字节。
-    const slideAttrs = (im) => {
-      const shot = mediaOf(c, im.path);
-      const srcsetValue = shot?.srcset ? esc(shot.srcset) : '';
-      // 宽高外补行内 aspect-ratio：只有属性时计算值是 `auto W / H`，懒加载审计认不出。
-      // 比例统一取 heroRatio（当前视频），图片用 CSS object-fit: cover 裁切。
-      const dims = im.w > 0 && im.h > 0
-        ? ` width="${im.w}" height="${im.h}" style="aspect-ratio:${heroRatio}"`
-        : '';
-      const src = esc(shot?.preview ?? shot?.thumbnail ?? mediaFallback(im.path));
-      // 非当前张的占位取候选集里最小的一档（240w）。5 张 slide 叠在同一个视口位置，loading=lazy
-      // 不会生效；只放一张几 KB 的小图，等轮播要切到它时再由 app.js 换成正式 srcset。
-      const tiny = shot?.srcset
-        ? esc(shot.srcset.split(',')[0].trim().split(/\s+/)[0])
-        : esc(shot?.thumbnail ?? mediaFallback(im.path));
-      // 灯箱展示图取最大档变体（动画图由 shot.full 决定回原图）。
-      const full = esc(shot?.full ?? im.path);
-      return { src, srcsetValue, dims, full, tiny };
-    };
-
-    // 封面视频：auto = 静音循环自动播，点视频进灯箱；click = 停在首帧，点视频就地播放（带声音），
-    // 右上角另有按钮进灯箱。两种模式都不影响轮播的切换逻辑。
-    const videoMode = heroVideoModeOf(c);
-    const clickMode = videoMode === 'click';
-    const playBadge = clickMode
-      ? '<span class="hero-play" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5z"/></svg></span>'
-      : '';
-    const lightboxAttrs = (im) => ` data-lightbox="hero" data-media="video" data-full="${esc(im.path)}"`
-      + `${im.w > 0 && im.h > 0 ? ` data-w="${im.w}" data-h="${im.h}"` : ''}`;
-    const expandIcon = EXPAND_ICON;
-    const videoTag = (im, { slide = false, active = false } = {}) => {
-      const dims = im.w > 0 && im.h > 0 ? ` width="${im.w}" height="${im.h}"` : '';
-      const playing = !clickMode && (!slide || active);
-      const video = `<video class="hero-video" src="${esc(im.path)}"${dims}`
-        + `${clickMode ? ' playsinline' : ' muted loop playsinline'}`
-        + `${playing ? ' autoplay' : ''} preload="${clickMode ? (active || !slide ? 'metadata' : 'none') : (playing ? 'metadata' : 'none')}"`
-        // 老内核（鸿蒙自带、X5/WebView）只认这个内联播放标记；脚本还会再补一次并显式 play()。
-        + ' webkit-playsinline'
-        + ` data-video-mode="${videoMode}"${clickMode ? '' : lightboxAttrs(im)} aria-label="${esc(heroAlt)}"></video>`;
-      const expand = clickMode
-        ? `<a class="hero-expand" href="${esc(im.path)}" target="_blank" rel="noopener"${lightboxAttrs(im)} aria-label="在灯箱中播放视频">${expandIcon}</a>`
-        : '';
-      const inner = `${video}${playBadge}${expand}`;
-      return slide
-        ? `<span class="hero-slide${active ? ' is-active' : ''}"${active ? '' : ' tabindex="-1" aria-hidden="true"'}>${inner}</span>`
-        : `<span class="hero-media">${inner}</span>`;
-    };
-
-    let title;
-    if (imgs.length === 1) {
-
-      const im = imgs[0];
-      // 单图/单视频也要 --hero-ar：相框与媒体的宽都按这套比例算死，不依赖文件有没有到（见 .hero-figure img）。
-      const ar = ` style="${heroArStyle}"`;
-      if (isVideoSource(im.path)) {
-        title = `<h1 class="hero-title hero-figure"${ar}${hasCopy(im) ? '' : ` aria-label="${esc(heroAlt)}"`}>${videoTag(im, { active: true })}${heroCopy(im, true)}</h1>`;
-      } else {
-        const { src, srcsetValue, dims, full } = slideAttrs(im);
-        title = `<h1 class="hero-title hero-figure"${ar}${hasCopy(im) ? '' : ` aria-label="${esc(heroAlt)}"`}><img src="${src}"${srcsetValue ? ` srcset="${srcsetValue}" sizes="${HERO_IMAGE_SIZES}"` : ''} data-full="${full}" data-lightbox="hero" alt="${esc(heroAlt)}"${dims} fetchpriority="high" decoding="async">${heroCopy(im, true)}</h1>`;
-      }
-    } else if (imgs.length > 1) {
-      // 多图轮播：图叠在 .hero-track（CSS 只露第一张），控制条由 JS 揭开——没 JS 时只有一张安静封面，不会拿到按了没反应的按钮。
-      const slides = imgs.map((im, i) => {
-        if (isVideoSource(im.path)) return videoTag(im, { slide: true, active: i === 0 });
-        const { src, srcsetValue, dims, full, tiny } = slideAttrs(im);
-        const active = i === 0;
-        // 第一张照常直出；其余只放 240w 小图 + data-src/data-srcset，由 app.js 在空闲或切换前升级。
-        const source = active
-          ? ` src="${src}"${srcsetValue ? ` srcset="${srcsetValue}" sizes="${HERO_IMAGE_SIZES}"` : ''} fetchpriority="high" decoding="async"`
-          : ` src="${tiny}" data-src="${src}"${srcsetValue ? ` data-srcset="${srcsetValue}" sizes="${HERO_IMAGE_SIZES}"` : ''} loading="lazy" decoding="async"`;
-        return `<img class="hero-slide${active ? ' is-active' : ''}"${source} data-full="${full}" data-lightbox="hero" alt="${esc(heroAlt)}"${dims}>`;
-      }).join('');
-      const dots = imgs.map((_, i) =>
-        `<button type="button" class="hero-dot" aria-label="第 ${i + 1} 张" aria-pressed="${i ? 'false' : 'true'}"></button>`).join('');
-      const copies = imgs.map((im, i) => heroCopy(im, i === 0)).join('');
-      // 图幅比 --hero-ar 交给 CSS：轮播整层宽高必须由样式先算，不能等图片固有尺寸，否则 CSS 那条 width 失效、退回 auto。
-      const ar = ` style="${heroArStyle}"`;
-      title = `<div class="hero-carousel"${ar} data-hero-carousel data-hero-mode="${heroModeOf(c)}" role="group" aria-roledescription="图片轮播">
-        <h1 class="hero-title hero-figure" aria-label="${esc(heroAlt)}"><span class="hero-track">${slides}</span></h1>
-        ${copies ? `<div class="hero-copies">${copies}</div>` : ''}
-        <div class="hero-ctrl" hidden><span class="hero-dots">${dots}</span>${heroModeOf(c) === 'auto'
-          ? '<button type="button" class="hero-pause" data-hero-pause aria-label="暂停自动轮播" aria-pressed="false"><svg class="hero-pause-ico hero-pause-ico-pause" viewBox="0 0 12 12" aria-hidden="true"><path d="M4 2.3v7.4M8 2.3v7.4"/></svg><svg class="hero-pause-ico hero-pause-ico-play" viewBox="0 0 12 12" aria-hidden="true"><path d="M3.4 2.1 9.5 6l-6.1 3.9Z"/></svg></button>' : ''}</div>
-      </div>`;
-    } else {
-      title = `<h1 class="hero-title">${esc(SITE.identity)}</h1>`;
-    }
-
-    const mark = SITE.mark && (imgs.length || SITE.title)
-      ? `<p class="hero-mark">${esc(SITE.mark)}</p>`
-      : '';
-    return `    <section class="hero">
-      ${mark}
-      ${title}
-      <p class="hero-meta">
-        <a href="/posts/">${posts} 篇文章</a>
-        <span class="sep">·</span>
-        <a href="/notes/">${notes} 篇笔记</a>
-        <span class="sep">·</span>
-        <span>自 ${since} 年</span>
-      </p>
-${recent(c)}
-    </section>`;
+    return heroBlock({
+      stats: statsOf(c),
+      imgs: heroImgsOf(c),
+      layoutKey: heroLayoutOf(c),
+      tone: heroToneOf(c),
+      videoMode: heroVideoModeOf(c),
+      mode: heroModeOf(c),
+      mediaOf: (src) => mediaOf(c, src),
+      recentHtml: recent(c),
+    });
   }
 
   function sectionStats(c, kind) {
@@ -390,6 +264,9 @@ ${emptyPage('还没有内容', '还没有发布任何内容。<a href="/">回到
     const shaped = list.map(shape);
     const themeRows = shaped.map(themePost);
     const mast = list.length ? masthead({ mark, title, stats: sectionStats(c, kind) }) : '';
+    // 同一份列表 HTML 只构建一次：以前 themeData.list_html 与 main 各调一次 listBlock，
+    // 主题模式下等于把整页条目渲染两遍。
+    const listHtml = list.length ? listBlock(shaped, { showKind: false }) : '';
     return c.html(layout({
       title: title === SITE.title ? '' : title,
 
@@ -405,12 +282,12 @@ ${emptyPage('还没有内容', '还没有发布任何内容。<a href="/">回到
         has_more: Boolean(more),
         more_html: more,
         masthead_html: mast,
-        list_html: list.length ? listBlock(shaped, { showKind: false }) : '',
+        list_html: listHtml,
         empty: !list.length,
       },
       main: list.length
         ? `${mast}
-${listBlock(shaped, { showKind: false })}
+${listHtml}
     ${more}`
         : emptyList(mark, title),
       active, canonical: pathname,
@@ -421,13 +298,7 @@ ${listBlock(shaped, { showKind: false })}
   // 首页封面是 LCP：在 <head> 里 preload 第一张的候选集，让浏览器解析到 body 之前就开抢。
   // imagesrcset/imagesizes 必须与正文那张 <img> 完全一致，浏览器才会挑同一档，不会白下两份。
   function heroPreload(c) {
-    const imgs = heroImgsOf(c);
-    if (!imgs.length) return '';
-    const shot = mediaOf(c, imgs[0].path);
-    if (!shot?.srcset) return '';
-    const href = esc(shot.preview ?? shot.thumbnail ?? IMAGE_PLACEHOLDER);
-    const sizes = HERO_IMAGE_SIZES;
-    return `<link rel="preload" as="image" href="${href}" imagesrcset="${esc(shot.srcset)}" imagesizes="${sizes}" fetchpriority="high">`;
+    return heroPreloadTag({ imgs: heroImgsOf(c), mediaOf: (src) => mediaOf(c, src) });
   }
 
   app.get('/', (c) => {
@@ -613,23 +484,12 @@ ${stream}
     const words = post.word_count ?? 0;
     // 阅读时长与「N 字」同源；只有空正文才拿到 0，那时整段不写。
     const mins = readingMinutes(words);
-    const toc = post.toc?.length
-      ? `      <details class="toc"><summary>目录（${post.toc.length} 节）</summary>
-        <ol>${post.toc.map((t) => `<li class="lvl-${t.level}"><a href="#${esc(t.id)}">${esc(t.text)}</a></li>`).join('')}</ol>
-      </details>`
-      : '';
+    const toc = tocHtml(post.toc);
 
     const { newer, older } = repo.neighbours(post);
     const commentBlock = commentBlockFor(c, post);
 
-    const neighbour = (p, label) => (p
-      ? `<div${label === '下一篇' ? ' class="n"' : ''}><small>${label}</small><a href="${postUrl(p)}">${esc(p.title)}</a></div>`
-      : '');
-    const pager = (newer || older)
-      ? `      <nav class="pager" aria-label="翻页">
-${[neighbour(older, '上一篇'), neighbour(newer, '下一篇')].filter(Boolean).join('\n')}
-      </nav>`
-      : '';
+    const pager = pagerHtml({ newer, older });
 
 
 
@@ -640,52 +500,13 @@ ${[neighbour(older, '上一篇'), neighbour(newer, '下一篇')].filter(Boolean)
 
 
     const bodyHtml = withLightbox(post.body_html, `${kindPrefix(post.kind)}-${post.slug}`, (src) => mediaOf(c, src));
-    const main = `    <article class="post" data-kind="${note ? 'note' : 'post'}"${post.lang ? ` lang="${esc(post.lang)}"` : ''}>
-      <header class="post-mast">
-        <p class="pm-mark"><span class="pm-kind">${note ? '笔记' : '文章'}</span><span class="pm-sep" aria-hidden="true">·</span><time datetime="${esc(post.published_at)}">${esc(dayCn)}</time></p>
-        <h1>${esc(post.title)}</h1>
-        <p class="meta" title="${esc(formatDay(post.published_at))}" data-day="${esc(formatDay(post.published_at))}">${esc(relativeDate(post.published_at))} · ${words} 字${mins ? ` · 约 ${mins} 分钟` : ''}</p>
-      </header>
-${toc}
-      <div class="prose">
-${bodyHtml}
-      </div>
-
-${pager}
-${commentBlock}
-    </article>`;
+    const main = articleMain({ post, words, mins, dayCn, toc, pager, commentBlock, bodyHtml });
 
     const pathname = postUrl(post);
     const publishedIso = isoOf(post.published_at);
     const modifiedIso = isoOf(post.updated_at);
     const og = ogImageOf(c, post) ?? defaultOgImage();
-    const articleLd = {
-      '@context': 'https://schema.org',
-      '@type': 'BlogPosting',
-      headline: post.title,
-      description: cleanExcerpt(post.body_html, 160),
-      url: `${SITE.url}${pathname}`,
-      mainEntityOfPage: { '@type': 'WebPage', '@id': `${SITE.url}${pathname}` },
-      inLanguage: post.lang || SITE.lang,
-      author: { '@type': 'Person', name: SITE.author || SITE.identity },
-      publisher: { '@type': 'Organization', name: SITE.identity, url: `${SITE.url}/`,
-        logo: { '@type': 'ImageObject', url: `${SITE.url}/icon-512.png` } },
-      articleSection: note ? '笔记' : '文章',
-      commentCount: countOfPost(c, post.id),
-      image: [og.url],
-      ...(post.word_count ? { wordCount: post.word_count } : {}),
-      ...(publishedIso ? { datePublished: publishedIso } : {}),
-      ...(modifiedIso ? { dateModified: modifiedIso } : {}),
-    };
-    const breadcrumbLd = {
-      '@context': 'https://schema.org',
-      '@type': 'BreadcrumbList',
-      itemListElement: [
-        { '@type': 'ListItem', position: 1, name: '首页', item: `${SITE.url}/` },
-        { '@type': 'ListItem', position: 2, name: note ? '笔记' : '文章', item: `${SITE.url}${note ? '/notes/' : '/posts/'}` },
-        { '@type': 'ListItem', position: 3, name: post.title, item: `${SITE.url}${pathname}` },
-      ],
-    };
+    const jsonLd = articleJsonLd({ post, pathname, og, commentCount: countOfPost(c, post.id), publishedIso, modifiedIso });
     return c.html(layout({
       title: post.title,
       desc: post.description || cleanExcerpt(post.body_html, 100),
@@ -720,7 +541,7 @@ ${commentBlock}
         reading_minutes: mins,
         day_cn: dayCn,
       },
-      jsonLd: [articleLd, breadcrumbLd],
+      jsonLd,
       extraHead: [
         publishedIso ? `<meta property="article:published_time" content="${esc(publishedIso)}">` : '',
         modifiedIso ? `<meta property="article:modified_time" content="${esc(modifiedIso)}">` : '',
@@ -757,9 +578,7 @@ ${commentBlock}
     const page = feeds.friendsPageFeeds({ perPage: FRIENDS_PER_PAGE, before: c.req.query('before') });
     const last = page.feeds[page.feeds.length - 1] ?? null;
     const items = last
-      ? (typeof feeds.itemsForFeeds === 'function'
-        ? feeds.itemsForFeeds(page.feeds.map((f) => f.feedId), { perSource: FRIENDS_PER_SOURCE, before: page.cursor, until: last })
-        : feeds.itemsBySource({ perSource: FRIENDS_PER_SOURCE, before: page.cursor, until: last }))
+      ? feeds.itemsForFeeds(page.feeds.map((f) => f.feedId), { perSource: FRIENDS_PER_SOURCE, before: page.cursor, until: last })
       : [];
     const nextHref = page.hasMore && last
       ? `/friends/?before=${encodeURIComponent(`${last.ts}|${last.feedId}`)}`
@@ -801,18 +620,17 @@ ${friendsStream({ items, sources: sources.length, nextHref })}`;
     // 上限与后台 pageNumber() 同口径：直接拿巨大整数乘每页条数会把 OFFSET 变成非安全整数，
     // node:sqlite 会抛 datatype mismatch，匿名请求即可把 /links 打成 500。
     let page = Math.min(100000, Math.max(1, Number.parseInt(c.req.query('page'), 10) || 1));
-    // 大页码先夹到最后一页：避免用 240 万 OFFSET 跑一次聚合，也避免“空页→统计→重查”的三次 CTE。
-    // 第 1 页不额外查计数，常规访问成本与之前一致。
-    if (page > 1 && typeof links.publicCount === 'function') {
-      page = Math.min(page, Math.max(1, Math.ceil(Number(links.publicCount()) / perPage)));
-    }
+    // 不再先跑一次 publicCount 来夹页：越界页走下面的「空页」分支，用同一条语句算出的 total 夹回来。
+    // 常规页（包括第 2 页以后）因此只跑一次聚合；统计与「最近 N 天」都随列表一起返回。
+    const recentSince = recentStartIso(MAST_RECENT_DAYS);
     let total = 0;
     let commentTotal = 0;
-    // 正常页一次查询同时拿列表与刊头统计；只有越界页/空名单才再点查一次统计来夹页。
-    let rows = links.publicPage({ limit: perPage, offset: (page - 1) * perPage });
+    let recentComments = 0;
+    let rows = links.publicPage({ limit: perPage, offset: (page - 1) * perPage, recentSince });
     if (rows.length) {
       total = Number(rows[0].total) || 0;
       commentTotal = Number(rows[0].all_comments) || 0;
+      recentComments = Number(rows[0].recent) || 0;
     } else {
       const agg = links.publicStats();
       total = Number(agg.links) || 0;
@@ -820,12 +638,14 @@ ${friendsStream({ items, sources: sources.length, nextHref })}`;
       const lastPage = Math.max(1, Math.ceil(total / perPage));
       if (page !== lastPage) {
         page = lastPage;
-        rows = links.publicPage({ limit: perPage, offset: (page - 1) * perPage });
+        rows = links.publicPage({ limit: perPage, offset: (page - 1) * perPage, recentSince });
         if (rows.length) {
           total = Number(rows[0].total) || total;
           commentTotal = Number(rows[0].all_comments) || commentTotal;
+          recentComments = Number(rows[0].recent) || 0;
         }
       }
+      if (!rows.length) recentComments = total ? links.publicRecent(recentSince) : 0;
     }
     const pages = Math.max(1, Math.ceil(total / perPage));
     page = Math.min(pages, page);
@@ -834,9 +654,6 @@ ${friendsStream({ items, sources: sources.length, nextHref })}`;
     for (const row of rows) {
       row.avatar_md5 = avatarMd5Of(row);
     }
-
-    // 刊头统计与「友圈」同形：第一格数页面上有几位，第二格是滚动 30 天窗口；没邻居时整行只剩第一格。
-    const recentComments = total ? links.publicRecent(recentStartIso(MAST_RECENT_DAYS)) : 0;
 
     const linksHtml = `${masthead({
       mark: 'Links', title: '友链',

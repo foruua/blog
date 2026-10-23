@@ -62,13 +62,19 @@ export function createLinkRepo(db) {
     setSource: db.prepare('UPDATE link_sites SET source_url = ? WHERE host = ?'),
     publicList: db.prepare(`SELECT * FROM (${LIVE_CTE}) AS live WHERE ${VISIBLE}
       ORDER BY n DESC, last_at DESC, host ASC LIMIT ? OFFSET ?`),
-    // 一页列表连刊头统计一起出：visible 只算一次，避免同一页把整条 LIVE_CTE 跑两遍（列表 + 统计）。
+    // 一页列表连刊头统计一起出：visible 只算一次；「最近 N 天几条留言」也塞进同一条语句，
+    // 免得每次翻页再为它单跑一次聚合（原先一页最多要跑三次 LIVE_CTE）。
     publicPage: db.prepare(`WITH live AS (${LIVE_CTE}),
-      visible AS (SELECT * FROM live WHERE ${VISIBLE})
-      SELECT visible.*, stats.total, stats.all_comments, stats.all_last_at
+      visible AS (SELECT * FROM live WHERE ${VISIBLE}),
+      stats AS (SELECT COUNT(*) AS total, COALESCE(SUM(n), 0) AS all_comments,
+                       MAX(last_at) AS all_last_at FROM visible)
+      SELECT visible.*, stats.total, stats.all_comments, stats.all_last_at,
+        (SELECT COUNT(*) FROM comments c
+           LEFT JOIN link_sites v ON v.host = c.website_host
+          WHERE ${PUBLIC_WHERE} AND c.created_at >= ?
+            AND IFNULL(v.hidden, 0) = 0 AND IFNULL(v.alive, 1) = 1) AS recent
         FROM visible
-        CROSS JOIN (SELECT COUNT(*) AS total, COALESCE(SUM(n), 0) AS all_comments,
-                           MAX(last_at) AS all_last_at FROM visible) AS stats
+        CROSS JOIN stats
        ORDER BY n DESC, last_at DESC, host ASC LIMIT ? OFFSET ?`),
     publicCount: db.prepare(`SELECT COUNT(*) AS n FROM (${LIVE_CTE}) AS live WHERE ${VISIBLE}`),
     publicStats: db.prepare(`SELECT COUNT(*) AS links, COALESCE(SUM(n), 0) AS comments, MAX(last_at) AS last_at
@@ -140,7 +146,7 @@ export function createLinkRepo(db) {
   return {
     getSite: (host) => q.getSite.get(host) ?? null,
     publicList: ({ limit = 24, offset = 0 } = {}) => q.publicList.all(limit, offset),
-    publicPage: ({ limit = 24, offset = 0 } = {}) => q.publicPage.all(limit, offset),
+    publicPage: ({ limit = 24, offset = 0, recentSince = 0 } = {}) => q.publicPage.all(sqliteTime(recentSince), limit, offset),
     publicCount: () => q.publicCount.get().n,
     publicStats: () => q.publicStats.get(),
     publicRecent: (since) => q.publicRecent.get(sqliteTime(since)).n,

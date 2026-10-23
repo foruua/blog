@@ -788,8 +788,10 @@ app.route('/', adminRoutes({
   themes, themeEngine,
   outbox,
   feedOptions: { keep: FEED_KEEP },
+  // 上面那层全局限流已经覆盖 /admin/login 与公开写路径，子应用不再各建一份计数桶。
+  rateLimited: false,
 }));
-app.route('/', commentRoutes({ repo, comments, crypt, auth, notifier: commentNotifier }));
+app.route('/', commentRoutes({ repo, comments, crypt, auth, notifier: commentNotifier, rateLimited: false }));
 app.route('/', feedRoutes(repo));
 app.route('/', publicRoutes(repo, {
   comments, crypt, media: imageInfo, auth, search,

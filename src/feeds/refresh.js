@@ -14,10 +14,6 @@ const FAIL_MAX_MS = 6 * 3600 * 1000;
 export const DEFAULT_KEEP = envInt(process.env.FEED_KEEP, 20, { min: 3, max: 100 });
 export const DEFAULT_INTERVAL_MS = 30 * 60 * 1000;
 
-// 前台访问顺手催的一轮最多刷多少个源（最久没抓的优先）：别让一次页面访问把上百个源一次全拉。
-// 定时轮与后台「刷新全部」不设上限。
-export const MAX_PER_ROUND = 20;
-
 // 解析器版本变了就作废所有条件请求缓存——否则老条目一直 304、摘要停在旧规则（真踩过：改了「取全文还是
 // 导语」后，带 ETag 的源过一整轮卡片还是半行字）。
 // @returns {boolean} 这次是否真的作废（据此决定要不要顺手强制刷一轮）

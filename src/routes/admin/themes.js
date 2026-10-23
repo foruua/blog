@@ -11,21 +11,11 @@ import { listThemeErrors, clearThemeErrors } from '../../themes/errors.js';
 import { themesPage } from '../../admin/views/themes.js';
 import { bodyOf, val, checked, notice, externalWrite } from './shared.js';
 import { createMutationQueue } from '../../util/lock.js';
+import { safeInternalPath } from '../../util/safe-path.js';
 
 
-const safeLocalPath = (value) => {
-  const text = String(value ?? '/').trim();
-  if (!text.startsWith('/') || text.startsWith('//') || text.includes('\\')) return '/';
-  for (const ch of text) {
-    const code = ch.codePointAt(0);
-    if (code < 0x20 || code === 0x7f) return '/';
-  }
-  // 防 `/foo/..//evil`、`/%2e%2e//evil` 这类经浏览器归一化后变成协议相对地址的路径。
-  const pathname = text.split(/[?#]/, 1)[0];
-  if (pathname.includes('//') || /%2e|%2f|%5c/i.test(pathname)
-      || pathname.split('/').some((part) => part === '.' || part === '..')) return '/';
-  return text.slice(0, 500);
-};
+// 主题切换后的回跳地址：与登录回跳共用 util/safe-path.js 的校验（此处不限目录，但同样拒站外与畸形路径）。
+const safeLocalPath = (value) => safeInternalPath(value, { fallback: '/' });
 
 function optionValuesFromForm(theme, body) {
   const values = {};

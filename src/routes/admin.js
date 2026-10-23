@@ -17,28 +17,18 @@ import { registerCommentRoutes } from './admin/comments.js';
 import { registerFeedRoutes } from './admin/feeds.js';
 import { registerLinkRoutes } from './admin/links.js';
 import { registerThemeRoutes } from './admin/themes.js';
+import { safeInternalPath } from '../util/safe-path.js';
 
-// 登录回跳地址：只认站内 /admin 开头且无控制字符——带 CR/LF 会拼出非法 Location 头（Hono 直接抛，登录变 500），也是响应头注入面。
-const adminRedirect = (to) => {
-  const clean = String(to ?? '');
-  // 必须是 /admin 本身或 /admin/ 子路径：只判 startsWith('/admin') 会接受 /administrator 这类同前缀路径。
-  if (!(clean === '/admin' || clean.startsWith('/admin/')) || clean.startsWith('//') || clean.includes('\\')) return '/admin';
-  for (const ch of clean) {
-    const code = ch.codePointAt(0);
-    if (code < 0x20 || code === 0x7f) return '/admin';
-  }
-  // 登录回跳只允许干净的 /admin 路径：`/admin/..//evil`、`/admin/%2e%2e//x` 这类经浏览器归一化后
-  // 可能变成协议相对地址或站外路径，直接拒绝。
-  const pathname = clean.split(/[?#]/, 1)[0];
-  if (pathname.includes('//') || /%2e|%2f|%5c/i.test(pathname)
-      || pathname.split('/').some((part) => part === '.' || part === '..')) return '/admin';
-  return clean;
-};
+// 登录回跳地址：只认站内 /admin 开头且无控制字符——带 CR/LF 会拼出非法 Location 头（Hono 直接抛，登录变 500），
+// 也是响应头注入面。规则与主题切换回跳共用 util/safe-path.js，避免两处各自漂移。
+const adminRedirect = (to) => safeInternalPath(to, { prefix: '/admin', fallback: '/admin' });
 
 /** 后台路由组装点：鉴权与登录、文章编辑（保存/自动保存/预览/修订/回滚）与各分组路由挂载。 */
-export function adminRoutes({ repo, comments, adminRepo, crypt, auth, renderer, scheduleBackup = () => {}, notifier = {}, feeds = null, refresher = null, feedOptions = {}, links = null, linkChecker = null, themes = null, themeEngine = null, outbox = null, mutate = (fn) => fn() }) {
+export function adminRoutes({ repo, comments, adminRepo, crypt, auth, renderer, scheduleBackup = () => {}, notifier = {}, feeds = null, refresher = null, feedOptions = {}, links = null, linkChecker = null, themes = null, themeEngine = null, outbox = null, mutate = (fn) => fn(), rateLimited = true }) {
   const app = new Hono({ strict: false });
-  app.use('/admin/login', publicWriteRateLimit({ max: 30 }));
+  // 登录限流：独立挂载（测试）时自己带一层；server.js 已有覆盖 /admin/login 的全局限流，那时传 rateLimited: false，
+  // 否则一次登录要过两个独立计数桶，实际阈值取决于较严的那个。
+  if (rateLimited) app.use('/admin/login', publicWriteRateLimit({ max: 30 }));
   // 子应用要能独立挂载（测试单独挂它），故保留自己一份；server.js 全局那份会先跑并置位 bodyBounded，这层随即短路，不重复读流。
   app.use('*', boundedBody());
 
@@ -103,7 +93,8 @@ export function adminRoutes({ repo, comments, adminRepo, crypt, auth, renderer, 
     const slugError = validateSlug(slug, kind);
     if (slugError) return { ok: false, error: slugError };
 
-    const clash = repo.bySlug?.(slug) ?? adminRepo.getBySlug?.(slug);
+    // 撞 slug 只认内容仓库这一份：adminRepo 从来没有 getBySlug，以前的 `?.` 是个永远不会执行的兜底。
+    const clash = repo.bySlug?.(slug);
     if (clash && clash.id !== (existing?.id ?? -1)) {
       return { ok: false, error: `slug「${slug}」已被《${clash.title}》占用，换一个` };
     }
