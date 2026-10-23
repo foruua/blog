@@ -398,46 +398,6 @@ try {
       assert.equal(folds[1].querySelector('.nf-rollout').style.height, '', '收完要清掉行内高度，交回给 CSS 终态');
     } finally { w.close(); }
   });
-  await test('封面视频：冷启动「假播」（paused=false 但 frames=0、t=0）→ 看门狗重建元素', async () => {
-    const html = '<!doctype html><html><body><div id="app"><h1 class="hero-figure"><video class="hero-video" data-video-mode="auto"></video></h1></div></body></html>';
-    const dom = new JSDOM(html, { url: 'https://example.com/', runScripts: 'outside-only', pretendToBeVisual: true });
-    const w = dom.window;
-    w.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
-    // 把定时器收进数组，手动"走一拍"看门狗 —— 真等 1.5s×2 太慢。
-    const timers = [];
-    w.setInterval = (fn, ms) => { timers.push({ fn, ms }); return timers.length; };
-    w.clearInterval = () => {};
-    const plays = [];
-    Object.defineProperty(w.HTMLMediaElement.prototype, 'paused', { configurable: true, get() { return this.__paused ?? true; } });
-    Object.defineProperty(w.HTMLMediaElement.prototype, 'readyState', { configurable: true, get() { return this.__rs ?? 0; } });
-    w.HTMLMediaElement.prototype.play = function play() { plays.push(1); this.__paused = false; return Promise.resolve(); };
-    w.HTMLMediaElement.prototype.pause = function pause() { this.__paused = true; };
-    try {
-      w.eval(fs.readFileSync(new URL('../public/request.js', import.meta.url), 'utf8'));
-      w.eval(fs.readFileSync(new URL('../public/ui.js', import.meta.url), 'utf8'));
-      w.eval(fs.readFileSync(new URL('../public/app.js', import.meta.url), 'utf8'));
-      const video = w.document.querySelector('video');
-      video.__rs = 3; video.__paused = false;
-      const watchdog = timers.find((t) => t.ms === 1500)?.fn;
-      assert.ok(watchdog, '应装上 1.5 秒看门狗');
-      // 正常播放（时间在走）时绝不许动它
-      video.currentTime = 2;
-      watchdog(); video.currentTime = 3.5; watchdog();
-      assert.equal(w.document.querySelector('video'), video, '在播的视频不该被重建');
-      // 鸿蒙冷启动实测现场：play() resolve、paused=false、rs=3、无错误，但 frames=0、t 停在 0。
-      video.currentTime = 0;
-      const before = plays.length;
-      watchdog();
-      assert.equal(w.document.querySelector('video'), video, '第一拍不该动它');
-      watchdog();
-      const after = w.document.querySelector('video');
-      assert.notEqual(after, video, '两拍确认卡死后应换成新元素（只有新元素能让原生播放器重新初始化）');
-      assert.ok(plays.length > before, '新元素必须重新起播');
-      // 只重建一次：再来两拍不许再换
-      watchdog(); watchdog();
-      assert.equal(w.document.querySelector('video'), after, '只重建一次，别反复换元素');
-    } finally { w.close(); }
-  });
   await test('单文件损坏不阻塞其余内容入库（且内容管线不卡死）', async () => {
     const dir = path.join(process.env.CONTENT_DIR, 'posts');
     const bad = path.join(dir, 'partial-broken.md');

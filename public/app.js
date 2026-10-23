@@ -408,21 +408,6 @@
     }
   };
   const stopHeroWatchdog = () => { if (heroWatchdog) { clearInterval(heroWatchdog); heroWatchdog = null; } };
-  /* 鸿蒙冷启动实测（?herodbg=1）：play() 已 resolve、paused=false、readyState=3、无错误，
-     但 frames=0、t 永远是 0 —— 原生播放器根本没起来，只是 DOM 以为在播。
-     这种卡死 pause()+play() 救不回来（同一个播放器实例），只有换一个新元素才会重新初始化。
-     只做一次：真在播的视频 currentTime 早就不是 0 了，不会被误判。 */
-  const reinitHeroVideo = (video) => {
-    if (video.__heroReinited) return;
-    const clone = video.cloneNode(true);
-    clone.__heroReinited = true;
-    delete clone.dataset.autoplayReady;   // 让 setupHeroAutoplay 给新元素重新挂监听
-    video.replaceWith(clone);
-    // 显式 load()：pjax 换页后插进来的 <video> 有时不会自己走"资源选择"，
-    // 只调 play() 会一直停在 readyState 有数据、却一帧不解的状态。
-    try { clone.load(); } catch { /* 个别内核此时 load 会抛，忽略 */ }
-    setupHeroAutoplay(document);
-  };
   /* 看门狗只管 auto 封面，而且只在「已经能播却停住」时补一次 play()：加载中不碰，
      被策略拦下也不碰（等手势），避免把尚未落定的起播请求顶掉。ended / 播到最后一帧停住时回到开头。 */
   const ensureHeroPlayback = () => {
@@ -440,13 +425,7 @@
       // 只恢复「确实起播过、后来被系统打断」的视频；首次起播交给 canplay / 手势，避免反复 play() 顶掉加载。
       if (video.__heroStarted && video.paused && !video.__heroPending && !video.__heroBlocked && video.readyState >= 3) {
         playHeroVideo(video);
-        continue;
       }
-      // 假播：声称在播、数据也够，但一帧没解、时间不动 → 两拍后重建元素（见 reinitHeroVideo）。
-      const frames = video.getVideoPlaybackQuality?.().totalVideoFrames;
-      const stuck = !video.paused && video.readyState >= 2 && video.currentTime < 0.05 && (frames ?? 0) === 0;
-      video.__heroStall = stuck ? (video.__heroStall ?? 0) + 1 : 0;
-      if (video.__heroStall >= 2) { video.__heroStall = 0; reinitHeroVideo(video); }
     }
   };
   function setupHeroAutoplay(root = document) {
@@ -502,7 +481,8 @@
      不带 ?herodbg=1 时一行都不执行，也不建节点。 */
   function setupHeroDebug() {
     if (!/[?&]herodbg=1\b/.test(location.search)) return;
-    if (!heroAutoplayVideos.length || document.getElementById('herodbg')) return;
+    const video = heroAutoplayVideos[0];
+    if (!video || document.getElementById('herodbg')) return;
     const box = document.createElement('pre');
     box.id = 'herodbg';
     box.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:2147483647;margin:0;padding:6px 8px;'
@@ -510,17 +490,13 @@
     document.body.append(box);
     const navType = performance.getEntriesByType?.('navigation')?.[0]?.type ?? '?';
     box.textContent = `UA: ${navigator.userAgent}\nnav: ${navType} vis: ${document.visibilityState}\n`;
-    let rvfc = 0, watched = null;
-    const onFrame = () => { rvfc += 1; watched?.requestVideoFrameCallback?.(onFrame); };
+    let rvfc = 0;
+    const onFrame = () => { rvfc += 1; video.requestVideoFrameCallback?.(onFrame); };
+    video.requestVideoFrameCallback?.(onFrame);
+    const frames = () => (video.getVideoPlaybackQuality?.().totalVideoFrames ?? -1);
     setInterval(() => {
-      const video = heroAutoplayVideos[0];
-      if (!video) return;
-      // 元素被重建（reinitHeroVideo）时重新挂帧回调，计数从头开始
-      if (video !== watched) { watched = video; rvfc = 0; video.requestVideoFrameCallback?.(onFrame); }
-      const frames = video.getVideoPlaybackQuality?.().totalVideoFrames ?? -1;
-      const line = `t=${video.currentTime.toFixed(2)} frames=${frames} rvfc=${rvfc}`
-        + ` rs=${video.readyState} paused=${video.paused} err=${video.error?.code ?? '-'} net=${video.networkState}`
-        + `${video.__heroReinited ? ' REINIT' : ''}`;
+      const line = `t=${video.currentTime.toFixed(2)} frames=${frames()} rvfc=${rvfc}`
+        + ` rs=${video.readyState} paused=${video.paused} err=${video.error?.code ?? '-'} net=${video.networkState}`;
       const lines = `${box.textContent}${line}\n`.split('\n');
       box.textContent = lines.slice(-12).join('\n');
     }, 500);
