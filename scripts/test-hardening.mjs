@@ -7,7 +7,7 @@ import { spawnSync } from 'node:child_process';
 import { JSDOM } from 'jsdom';
 import sharp from 'sharp';
 import { startServer } from './_server.mjs';
-import { createChecker } from './_check.mjs';
+import { createChecker, SkipTest } from './_check.mjs';
 const work = fs.mkdtempSync(path.join(os.tmpdir(), 'blog-hardening-'));
 process.env.DATA_DIR = path.join(work, 'data');
 process.env.DB_FILE = path.join(work, 'data', 'blog.db');
@@ -215,13 +215,26 @@ try {
     try{const out=spawnSync(process.execPath,['scripts/restore.mjs','--yes'],{env:process.env,encoding:'utf8',timeout:10000});assert.notEqual(out.status,0);assert.match(out.stderr,/正在使用/);assert.throws(()=>acquireMaintenanceLock([path.join(work,'other.db'),process.env.CONTENT_DIR]),/占用/)}finally{release()}
   });
   await test('维护锁识别 PID 复用：活着但启动时间对不上就当陈旧锁回收', async () => {
+    // 用注入的探针，不依赖本机能否 spawn ps（受限容器/沙箱里会被拒）。
+    // 真实探针能不能用，由下面那条用例单独验证。
+    const { lockInternals } = await import('../src/util/lock.js');
+    const real = lockInternals.processStartedAt;
+    lockInternals.processStartedAt = () => Date.now();   // 同一个 pid，但"启动时间"是刚刚
     const resource = path.join(work, 'pid-reuse.db');
     const dir = `${resource}.blog-lock`;
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(path.join(dir, 'owner.json'), JSON.stringify({ pid: process.pid, startedAt: 0, token: 'stale', label: 'stale-owner' }));
-    const release = acquireMaintenanceLock([resource], 'new-owner');
-    release();
-    assert.equal(fs.existsSync(dir), false, '应完成回收并清理锁目录');
+    try {
+      const release = acquireMaintenanceLock([resource], 'new-owner');
+      release();
+      assert.equal(fs.existsSync(dir), false, '应完成回收并清理锁目录');
+    } finally { lockInternals.processStartedAt = real; }
+  });
+  await test('能读到进程启动时间（读不到时 PID 复用检测会退化，见 lock.js 的告警）', async () => {
+    const { lockInternals } = await import('../src/util/lock.js');
+    const started = lockInternals.processStartedAt(process.pid);
+    if (started == null) throw new SkipTest('本环境禁止 spawn ps（沙箱/无 procps），PID 复用检测在此环境退化为「pid 活着即占用」');
+    assert.ok(Math.abs(started - (Date.now() - process.uptime() * 1000)) < 60_000, `启动时间偏差过大：${started}`);
   });
   await test('维护锁会清理上次恢复留下的陈旧 .reclaim，不会永久卡住启动', async () => {
     const resource = path.join(work, 'stale-reclaim.db');

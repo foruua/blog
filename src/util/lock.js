@@ -5,6 +5,7 @@ import { execFileSync } from 'node:child_process';
 
 // 进程启动时间（近似）：仅用于识别 PID 复用，不参与业务。ps 的 lstart 只到秒，比较时留 5 秒容差。
 const PROCESS_STARTED_AT = Date.now() - process.uptime() * 1000;
+let probeUnavailable = false;
 function processStartedAt(pid) {
   try {
     const out = execFileSync('ps', ['-o', 'lstart=', '-p', String(pid)], {
@@ -13,8 +14,20 @@ function processStartedAt(pid) {
     }).trim();
     const started = Date.parse(out);
     return Number.isFinite(started) ? started : null;
-  } catch { return null; }
+  } catch (error) {
+    // ps 跑起来但退出非零（pid 刚好消失）是正常情况，静默返回 null。
+    // 只有「根本起不来」（受限容器/沙箱里 spawn 被拒、镜像里没装 procps）才算探针不可用 ——
+    // 那种环境下 PID 复用检测会退化成「pid 活着即视为占用」，得让运维看得见，否则将来锁卡死没人知道为什么。
+    if (error.status == null && !probeUnavailable) {
+      probeUnavailable = true;
+      console.error(`[lock] ⚠ 读不到进程启动时间（ps 不可用：${error.code ?? error.message}）：PID 复用检测退化为「pid 活着即视为占用」`);
+    }
+    return null;
+  }
 }
+
+// 测试用：换掉探针以验证「启动时间对不上就回收」这条逻辑，不依赖本机能不能 spawn ps。
+export const lockInternals = { processStartedAt };
 
 const owned = new Map();
 // 进程在「创建 .reclaim」与「finally 删除」之间被 SIGKILL/断电时，reclaim 会永久残留。
@@ -44,7 +57,7 @@ export function acquireMaintenanceLock(resources, label = 'maintenance') {
               try { process.kill(owner.pid, 0); } catch (e) { if (e.code === 'ESRCH') alive = false; }
               // PID 活着不代表还是原来那个进程：重启/崩溃后 PID 可能被复用，把别人的锁当成自己的会永久卡死维护操作。
               if (alive && Number.isFinite(owner.startedAt)) {
-                const started = processStartedAt(owner.pid);
+                const started = lockInternals.processStartedAt(owner.pid);
                 if (started != null && Math.abs(started - owner.startedAt) > 5000) alive = false;
               }
             }
