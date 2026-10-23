@@ -334,19 +334,25 @@
      只靠 HTML 的 autoplay/muted/loop 在部分移动内核（鸿蒙自带浏览器、X5/WebView）上会被静默忽略：
      要么停在首帧不动，要么播一遍就停在最后一帧。PJAX 换页时 #app 整块重建，新 <video> 又要在异步
      导航后重新走一遍自动播放策略，问题更明显。这里把属性落成 IDL 再显式 play()；被拦下时重新挂
-     一次性手势监听，再用 1s 看门狗兜住「播完不循环」「莫名停住」和 canplay 早于监听器触发的情况。
-     click 模式一根手指都不碰。 */
+     一次性手势监听，循环再用 ended + 看门狗兜底。
+     注意：同一段时间只允许一个 play() 在飞。鸿蒙上连续调 play() 会把上一次尚未落定的起播请求顶掉，
+     结果就是永远起不来 —— 这也是一开始加「每秒补播」反而彻底不播的原因。click 模式一根手指都不碰。 */
   let heroAutoplayVideos = [];
   let heroGestureController = null;
   let heroWatchdog = null;
-  let heroRetryTimer = 0;
   let heroPageEventsBound = false;
+  const HERO_PLAY_TIMEOUT_MS = 5000;
   const heroAutoplayAllowed = () => !document.hidden && !lightboxOpen();
   const heroVideoActive = (video) => {
     const slide = video.closest('.hero-slide');
     return !slide || slide.classList.contains('is-active');
   };
-  const playHeroVideo = (video) => {
+  const settleHeroPlay = (video) => {
+    video.__heroPending = false;
+    clearTimeout(video.__heroPendingTimer);
+    video.__heroPendingTimer = 0;
+  };
+  const playHeroVideo = (video, { gesture = false } = {}) => {
     if (!video?.isConnected || !heroAutoplayAllowed() || !heroVideoActive(video)) return;
     // 属性在部分内核里不足以让自动播放生效；muted 必须在 play() 之前就是 true。
     video.muted = true;
@@ -354,14 +360,39 @@
     video.loop = true;
     video.playsInline = true;
     video.setAttribute('webkit-playsinline', 'webkit-playsinline');
+    // 只有用户手势能解除「策略拦截」；同一时间只允许一个 play() 在飞，但不要用 paused 做门槛：
+    // 有的内核在起播被拦时 paused 已经是 false，用 paused 判断会误以为「已经在播」而永远不再重试。
+    if (gesture) video.__heroBlocked = false;
+    if (video.__heroPending) return;
+    if (video.__heroBlocked) { armHeroGesture(); return; }
+    video.__heroPending = true;
+    let played;
     try {
-      const played = video.play();
-      // 被自动播放策略拦下：等下一次用户手势再试。监听器每次换页都重新挂（见 armHeroGesture），
-      // 不能像以前那样只挂一次 —— 首次触摸消耗掉后，PJAX 返回首页就再也没人重试了。
-      if (played && typeof played.catch === 'function') played.catch(armHeroGesture);
-    } catch { armHeroGesture(); }
+      played = video.play();
+    } catch {
+      settleHeroPlay(video);
+      video.__heroBlocked = true;
+      armHeroGesture();
+      return;
+    }
+    if (!played || typeof played.then !== 'function') { settleHeroPlay(video); return; }
+    played.then(
+      () => { settleHeroPlay(video); video.__heroBlocked = false; video.__heroStarted = !video.paused; },
+      (error) => {
+        settleHeroPlay(video);
+        // 只有自动播放策略拦截需要等手势；其它错误（AbortError、解码失败）交给 canplay / 看门狗。
+        if (error && error.name === 'NotAllowedError') {
+          video.__heroBlocked = true;
+          armHeroGesture();
+        }
+      },
+    );
+    // 个别内核会返回一个永不落定的 Promise：留超时，别让 __heroPending 永久卡死。
+    video.__heroPendingTimer = setTimeout(() => settleHeroPlay(video), HERO_PLAY_TIMEOUT_MS);
   };
-  const playHeroVideos = () => { for (const video of heroAutoplayVideos) playHeroVideo(video); };
+  const playHeroVideos = (gesture = false) => {
+    for (const video of heroAutoplayVideos) playHeroVideo(video, { gesture });
+  };
   const armHeroGesture = () => {
     if (heroGestureController || typeof AbortController !== 'function') return;
     const controller = new AbortController();
@@ -369,24 +400,32 @@
     const retry = () => {
       controller.abort();
       if (heroGestureController === controller) heroGestureController = null;
-      playHeroVideos();
+      // 手势到来：解除策略拦截标记再试；正在起播的那次仍然不打断。
+      playHeroVideos(true);
     };
     for (const type of ['pointerdown', 'touchstart', 'keydown']) {
       document.addEventListener(type, retry, { capture: true, passive: true, signal: controller.signal });
     }
   };
   const stopHeroWatchdog = () => { if (heroWatchdog) { clearInterval(heroWatchdog); heroWatchdog = null; } };
-  /* 看门狗只管 auto 封面：内核不派发 ended、或把 loop 吃掉时，播完会停在最后一帧；解码器被抢时
-     也可能莫名其妙 paused。1 秒查一次只在「该播却没播」时补 play()，正常播放时没有任何动作。 */
+  /* 看门狗只管 auto 封面，而且只在「已经能播却停住」时补一次 play()：加载中不碰，
+     被策略拦下也不碰（等手势），避免把尚未落定的起播请求顶掉。ended / 播到最后一帧停住时回到开头。 */
   const ensureHeroPlayback = () => {
     if (!heroAutoplayAllowed()) return;
     for (const video of heroAutoplayVideos) {
       if (!video.isConnected || !heroVideoActive(video)) continue;
       if (!video.loop) video.loop = true;
-      if (video.ended || (video.paused && video.duration > 0 && video.currentTime >= video.duration - 0.2)) {
+      const nearEnd = video.duration > 0 && video.currentTime >= video.duration - 0.2;
+      if (video.ended || (video.paused && nearEnd)) {
+        video.__heroStarted = false;
         try { video.currentTime = 0; } catch { /* 有些内核此时禁止 seek，直接 play() 也会从头开始 */ }
+        if (!video.__heroPending && !video.__heroBlocked) playHeroVideo(video);
+        continue;
       }
-      if (video.paused) playHeroVideo(video);
+      // 只恢复「确实起播过、后来被系统打断」的视频；首次起播交给 canplay / 手势，避免反复 play() 顶掉加载。
+      if (video.__heroStarted && video.paused && !video.__heroPending && !video.__heroBlocked && video.readyState >= 3) {
+        playHeroVideo(video);
+      }
     }
   };
   function setupHeroAutoplay(root = document) {
@@ -394,10 +433,9 @@
       heroPageEventsBound = true;
       document.addEventListener('visibilitychange', () => { if (!document.hidden) playHeroVideos(); });
       // bfcache 回退不一定会发 visibilitychange，补一次 pageshow。
-      addEventListener('pageshow', playHeroVideos);
+      addEventListener('pageshow', () => playHeroVideos());
     }
     if (heroGestureController) { heroGestureController.abort(); heroGestureController = null; }
-    clearTimeout(heroRetryTimer);
     heroAutoplayVideos = [...root.querySelectorAll('.hero-figure video')]
       .filter((video) => video.dataset.videoMode !== 'click');
     if (!heroAutoplayVideos.length) { stopHeroWatchdog(); return; }
@@ -407,13 +445,23 @@
         // 这两个属性是旧内核认的「内联播放」开关，属性先写、脚本再补一遍，避免首帧被强制全屏。
         video.setAttribute('webkit-playsinline', 'webkit-playsinline');
         video.setAttribute('x5-playsinline', 'x5-playsinline');
-        // 被自动播放策略拦下时，元数据就绪后再试一次（此时 play() 多半能过）。
+        // 被自动播放策略拦下时，等数据够了再试一次（此时 play() 多半能过）。
         video.addEventListener('loadedmetadata', () => playHeroVideo(video));
         video.addEventListener('canplay', () => playHeroVideo(video));
-        // 有的内核在起播后才把 loop/muted 抹掉；起播成功时再落一次。
-        video.addEventListener('playing', () => { video.loop = true; video.muted = true; });
+        // 起播成功：落定这一次 play，内核若把 loop/muted 抹掉就在这里补回来。
+        video.addEventListener('playing', () => {
+          settleHeroPlay(video);
+          video.__heroBlocked = false;
+          video.__heroStarted = true;
+          if (!video.loop) video.loop = true;
+          if (!video.muted) video.muted = true;
+        });
+        // 暂停（灯箱/轮播/系统打断）后结束本次起播状态；started 保留，系统打断时看门狗才能恢复。
+        video.addEventListener('pause', () => settleHeroPlay(video));
         // 内核不支持 loop 时播完会停在最后一帧：回到开头再播一次。
         video.addEventListener('ended', () => {
+          settleHeroPlay(video);
+          video.__heroStarted = false;
           try { video.currentTime = 0; } catch { /* 有些内核此时禁止 seek，直接 play() 也会从头开始 */ }
           playHeroVideo(video);
         });
@@ -421,9 +469,7 @@
       playHeroVideo(video);
     }
     armHeroGesture();
-    // 新节点刚插入时解码器可能还没就绪，play() 被拒绝又等不到 canplay：下一拍再补一次。
-    heroRetryTimer = setTimeout(playHeroVideos, 250);
-    if (!heroWatchdog) heroWatchdog = setInterval(ensureHeroPlayback, 1000);
+    if (!heroWatchdog) heroWatchdog = setInterval(ensureHeroPlayback, 1500);
   }
 
   /* 首页轮播（多于一张图才渲染）。自动模式 5 秒一张，悬停/聚焦/切走标签页/「减弱动态效果」暂停。 */
