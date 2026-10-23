@@ -1,11 +1,47 @@
+import fs from 'node:fs';
+import path from 'node:path';
+
 // 站点自监控：探自己的公网地址 + 本地备份新鲜度，状态翻转时发一封邮件。
 //
-// 为什么放在进程内而不是只靠外部定时任务：真正出过事的是 Cloudflare Tunnel 断开——服务进程活得好好的，
-// 但公网 530。外部探针能发现，可一旦这台机器上没有任何外部定时器（launchd 装不上、cron 被禁用），
-// 就永远没人知道。进程内探自己的公网 URL 恰好覆盖这个盲区：进程还活着才探得动，而隧道断了它照样探得动。
-// 进程本身挂掉由 launchd 的 KeepAlive 兜底（10 秒内拉起），恢复后看门狗会继续工作。
+// 为什么放在进程内而不是只靠外部定时任务：真正出过事的是公网入口断开——服务进程活得好好的，
+// 但反向代理或 DNS 出问题导致公网不可达。外部探针能发现，可一旦这台机器上没有任何外部定时器，
+// 就永远没人知道。进程内探自己的公网 URL 恰好覆盖这个盲区：进程还活着才探得动，而公网入口断了它照样探得动。
+// 进程本身挂掉由 systemd 的 Restart 兜底（3 秒后拉起），恢复后看门狗会继续工作。
 
 const DEFAULT_MAX_AGE_SEC = 48 * 3600;
+
+// 生产机只负责本地备份；异地副本由另一台机器 pull 到自己的目录。
+// 那台机器上的探针直接看目录里最新清单的 mtime，不再依赖生产机自报的异地状态。
+export function offsiteBackupAge(dir, { now = Date.now } = {}) {
+  let newest = 0;
+  let names;
+  try {
+    names = fs.readdirSync(dir);
+  } catch (error) {
+    return { ok: false, reason: `异地备份目录不可读：${error.code ?? 'ERROR'}` };
+  }
+  for (const name of names) {
+    if (!name.endsWith('.json')) continue;
+    try {
+      const stat = fs.statSync(path.join(dir, name));
+      if (stat.mtimeMs > newest) newest = stat.mtimeMs;
+    } catch { /* 拉取中途消失的文件，忽略 */ }
+  }
+  if (!newest) return { ok: false, reason: '异地备份目录为空' };
+  return { ok: true, ageSec: Math.max(0, Math.round((now() - newest) / 1000)) };
+}
+
+// 通知去重指纹：只收「状态」，不收每次都变的测量值。
+// offsiteAgeSec 每 5 分钟都会变；把它（或结果里的其它秒数、小时数）算进指纹，
+// 每一拍都会被判成「状态翻转」，恢复信就会每 5 分钟发一封。数字统一抹掉，
+// 这样失败类别变了（HTTP 500 → 备份过期）仍会提醒，只是同一类故障内部的数值波动不重复打扰。
+export function stateFingerprint(url, result) {
+  return JSON.stringify({
+    url: url ?? null,
+    ok: result?.ok === true,
+    reason: String(result?.reason ?? '').replace(/\d+/g, '#'),
+  });
+}
 
 // 单次 HTTP 探测。token 只用来拿备份字段；拿不到备份字段是「没授权」，不是「没备份」，两者不能混。
 export async function probe({ url, token = process.env.MONITOR_TOKEN, maxAgeSec = DEFAULT_MAX_AGE_SEC, requireOffsite = false, timeoutMs = 10000 }) {
@@ -29,7 +65,7 @@ export async function probe({ url, token = process.env.MONITOR_TOKEN, maxAgeSec 
   } catch { return { ok: false, reason: '探测连接、超时或响应解析失败' }; }
 }
 
-// 连续失败多少次才告警：一次抖动（隧道重连、部署重启）不值得半夜发信。
+// 连续失败多少次才告警：一次抖动（反向代理重连、部署重启）不值得半夜发信。
 const FAIL_THRESHOLD = 2;
 
 export function createWatchdog({

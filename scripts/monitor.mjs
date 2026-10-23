@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { atomicWrite } from '../src/util/files.js';
 import { DATA_DIR } from '../src/config.js';
-import { probe } from '../src/monitor.js';
+import { probe, offsiteBackupAge, stateFingerprint } from '../src/monitor.js';
 
 // 外部定时探针（launchd / cron / 另一台机器都能跑）：单次探测，失败非零，
 // 状态变化时才通知。进程内那份看门狗见 src/monitor.js，两者共用 probe()。
@@ -40,8 +40,18 @@ async function main() {
   const maxAgeSec = Number(process.env.MONITOR_BACKUP_MAX_AGE_SEC ?? 172800);
   if (!Number.isFinite(maxAgeSec) || maxAgeSec <= 0) throw new Error('MONITOR_BACKUP_MAX_AGE_SEC 必须为正数');
   const stateFile = path.resolve(process.env.MONITOR_STATE_FILE ?? path.join(DATA_DIR, 'monitor-state.json'));
-  const result = await probe({ url, maxAgeSec, requireOffsite: process.env.MONITOR_REQUIRE_OFFSITE === 'true' });
-  const fingerprint = JSON.stringify({ url, ...result });
+  const offsiteDir = process.env.MONITOR_OFFSITE_DIR;
+  let result = await probe({ url, maxAgeSec, requireOffsite: !offsiteDir && process.env.MONITOR_REQUIRE_OFFSITE === 'true' });
+  // 异地副本在另一台机器上时，生产机的 offsiteBackup 状态没有意义；改为检查本地拉取目录。
+  if (result.ok && offsiteDir) {
+    const offsite = offsiteBackupAge(path.resolve(offsiteDir));
+    if (!offsite.ok) result = { ok: false, reason: offsite.reason };
+    else if (offsite.ageSec > maxAgeSec)
+      result = { ok: false, reason: `异地备份已过期（${Math.round(offsite.ageSec / 3600)} 小时）` };
+    else result = { ...result, offsiteAgeSec: offsite.ageSec };
+  }
+  // 指纹不能直接 JSON.stringify(result)：offsiteAgeSec 每拍都在变，会把「状态未变」全判成翻转。
+  const fingerprint = stateFingerprint(url, result);
   let previous;
   try { previous = JSON.parse(fs.readFileSync(stateFile, 'utf8')); } catch { }
   const webhook = process.env.MONITOR_WEBHOOK_URL;

@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 // 看门狗状态机：抖动容忍、连续失败告警、恢复告警、不重复打扰。
 // 这部分逻辑出错的两个方向都很糟——不告警等于没监控，乱告警会让人把邮件全标成已读。
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { createChecker } from './_check.mjs';
-import { createWatchdog } from '../src/monitor.js';
+import { createWatchdog, offsiteBackupAge, stateFingerprint } from '../src/monitor.js';
 
 const { check, report } = createChecker();
 
@@ -97,6 +100,44 @@ const BAD = { ok: false, reason: '隧道断开' };
   await new Promise((r) => setTimeout(r, 50));
   check('T10 intervalMs=0 时不启动定时器、不探测', notified === 0 && dog.state().failStreak === 0);
   dog.stop();
+}
+
+{
+  // 异地备份由本机 pull：探针直接看目录里最新清单的年龄，不看生产机自报状态。
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'blog-offsite-'));
+  try {
+    check('T12 异地目录为空时明确报未就绪', !offsiteBackupAge(dir).ok, JSON.stringify(offsiteBackupAge(dir)));
+    const now = Date.now();
+    const file = path.join(dir, 'blog-test.json');
+    fs.writeFileSync(file, '{}');
+    fs.utimesSync(file, new Date(now - 3600_000), new Date(now - 3600_000));
+    fs.writeFileSync(path.join(dir, 'asset.db.gz'), 'ignored');
+    const aged = offsiteBackupAge(dir, { now: () => now });
+    check('T13 按最新清单计算异地备份年龄', aged.ok && aged.ageSec === 3600, JSON.stringify(aged));
+    fs.writeFileSync(path.join(dir, 'blog-newer.json'), '{}');
+    fs.utimesSync(path.join(dir, 'blog-newer.json'), new Date(now - 60_000), new Date(now - 60_000));
+    const fresh = offsiteBackupAge(dir, { now: () => now });
+    check('T14 多个清单取最新的一份', fresh.ok && fresh.ageSec === 60, JSON.stringify(fresh));
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+{
+  // 去重指纹里不能有「每拍都在变」的测量值：offsiteAgeSec 一变，恢复信就会每 5 分钟发一封。
+  const ok = { ok: true, reason: '站点和可恢复备份正常' };
+  const first = stateFingerprint('https://example.com/healthz', { ...ok, offsiteAgeSec: 300 });
+  const later = stateFingerprint('https://example.com/healthz', { ...ok, offsiteAgeSec: 600 });
+  check('T15 备份年龄变化不算状态变化', first === later, `${first} vs ${later}`);
+
+  const expired1 = stateFingerprint('u', { ok: false, reason: '异地备份已过期（13 小时）' });
+  const expired2 = stateFingerprint('u', { ok: false, reason: '异地备份已过期（14 小时）' });
+  const http1 = stateFingerprint('u', { ok: false, reason: 'HTTP 500' });
+  const http2 = stateFingerprint('u', { ok: false, reason: 'HTTP 502' });
+  check('T16 同类故障内部数值波动不重复提醒', expired1 === expired2 && http1 === http2,
+    `${expired1} ${expired2} ${http1} ${http2}`);
+  check('T17 健康与故障、不同故障类别之间仍是状态变化',
+    first !== http1 && http1 !== expired1, `${first} ${http1} ${expired1}`);
 }
 
 process.exit(report() ? 1 : 0);
