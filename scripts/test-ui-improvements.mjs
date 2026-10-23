@@ -334,6 +334,45 @@ try {
     assert.deepEqual(withoutImages.slides, withImages.slides, `slide 盒子同理：${JSON.stringify({ withImages, withoutImages })}`);
     console.log('封面首帧即终值：图未到时相框与 slide 已是终值，没有位移。');
   }
+  // 鸿蒙 ArkWeb 把 <video> 画在独立原生层上，叠在视频上的封面文字永远看不见：
+  // UA 命中时文字降级到相框下方（深色题注），其他内核维持叠加版式。
+  {
+    const KEYS = ['hero_images', 'hero_video_mode', 'hero_mode', 'hero_layout', 'hero_tone'];
+    const set = (k, v) => db.prepare('INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').run(k, v);
+    const prev = db.prepare(`SELECT key, value FROM settings WHERE key IN (${KEYS.map(() => '?').join(',')})`).all(...KEYS);
+    set('hero_images', JSON.stringify([{ path: '/uploads/hero-test.mp4', w: 1280, h: 720, subtitle: '题注测试' }]));
+    set('hero_video_mode', 'auto'); set('hero_mode', 'auto'); set('hero_layout', 'bottom'); set('hero_tone', 'light');
+    const read = (page) => page.evaluate(() => {
+      const video = document.querySelector('.hero-figure video');
+      const copy = document.querySelector('.hero-figure > .hero-copy');
+      if (!video || !copy) return null;
+      return {
+        ark: document.documentElement.classList.contains('ua-arkweb'),
+        pos: getComputedStyle(copy).position,
+        below: copy.getBoundingClientRect().top >= video.getBoundingClientRect().bottom - 1,
+      };
+    });
+    try {
+      const ARK = 'Mozilla/5.0 (Phone; OpenHarmony 5.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36 ArkWeb/4.1.6.1 Mobile';
+      const arkCtx = await browser.newContext({ viewport: { width: 390, height: 844 }, userAgent: ARK });
+      const arkPage = await arkCtx.newPage();
+      await arkPage.goto(srv.base, { waitUntil: 'domcontentloaded' });
+      const onArk = await read(arkPage);
+      assert.ok(onArk?.ark, 'ArkWeb UA 应挂上 ua-arkweb');
+      assert.equal(onArk.pos, 'static', 'ArkWeb 下封面文字应回到文档流');
+      assert.ok(onArk.below, 'ArkWeb 下封面文字应落在视频下方（原生视频层盖不住它）');
+      await arkCtx.close();
+      const plain = await browser.newPage({ viewport: { width: 390, height: 844 } });
+      await plain.goto(srv.base, { waitUntil: 'domcontentloaded' });
+      const onPlain = await read(plain);
+      assert.equal(onPlain.ark, false, '普通 UA 不该挂 ua-arkweb');
+      assert.equal(onPlain.pos, 'absolute', '普通内核仍把文字叠在视频上');
+      console.log('鸿蒙 ArkWeb：封面文字降级到相框下方；其他内核版式不变。');
+    } finally {
+      db.prepare(`DELETE FROM settings WHERE key IN (${KEYS.map(() => '?').join(',')})`).run(...KEYS);
+      for (const row of prev) set(row.key, row.value);
+    }
+  }
   // 首帧 theme-color：服务端两条固定 hex 之外，THEME_BOOT 要在 <head> 里就把访客存下的预设/自定义纸色写进
   // 唯一那条无 media 的 meta，手机状态栏才不会停在默认色（部分 WebView 不会在 ui.js 之后再更新）。
   for (const [label, seed] of [
