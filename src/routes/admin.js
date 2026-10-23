@@ -29,9 +29,9 @@ const adminRedirect = (to) => {
   }
   // 登录回跳只允许干净的 /admin 路径：`/admin/..//evil`、`/admin/%2e%2e//x` 这类经浏览器归一化后
   // 可能变成协议相对地址或站外路径，直接拒绝。
-  const path = clean.split(/[?#]/, 1)[0];
-  if (path.includes('//') || /%2e|%2f|%5c/i.test(path)
-      || path.split('/').some((part) => part === '.' || part === '..')) return '/admin';
+  const pathname = clean.split(/[?#]/, 1)[0];
+  if (pathname.includes('//') || /%2e|%2f|%5c/i.test(pathname)
+      || pathname.split('/').some((part) => part === '.' || part === '..')) return '/admin';
   return clean;
 };
 

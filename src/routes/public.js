@@ -45,6 +45,7 @@ const themePost = (p) => ({
 // 结构化数据/OG 只认 ISO 8601；SQLite 的 datetime() 是 "YYYY-MM-DD HH:MM:SS"，
 // 直接塞进 article:modified_time 会被部分抓取工具当成非法日期。解析失败就不输出该字段。
 const isoOf = (value) => {
+  if (!value) return null;   // new Date(null) 是 1970，不能让空值污染结构化数据
   try { return utcDate(value).toISOString(); } catch { return null; }
 };
 
@@ -212,7 +213,7 @@ export function publicRoutes(repo, { comments, crypt, media = null, feeds = null
 
     const imgs = heroImgsOf(c);
     const heroAlt = SITE.identity;
-    const layout = heroLayoutOf(c);
+    const heroLayoutKey = heroLayoutOf(c);
     const tone = heroToneOf(c);
     const hasCopy = (im) => Boolean(im.title || im.subtitle || (im.link && im.linkText));
     // 每张封面的文字层：位置/字号由版式类控制，内容完全来自首屏数据（无 JS 也能看到第一张）。
@@ -221,14 +222,14 @@ export function publicRoutes(repo, { comments, crypt, media = null, feeds = null
       const subtitle = esc(im.subtitle ?? '');
       const link = im.link && im.linkText ? String(im.link) : '';
       const empty = !title && !subtitle && !link;
-      const kicker = layout === 'label' && subtitle ? `<span class="hero-copy-kicker">${subtitle}</span>` : '';
-      const sub = subtitle && layout !== 'label' ? `<span class="hero-copy-sub">${subtitle}</span>` : '';
+      const kicker = heroLayoutKey === 'label' && subtitle ? `<span class="hero-copy-kicker">${subtitle}</span>` : '';
+      const sub = subtitle && heroLayoutKey !== 'label' ? `<span class="hero-copy-sub">${subtitle}</span>` : '';
       const cta = link
         ? `<a class="hero-copy-link" href="${esc(link)}"${/^https?:\/\//i.test(link) ? ' target="_blank" rel="noopener"' : ''}>${esc(im.linkText)}</a>`
         : '';
       // 单图时标题是 <h1>，里面只能放 phrasing content：这里用 span（CSS 给 block 显示），
       // 别再换成 div/p —— 浏览器虽能渲染，HTML 校验和读屏的可访问名都会变。
-      return `<span class="hero-copy hero-copy-${layout} hero-copy-${tone}${empty ? ' is-empty' : ''}${active ? ' is-active' : ''}"${active ? '' : ' aria-hidden="true"'}>
+      return `<span class="hero-copy hero-copy-${heroLayoutKey} hero-copy-${tone}${empty ? ' is-empty' : ''}${active ? ' is-active' : ''}"${active ? '' : ' aria-hidden="true"'}>
         ${empty ? '' : `<span class="hero-copy-inner">${kicker}${title ? `<span class="hero-copy-title">${title}</span>` : ''}${sub}${cta}</span>`}
       </span>`;
     };
@@ -505,9 +506,9 @@ ${listBlock(shaped, { showKind: false })}
       const { text, images: rawImages } = splitImages(p.body_html);
       // 画廊以静态预览兜底、按像素密度选候选；灯箱展示图取最大档变体。
       const images = rawImages.map((im) => {
-        const media = mediaOf(c, im.src);
-        return { ...im, thumb: media?.thumbnail ?? null, previewSrcset: media?.srcset ?? '',
-          full: media?.full ?? im.src };
+        const info = mediaOf(c, im.src);
+        return { ...im, thumb: info?.thumbnail ?? null, previewSrcset: info?.srcset ?? '',
+          full: info?.full ?? im.src };
       });
       return {
         ...themePost(p),

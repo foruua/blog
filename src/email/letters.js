@@ -1,5 +1,6 @@
 import { SITE } from '../config.js';
 import { esc, formatDateTime } from '../util/text.js';
+import { headerValue } from '../util/validation.js';
 import {
   letter, mark, hair, spacer, kicker, title, meta, paragraph, caption,
   quote, notice, button, ghostLinks, keyValues, footLine, accentLink,
@@ -73,7 +74,9 @@ ${actions.map((a) => `  ${a.text ?? a.label}  ${a.href}`).join('\n')}
 
 // 回复提醒信：收信人正是《postTitle》下被回复的那位读者。
 export function replyCommentLetter({ readerName, postTitle, lead, byAuthor = true, replier = '', bodyMd, when, url, unsub }) {
-  const subject = `[${SITE.identity}] ${byAuthor ? '作者' : replier}回复了你的评论`;
+  // replier 可能是历史评论昵称（备份导入/旧数据）：进邮件头前必须折叠控制字符。
+  const replierName = headerValue(replier);
+  const subject = `[${SITE.identity}] ${byAuthor ? '作者' : replierName}回复了你的评论`;
 
   const text = `${readerName}，你好：
 
@@ -93,7 +96,7 @@ export function replyCommentLetter({ readerName, postTitle, lead, byAuthor = tru
     spacer(22),
     hair(),
     spacer(26),
-    kicker(byAuthor ? '作者回复了你' : `${replier} 回复了你`),
+    kicker(byAuthor ? '作者回复了你' : `${replierName} 回复了你`),
     spacer(12),
     title(`《${esc(postTitle)}》`),
     spacer(10),
@@ -103,7 +106,7 @@ export function replyCommentLetter({ readerName, postTitle, lead, byAuthor = tru
     spacer(24),
     paragraph(`${esc(readerName)}，你好 —— 你在《${esc(postTitle)}》下的评论<strong>${esc(lead)}</strong>：`),
     spacer(16),
-    quote(richText(bodyMd), byAuthor ? '— 作者' : `— ${esc(replier)}`),
+    quote(richText(bodyMd), byAuthor ? '— 作者' : `— ${esc(replierName)}`),
     spacer(24),
     button({ label: '查看完整讨论', href: url }),
     spacer(20),

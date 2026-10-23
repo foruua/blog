@@ -199,8 +199,10 @@ export function boundedBody() {
 
 // 条件请求：拆 If-None-Match、去 W/ 前缀、认 *；命中即视为未修改。静态资源与 Feed/sitemap 共用。
 export function ifNoneMatch(c, etag) {
-  const validators = (c.req.header('if-none-match') ?? '').split(',').map((value) => value.trim().replace(/^W\//, ''));
-  return validators.includes(etag) || validators.includes('*');
+  const bare = (value) => String(value ?? '').trim().replace(/^W\//, '');
+  const validators = (c.req.header('if-none-match') ?? '').split(',').map(bare);
+  // 服务端自己也可能发弱 ETag（压缩/精简资源），比较时两边都要去掉 W/ 前缀。
+  return validators.includes(bare(etag)) || validators.includes('*');
 }
 
 export function publicWriteRateLimit({ max = 60, windowMs = 60000, capacity = 4096 } = {}) {

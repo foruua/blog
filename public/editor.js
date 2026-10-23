@@ -22,8 +22,9 @@
     }
     let next = marker;
     if (/^\d/.test(marker)) {
-      const n = parseInt(marker, 10) + 1;
-      const tail = marker.slice(String(parseInt(marker, 10)).length);   // 保留 `.` 或 `)`
+      const digits = /^\d+/.exec(marker)[0];
+      const n = parseInt(digits, 10) + 1;
+      const tail = marker.slice(digits.length);   // 保留 `.` 或 `)`；不能用 parseInt 后的长度（01. → 21.）
       next = `${n}${tail}`;
     }
     const insert = `\n${indent}${next}${gap}`;

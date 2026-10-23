@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { SITE } from './config.js';
+import { headerValue } from './util/validation.js';
 
 export const KEYS = {
   host: 'mail_smtp_host',
@@ -97,7 +98,7 @@ export function configSource() {
 }
 
 // 收件人同样剥掉 CR/LF：mail_to 可由恢复不可信备份带进来，头注入不该从这里进入。
-export const ownerEmail = () => (String(dbGet(KEYS.to) ?? '').trim() || String(process.env.OWNER_EMAIL ?? '').trim()).replace(/[\r\n]/g, '');
+export const ownerEmail = () => headerValue(String(dbGet(KEYS.to) ?? '').trim() || String(process.env.OWNER_EMAIL ?? '').trim());
 
 export function fromAddress() {
   const explicit = String(dbGet(KEYS.from) ?? '').trim() || String(process.env.MAIL_FROM ?? '').trim();
@@ -107,7 +108,7 @@ export function fromAddress() {
     value = user ? `${SITE.identity} <${user}>` : '';
   }
   // 头部注入：站点名 / SMTP 用户名里混入 CR/LF 会把 From 头劈成两行、凭空多出收件人。
-  return value.replace(/[\r\n]/g, '');
+  return headerValue(value);
 }
 
 let cached = { sig: '', promise: null };
@@ -169,8 +170,8 @@ export async function deliver(msg) {
     if (!t) { logToConsole({ ...msg, to }, 'nodemailer 不可用'); return { sent: false, reason: 'no-transport' }; }
     await t.sendMail({
       from: fromAddress(),
-      to,
-      subject: msg.subject,
+      to: headerValue(to),
+      subject: headerValue(msg.subject),
       text: msg.text,
       html: msg.html,
       headers: msg.headers,

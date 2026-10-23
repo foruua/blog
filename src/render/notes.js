@@ -12,7 +12,8 @@ export function splitImages(html) {
   };
   // 图片与视频按文档顺序一起抽出来：以前只认 <img>，视频留在正文里、图集里看不到它。
   // 视频是渲染器写的 <span class="prose-video">…</span> 包一层 <video>（见 markdown.js），整块摘掉，别在正文里留空壳。
-  const MEDIA_RE = /<img\b[^>]*>|<span class="prose-video">[\s\S]*?<\/span>/gi;
+  // 属性值里允许出现被引号包住的 `>`（alt="a > b"），别让正则在这里提前截断标签。
+  const MEDIA_RE = /<img\b(?:[^>"']|"[^"]*"|'[^']*')*>|<span class="prose-video">[\s\S]*?<\/span>/gi;
   let text = String(html ?? '').replace(MEDIA_RE, (block) => {
     if (/^<span/i.test(block)) {
       const videoTag = /<video\b[^>]*>/i.exec(block)?.[0] ?? '';

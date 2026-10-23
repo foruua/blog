@@ -192,6 +192,12 @@ export function createRefresher({ feeds, keep = DEFAULT_KEEP, log = () => {}, no
     // 有没有「早就该刷新」的源：以前预留给前台访问时顺手催一次，但 /friends 明确不让匿名请求驱动对外抓取，
     // 这个入口从未接线；需要时由后台定时器或站点定时任务调用 refreshAll 即可。
     busy: () => Boolean(inFlight),
+    // 关闭进程前等待所有在飞轮次/单源刷新落库，避免 close(db) 之后还有 markOk/markFail 写入。
+    drain: () => Promise.allSettled([
+      inFlight,
+      forced,
+      ...[...bySource.values()].map((item) => item.promise),
+    ].filter(Boolean)),
     // 这轮跑到哪儿了（没跑过为 null）。返回副本：调用方拿到的数字不许被下一轮改掉。
     progress: () => (progress ? { ...progress } : null),
   };

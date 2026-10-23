@@ -223,6 +223,47 @@ try {
     release();
     assert.equal(fs.existsSync(dir), false, '应完成回收并清理锁目录');
   });
+  await test('维护锁会清理上次恢复留下的陈旧 .reclaim，不会永久卡住启动', async () => {
+    const resource = path.join(work, 'stale-reclaim.db');
+    const dir = `${resource}.blog-lock`, reclaim = `${dir}.reclaim`;
+    const old = new Date(Date.now() - 60 * 60 * 1000);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'owner.json'), JSON.stringify({ pid: 999999, startedAt: Date.now() - 999999, token: 'dead', label: 'dead' }));
+    fs.utimesSync(dir, old, old);
+    fs.mkdirSync(reclaim, { recursive: true });
+    fs.utimesSync(reclaim, old, old);
+    const release = acquireMaintenanceLock([resource], 'after-crash');
+    release();
+    assert.equal(fs.existsSync(dir), false);
+    assert.equal(fs.existsSync(reclaim), false);
+  });
+  await test('密钥文件写不进去时保留数据库里的旧密钥，重启后仍能解密', async () => {
+    const keyDbFile = path.join(work, 'secret-db.sqlite');
+    const keyDir = path.join(work, 'secret-unwritable');
+    const secretFile = path.join(keyDir, '.app-secret');
+    const envSecret = process.env.APP_SECRET;
+    process.env.APP_SECRET = '';
+    fs.mkdirSync(keyDir, { recursive: true, mode: 0o500 });
+    try {
+      const keyDb = open(keyDbFile);
+      keyDb.exec('CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
+      keyDb.prepare('INSERT INTO settings(key, value) VALUES(?,?)').run('app_secret', 'legacy-key-123');
+      const first = createCrypto(keyDb, { secretFile });
+      const blob = first.encrypt('reader@example.com');
+      assert.equal(keyDb.prepare("SELECT value FROM settings WHERE key='app_secret'").get().value, 'legacy-key-123');
+      close(keyDb);
+
+      fs.chmodSync(keyDir, 0o700);
+      const reopened = open(keyDbFile);
+      try {
+        const second = createCrypto(reopened, { secretFile });
+        assert.equal(second.decrypt(blob), 'reader@example.com');
+      } finally { close(reopened); }
+    } finally {
+      process.env.APP_SECRET = envSecret ?? '';
+      fs.chmodSync(keyDir, 0o700);
+    }
+  });
   await test('评论行内回复框能就地展开收起（后端还加载了 nav.js，也不能被它抢走点击）', async () => {
     const html = `<!doctype html><html><body><div id="app"><table><tbody>
       <tr><td><a class="a-link" href="/admin/comments/7/reply" data-reply-toggle data-no-pjax aria-expanded="false" aria-controls="reply-row-pending-7">回复</a></td></tr>

@@ -13,7 +13,7 @@ const MAX_FEEDS = 200;
 const WAIT_MS = Math.min(TIMEOUT_MS, 6000);
 
 export function registerFeedRoutes(app, { feeds, links = null, refresher, repo, keep = 20, mutate = (fn) => fn() }, { ctx }) {
-  const subscriber = links ? createLinkSubscriber({ feeds, links, refresher, mutate, keep, maxFeeds: MAX_FEEDS }) : null;
+  const subscriber = links ? createLinkSubscriber({ feeds, links, refresher, mutate, repo, keep, maxFeeds: MAX_FEEDS }) : null;
 
   // 跳回列表带上页码与结果文案；body 已被 CSRF 守卫读过一次，这里白拿。
   const back = async (c, message, { url = '', title = '' } = {}) => {
@@ -29,14 +29,20 @@ export function registerFeedRoutes(app, { feeds, links = null, refresher, repo, 
   };
 
 
+  /** @returns {{url:string, error?:string}} */
   function normalizeUrl(raw) {
     let s = String(raw ?? '').trim().replace(/\s+/g, '');
-    if (!s) return '';
-    if (s.length > 500) return '';
+    if (!s) return { url: '' };
+    if (s.length > 500) return { url: '' };
     if (!/^[a-z][a-z0-9+.-]*:/i.test(s)) s = `https://${s}`;
     // 先做一次真正的 URL 解析：像 `https://` 这种“有协议但没主机”的地址不能落库，
     // 否则站主会得到一条永远失败、删起来才麻烦的订阅源。
-    try { return new URL(s).href; } catch { return ''; }
+    try {
+      const parsed = new URL(s);
+      // 凭据必须在落库前拒绝：抓取层虽然也会拦，但那时源已经进表，前台会多一条永远失败的记录。
+      if (parsed.username || parsed.password) return { url: '', error: '地址里不要带账号密码' };
+      return { url: parsed.href };
+    } catch { return { url: '' }; }
   }
 
   // 「前台显示几篇」：0 = 默认 3 篇；上限 100 与 FEED_KEEP 一致，填错退回原值。
@@ -91,8 +97,9 @@ export function registerFeedRoutes(app, { feeds, links = null, refresher, repo, 
   externalWrite(app, '/admin/feeds/add', async (c) => {
     const b = await bodyOf(c);
     const entered = { url: val(b, 'url').slice(0, 500), title: val(b, 'title').slice(0, 60) };
-    const url = normalizeUrl(val(b, 'url'));
-    if (!url) return back(c, '✗ 请填一个地址', entered);
+    const normalized = normalizeUrl(val(b, 'url'));
+    if (!normalized.url) return back(c, normalized.error ? `✗ ${normalized.error}` : '✗ 请填一个地址', entered);
+    const url = normalized.url;
     if (!schemeOk(url)) return back(c, '✗ 只支持 http(s) 地址', entered);
     if (feeds.count() >= MAX_FEEDS) return back(c, `✗ 最多 ${MAX_FEEDS} 个订阅源，先删掉几个`, entered);
     if (feeds.getByUrl(url)) return back(c, '✗ 这个地址已经添加过了', entered);
@@ -126,8 +133,9 @@ export function registerFeedRoutes(app, { feeds, links = null, refresher, repo, 
     if (!feed) return back(c, '✗ 这个订阅源不存在');
 
     const b = await bodyOf(c);
-    const url = normalizeUrl(val(b, 'url'));
-    if (!url) return back(c, '✗ 地址不能为空');
+    const normalized = normalizeUrl(val(b, 'url'));
+    if (!normalized.url) return back(c, normalized.error ? `✗ ${normalized.error}` : '✗ 地址不能为空');
+    const url = normalized.url;
     if (!schemeOk(url)) return back(c, '✗ 只支持 http(s) 地址');
     const clash = feeds.getByUrl(url);
     if (clash && clash.id !== feed.id) return back(c, '✗ 这个地址已经被另一个源用了');

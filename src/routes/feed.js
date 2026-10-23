@@ -22,6 +22,7 @@ const stampOf = (rows) => rows.reduce((newest, r) => {
 const notModified = ifNoneMatch;
 // 日期兜底：published_at/updated_at 畸形时 Invalid Date.toISOString() 会抛 RangeError，一条脏数据就能让整个 Feed 500；解析不出退回当前时间。
 const safeIso = (value, fallback = new Date()) => {
+  if (value == null || value === '') return fallback.toISOString();
   const d = value instanceof Date ? value : new Date(value);
   return (Number.isNaN(d.getTime()) ? fallback : d).toISOString();
 };
@@ -235,7 +236,7 @@ ${entries}
     ];
     const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${urls.map((u) => `  <url><loc>${esc(absUrl(u.loc))}</loc>${u.lastmod ? `<lastmod>${formatDay(u.lastmod)}</lastmod>` : ''}</url>`).join('\n')}
+${urls.map((u) => `  <url><loc>${esc(absUrl(u.loc))}</loc>${u.lastmod ? `<lastmod>${esc(u.lastmod)}</lastmod>` : ''}</url>`).join('\n')}
 </urlset>`;
     return c.body(xml, 200, { 'Content-Type': 'application/xml; charset=utf-8', ETag: etag });
   });

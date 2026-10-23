@@ -1,16 +1,15 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { gzip, brotliCompress, constants as zlibConstants } from 'node:zlib';
-import { promisify } from 'node:util';
 import { Worker } from 'node:worker_threads';
 import { acquireMaintenanceLock, createMutationQueue, createWriteBarrier } from './src/util/lock.js';
 import { recoverWrites } from './src/content/commit.js';
 import { isExternalWrite } from './src/util/external-writes.js';
 import { logError } from './src/util/errors.js';
-import { boundedBody, ifNoneMatch, publicWriteRateLimit, clientIp, acceptsEncoding } from './src/util/http.js';
+import { boundedBody, ifNoneMatch, publicWriteRateLimit, clientIp } from './src/util/http.js';
 import { createAntispam } from './src/comments/antispam.js';
 import { createStaticFiles, MIME } from './src/http/static.js';
+import { createHtmlCache } from './src/http/html-cache.js';
 import { esc } from './src/util/text.js';
 import { Hono } from 'hono';
 import { compress } from 'hono/compress';
@@ -42,8 +41,7 @@ import { normalizeAvatar } from './src/avatar/image.js';
 import { avatarRoutes } from './src/routes/avatar.js';
 import { DB_FILE, CONTENT_DIR, DATA_DIR, UPLOADS_DIR, PORT, HOST, SITE, configWarnings, AVATAR_DIR, AVATAR_UPSTREAMS, AVATAR_FETCH_SIZE, AVATAR_CACHE_MAX_FILES, THEMES_DIR, PUBLIC_DIR } from './src/config.js';
 import { pruneTrash, pruneTrashDirs, TRASH_DERIVED_RETENTION_DAYS } from './src/util/trash.js';
-import { mediaRevision } from './src/media/revision.js';
-import { envInt } from './src/util/env.js';
+import { envInt, envDurationMs } from './src/util/env.js';
 import { initMail, deliver as deliverMail } from './src/mail.js';
 import { createMailOutbox } from './src/mail-outbox.js';
 import { createImageInfo, createVideoInfo } from './src/media/info.js';
@@ -60,6 +58,7 @@ import { getCookie } from 'hono/cookie';
 
 // 「可长期缓存」的静态资源；清单必须与 layout.js 加 ?v= 的那份同一数组，否则新增资源必漏。
 const IMMUTABLE_ASSET_RE = new RegExp(`^/(${VERSIONED_ASSETS.map((f) => f.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})$`);
+const isImmutablePath = (p) => IMMUTABLE_ASSET_RE.test(p) || p.startsWith('/uploads/') || p.startsWith('/theme-assets/');
 
 // CSP：script-src 只放行自身脚本与两段内联引导的 sha256 —— 主题/配色必须在 <head>（外链会闪白）；style-src 需 unsafe-inline。
 const INLINE_SCRIPT_HASHES = [...new Set([PUBLIC_THEME_BOOT, ADMIN_THEME_BOOT])]
@@ -105,8 +104,6 @@ a{color:inherit}
 </html>`;
 
 const t0 = process.hrtime.bigint();
-const gzipAsync = promisify(gzip);
-const brotliAsync = promisify(brotliCompress);
 
 // 日志目录必须与 scripts/rotate-logs.mjs 使用同一口径；~ 的展开放在 log-rotate.js 的 resolveLogDir()。
 const logDir = process.env.BLOG_LOG_DIR ? resolveLogDir(process.env.BLOG_LOG_DIR) : undefined;
@@ -203,24 +200,12 @@ if (prunedThemeDirs.length) console.log(`[trash] 清理了 ${prunedThemeDirs.len
 const sync = syncContent(repo, { renderer });
 
 // 友圈定时抓取：FEED_REFRESH_MS=0 关闭；下限 5 分钟；后台跑、不进 mutate 队列，否则一轮占着队列会把评论堵死。
-const feedRefreshMs = (() => {
-  const raw = process.env.FEED_REFRESH_MS;
-  if (raw == null || raw === '') return FEED_INTERVAL_MS;
-  const n = Number(raw);
-  if (!Number.isFinite(n) || n < 0) return FEED_INTERVAL_MS;
-  return n === 0 ? 0 : Math.max(5 * 60 * 1000, n);
-})();
+const feedRefreshMs = envDurationMs(process.env.FEED_REFRESH_MS, FEED_INTERVAL_MS, { min: 5 * 60 * 1000 });
 const backgroundWrites = createWriteBarrier();
 const refresher = createRefresher({ feeds, commit: backgroundWrites.run, log: (line) => console.log(line) });
 
 // 友链健康检查：LINK_CHECK_MS=0 关闭；下限 30 分钟；一轮最多 LINK_PER_ROUND 个（最久未查优先）。
-const linkCheckMs = (() => {
-  const raw = process.env.LINK_CHECK_MS;
-  if (raw == null || raw === '') return LINK_INTERVAL_MS;
-  const n = Number(raw);
-  if (!Number.isFinite(n) || n < 0) return LINK_INTERVAL_MS;
-  return n === 0 ? 0 : Math.max(30 * 60 * 1000, n);
-})();
+const linkCheckMs = envDurationMs(process.env.LINK_CHECK_MS, LINK_INTERVAL_MS, { min: 30 * 60 * 1000 });
 const linkChecker = createLinkChecker({
   links, commit: backgroundWrites.run, log: (line) => console.log(line),
 });
@@ -242,8 +227,7 @@ app.use('*', (c, next) => {
   if (c.req.method !== 'GET' && c.req.method !== 'HEAD') return next();
   // 静态资源不参与主题预览；别让一个伪造/真实后台 cookie 让每个 css/js/图片都做一次会话解析。
   const p = c.req.path;
-  if (p.startsWith('/theme-assets/') || p.startsWith('/uploads/') || p.startsWith('/avatar/')
-      || IMMUTABLE_ASSET_RE.test(p)) return next();
+  if (p.startsWith('/avatar/') || isImmutablePath(p)) return next();
   let preview = '', previewName = '';
   try {
     if (auth.session(c)) {
@@ -259,13 +243,11 @@ app.use('*', (c, next) => {
 // 出过事的场景是隧道断开（进程活着、公网 530），这时任何「进程内探自己公网地址」的检查都能发现；
 // 反过来进程真挂了，launchd 的 KeepAlive 会在 10 秒内拉起，恢复后看门狗继续工作。
 // 默认只在生产开，且默认 5 分钟一次；WATCHDOG_INTERVAL_MS=0 关闭。
-const watchdogIntervalMs = (() => {
-  const raw = process.env.WATCHDOG_INTERVAL_MS;
-  if (raw === '0') return 0;
-  const n = Number(raw);
-  if (Number.isFinite(n) && n > 0) return Math.max(60000, n);
-  return isProd ? 5 * 60 * 1000 : 0;
-})();
+const watchdogIntervalMs = envDurationMs(
+  process.env.WATCHDOG_INTERVAL_MS,
+  isProd ? 5 * 60 * 1000 : 0,
+  { min: 60 * 1000 },
+);
 const WATCHDOG_MAX_AGE_SEC = Number(process.env.MONITOR_BACKUP_MAX_AGE_SEC ?? 48 * 3600) || 48 * 3600;
 const WATCHDOG_REQUIRE_OFFSITE = process.env.MONITOR_REQUIRE_OFFSITE === 'true';
 // 磁盘/WAL 的硬阈值：磁盘满会同时坏掉 SQLite、上传和备份；WAL 异常膨胀通常意味着长事务或检查点失败。
@@ -495,13 +477,11 @@ if (autoBackupOn) {
 
 // 日志轮转：launchd 只把 stdout 追加进固定文件，自己不会切。这里按小时看一眼大小，
 // 超过阈值就 copytruncate —— 没装 me.uua.logrotate 定时任务时也能自己管住日志体积。
-const logRotateMs = (() => {
-  const raw = process.env.LOG_ROTATE_INTERVAL_MS;
-  if (raw === '0') return 0;
-  const n = Number(raw);
-  if (Number.isFinite(n) && n > 0) return Math.max(60000, n);
-  return isProd ? 3600 * 1000 : 0;
-})();
+const logRotateMs = envDurationMs(
+  process.env.LOG_ROTATE_INTERVAL_MS,
+  isProd ? 3600 * 1000 : 0,
+  { min: 60 * 1000 },
+);
 const logMaxMb = (() => {
   const n = Number(process.env.LOG_MAX_MB);
   return Number.isFinite(n) && n > 0 ? n : 5;
@@ -563,7 +543,7 @@ app.use('*', async (c, next) => {
 // 静态资源不读 settings，跳过——一个页面十来个资源，别为它们各加一次往返。
 app.use('*', async (c, next) => {
   const p = c.req.path;
-  if (!IMMUTABLE_ASSET_RE.test(p) && !p.startsWith('/uploads/') && !p.startsWith('/theme-assets/')) repo.refreshSettings();
+  if (!isImmutablePath(p)) repo.refreshSettings();
   await next();
 });
 app.onError((error, c) => {
@@ -607,7 +587,7 @@ app.use('*', async (c, next) => {
     c.header('Cache-Control', 'no-store');
   }
   // 页面必须每次回源校验：被缓存后会一直引用旧指纹的 nav.js/style.css，改动到不了用户。
-  const isImmutableAsset = IMMUTABLE_ASSET_RE.test(p) || p.startsWith('/uploads/') || p.startsWith('/theme-assets/');
+  const isImmutableAsset = isImmutablePath(p);
   if (!isImmutableAsset && !c.res.headers.has('Cache-Control')) {
     c.header('Cache-Control', 'no-cache');
   }
@@ -616,185 +596,10 @@ app.use('*', async (c, next) => {
 });
 
 
-// —— 匿名 HTML 页面缓存 / 条件请求 / 自带 gzip ——
-// 页面要发 `Cache-Control: no-cache`（每次回源校验，避免引用旧指纹的 nav.js/style.css），但此前没有校验值，
-// 于是每次换页、回退、pjax 悬停预取都是完整 200。这里给匿名 GET 的 HTML 算弱 ETag，命中 If-None-Match 回 304。
-// 以前每一页都要完整渲染、算 ETag、再压缩；304 只是省了带宽，CPU 一分没少。现在按「内容修订号」缓存匿名
-// HTML（默认 60 秒），命中时直接回；内容/评论/设置/媒体/主题任何一处变了，修订号就变，缓存自然失效。
-// 两个必须一起处理的点：
-//   1. 评论时间戳令牌每次渲染都不同，会把正文哈希冲掉——只对「哈希」这一步把它归一到小时档；缓存命中时重新签发，
-//      正文里的令牌仍保持每次新签发。
-//   2. Cloudflare 会改写/重压 HTML 并丢掉源站 ETag；加 `no-transform` 才肯透传。但 Hono 的 compress() 见这条
-//      头就不压了。于是 HTML 的 gzip 在这里自己做（设置 Content-Encoding 后外层 compress 会跳过）。
-// 后台会话不缓存（作者视图、CSRF、预览主题都因人而异）；一旦响应要种 cookie 也不进缓存。
-const HTML_CACHE_TTL_MS = envInt(process.env.HTML_CACHE_TTL_MS, 60_000, { min: 0, max: 60 * 60 * 1000 });
-const HTML_CACHE_MAX_ENTRIES = 200;
-const HTML_CACHE_MAX_CHARS = 8 * 1024 * 1024;
-const HTML_CACHE_MAX_BODY = 2 * 1024 * 1024;
-const HTML_CACHE_ENABLED = HTML_CACHE_TTL_MS > 0;
-const htmlCache = new Map();
-let htmlCacheChars = 0;
 
-function htmlCacheDelete(key) {
-  const entry = htmlCache.get(key);
-  if (!entry) return;
-  htmlCacheChars -= entry.body.length;
-  htmlCache.delete(key);
-}
-
-function htmlCacheGet(key, revision) {
-  if (!HTML_CACHE_ENABLED) return null;
-  const entry = htmlCache.get(key);
-  if (!entry) return null;
-  if (Date.now() - entry.at > HTML_CACHE_TTL_MS || entry.revision !== revision) {
-    htmlCacheDelete(key);
-    return null;
-  }
-  // 插入序当 LRU：命中后挪到队尾。
-  htmlCache.delete(key);
-  htmlCache.set(key, entry);
-  return entry;
-}
-
-function htmlCacheSet(key, entry) {
-  if (!HTML_CACHE_ENABLED || entry.body.length > HTML_CACHE_MAX_BODY) return;
-  htmlCacheDelete(key);
-  while (htmlCache.size >= HTML_CACHE_MAX_ENTRIES || htmlCacheChars + entry.body.length > HTML_CACHE_MAX_CHARS) {
-    const first = htmlCache.keys().next();
-    if (first.done) break;
-    htmlCacheDelete(first.value);
-  }
-  htmlCache.set(key, entry);
-  htmlCacheChars += entry.body.length;
-}
-
-// 缓存键包含原始查询串：?reply=12、?c=ok、?before=… 的页面各自独立。路径由 Hono 归一化，查询串保留原样。
-const htmlCacheKey = (c) => {
-  let search = '';
-  try { search = new URL(c.req.url).search; } catch { /* 极端情况下只按路径 */ }
-  return c.req.path + search;
-};
-
-const NON_HTML_PATH_RE = /^\/(?:admin|moderate|unsubscribe|healthz|api|avatar|uploads|theme-assets)(?:$|\/)|^\/(?:feed\.xml|atom\.xml|feed\.json|sitemap\.xml|robots\.txt|site\.webmanifest|favicon\.ico)$/;
-
-function htmlCacheable(c) {
-  if (!HTML_CACHE_ENABLED || c.req.method !== 'GET') return false;
-  if (NON_HTML_PATH_RE.test(c.req.path) || IMMUTABLE_ASSET_RE.test(c.req.path)) return false;
-  // 任何后台会话（包括伪造的）都不走缓存：作者表单、CSRF、主题预览只属于这个浏览器。
-  if (/(?:^|;\s*)blog_admin=/.test(c.req.header('cookie') ?? '')) return false;
-  return true;
-}
-
-// 页面修订号只由会影响 HTML 的东西组成：DB 写入（文章/评论/设置/别名）、媒体变体、当前主题模板签名。
-// 相对日期与评论令牌由缓存 TTL / 命中时重签兜住，不把时间塞进 key，否则缓存永远命中不了。
-function pageRevision(c) {
-  let rev = c.get('pageRevision');
-  if (rev === undefined) {
-    let theme = null;
-    try { theme = themes.active(); } catch { /* 主题错误由渲染层兜底 */ }
-    rev = `${repo.changeStamp?.() ?? ''}|${mediaRevision(repo)}|${theme?.id ?? ''}:${theme?.signature ?? ''}`;
-    c.set('pageRevision', rev);
-  }
-  return rev;
-}
-
-// 只刷新正文里的评论时间戳令牌；其它内容（包括 CSRF）原样返回。缓存 60 秒，令牌有效期 24 小时，安全边界不变。
-const TS_TOKEN_RE = /(name="ts" value=")([^"]*)(")/g;
-function refreshCommentTokens(text) {
-  return text.replace(TS_TOKEN_RE, (match, open, token, close) => {
-    const payload = crypt.verify(token);
-    if (!payload || payload.purpose !== 'comment-ts' || !Number.isInteger(payload.p)) return match;
-    return open + crypt.sign({ purpose: 'comment-ts', ts: Date.now(), p: payload.p }, 24 * 3600) + close;
-  });
-}
-
-async function respondHtml(c, entry, cacheStatus = '') {
-  const headers = new Headers(entry.headers);
-  headers.set('ETag', `W/${entry.tag}`);
-  headers.set('Cache-Control', 'no-cache, no-transform');
-  headers.set('Vary', 'Accept-Encoding');
-  const requestId = c.get('requestId');
-  if (requestId) headers.set('X-Request-Id', requestId);
-  if (cacheStatus) headers.set('X-Page-Cache', cacheStatus);
-
-  // ETag 已经把令牌归一到小时档：304 不需要刷新令牌或压缩。
-  if (ifNoneMatch(c, entry.tag)) {
-    headers.delete('Content-Length');
-    headers.delete('Content-Encoding');
-    c.res = new Response(null, { status: 304, headers });
-    return;
-  }
-
-  const text = cacheStatus === 'HIT' ? refreshCommentTokens(entry.body) : entry.body;
-  const body = Buffer.from(text, 'utf8');
-  // 与 hono/compress 同口径：小于 1KB 不压。优先 Brotli，不支持再回 gzip；
-  // 设置 no-transform 后外层 compress() 会跳过，所以这里必须自己压。
-  const accepted = c.req.header('accept-encoding') ?? '';
-  let compressed = null;
-  let contentEncoding = '';
-  if (body.length >= 1024 && acceptsEncoding(accepted, 'br')) {
-    try { compressed = await brotliAsync(body, { params: { [zlibConstants.BROTLI_PARAM_QUALITY]: 5 } }); contentEncoding = 'br'; } catch { /* 失败再试 gzip */ }
-  }
-  if (!compressed && body.length >= 1024 && acceptsEncoding(accepted, 'gzip')) {
-    try { compressed = await gzipAsync(body); contentEncoding = 'gzip'; } catch { /* 压缩失败就发原文，别把页面变成 500 */ }
-  }
-  if (compressed) {
-    headers.set('Content-Encoding', contentEncoding);
-    headers.set('Content-Length', String(compressed.length));
-    c.res = new Response(compressed, { status: 200, headers });
-    return;
-  }
-  headers.set('Content-Length', String(body.length));
-  c.res = new Response(body, { status: 200, headers });
-}
-
-app.use('*', async (c, next) => {
-  const cacheable = htmlCacheable(c);
-  const key = cacheable ? htmlCacheKey(c) : '';
-  const revision = cacheable ? pageRevision(c) : '';
-  if (cacheable) {
-    const hit = htmlCacheGet(key, revision);
-    if (hit) return respondHtml(c, hit, 'HIT');
-  }
-
-  await next();
-  if (c.req.method !== 'GET' || !c.res || c.res.status !== 200) return;
-  const contentType = c.res.headers.get('Content-Type') ?? '';
-  if (!contentType.includes('text/html')) return;
-
-  const path = c.req.path;
-  const adminCookie = /(?:^|;\s*)blog_admin=/.test(c.req.header('cookie') ?? '');
-  // 后台/审核/退订页永远不缓存，保持原行为：后台会话 private, no-store，公开 token 页由安全头兜 no-store。
-  if (path.startsWith('/admin') || path.startsWith('/moderate/') || path.startsWith('/unsubscribe/')) {
-    if (adminCookie && path.startsWith('/admin')) c.header('Cache-Control', 'private, no-store');
-    return;
-  }
-  if (adminCookie) {
-    c.header('Cache-Control', 'private, no-store');
-    return;
-  }
-  if ((c.res.headers.get('Cache-Control') ?? '').includes('no-store')) return;
-  // 任何会种 cookie 的 HTML 都不进共享缓存；直接交回原响应，避免我们重建 headers 时把 Set-Cookie 丢掉。
-  if (c.res.headers.has('Set-Cookie')) return;
-
-  let body;
-  try { body = Buffer.from(await c.res.clone().arrayBuffer()); } catch { return; }
-  const text = body.toString('utf8');
-  // 令牌归一化只影响哈希：正文里仍是当次新签发的令牌，服务端 3 秒防抖检查不受影响。
-  // 一小时后 ETag 变化、回 200 带新令牌；即便中间命中 304，浏览器缓存里的令牌也最多旧一小时，远在 24h 有效期内。
-  const stamp = Math.floor(Date.now() / 3600000);
-  const sealed = text.includes('name="ts"')
-    ? text.replace(/(name="ts" value=")[^"]*(")/g, `$1hb${stamp}$2`)
-    : text;
-  const tag = `"${crypto.createHash('sha1').update(sealed).digest('base64url')}"`;
-  const headers = { 'Content-Type': contentType };
-  const language = c.res.headers.get('Content-Language');
-  if (language) headers['Content-Language'] = language;
-  const entry = { at: Date.now(), revision, tag, body: text, headers };
-  const cacheStatus = cacheable ? 'MISS' : '';
-  if (cacheStatus) htmlCacheSet(key, entry);
-  return respondHtml(c, entry, cacheStatus);
-});
+// 匿名 HTML 缓存 / 弱 ETag / 自带 br+gzip 统一在 src/http/html-cache.js。
+const htmlCache = createHtmlCache({ repo, themes, crypt, isImmutableAsset: isImmutablePath });
+app.use('*', htmlCache.middleware);
 
 // 后台写请求在鉴权守卫之前整块读入请求体：先挡掉未登录请求，避免匿名客户端用 1MB/128MB
 // 请求体打内存。登录 POST 例外（上限 4KB，必须能到达登录校验）。
@@ -918,7 +723,8 @@ app.get('/theme-assets/*', async (c) => {
   let stat;
   try { stat = await fs.promises.stat(file); } catch { return c.notFound(); }
   if (!stat.isFile()) return c.notFound();
-  const etag = `"${stat.size.toString(16)}-${stat.mtimeMs.toString(16)}"`;
+  // 外层 compress() 会按 Accept-Encoding 改变字节；弱 ETag 才与「同一主题资源的不同编码」匹配。
+  const etag = `W/"${stat.size.toString(16)}-${stat.mtimeMs.toString(16)}"`;
   const requestedV = c.req.query('v');
   const versioned = Boolean(requestedV && requestedV === themes.assetVersion(theme, rel, file));
   const cacheControl = isActive
@@ -966,7 +772,11 @@ app.get('/site.webmanifest', (c) => {
 
 
 // 只给已审核评论出现过的邮箱 md5 回源；任意 hash 不再能消耗上游预算/做枚举。
-const knownAvatars = createKnownAvatars({ comments, crypt, siteEmail: SITE.email });
+const knownAvatars = createKnownAvatars({
+  comments, crypt, siteEmail: SITE.email, log: (line) => console.log(line),
+});
+// 启动时预热“已知邮箱”集合；重建分批让出事件循环，不阻塞监听。
+void knownAvatars.refresh?.();
 app.route('/', avatarRoutes(avatarCache, { isKnown: knownAvatars }));
 
 
@@ -1048,13 +858,22 @@ for (const sig of ['SIGINT', 'SIGTERM']) {
     const workerDone = backupWorker ? backupWorker.terminate().catch(() => {}) : Promise.resolve();
     console.log('\n[server] 正在退出，合并 WAL…');
     server.close(() => {
-      void workerDone.finally(() => {
+      // 等 HTTP 连接都结束后再 drain：避免一个刚进来的请求在 drain 之后又启动新的后台轮次。
+      // 后台任务（友圈/友链/发信、看门狗）可能正处在「网络已返回、还没落库」的窗口里，
+      // 必须等它们结束，否则会在 close(db) 之后写 markOk/markFail/markSent。
+      const backgroundDone = (async () => {
+        await Promise.allSettled([watchdog.drain?.()]);
+        await Promise.allSettled([refresher.drain?.(), linkChecker.drain?.()]);
+        await outbox.drain?.();
+      })();
+      void Promise.allSettled([workerDone, backgroundDone]).finally(() => {
         close(db); releaseLock();
         console.log('[server] 已安全停止');
         process.exit(0);
       });
     });
 
-    setTimeout(() => { close(db); releaseLock(); process.exit(0); }, 5000).unref();
+    // 网络探针最长可能等满抓取超时；给后台任务一个比 HTTP 关闭更宽的兜底，仍避免永久卡住。
+    setTimeout(() => { close(db); releaseLock(); process.exit(0); }, 15000).unref();
   });
 }

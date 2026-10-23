@@ -21,9 +21,9 @@ const safeLocalPath = (value) => {
     if (code < 0x20 || code === 0x7f) return '/';
   }
   // 防 `/foo/..//evil`、`/%2e%2e//evil` 这类经浏览器归一化后变成协议相对地址的路径。
-  const path = text.split(/[?#]/, 1)[0];
-  if (path.includes('//') || /%2e|%2f|%5c/i.test(path)
-      || path.split('/').some((part) => part === '.' || part === '..')) return '/';
+  const pathname = text.split(/[?#]/, 1)[0];
+  if (pathname.includes('//') || /%2e|%2f|%5c/i.test(pathname)
+      || pathname.split('/').some((part) => part === '.' || part === '..')) return '/';
   return text.slice(0, 500);
 };
 

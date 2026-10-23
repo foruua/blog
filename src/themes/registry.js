@@ -58,6 +58,17 @@ function realFileWithin(root, file, knownRealRoot = null) {
   } catch { return null; }
 }
 
+// 模板目录本身也要确认真实路径在主题内：手工拷贝进来的 themes/<id>/templates 若是指向外部的软链接，
+// walkTemplates 会顺着根目录读到主题外的 .liquid/.html 文件。
+function realDirectoryWithin(root, dir, knownRealRoot = null) {
+  try {
+    const realRoot = knownRealRoot ?? fs.realpathSync(root);
+    const real = fs.realpathSync(dir);
+    if (real !== realRoot && !real.startsWith(realRoot + path.sep)) return null;
+    return fs.statSync(real).isDirectory() ? real : null;
+  } catch { return null; }
+}
+
 function readManifest(dir) {
   const file = path.join(dir, 'theme.json');
   let stat;
@@ -159,8 +170,12 @@ export function parseThemeDir(dir, { dirName = path.basename(dir), enforceDirNam
   if (!isSafeRelative(assetsDirName)) errors.push(`assets 目录不合法：${assetsDirName}`);
   const templatesDir = safeJoin(rootDir, templatesDirName);
   const assetsDir = safeJoin(rootDir, assetsDirName);
+  let templatesReal = null;
   if (!templatesDir || !fs.existsSync(templatesDir) || !fs.statSync(templatesDir).isDirectory()) {
     errors.push(`模板目录不存在：${templatesDirName}/`);
+  } else {
+    templatesReal = realDirectoryWithin(rootDir, templatesDir);
+    if (!templatesReal) errors.push(`模板目录不能是指向主题目录外的软链接：${templatesDirName}/`);
   }
   // assets/ 是可选的：纯模板主题完全可以没有样式与图片，别把一个合法的空主题挡在门外。
   // 目录不存在时 assetPath() 会自然返回 null，无需在这里报错。
@@ -191,7 +206,7 @@ export function parseThemeDir(dir, { dirName = path.basename(dir), enforceDirNam
     dir: rootDir,
     templatesDir: templatesDirName,
     assetsDir: assetsDirName,
-    templatesAbs: templatesDir,
+    templatesAbs: templatesReal ?? templatesDir,
     assetsAbs: assetsDir,
     screenshot,
     options: optionsResult.options ?? [],

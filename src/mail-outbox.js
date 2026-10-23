@@ -1,4 +1,5 @@
 import { envInt } from './util/env.js';
+import { headerValue } from './util/validation.js';
 import { ownerEmail } from './mail.js';
 
 // 发信队列（mail_outbox）：通知先落库，再由定时器重试。解决两个旧问题：
@@ -19,7 +20,6 @@ const TERMINAL_REASONS = new Set(['not-configured', 'no-recipient', 'no-transpor
 // 超过这个年龄的待发信直接作废：审核链接 7 天有效，离线一周后补发的通知没有意义，还可能带旧内容。
 const MAX_AGE_MS = 7 * 86400_000;
 const nowIso = (ms) => new Date(ms).toISOString();
-const cleanHeader = (value) => String(value ?? '').replace(/[\r\n]/g, '').trim();
 
 export function createMailOutbox({
   db,
@@ -84,8 +84,9 @@ export function createMailOutbox({
 
   /** 入队；默认立即尝试一次。返回 { queued, id } 或 { queued:false, reason }。 */
   function enqueue(msg, { autoFlush = true } = {}) {
-    const to = cleanHeader(msg?.to || ownerEmail());
-    const subject = String(msg?.subject ?? '').trim();
+    const to = headerValue(msg?.to || ownerEmail());
+    // 主题同样可能来自导入数据/评论昵称，和 to 一样在队列入口折叠控制字符。
+    const subject = headerValue(msg?.subject);
     const text = String(msg?.text ?? '');
     if (!subject && !text) return { queued: false, reason: 'empty' };
     const at = nowIso(now());
@@ -168,6 +169,13 @@ export function createMailOutbox({
     catch { return 0; }
   }
 
+  /** 关闭前等待当前投递结束；flush 的 finally 可能再排一轮 pendingWake，所以循环到真正空闲。 */
+  async function drain() {
+    while (flushing) {
+      try { await flushing; } catch { /* 单封失败已由 flush 内部记入队列 */ }
+    }
+  }
+
   function stats() {
     let counts = {};
     try { counts = Object.fromEntries(q.counts.all().map((row) => [row.status, Number(row.n)])); }
@@ -203,5 +211,5 @@ export function createMailOutbox({
     if (timer) { clearInterval(timer); timer = null; }
   }
 
-  return { enqueue, flush, retryFailed, stats, start, stop };
+  return { enqueue, flush, retryFailed, stats, start, stop, drain };
 }

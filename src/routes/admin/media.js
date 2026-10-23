@@ -204,10 +204,20 @@ export function registerMediaRoutes(app, { repo, adminRepo, mutate = (fn) => fn(
       if (temp.size > MAX_UPLOAD) return c.json({ ok: false, error: '上传文件过大' }, 413);
       original = await fs.promises.readFile(temp.file);
     } else {
-      // 旧 multipart 表单（兼容旧客户端/脚本）：仍然整块读入，但上限与之前一致。
+      // 旧 multipart 表单（兼容旧客户端/脚本）：仍然整块读入，但先按 File.size 拦住超大请求，
+      // 别等 arrayBuffer() 把 128MB 视频/伪装成视频的负载读进堆再判 413。图片上限只有 8MB。
       const b = await bodyOf(c);
       const file = b instanceof FormData ? b.get('file') : null;
       if (!file || typeof file === 'string') return c.json({ ok: false, error: '没有拿到文件' }, 400);
+      const declaredSize = Number(file.size);
+      const declaredType = String(file.type ?? '').toLowerCase();
+      const declaredVideo = declaredType.startsWith('video/') || /\.(?:mp4|webm|mov|m4v)$/i.test(String(file.name ?? ''));
+      if (Number.isFinite(declaredSize) && declaredSize > MAX_VIDEO_UPLOAD) {
+        return c.json({ ok: false, error: `视频超过 ${Math.round(MAX_VIDEO_UPLOAD / 1048576)}MB` }, 413);
+      }
+      if (Number.isFinite(declaredSize) && declaredSize > MAX_UPLOAD && !declaredVideo) {
+        return c.json({ ok: false, error: `文件超过 ${Math.round(MAX_UPLOAD / 1048576)}MB` }, 413);
+      }
       original = Buffer.from(await file.arrayBuffer());
       filename = file.name ?? null;
       // 类型只认文件头，不信浏览器给的 MIME：video/* 的文本会被下面的图片分支拒掉，反之亦然。

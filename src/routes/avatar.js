@@ -19,7 +19,8 @@ export function avatarRoutes(cache, { isKnown = null } = {}) {
     }
     // 未知 hash 不回源，但也不能用 404 暴露“这个邮箱没在本站评论过”（md5 是公开可算的）。
     // 回一张与“上游确认无头像”完全相同的透明占位，并用同一档缓存头，状态码/头部都不可区分。
-    if (isKnown && !isKnown(hash)) {
+    // isKnown 可能是异步的（全量重建分批让出事件循环）；同步测试桩也兼容。
+    if (isKnown && !(await isKnown(hash))) {
       return c.body(c.req.method === 'HEAD' ? null : BLANK_PNG, 200, {
         'Content-Type': 'image/png',
         'Content-Length': String(BLANK_PNG.length),

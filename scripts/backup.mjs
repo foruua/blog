@@ -1,11 +1,10 @@
 import { acquireMaintenanceLock } from '../src/util/lock.js';
 
-import fs from 'node:fs';
 import path from 'node:path';
 import { uploadBackup } from '../src/util/process.js';
 import { open, close } from '../db/driver.js';
-import { DB_FILE, CONTENT_DIR, UPLOADS_DIR } from '../src/config.js';
-import { snapshot, listBackups, verifyBackup, DEFAULT_DIR, DEFAULT_KEEP, recordOffsiteResult, isRecoverableBackup } from '../src/backup.js';
+import { DB_FILE, CONTENT_DIR, UPLOADS_DIR, THEMES_DIR } from '../src/config.js';
+import { snapshot, listBackups, verifyBackupLite, DEFAULT_DIR, DEFAULT_KEEP, recordOffsiteResult, isRecoverableBackup } from '../src/backup.js';
 
 const argv = process.argv.slice(2);
 const has = (f) => argv.includes(f);
@@ -41,7 +40,7 @@ if (!Number.isInteger(KEEP) || KEEP < 0) {
 console.log(`\n备份 ${DB_FILE}`);
 console.log('─'.repeat(52));
 
-acquireMaintenanceLock([DB_FILE, CONTENT_DIR, UPLOADS_DIR], 'backup');
+acquireMaintenanceLock([DB_FILE, CONTENT_DIR, UPLOADS_DIR, THEMES_DIR], 'backup');
 const db = open(DB_FILE);
 let result;
 try {
@@ -55,8 +54,8 @@ console.log(`  ✓ 行数           文章 ${result.counts.posts} / 已发布 ${
 console.log(`  ✓ 文件            ${result.gzFile}`);
 console.log(`  ✓ 内容、附件与主题 ${result.assetsFile}（${result.assetFiles} 个文件，主题 ${result.themeFiles ?? 0} 个）`);
 
-const v = verifyBackup(path.basename(result.gzFile).replace(/\.db\.gz$/, ''), { dir: DIR });
-process.once('exit', () => { if (v.dbPath) fs.rmSync(path.dirname(v.dbPath), { recursive: true, force: true }); });
+// 手动备份也只做流式自检：整包 gunzip 进内存在大站点上会把进程顶到 GB 级。
+const v = await verifyBackupLite(path.basename(result.gzFile).replace(/\.db\.gz$/, ''), { dir: DIR });
 if (!v.ok || !result.complete) {
   console.error(`  ✗ 备份自检失败：${v.reasons.join('；') || '归档跳过软链或缺失文件'}`);
   process.exit(1);
@@ -74,5 +73,4 @@ else console.log(offsiteOk ? '  ✓ 完整备份已同步异地' : '  ✗ 异地
 
 console.log('─'.repeat(52));
 console.log(offsiteOk ? '  备份完成\n' : '  本地备份完成，但异地同步有问题\n');
-fs.rmSync(path.dirname(v.dbPath), { recursive: true, force: true });
 process.exit(offsiteOk ? 0 : 1);

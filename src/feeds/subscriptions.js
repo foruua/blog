@@ -8,13 +8,18 @@ export function subscribedSite(feeds, urls, exceptId = null, list = null) {
 }
 
 // 先验证订阅再入库；失败站点不会留下无效订阅。
-export function createLinkSubscriber({ feeds, links, refresher, mutate, maxFeeds = 100, keep = 20 }) {
+export function createLinkSubscriber({ feeds, links, refresher, mutate, repo = null, maxFeeds = 100, keep = 20, pendingTtlMs = 5000 }) {
   let task = null;
   let report = null;
+  // 弹窗每 1.5s 轮询一次；pendingCount 里的 links.adminList() 是整条 LIVE_CTE 聚合，短 TTL 即可省掉大部分重复计算。
+  // 键里带上 repo.changeStamp()：评论/友链/订阅源一变就立刻失效，不能拿旧缓存把新邻居藏起来。
+  let pendingCache = { at: 0, value: null, stamp: '' };
+  const changeStamp = () => (typeof repo?.changeStamp === 'function' ? repo.changeStamp() : '');
   const candidates = () => links.adminList().filter((s) => !s.hidden && s.alive !== 0);
   const subscribed = (site, list = null) => subscribedSite(feeds, [site.source_url, site.url], null, list);
   function start() {
     if (task) return task;
+    pendingCache.value = null;
     const sites = candidates();
     report = { running: true, total: sites.length, completed: 0, results: [] };
     const current = report;
@@ -54,15 +59,23 @@ export function createLinkSubscriber({ feeds, links, refresher, mutate, maxFeeds
       return current;
     }).finally(() => { current.running = false; task = null; });
     task = run;
-    run.catch(() => {});
+    pendingCache.value = null;
+    run.finally(() => { pendingCache.value = null; }).catch(() => {});
     return run;
   }
   return {
     start,
     report: () => report,
     pendingCount: () => {
+      const at = Date.now();
+      const stamp = changeStamp();
+      if (pendingCache.value !== null && pendingCache.stamp === stamp && at - pendingCache.at < pendingTtlMs) {
+        return pendingCache.value;
+      }
       const list = feeds.list();
-      return candidates().filter((s) => !subscribed(s, list)).length;
+      const value = candidates().filter((s) => !subscribed(s, list)).length;
+      pendingCache = { at, value, stamp };
+      return value;
     },
   };
 }

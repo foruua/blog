@@ -168,5 +168,11 @@ export function createLinkChecker({
     checkAll,
     checkHost,
     busy: () => Boolean(inFlight),
+    // 与 feeds 的 drain 同义：关闭数据库前等在飞的检查/落库结束。
+    drain: () => Promise.allSettled([
+      inFlight,
+      forced,
+      ...[...byHost.values()].map((item) => item.promise),
+    ].filter(Boolean)),
   };
 }

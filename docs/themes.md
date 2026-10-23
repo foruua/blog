@@ -104,6 +104,8 @@ themes/<id>/
 
 `data` 里那些 `*_html` 字段是内置渲染好的片段，可以直接 `| raw` 输出，也可以完全不用、自己用数组重排。
 
+兼容别名：`post` / `page` 模板里的 `data.post`、`data.page` 也带有 `body_html`、`toc_html`、`pager_html`、`comments_html`（与顶层同值），旧主题可继续从对象上取；`notes` 页面额外提供 `data.posts` 作为 `data.notes` 的别名。
+
 ### `chrome`
 
 `chrome` 是站点外壳。**全部是 HTML 字符串，输出必须 `| raw`**：

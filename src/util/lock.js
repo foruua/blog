@@ -17,6 +17,9 @@ function processStartedAt(pid) {
 }
 
 const owned = new Map();
+// 进程在「创建 .reclaim」与「finally 删除」之间被 SIGKILL/断电时，reclaim 会永久残留。
+// 超过这个时间仍存在就视为上次恢复留下的垃圾：锁本身已确认陈旧，可以安全清掉重试。
+const STALE_RECLAIM_MS = 5 * 60 * 1000;
 // Locks live beside each resource, so replacing the resource cannot remove its lock.
 export function acquireMaintenanceLock(resources, label = 'maintenance') {
   const releases = [];
@@ -54,7 +57,23 @@ export function acquireMaintenanceLock(resources, label = 'maintenance') {
           if (alive || attempt > 0) throw new Error(`资源正在使用（${owner?.label ?? '锁未完成'}），请先停止占用进程：${resource}`, { cause: err });
           const reclaim = dir + '.reclaim';
           try { fs.mkdirSync(reclaim, { mode: 0o700 }); }
-          catch (e) { throw new Error(`资源锁正在恢复，请稍后重试：${resource}`, { cause: e }); }
+          catch (e) {
+            if (e.code !== 'EEXIST') throw new Error(`资源锁正在恢复，请稍后重试：${resource}`, { cause: e });
+            // 上一次恢复进程在清理完锁之前被杀：reclaim 目录会永远留着。
+            // 锁本身已经确认不存活，reclaim 又超过保鲜期，就可以安全回收后重新走一遍。
+            let stale = false;
+            try {
+              stale = Date.now() - fs.statSync(reclaim).mtimeMs > STALE_RECLAIM_MS;
+            } catch (statError) {
+              if (statError.code !== 'ENOENT') throw new Error(`资源锁正在恢复，请稍后重试：${resource}`, { cause: statError });
+              stale = true;
+            }
+            if (!stale) throw new Error(`资源锁正在恢复，请稍后重试：${resource}`, { cause: e });
+            try { fs.rmSync(reclaim, { recursive: true, force: true }); }
+            catch { throw new Error(`资源锁正在恢复，请稍后重试：${resource}`, { cause: e }); }
+            attempt = -1;   // for 循环递增后回到第 0 次重试
+            continue;
+          }
           try {
             const current = inspect();
             if (!current || current.alive || current.raw !== previous.raw

@@ -4,3 +4,8 @@ export const EMAIL_RE = /^[^\s@"'<>,;:/?#&=]+@[^\s@"'<>,;:/?#&=]+\.[^\s@"'<>,;:/
 export const EMAIL_LOOSE_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u;
 
 export const hasControlChar = (value) => /\p{Cc}/u.test(String(value ?? ''));
+
+/** 邮件头值（收件人、主题、显示名）：折叠所有控制字符，别让换行把头部劈成两行。 */
+export const headerValue = (value) => String(value ?? '')
+  .replace(/[\r\n\p{Cc}]+/gu, ' ')
+  .trim();

@@ -70,7 +70,7 @@ DEPLOY_DOMAIN=example.com \
 | ------------------------------------ | ---------------------- |
 | `server.js`                          | 启动、路由组装、安全头、静态文件与定时任务  |
 | `src/routes`                         | 前台、评论和后台 HTTP 接口       |
-| `src/http`                           | 静态文件与 Range 分片响应        |
+| `src/http`                           | 静态文件、Range 分片响应与匿名 HTML 缓存 |
 | `src/render`、`src/admin/views`       | 前台与后台 HTML 渲染          |
 | `src/content`                        | Markdown 同步、原子写入与恢复日志  |
 | `src/feeds`、`src/media`、`src/avatar` | 订阅抓取解析、图片处理、头像缓存       |

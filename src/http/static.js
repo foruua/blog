@@ -163,7 +163,9 @@ export function createStaticFiles({ repo, assetVer }) {
     try {
       const stat = await fh.stat();
       if (!stat.isFile()) return c.notFound();
-      const etag = `"${stat.size.toString(16)}-${stat.mtimeMs.toString(16)}"`;
+      // 精简资源会按 Accept-Encoding 发不同字节（br/gzip/原文）。同一 ETag 跨表示容易让缓存把
+      // 压缩体当成另一种编码的验证器；用弱 ETag 表示「语义相同、字节可能不同」。
+      const etag = `${minify ? 'W/' : ''}"${stat.size.toString(16)}-${stat.mtimeMs.toString(16)}"`;
       // 只有带当前指纹的 ?v= 才 immutable；任意 ?v= 或裸地址都只短缓存，避免外部链接把旧内容钉一年。
       // 上传文件路径本身就是内容哈希，始终安全。
       const requestedV = c.req.query('v');

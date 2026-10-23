@@ -39,19 +39,25 @@ export function createCrypto(db, { secretFile = SECRET_FILE } = {}) {
   const envSecret = String(process.env.APP_SECRET ?? '').trim() || null;
   const fileSecret = readSecretFile(secretFile);
   let primary = envSecret ?? fileSecret;
+  // 密钥是否已经存在于数据库之外。只有确实持久化了才能删除库里的旧副本：
+  // 否则「写文件失败仍照删」会在下次启动时生成新密钥，历史密文全部解不开。
+  let persisted = Boolean(envSecret || fileSecret);
 
   if (!primary) {
     // 老库的 app_secret 是原先唯一的密钥：先搬进文件再停用数据库里的那份，已有密文才不会被解坏。
     primary = legacy || crypto.randomBytes(32).toString('hex');
-    try { writeSecretFile(secretFile, primary); }
-    catch (error) {
+    try {
+      writeSecretFile(secretFile, primary);
+      persisted = true;
+    } catch (error) {
       if (!legacy) throw new Error('无法创建 APP_SECRET：请配置 APP_SECRET 或 APP_SECRET_FILE', { cause: error });
-      console.warn(JSON.stringify({ event: 'crypto.secret-file-failed', code: error?.code ?? 'FS' }));
+      // 文件写不进去时库里的副本就是唯一密钥，必须留着；下次启动继续用它。
+      console.warn(JSON.stringify({ event: 'crypto.secret-file-failed', code: error?.code ?? 'FS', legacyKept: true }));
     }
   }
 
   // 同一个密钥不需要在库里留副本；密钥不同（例如刚设置 APP_SECRET）则保留旧值作为解密回退。
-  if (legacy === primary) {
+  if (persisted && legacy === primary) {
     try { db.prepare('DELETE FROM settings WHERE key = ?').run(KEY); } catch { /* 只读连接（外部探针）忽略 */ }
   }
 

@@ -41,7 +41,7 @@ export function createWatchdog({
   let alerted = false;
   let failStreak = 0;
   let timer = null;
-  let running = false;
+  let active = null;
 
   async function runCheck() {
     // 本地能直接读库，备份年龄不必绕一圈 HTTP；公网可达性才必须走网络。
@@ -51,10 +51,9 @@ export function createWatchdog({
     return probe({ url, token, maxAgeSec, requireOffsite });
   }
 
-  async function tick() {
-    if (running) return;
-    running = true;
-    try {
+  function tick() {
+    if (active) return active;
+    active = (async () => {
       let result;
       try {
         result = await (check ?? runCheck)();
@@ -88,7 +87,8 @@ export function createWatchdog({
         return;
       }
       log(JSON.stringify({ event: 'watchdog.probe-failed', reason: result.reason, streak: failStreak }));
-    } finally { running = false; }
+    })().finally(() => { active = null; });
+    return active;
   }
 
   return {
@@ -99,6 +99,7 @@ export function createWatchdog({
       timer.unref?.();
     },
     stop() { if (timer) { clearInterval(timer); timer = null; } },
+    drain: () => active ?? Promise.resolve(),
     tick,
     state: () => ({ failStreak, alerted }),
   };
