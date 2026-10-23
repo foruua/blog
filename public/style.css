@@ -2592,10 +2592,14 @@ footer.site .foot-tools .pal .pal-ico {
 @media (max-width: 620px) {
   /* 手机端页脚只留法务细字：RSS 与配色在抽屉里都有入口，不再占页脚一行。 */
   footer.site .foot-tools { display: none; }
-}
-@media (max-width: 380px) {
-  /* 极窄屏（320—380）把法务信息立起来，避免备案号挤成碎行。 */
-  footer.site .foot-legal { flex-direction: column; gap: .1rem; }
+  /* 只剩两项时把两端拉开：© 靠左、备案号靠右，固定一行，不再在窄屏折成上下两行。 */
+  footer.site .foot-legal {
+    flex: 1 1 auto;
+    flex-wrap: nowrap;
+    justify-content: space-between;
+    gap: .5rem 1rem;
+  }
+  footer.site .foot-icp { white-space: nowrap; }
 }
 /* 窄屏不再有页脚入口，右下角浮钮也在这个断点隐藏 —— 手机端彻底不出现「回到顶部」。 */
 @media (max-width: 1000px) {
