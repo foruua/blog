@@ -4,7 +4,7 @@ Hono + Node.js 内置 SQLite，服务端渲染 Markdown。支持文章、笔记�
 
 ## 启动
 
-需要 Node.js ≥ 22.13.0；CI 覆盖 Node 22 / 24（`.node-version` 默认 24），浏览器测试另需 Playwright Chromium。
+需要 Node.js ≥ 22.13.0；CI 覆盖 Node 22 / 24（`.node-version` 固定 24.22.1 LTS），浏览器测试另需 Playwright Chromium。
 
 ```sh
 npm ci
