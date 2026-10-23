@@ -398,7 +398,7 @@ try {
       assert.equal(folds[1].querySelector('.nf-rollout').style.height, '', '收完要清掉行内高度，交回给 CSS 终态');
     } finally { w.close(); }
   });
-  await test('封面视频：页面重新可见会清掉「被策略拦下」的标记再重试（鸿蒙关掉浏览器再进就不自动播）', async () => {
+  await test('封面视频：普通加载不补第二次 play，bfcache 回退才重试（鸿蒙上多补一次会把起播顶掉）', async () => {
     const html = '<!doctype html><html><body><div id="app"><h1 class="hero-figure"><video class="hero-video" data-video-mode="auto"></video></h1></div></body></html>';
     const dom = new JSDOM(html, { url: 'https://example.com/', runScripts: 'outside-only', pretendToBeVisual: true });
     const w = dom.window;
@@ -413,6 +413,11 @@ try {
     };
     w.HTMLMediaElement.prototype.pause = () => {};
     const tick = () => new Promise((r) => w.setTimeout(r, 30));
+    const pageShow = (persisted) => {
+      const event = new w.Event('pageshow');
+      Object.defineProperty(event, 'persisted', { value: persisted });
+      w.dispatchEvent(event);
+    };
     try {
       w.eval(fs.readFileSync(new URL('../public/request.js', import.meta.url), 'utf8'));
       w.eval(fs.readFileSync(new URL('../public/ui.js', import.meta.url), 'utf8'));
@@ -420,9 +425,20 @@ try {
       await tick();
       const before = plays.length;
       assert.ok(before >= 1, '挂载时应先尝试起播一次');
-      w.dispatchEvent(new w.Event('pageshow'));
+      // 普通加载也会发 pageshow（persisted=false）：这时首屏那次 play() 往往还没落定，
+      // 再补一次会把它顶掉 —— 鸿蒙上表现为「第一次进站干脆不播」。
+      pageShow(false);
       await tick();
-      assert.ok(plays.length > before, 'pageshow 后必须重试：上一次被拦的标记不能把后续重试全短路掉');
+      assert.equal(plays.length, before, '普通加载的 pageshow 不该再补一次 play');
+      // bfcache 回退（persisted=true）：上一次被拦的标记要清掉并重试，否则永远停在黑框上。
+      pageShow(true);
+      await tick();
+      assert.ok(plays.length > before, 'bfcache 回退必须重试一次');
+      // 冷启动补播：1.5 秒后若还没真正起来（本例的 play() 只返回 resolved，paused 仍为 true，
+      // __heroStarted 因此是 false），必须再补一次 —— 鸿蒙上「冷启动不播、手动刷新就播」靠这一步兜住。
+      const beforeRetry = plays.length;
+      await new Promise((r) => w.setTimeout(r, 1700));
+      assert.ok(plays.length > beforeRetry, '1.5 秒补播应生效');
     } finally { w.close(); }
   });
   await test('单文件损坏不阻塞其余内容入库（且内容管线不卡死）', async () => {

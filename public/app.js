@@ -352,13 +352,6 @@
     clearTimeout(video.__heroPendingTimer);
     video.__heroPendingTimer = 0;
   };
-  /* 被自动播放策略拦下时封面停在黑框上很难看（鸿蒙还会给它盖一枚原生播放键）。
-     把第一帧解出来当"海报"：seek 到 0.001 而不是 0 —— 有些内核对 0 不做解码；真播起来也从 0.001 继续，肉眼无差。
-     readyState 门槛只到 HAVE_METADATA：封面是 preload="metadata"，此时还没有画面，正是这次 seek 把它拉下来。 */
-  const showHeroFirstFrame = (video) => {
-    if (video.readyState < 1 || video.currentTime > 0.5) return;
-    try { video.currentTime = 0.001; } catch { /* 内核不许 seek 就保持原样 */ }
-  };
   const playHeroVideo = (video, { reset = false } = {}) => {
     if (!video?.isConnected || !heroAutoplayAllowed() || !heroVideoActive(video)) return;
     // 属性在部分内核里不足以让自动播放生效；muted 必须在 play() 之前就是 true。
@@ -380,7 +373,7 @@
     } catch {
       settleHeroPlay(video);
       video.__heroBlocked = true;
-      showHeroFirstFrame(video);
+      retryHeroOnce(video);
       armHeroGesture();
       return;
     }
@@ -392,7 +385,7 @@
         // 只有自动播放策略拦截需要等手势；其它错误（AbortError、解码失败）交给 canplay / 看门狗。
         if (error && error.name === 'NotAllowedError') {
           video.__heroBlocked = true;
-          showHeroFirstFrame(video);
+          retryHeroOnce(video);
           armHeroGesture();
         }
       },
@@ -402,6 +395,24 @@
   };
   const playHeroVideos = (opts) => {
     for (const video of heroAutoplayVideos) playHeroVideo(video, opts);
+  };
+  /* 冷启动（从浏览器起始页、恢复的会话进来）时首个 play() 常被策略拒掉，而手动刷新同一页却正常 ——
+     鸿蒙上稳定复现，说明那次拒绝多半是"内核还没准备好"，不是真的需要手势。
+     补两次：1.5 秒（拒得快的场景）与 5.5 秒（play() 一直不落定、等 5 秒兜底清掉 pending 之后）。
+     两次都走 __heroPending 闸门 —— 重叠 play() 正是这个内核上"越补越不播"的原因，宁可少补也不能叠。 */
+  const HERO_RETRY_STEPS = [1500, 5500];
+  const retryHeroOnce = (video) => {
+    if (video.__heroRetryTimer) return;
+    const step = video.__heroRetryStep ?? 0;
+    if (step >= HERO_RETRY_STEPS.length) return;
+    video.__heroRetryStep = step + 1;
+    video.__heroRetryTimer = setTimeout(() => {
+      video.__heroRetryTimer = 0;
+      if (!video.isConnected || video.__heroStarted) return;
+      video.__heroBlocked = false;   // 冷启动那次被拒是暂时的，再给一次机会
+      playHeroVideo(video);
+      retryHeroOnce(video);          // 还没起来就排下一次；起来了 __heroStarted 会挡住
+    }, HERO_RETRY_STEPS[step]);
   };
   const armHeroGesture = () => {
     if (heroGestureController || typeof AbortController !== 'function') return;
@@ -441,11 +452,13 @@
   function setupHeroAutoplay(root = document) {
     if (!heroPageEventsBound) {
       heroPageEventsBound = true;
-      // 页面重新可见 / 从 bfcache 回退：当成一次全新的起播机会 —— 上一次「被策略拦下」的标记必须清掉，
-      // 否则后台那次失败的尝试会把后面所有重试都短路掉（鸿蒙上「关掉浏览器再进就不自动播」正是这条路径）。
+      // 页面重新可见：当成一次全新的起播机会 —— 上一次「被策略拦下」的标记必须清掉，
+      // 否则后台那次失败的尝试会把后面所有重试都短路掉（「关掉浏览器再进就不自动播」正是这条路径）。
       document.addEventListener('visibilitychange', () => { if (!document.hidden) playHeroVideos({ reset: true }); });
-      // bfcache 回退不一定会发 visibilitychange，补一次 pageshow。
-      addEventListener('pageshow', () => playHeroVideos({ reset: true }));
+      // bfcache 回退不一定发 visibilitychange，补一次 pageshow —— 但**只认 persisted**：
+      // 普通加载也会发 pageshow（persisted=false），那时首屏那次 play() 往往还没落定，
+      // 再补一次会把它顶掉（鸿蒙上表现为「首访干脆不播」）。
+      addEventListener('pageshow', (event) => { if (event.persisted) playHeroVideos({ reset: true }); });
     }
     if (heroGestureController) { heroGestureController.abort(); heroGestureController = null; }
     heroAutoplayVideos = [...root.querySelectorAll('.hero-figure video')]
@@ -479,6 +492,7 @@
         });
       }
       playHeroVideo(video);
+      retryHeroOnce(video);
     }
     armHeroGesture();
     if (!heroWatchdog) heroWatchdog = setInterval(ensureHeroPlayback, 1500);
