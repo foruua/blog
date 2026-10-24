@@ -414,7 +414,7 @@ try {
   {
     const { w } = await mount(`${BASE}/`);
     const seg = (m) => w.document.querySelector(`.pal-tm[data-theme-opt="${m}"]`);
-    check('T50 页头「配色」浮层里有明暗三态（跟随 / 亮色 / 暗色）',
+    check('T50 首页 hero-meta 的「配色」浮层里有明暗三态（跟随 / 亮色 / 暗色）',
       Boolean(seg('auto')) && Boolean(seg('light')) && Boolean(seg('dark')), '');
     const before = w.document.documentElement.dataset.theme ?? '';
     seg('dark').click();
@@ -438,8 +438,8 @@ try {
     check('T55 切换主题后换页，主题保持不变',
       afterClick === 'dark' && afterNav === 'dark',
       `点击后=${afterClick} 换页后=${afterNav}`);
-    check('T56 换页后新建的浮层里选中态仍然正确',
-      w.document.querySelector('.pal-tm[data-theme-opt="dark"]')?.getAttribute('aria-pressed') === 'true', '');
+    check('T56 配色入口只在首页：换到文章页后不再渲染，主题仍挂在 html 上',
+      !w.document.querySelector('.pal') && w.document.documentElement.getAttribute('data-theme') === 'dark', '');
   }
 
   {

@@ -3181,44 +3181,7 @@ html:not(.has-js) .pal { display: none; }
   border-radius: var(--radius-pill);
 }
 
-/* —— 抽屉底部工具条：左 RSS、右配色 ——
-   页脚与首页 hero-meta 那两枚在窄屏都不出现，这两枚就是手机上唯一的入口，故保持触控尺寸：
-   34px 细线圆钮、图标 16px、悬停转金。工具条不参与目录滚动（滚动收在 ul 里），始终钉在屏幕底部两角。
-   不画分隔线：目录最后一行自带发丝线，再加一条会变成两条并排的横线。 */
-.mnav-foot {
-  flex: none;
-  margin-top: auto;
-  display: flex; align-items: center; justify-content: space-between;
-  padding-top: .85rem;
-}
-.mnav-foot .mnav-ico,
-.mnav-foot .pal > summary {
-  box-sizing: border-box;
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 2.15rem; height: 2.15rem;
-  padding: 0; margin: 0;
-  border: 1px solid var(--rule-strong);
-  border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--bg-elev) 55%, transparent);
-  color: var(--muted);
-  list-style: none; cursor: pointer;
-  transition: color var(--dur-2) var(--ease), border-color var(--dur-2) var(--ease), background var(--dur-2) var(--ease);
-}
-.mnav-foot .pal > summary::-webkit-details-marker { display: none; }
-.mnav-foot .mnav-ico:hover,
-.mnav-foot .pal > summary:hover,
-.mnav-foot .pal[open] > summary {
-  color: var(--accent); border-color: var(--accent-line); background: var(--accent-soft);
-}
-.mnav-foot .mnav-ico svg,
-.mnav-foot .pal .pal-ico { display: block; width: 16px; height: 16px; }
-/* 面板向上展开：入口钉在底部，向下就出屏了（与页脚那枚同一个理由）。右对齐，别越过屏幕右缘。
-   底部再让出工具条那段上内距（.85rem）与 6px 间隙 —— 否则面板底边会压到图标头上。 */
-.mnav-foot .pal-panel {
-  top: auto; bottom: calc(100% + 1.25rem); right: 0; left: auto;
-  /* 留出页头 + 检索那两行：面板从工具条上方展开，别盖住搜索框。 */
-  max-height: calc(100dvh - 16rem);
-}
+/* 抽屉只做目录 + 检索：底部那排 RSS / 配色 / 后台已撤掉，列表最后一行自带发丝线收尾。 */
 
 /* —— 主题预览提示条 ——
    服务端只在「站主会话 + 预览 cookie」同时成立时输出，访客看不到。

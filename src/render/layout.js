@@ -203,18 +203,11 @@ const palettePanelHtml = (cur) => `<div class="pal-panel">
         </div>
       </div>`;
 
-// 入口只有图标（首页 hero-meta 与抽屉底部各一枚）：当前是哪套不进入口，面板里那一行有 ✓。色名留给读屏（aria-label）。
-// 两处入口都只剩图标：宽屏在首页 hero-meta（pal-hero，面板在整行下方居中展开），
-// 窄屏在抽屉底部工具条（pal-drawer，面板向上展开）。
-// 只有这两处：页头导航没有它，页脚也不再放（RSS + 配色已收编到首页 hero-meta 那行）—— 别再加回来，test-search 的 M8f 会当场失败。
-const PAL_WHERE = {
-  drawer: ['palettePickerM', ' pal-drawer'],
-  hero: ['palettePickerH', ' pal-hero'],
-};
-const palettePickerHtml = (palDefault = '', where = 'hero') => {
+// 入口只有一枚，只出现在首页 hero-meta 那一行：当前是哪套不进入口，面板里那一行有 ✓。色名留给读屏（aria-label）。
+// 面板锚在整行下方居中展开（pal-hero）。页头导航、页脚、窄屏抽屉底部都不再放 —— 别再加回来，test-search 的 M8f 会当场失败。
+const palettePickerHtml = (palDefault = '') => {
   const cur = PALETTES.find((p) => p.key === palDefault) ?? PALETTES[0];
-  const [id, cls] = PAL_WHERE[where] ?? PAL_WHERE.hero;
-  return `<details class="pal${cls}" id="${id}">
+  return `<details class="pal pal-hero" id="palettePickerH">
       <summary aria-label="配色（${esc(cur.name)}）" title="配色">${PAL_ICO}</summary>
       ${palettePanelHtml(cur)}
     </details>`;
@@ -224,7 +217,7 @@ const palettePickerHtml = (palDefault = '', where = 'hero') => {
  *  配色面板锚在整行中间（见 style.css 的 .pal-hero）：锚在 24px 的图标上，窄屏会顶出视口。 */
 export const heroToolsHtml = (palDefault = sitePaletteDefault()) => `<span class="hero-tools">
         <a class="hero-tool" href="/feed.xml" aria-label="RSS 订阅" title="RSS 订阅">${RSS_ICO}</a>
-        ${palettePickerHtml(palDefault, 'hero')}
+        ${palettePickerHtml(palDefault)}
       </span>`;
 
 
@@ -334,10 +327,9 @@ function layoutContext({
   // 笔记列表首屏只有评论抽屉的空壳（data-comments-slot），表单点开后才取回来；那时模板已经没机会再输出了，
   // 所以有懒加载抽屉的页面也要一并下发，否则抽屉里的表情键点开时找不到模板。
   const emojiTpl = emojiTplOf(main);
-  // 配色默认值本页要用两次（抽屉 + 页脚），这里只查一次；否则同一行 settings 要被点查两遍。
-  const palDefault = sitePaletteDefault();
 
   // 窄屏导航抽屉放在 #app 里：换页时随内容重建，不留第二份；初始 inert 让它关闭时不接受点击与焦点。
+  // 抽屉只做目录 + 检索：底部那排 RSS / 配色 / 后台早已撤掉（配色入口只在首页 hero-meta，RSS 也在那行）。
   const drawer = `<div class="mnav" id="mnav" inert>
   <div class="mnav-scrim" data-mnav-close></div>
   <nav class="mnav-panel" aria-label="主导航">
@@ -351,17 +343,13 @@ function layoutContext({
     <ul>
       ${navDrawerHtml(active, items)}
     </ul>
-    <div class="mnav-foot">
-      <a class="mnav-ico" href="/feed.xml" aria-label="RSS 订阅" title="RSS 订阅">${RSS_ICO}</a>
-      ${palettePickerHtml(palDefault, 'drawer')}
-    </div>
   </nav>
 </div>`;
 
   return {
     title, main, desc, canonical, active, ogType, noindex, extraHead, jsonLd, page, ogImage, lang,
     themeType: themeType || page || '', themeData: themeData ?? {},
-    fullTitle, og, ogW, ogH, ogLocale, structuredData, more, items, brandHtml, mainHtml, emojiTpl, palDefault, drawer,
+    fullTitle, og, ogW, ogH, ogLocale, structuredData, more, items, brandHtml, mainHtml, emojiTpl, drawer,
   };
 }
 

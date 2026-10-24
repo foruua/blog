@@ -51,7 +51,7 @@
   });
 
   /* —— 访客配色（data-palette）与明暗（data-theme）—— 同一枚「配色」入口里的两段：明暗管纸的明暗，配色管纸墨的色调。
-     入口在页脚（宽屏）与窄屏抽屉各一份，故一律按 .pal 取节点、不认单个 id；pjax 换页会把 #app 连页脚一起换掉，节点只能现查。
+     入口只在首页 hero-meta 那一行（页脚、抽屉、页头导航都没有），仍按 .pal 取节点、不认单个 id；pjax 换页会把 #app 连入口一起换掉，节点只能现查。
      清单以 src/settings.js 的 PALETTES 为准（白名单外的值在 THEME_BOOT 就被挡掉）。
      localStorage 四态：无 key = 跟随站点默认；'' = 明确选素笺；预设 key = 选定配色；'custom' = 用本地算好的那段 CSS。
      自定义的令牌由 public/palette.js 现算（OKLCH：一个色相能罩住 360 度，HSL 罩不住，黄色会掉到 4.3:1）。
@@ -264,7 +264,7 @@
     try { localStorage.setItem('palette', key); } catch {  }
     syncThemeColor();
   };
-  // 首帧对齐 + pjax 换页重建页头/抽屉后再对齐。
+  // 首帧对齐 + pjax 换页（首页 ↔ 其他页，入口会来会走）后再对齐。
   syncPaletteUI();
   (window.__pjaxHooks = window.__pjaxHooks || []).push(syncPaletteUI);
   // details 的 toggle 不冒泡，捕获阶段能到 document。
@@ -304,7 +304,7 @@
       // 点预设不收起：面板留开，方便连着试五种；收起交给 Esc / 点面板外 / 鼠标移开（桌面悬停）。
       return;
     }
-    // 两份面板（页头 + 抽屉）各自收各自的：点哪份外面就收哪份。
+    // 点面板外就收面板。
     for (const picker of pickers()) {
       if (picker.open && !picker.contains(e.target)) picker.removeAttribute('open');
     }

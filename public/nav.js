@@ -624,14 +624,14 @@
    再判 relatedTarget 是否仍在同一组内：从触发器滑到面板要过一段空隙，不判就会"滑到一半先关再重开"。
    跨空隙时有些浏览器把 relatedTarget 报成 null，所以再加一段 400ms 的宽限：指针只要回到这一组就取消关闭。 */
 (function () {
-  var OPEN = '.nsub[open], .pal:not(.pal-drawer)[open]';
+  var OPEN = '.nsub[open], .pal[open]';
   var CLOSE_DELAY = 400;
 
   function groupOf(node) {
     if (!node || !node.closest) return null;
     var d = node.closest('.nsub, .pal');
-    // 抽屉底部的配色是点击展开的钮；首页 hero-meta 那枚也走点击（鼠标扫过封面信息行就弹面板太吵），都不参与桌面悬停。
-    return d && !d.classList.contains('pal-drawer') && !d.classList.contains('pal-hero') ? d : null;
+    // 首页 hero-meta 只有一枚配色入口，走点击（鼠标扫过封面信息行就弹面板太吵），不参与桌面悬停。
+    return d && !d.classList.contains('pal-hero') ? d : null;
   }
   function cancelClose(d) {
     if (!d.__closeTimer) return;

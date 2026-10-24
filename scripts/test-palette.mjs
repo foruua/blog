@@ -76,8 +76,7 @@ function mount({ seed = {}, lazyPalette = false } = {}) {
   return { dom, w, html };
 }
 
-// 宽屏那份入口在首页 hero-meta（#palettePickerH），窄屏那份在抽屉底部（#palettePickerM）。行为测试统一驱动首页那份：
-// 抽屉那份默认不显示（.mnav 靠 inert + display 控制），而首页那份与访客实际点的那枚完全同构。
+// 全站只有首页 hero-meta 那一枚入口（#palettePickerH），行为测试直接驱动它。
 const pickerOf = (w) => w.document.getElementById('palettePickerH');
 // 入口只留图标，当前是哪套写在 aria-label 的括号里（「配色（青瓷）」）—— 圆钮不随色名伸缩。
 const pickedName = (w) => {
@@ -143,35 +142,32 @@ await test('THEME_BOOT 白名单与 PALETTES 一致（含恢复语句，白名�
   assert.ok(THEME_BOOT.includes("localStorage.getItem('palette')"));
 });
 
-await test('「配色」入口：首页 hero-meta 一份 + 抽屉底部一份，两处都只剩图标，明暗三态在上、选项数与清单一致、色样带双点', () => {
+await test('「配色」入口只在首页 hero-meta 一份（页脚/抽屉/导航都没有），明暗三态在上、选项数与清单一致、色样带双点', () => {
   const html = layout({ title: '测试', main: '<p>x</p>', canonical: '/' });
   const tools = heroToolsHtml();
   const page = html + tools;
-  // 宽屏那枚在首页 hero-meta；页头导航里没有它，页脚也不再放（配色是低频偏好，不占导航）。
+  // 唯一入口在首页 hero-meta（只有一个 .pal）；页脚、页头导航、窄屏抽屉都没有。
   assert.match(tools, /<details class="pal pal-hero" id="palettePickerH">/, '首页 hero-meta 里没有配色入口');
-  assert.doesNotMatch(html, /pal-foot|palettePickerF/, '配色入口不该还留在页脚');
+  assert.equal([...page.matchAll(/class="pal pal-/g)].length, 1, '配色入口应只有首页那一份');
+  assert.doesNotMatch(html, /pal-foot|pal-drawer|palettePickerF|palettePickerM|mnav-foot/, '页脚与抽屉里不该再有配色入口或工具条');
   const nav = /<nav class="nav" aria-label="主导航">[\s\S]*?<\/nav>/.exec(html)?.[0] ?? '';
   assert.doesNotMatch(nav, /class="pal/, '配色入口不该回到页头导航里');
   assert.doesNotMatch(html, /id="themeToggle"/, '页脚那枚明暗按钮应该已经退休（明暗进了配色面板）');
-  // 两处入口都只剩图标（当前是哪套仍进 aria-label）；抽屉那份在底部工具条。
+  // 入口只剩图标（当前是哪套仍进 aria-label）。
   assert.match(tools, /<details class="pal pal-hero" id="palettePickerH">\s*<summary aria-label="配色（素笺）" title="配色"><svg class="pal-ico"/);
-  assert.match(html, /<details class="pal pal-drawer" id="palettePickerM">\s*<summary aria-label="配色（素笺）" title="配色"><svg class="pal-ico"/);
   assert.doesNotMatch(page, /pal-txt/, '配色入口不该再带文字');
-  // 抽屉底部：左 RSS、右配色（顺序即位置，真浏览器里的几何由 test-ui-improvements 量）。
-  const foot = /<div class="mnav-foot">[\s\S]*?<\/div>\s*<\/nav>/.exec(html)?.[0] ?? '';
-  assert.match(foot, /<a class="mnav-ico" href="\/feed\.xml" aria-label="RSS 订阅"/, '抽屉底部左边应是 RSS');
-  assert.match(foot, /id="palettePickerM"/, '抽屉底部右边应是配色');
-  assert.ok(foot.indexOf('feed.xml') < foot.indexOf('palettePickerM'), 'RSS 在左、配色在右');
-  // 目录（ul）里不再有配色那一行。
+  // 抽屉只剩目录 + 检索：RSS / 配色 / 后台都不在。
+  const drawer = /<div class="mnav"[\s\S]*?<\/nav>\s*<\/div>/.exec(html)?.[0] ?? '';
+  assert.doesNotMatch(drawer, /feed\.xml|\/admin|palettePicker|mnav-foot/, '抽屉里不该再有 RSS / 配色 / 后台入口');
   const drawerList = /<ul>\s*([\s\S]*?)<\/ul>/.exec(html)?.[1] ?? '';
-  assert.doesNotMatch(drawerList, /class="pal/, '目录里不该再有配色入口');
+  assert.doesNotMatch(drawerList, /class="pal/, '目录里不该有配色入口');
   // 入口不再挂当前色样：选中态只由面板里的 ✓ 表示
   assert.doesNotMatch(page, /pal-dot/);
   assert.doesNotMatch(page, /<summary>素笺<\/summary>/);
   // 明暗三态：跟随 / 亮色 / 暗色，默认没有 data-theme 时归「跟随」
   assert.equal([...page.matchAll(/class="pal-tm" data-theme-opt="([a-z]+)"/g)].map((m) => m[1]).slice(0, 3).join(','), 'auto,light,dark');
   const opts = [...page.matchAll(/<button type="button" class="pal-opt" data-palette="([^"]*)" data-hue="(\d+)" data-chroma="([0-9.]+)" aria-pressed="false"><i class="pal-sw" style="--sw-paper:(#[0-9a-f]{6});--sw-ink:(#[0-9a-f]{6})"/g)];
-  assert.equal(opts.length, PALETTES.length * 2, `选项 ${opts.length} != 两份面板各 ${PALETTES.length} 项`);
+  assert.equal(opts.length, PALETTES.length, `选项 ${opts.length} != 面板里的 ${PALETTES.length} 项`);
   for (const [i, p] of PALETTES.entries()) {
     assert.equal(opts[i][1], p.key);
     assert.equal(opts[i][2], String(p.hue), `${p.key} 的 hue 没渲染进按钮`);
@@ -179,25 +175,24 @@ await test('「配色」入口：首页 hero-meta 一份 + 抽屉底部一份，
     assert.equal(opts[i][4], p.paper, `${p.key} 色样纸色与清单不一致`);
     assert.equal(opts[i][5], p.ink, `${p.key} 色样墨色与清单不一致`);
   }
-  // 抽屉那份是同一个模板（id 不同）：模板一改两处一起变，别再各写一份
-  assert.equal([...page.matchAll(/class="pal-tm" data-theme-opt="auto"/g)].length, 2, '首页与抽屉都该有明暗三态');
+  assert.equal([...page.matchAll(/class="pal-tm" data-theme-opt="auto"/g)].length, 1, '首页那枚该有明暗三态');
   // 自定义区只留三根滑块；三档、深浅、取色、对比度、重置与预览都已下线。
-  assert.match(html, /<div class="pal-custom" data-hue="80" data-chroma="1" data-paper="1">/);
-  assert.match(html, /<input type="range" class="pal-hue" min="0" max="359" step="1" value="80"/);
-  assert.match(html, /<input type="range" class="pal-chroma" min="0.55" max="1.45" step="0.01" value="1"/);
-  assert.match(html, /<input type="range" class="pal-paper" min="0" max="1.8" step="0.05" value="1"/);
-  assert.ok(html.includes(`class="pal-chroma" min="${lib.CHROMA_RANGE.min}" max="${lib.CHROMA_RANGE.max}"`), '浓淡滑块范围与生成器不一致');
-  assert.ok(html.includes(`class="pal-paper" min="${lib.PAPER_RANGE.min}" max="${lib.PAPER_RANGE.max}"`), '纸色滑块范围与生成器不一致');
+  assert.match(tools, /<div class="pal-custom" data-hue="80" data-chroma="1" data-paper="1">/);
+  assert.match(tools, /<input type="range" class="pal-hue" min="0" max="359" step="1" value="80"/);
+  assert.match(tools, /<input type="range" class="pal-chroma" min="0.55" max="1.45" step="0.01" value="1"/);
+  assert.match(tools, /<input type="range" class="pal-paper" min="0" max="1.8" step="0.05" value="1"/);
+  assert.ok(tools.includes(`class="pal-chroma" min="${lib.CHROMA_RANGE.min}" max="${lib.CHROMA_RANGE.max}"`), '浓淡滑块范围与生成器不一致');
+  assert.ok(tools.includes(`class="pal-paper" min="${lib.PAPER_RANGE.min}" max="${lib.PAPER_RANGE.max}"`), '纸色滑块范围与生成器不一致');
   for (const gone of ['pal-lv', 'pal-ink', 'pal-pick', 'pal-reset', 'pal-contrast', 'pal-levels', 'pal-inks', 'pal-tools', 'pal-preview']) {
-    assert.doesNotMatch(html, new RegExp(`class="${gone}"`), `${gone} 应该已经下线`);
+    assert.doesNotMatch(tools, new RegExp(`class="${gone}"`), `${gone} 应该已经下线`);
   }
-  assert.doesNotMatch(html, /强调色深浅|从颜色取色相与浓度|最低对比度/, '已下线的文案还在');
+  assert.doesNotMatch(tools, /强调色深浅|从颜色取色相与浓度|最低对比度/, '已下线的文案还在');
 });
 
 await test('入口的色名进 aria-label；后台不做选色入口，只跟随前台（<html> 挂站点默认）', () => {
   setPaletteDefault(() => 'dailan');
   try {
-    assert.match(layout({ title: 't', main: '', canonical: '/' }), /<summary aria-label="配色（黛蓝）"/);
+    assert.match(heroToolsHtml(), /<summary aria-label="配色（黛蓝）"/);
   } finally { setPaletteDefault(() => ''); }
   // 后台：不渲染选择器，但站点默认照样挂 <html> —— 前台选什么，后台跟着变
   const adminHtml = adminLayout({ title: '设置', body: '<p>x</p>', active: 'system', csrf: 'c' });
@@ -364,7 +359,7 @@ await test('服务端渲染站点默认：<html data-palette> 直接挂在首帧
   try {
     const html = layout({ title: '测试', main: '<p>x</p>', canonical: '/' });
     assert.match(html, /<html lang="[^"]+" data-palette="dailan">/);
-    assert.match(html, /<summary aria-label="配色（黛蓝）"/, '入口的 aria-label 该是站点默认的色名');
+    assert.match(heroToolsHtml(), /<summary aria-label="配色（黛蓝）"/, '入口的 aria-label 该是站点默认的色名');
   } finally { setPaletteDefault(() => ''); }
   assert.doesNotMatch(layout({ title: 't', main: '', canonical: '/' }), /<html[^>]*data-palette=/, '没设默认时 <html> 不挂属性');
 });
