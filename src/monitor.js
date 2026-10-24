@@ -43,6 +43,13 @@ export function stateFingerprint(url, result) {
   });
 }
 
+// 异地备份新鲜度判定（唯一口径）：server.js 的 localHealth 与下面的 probe 共用，
+// 避免同一段校验写两份后各自漂移。elapsed < -60 容忍轻微时钟偏移。
+export function offsiteStale(offsite, maxAgeSec, now = Date.now()) {
+  const elapsed = (now - Date.parse(offsite?.checkedAt)) / 1000;
+  return offsite?.state !== 'ok' || !Number.isFinite(elapsed) || elapsed > maxAgeSec || elapsed < -60;
+}
+
 // 单次 HTTP 探测。token 只用来拿备份字段；拿不到备份字段是「没授权」，不是「没备份」，两者不能混。
 export async function probe({ url, token = process.env.MONITOR_TOKEN, maxAgeSec = DEFAULT_MAX_AGE_SEC, requireOffsite = false, timeoutMs = 10000 }) {
   try {
@@ -55,12 +62,8 @@ export async function probe({ url, token = process.env.MONITOR_TOKEN, maxAgeSec 
     if (age === undefined) return { ok: false, reason: '读不到备份状态：MONITOR_TOKEN 未配置或与服务端不一致' };
     if (!Number.isFinite(age) || age < 0) return { ok: false, reason: '没有可完整恢复的备份' };
     if (age > maxAgeSec) return { ok: false, reason: '可恢复备份已过期' };
-    if (requireOffsite) {
-      const offsite = health.offsiteBackup;
-      const elapsed = (Date.now() - Date.parse(offsite?.checkedAt)) / 1000;
-      if (offsite?.state !== 'ok' || !Number.isFinite(elapsed) || elapsed > maxAgeSec || elapsed < -60)
-        return { ok: false, reason: '异地备份未成功或已过期' };
-    }
+    if (requireOffsite && offsiteStale(health.offsiteBackup, maxAgeSec))
+      return { ok: false, reason: '异地备份未成功或已过期' };
     return { ok: true, reason: '站点和可恢复备份正常' };
   } catch { return { ok: false, reason: '探测连接、超时或响应解析失败' }; }
 }

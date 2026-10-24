@@ -46,7 +46,7 @@ import { initMail, deliver as deliverMail } from './src/mail.js';
 import { createMailOutbox } from './src/mail-outbox.js';
 import { createImageInfo } from './src/media/info.js';
 import { createBackupSummaryCache, latestRecoverableBackup, isRecoverableBackup } from './src/backup.js';
-import { createWatchdog } from './src/monitor.js';
+import { createWatchdog, offsiteStale } from './src/monitor.js';
 import { rotateLogsAsync, resolveLogDir } from './src/log-rotate.js';
 import { THEME_BOOT as PUBLIC_THEME_BOOT, VERSIONED_ASSETS, assetVer, setThemeResolver, setThemeRenderer, setThemeErrorLogger } from './src/render/layout.js';
 import { THEME_BOOT as ADMIN_THEME_BOOT } from './src/admin/layout.js';
@@ -293,9 +293,10 @@ function healthSnapshot() {
   };
 }
 
-// 本地部分直接读库，不必绕 HTTP 一圈；公网可达性才必须走网络。
-function localHealth() {
-  try { repo.stats(); } catch { return { ok: false, reason: '数据库读取失败' }; }
+// 磁盘/WAL/备份卡住三项硬检查：localHealth 与 /healthz 共用同一口径，避免两处漂移。
+// 备份年龄/异地新鲜度不在这里判——/healthz 只回报字段、由探针侧（monitor.probe）判，
+// 本地检查（localHealth）才有完整判断语义。
+function infraHealth() {
   const disk = diskStats();
   if (HEALTH_MIN_DISK_FREE_BYTES > 0 && Number.isFinite(disk.diskFreeBytes) && disk.diskFreeBytes < HEALTH_MIN_DISK_FREE_BYTES) {
     return { ok: false, reason: `磁盘剩余空间不足：${Math.round(disk.diskFreeBytes / 1048576)}MB < ${Math.round(HEALTH_MIN_DISK_FREE_BYTES / 1048576)}MB` };
@@ -306,6 +307,14 @@ function localHealth() {
   if (backupStartedAt && Date.now() - backupStartedAt > HEALTH_BACKUP_TIMEOUT_SEC * 1000) {
     return { ok: false, reason: '备份任务运行时间过长' };
   }
+  return { ok: true, reason: '基础设施正常' };
+}
+
+// 本地部分直接读库，不必绕 HTTP 一圈；公网可达性才必须走网络。
+function localHealth() {
+  try { repo.stats(); } catch { return { ok: false, reason: '数据库读取失败' }; }
+  const infra = infraHealth();
+  if (!infra.ok) return infra;
   const { recoverable } = backupSummary.get();
   if (!recoverable) return { ok: false, reason: '没有可完整恢复的备份' };
   const age = Math.round((Date.now() - Date.parse(recoverable.createdAt)) / 1000);
@@ -313,9 +322,7 @@ function localHealth() {
   if (WATCHDOG_REQUIRE_OFFSITE) {
     let offsite = null;
     try { offsite = JSON.parse(repo.getSetting('backup_offsite_status') ?? 'null'); } catch { /* 未记录 */ }
-    const elapsed = (Date.now() - Date.parse(offsite?.checkedAt)) / 1000;
-    if (offsite?.state !== 'ok' || !Number.isFinite(elapsed) || elapsed > WATCHDOG_MAX_AGE_SEC || elapsed < -60)
-      return { ok: false, reason: '异地备份未成功或已过期' };
+    if (offsiteStale(offsite, WATCHDOG_MAX_AGE_SEC)) return { ok: false, reason: '异地备份未成功或已过期' };
   }
   return { ok: true, reason: '本地检查正常' };
 }
@@ -654,6 +661,8 @@ app.get('/healthz', (c) => {
   let ok = true;
   let posts = null;
   try { posts = repo.stats().published; } catch { ok = false; }
+  const infra = infraHealth();
+  if (!infra.ok) ok = false;
   const uptimeSec = Math.round(process.uptime());
   // 篇数本来就在 Feed/sitemap 里公开；备份年龄与异地状态才是需要 token 的内部字段。
   // 匿名请求不跑 statfs / stat：监控与看门狗都会带 token，没必要让扫描器付这份成本。
@@ -661,9 +670,7 @@ app.get('/healthz', (c) => {
 
   const health = healthSnapshot();
   // 磁盘/WAL/备份卡住与数据库读失败同级：外网探针与看门狗看到 ok:false 就该告警。
-  if (HEALTH_MIN_DISK_FREE_BYTES > 0 && Number.isFinite(health.diskFreeBytes) && health.diskFreeBytes < HEALTH_MIN_DISK_FREE_BYTES) ok = false;
-  if (HEALTH_MAX_WAL_BYTES > 0 && Number.isFinite(health.dbWalBytes) && health.dbWalBytes > HEALTH_MAX_WAL_BYTES) ok = false;
-  if (health.backupStartedAt && Date.now() - Date.parse(health.backupStartedAt) > HEALTH_BACKUP_TIMEOUT_SEC * 1000) ok = false;
+  // （三项判定已收敛进 infraHealth，与 localHealth 共用口径。）
   const base = { ok, posts, uptimeSec };
 
   const { last, recoverable } = backupSummary.get();
@@ -860,6 +867,9 @@ for (const sig of ['SIGINT', 'SIGTERM']) {
     // 先把备份 worker 停掉并等它退出，再关主库/释放维护锁；否则另一个实例可能在 worker 仍写备份时启动。
     const workerDone = backupWorker ? backupWorker.terminate().catch(() => {}) : Promise.resolve();
     console.log('\n[server] 正在退出，合并 WAL…');
+    // 主动断开空闲 keep-alive 连接（nginx 回源常驻连接默认要等 75s 空闲超时），
+    // 否则几乎必然先撞 15s 兜底强退：drain 顺序形同虚设，且兜底不等备份 worker 就释放锁。
+    server.closeIdleConnections?.();
     server.close(() => {
       // 等 HTTP 连接都结束后再 drain：避免一个刚进来的请求在 drain 之后又启动新的后台轮次。
       // 后台任务（友圈/友链/发信、看门狗）可能正处在「网络已返回、还没落库」的窗口里，
@@ -867,9 +877,6 @@ for (const sig of ['SIGINT', 'SIGTERM']) {
       const backgroundDone = (async () => {
         await Promise.allSettled([watchdog.drain?.()]);
         await Promise.allSettled([refresher.drain?.(), linkChecker.drain?.()]);
-    // 主动断开空闲 keep-alive 连接（nginx 回源常驻连接默认要等 75s 空闲超时），
-    // 否则几乎必然先撞 15s 兜底强退：drain 顺序形同虚设，且兜底不等备份 worker 就释放锁。
-    server.closeIdleConnections?.();
         await outbox.drain?.();
       })();
       void Promise.allSettled([workerDone, backgroundDone]).finally(() => {
