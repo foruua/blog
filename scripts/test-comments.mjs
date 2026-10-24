@@ -66,18 +66,15 @@ console.log('──────────────────────�
     ['待审昵称', 'https://pending.example.com/', 'pending'],
   ]) ids.push(comments.add({ postId, author, website, emailHash, bodyMd: 'profile fixture', status }));
   const app = commentRoutes({ repo: {}, comments, crypt });
-  const readerCookie = `blog_reader=${crypt.sign({ purpose: 'reader', h: emailHash })}`;
-  const lookup = (email, cookie = readerCookie) => app.request('/api/comments/reader', {
-    method: 'POST', headers: { 'Content-Type': 'application/json', ...(cookie ? { cookie } : {}) },
+  const lookup = (email) => app.request('/api/comments/reader', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email }),
   });
   try {
     const response = await lookup(' PROFILE-TEST@EXAMPLE.COM ');
     const data = await response.json();
-    check('带读者凭证的邮箱查询返回最近获批的昵称与网址', data.profile?.author === '新昵称' && data.profile?.website === 'https://new.example.com/');
+    check('邮箱查询返回最近获批的昵称与网址', data.profile?.author === '新昵称' && data.profile?.website === 'https://new.example.com/');
     check('邮箱查询禁止缓存且只返回公开字段', response.headers.get('cache-control') === 'no-store' && Object.keys(data.profile).sort().join(',') === 'author,website');
-    check('没有读者凭证时拒绝查询', (await (await lookup('profile-test@example.com', null)).json()).profile === null);
-    check('凭证只对签发时的邮箱有效', (await (await lookup('profile-test@example.com', `blog_reader=${crypt.sign({ purpose: 'reader', h: crypt.fingerprint('other@example.com') })}`)).json()).profile === null);
     check('陌生邮箱不自动填写', (await (await lookup('unknown-profile@example.com')).json()).profile === null);
     check('无效邮箱查询被拒绝', (await lookup('invalid')).status === 400);
     const { html } = await getPost();
@@ -606,13 +603,13 @@ let firstId = 0;
   try {
     const fresh = await say('第一次来。');
     check('T16a 首次评论 → 待审', fresh.body.status === 'pending', fresh.body.status);
-    check('T16b 不再下发读者凭证', fresh.cookie === null, String(fresh.cookie));
+    check('T16b 评论不再下发读者凭证', fresh.cookie === null, String(fresh.cookie));
     const early = await say('前两条都还没有批准。');
     check('T16c 仅有待审历史 → 待审', early.body.status === 'pending', early.body.status);
     db2.prepare("UPDATE comments SET status = 'approved' WHERE id = ?").run(fresh.id);
     const trusted = await say('换浏览器也可以直接发布。');
     check('T16d 同昵称和邮箱、不带 cookie → 直接发布', trusted.body.status === 'ok', trusted.body.status);
-    check('T16d2 直接发布时下发读者凭证', /(?:^|;\s*)blog_reader=/.test(trusted.cookie ?? ''), String(trusted.cookie));
+    check('T16d2 直接发布也不下发读者凭证', trusted.cookie === null, String(trusted.cookie));
     check('T16e 落库状态确实是 approved', db2.prepare('SELECT status FROM comments WHERE id = ?').get(trusted.id)?.status === 'approved', '');
     const renamed = await say('只匹配邮箱。', { author: '另一昵称' });
     check('T16f 仅邮箱相同 → 待审', renamed.body.status === 'pending', renamed.body.status);

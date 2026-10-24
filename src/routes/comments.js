@@ -1,6 +1,5 @@
-import { boundedBody, publicWriteRateLimit, clientIp, readBodyObject, cookieBase, sameOriginRequest } from '../util/http.js';
+import { boundedBody, publicWriteRateLimit, clientIp, readBodyObject, sameOriginRequest } from '../util/http.js';
 import { Hono } from 'hono';
-import { getCookie, setCookie } from 'hono/cookie';
 import { SITE } from '../config.js';
 import { esc, formatDateTime, contentUrl } from '../util/text.js';
 import { safeHttpUrl, normalizeUserUrl } from '../util/url.js';
@@ -30,15 +29,8 @@ const countLinks = (html, src) => {
 export function commentRoutes({ repo, comments, crypt, auth = null, notifier = createCommentNotifier({ repo, comments, crypt }), rateLimited = true }) {
   const app = new Hono({ strict: false });
   const antispam = createAntispam();
-  // 「回头客自动填充」必须凭上一次已发布的评论换来的签名 cookie 才能查：只有邮箱不够，
-  // 否则任何人都能拿邮箱列表探测「谁在这里评论过、网址是什么」。
-  const READER_COOKIE = 'blog_reader';
-  const READER_TTL = 365 * 24 * 3600;
-  const readerCookieOf = (hash) => crypt.sign({ purpose: 'reader', h: hash }, READER_TTL);
-  const issueReaderCookie = (c, hash) => {
-    if (!hash) return;
-    setCookie(c, READER_COOKIE, readerCookieOf(hash), { ...cookieBase(), maxAge: READER_TTL });
-  };
+  // 「回头客自动填充」只凭邮箱查最近一条已通过评论的昵称/网址——这些本就是评论区公开的信息，
+  // 不再要求浏览器持有绑定同一邮箱的读者凭证。仍保留同源校验与按 IP 限流，挡住跨站调用和批量探测。
   // Hono 的 app.route() 会把子应用 use('*') 中间件提升成父应用全局（任意路径 POST 都会跑到它），故必须逐个端点声明，否则评论限流会顺带限住后台保存等 POST。
   // 独立挂载（测试、单模块）时自己带一层限流；server.js 已有一层覆盖同样路径的全局限流，那时传 rateLimited: false，
   // 否则同一条请求会过两个独立计数桶，实际阈值取决于较严的那个，既难解释也多一次判断。
@@ -70,10 +62,7 @@ export function commentRoutes({ repo, comments, crypt, auth = null, notifier = c
       return c.json({ profile: null }, 400);
     }
     const hash = crypt.fingerprint(email);
-    const raw = getCookie(c, READER_COOKIE);
-    const proof = raw ? crypt.verify(raw) : null;
-    // cookie 绑定的是「上一次在本站成功发布的邮箱」；换一个邮箱查询不会命中，避免把接口当邮箱探测器。
-    if (!hash || !proof || proof.purpose !== 'reader' || proof.h !== hash) return c.json({ profile: null });
+    if (!hash) return c.json({ profile: null });
     return c.json({ profile: comments.readerProfile(hash) });
   });
 
@@ -165,9 +154,6 @@ export function commentRoutes({ repo, comments, crypt, auth = null, notifier = c
       emailHash, emailEnc: crypt.encrypt(email),
       website, bodyMd, status, ipHash, isAuthor: false, submissionId,
     });
-    // 只有「直接发布」的评论才下发凭证：待审评论可能不是邮箱主人写的，不能拿它换自动填充。
-    if (status === 'approved') issueReaderCookie(c, emailHash);
-
 
     if (status === 'pending') {
       notifyOwner(post, { id, author, bodyMd, website });
