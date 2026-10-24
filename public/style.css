@@ -516,10 +516,13 @@ body.mnav-open .mnav-panel { transform: none; opacity: 1; }
    被 DevTools 记成 LazyLoadImageZeroSize，还附带一次 237px 的布局位移。
    没有尺寸信息时按 1:1 收一档（不是撑满整栏），图仍按自己的比例走，不会拉扁。 */
 .hero-figure {
+  /* 相框白边宽度：一个变量管住两层（外层 padding 与图的圆角回缩），改一处即可，
+     不会出现「白边窄了、图的圆角还按老宽度倒角」的错位。原先 .5rem 显得太厚，收成 .25rem。 */
+  --hero-frame-pad: .25rem;
   position: relative;
   width: min(100%, 30rem, calc(min(34vh, 15.5rem) * var(--hero-ar, 1 / 1)));
   margin: 0 auto;
-  padding: .5rem;
+  padding: var(--hero-frame-pad);
   background: var(--bg-elev);
   border: 1px solid var(--rule);
   border-radius: var(--radius);
@@ -538,8 +541,8 @@ body.mnav-open .mnav-panel { transform: none; opacity: 1; }
   width: 100%; height: auto; aspect-ratio: var(--hero-ar);
   /* 首页封面统一固定 16:9；不同原始比例的图裁切，灯箱仍打开完整图。 */
   object-fit: cover;
-  /* 比外框小 1px：贴住那条细边，与「边框画在图上」时的观感一致。 */
-  border-radius: calc(var(--radius) - 1px);
+  /* 比外框小「白边 + 细边」那么多：圆角与外框同心，白边收窄后不会在四角挤出尖角。 */
+  border-radius: calc(var(--radius) - var(--hero-frame-pad) - 1px);
 }
 .hero-slide { position: relative; }
 
