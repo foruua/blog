@@ -57,7 +57,7 @@ ${hero.images.length ? heroItems + '\n' : ''}${heroAdd}
       <div class="a-hero-mode">
         <label for="heroOverlay">蒙版文案</label>
         <input class="a-input" id="heroOverlay" name="overlay" type="text" maxlength="200"
-               value="${esc(hero.overlay ?? '')}" placeholder="压在封面上的文案，留空则不显示蒙版" autocomplete="off">
+               value="${esc(hero.overlay ?? '')}" autocomplete="off">
       </div>
       <input type="hidden" id="heroImages" name="images" value="${esc(heroValue)}" data-thumbs="${heroThumbs}">
       <div class="a-actions">

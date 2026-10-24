@@ -982,8 +982,10 @@ html[data-theme="dark"] .a-select {
   background-size: .32rem .3rem;
   color: var(--muted-soft);
 }
-.a-hero-cap em { margin-left: auto; font-style: normal; letter-spacing: .04em; color: var(--accent); }
-.a-hero-move { display: flex; gap: .2rem; margin-left: .35rem; }
+/* 「封面」标与排序箭头都靠右：箭头用 margin-left:auto 统一推到行尾，第一张有没有「封面」标
+   都不影响其它格的箭头位置（此前 auto 挂在 em 上，只有第一张的箭头靠右）。 */
+.a-hero-cap em { font-style: normal; letter-spacing: .04em; color: var(--accent); }
+.a-hero-move { display: flex; gap: .2rem; margin-left: auto; }
 .a-hero-nudge {
   width: 1.55rem; height: 1.55rem; padding: 0;
   display: grid; place-items: center;
