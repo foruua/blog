@@ -63,7 +63,7 @@ function countsOf(db) {
   };
 }
 
-// 上限与允许上传的 128MB 视频对齐：此前 128MB 总量/32MB 单文件会让正常媒体站点的自动备份永久失败。
+// 上限与允许上传的体积对齐：此前 128MB 总量/32MB 单文件会让正常媒体站点的自动备份永久失败。
 const MAX_BACKUP_BYTES = Math.min(4 * 1024 * 1024 * 1024, Math.max(1024 * 1024, Number(process.env.MAX_BACKUP_BYTES) || 512 * 1024 * 1024));
 const MAX_BACKUP_FILE_BYTES = Math.min(MAX_BACKUP_BYTES, Math.max(1024 * 1024, Number(process.env.MAX_BACKUP_FILE_BYTES) || 256 * 1024 * 1024));
 async function compress(source, destination) {
@@ -193,7 +193,7 @@ export async function snapshot(db, { dir = DEFAULT_DIR, keep = DEFAULT_KEEP, lab
       }
     } finally { indexed.close(); }
     const database = await compress(fs.createReadStream(tmpDb), gzFile);
-    // 一次只流一个文件：大视频（几十 MB）不再整块 readFile + base64 成两三份内存副本。
+    // 一次只流一个文件：大文件（几十 MB）不再整块 readFile + base64 成两三份内存副本。
     async function* archive() {
       yield '{"version":1,"content":[';
       for (const [index, files, key] of [[0, content, 'content'], [1, uploads, 'uploads'], [2, themeFiles, 'themes']]) {

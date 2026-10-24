@@ -14,7 +14,6 @@ import elixir from 'highlight.js/lib/languages/elixir';
 import haskell from 'highlight.js/lib/languages/haskell';
 import nix from 'highlight.js/lib/languages/nix';
 import { mediaFallback } from '../media/variants.js';
-import { isVideoSource } from '../media/video.js';
 import { anchorId, esc } from '../util/text.js';
 
 for (const [name, def] of Object.entries({
@@ -34,8 +33,7 @@ function highlightFence(code, lang) {
 }
 
 /** @param imageInfo 正文图片的真实宽高与响应式候选：没尺寸要等图下完才知比例（顶动内容，CLS）；没变体则 736px 的栏会去下 2400px 原图。 */
-/** @param videoInfo 正文视频的宽高与 MIME；按路径查 media 表，取不到就退回无宽高、按扩展名给 type。 */
-export function createRenderer({ imageInfo, videoInfo } = {}) {
+export function createRenderer({ imageInfo } = {}) {
   const md = new MarkdownIt({
     html: false,
     linkify: true,
@@ -101,20 +99,6 @@ export function createRenderer({ imageInfo, videoInfo } = {}) {
   md.renderer.rules.image = (tokens, idx, opts, env, self) => {
     const token = tokens[idx];
     const src = token.attrGet('src');
-    // 上传的视频沿用了图片语法 ![](…mp4)：作者只需要点「插入图片/视频」，不必记另一套标记。
-    // 输出用行内 <span> 包块级视频，避免 markdown-it 已生成的 <p> 里出现非法嵌套。
-    if (isVideoSource(src)) {
-      const info = videoInfo?.(src);
-      const width = info?.width > 0 ? info.width : 0;
-      const height = info?.height > 0 ? info.height : 0;
-      const label = token.content || '视频';
-      const ext = (src.toLowerCase().match(/\.(?:mp4|webm|mov|m4v)(?:$|[?#])/)?.[0] ?? '').replace(/[?#].*$/, '').slice(1);
-      const mime = info?.mime ?? ({ webm: 'video/webm', mov: 'video/quicktime', m4v: 'video/x-m4v' }[ext] ?? 'video/mp4');
-      return `<span class="prose-video"><video controls preload="metadata" playsinline`
-        + (width && height ? ` width="${width}" height="${height}" style="aspect-ratio:${width}/${height}"` : '')
-        + ` aria-label="${esc(label)}"><source src="${esc(src)}" type="${esc(mime)}">`
-        + '你的浏览器不支持视频播放。</video></span>';
-    }
     if (!token.attrGet('loading')) token.attrSet('loading', token.meta?.priority ? 'eager' : 'lazy');
     if (token.meta?.priority) token.attrSet('fetchpriority', 'high');
     if (!token.attrGet('decoding')) token.attrSet('decoding', 'async');

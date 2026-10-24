@@ -44,7 +44,7 @@ import { pruneTrash, pruneTrashDirs, TRASH_DERIVED_RETENTION_DAYS } from './src/
 import { envInt, envDurationMs } from './src/util/env.js';
 import { initMail, deliver as deliverMail } from './src/mail.js';
 import { createMailOutbox } from './src/mail-outbox.js';
-import { createImageInfo, createVideoInfo } from './src/media/info.js';
+import { createImageInfo } from './src/media/info.js';
 import { createBackupSummaryCache, latestRecoverableBackup, isRecoverableBackup } from './src/backup.js';
 import { createWatchdog } from './src/monitor.js';
 import { rotateLogsAsync, resolveLogDir } from './src/log-rotate.js';
@@ -166,8 +166,7 @@ const outbox = createMailOutbox({ db, deliver: deliverMail, log: (line) => conso
 outbox.start();
 const auth = createAdminAuth({ db, crypt });
 const imageInfo = createImageInfo(adminRepo);
-const videoInfo = createVideoInfo(adminRepo);
-const renderer = createRenderer({ imageInfo, videoInfo });
+const renderer = createRenderer({ imageInfo });
 
 // 评论头像：反代 + 本地缓存；访客只连本站（CSP 保持 img-src 'self'）；缓存在 data/ 下、不进备份。
 const avatarCache = createAvatarCache({

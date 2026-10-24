@@ -239,9 +239,9 @@
   /* 展开态点正文收回这一行（正文不是 <summary>）：放行链接、划选文字、评论胶囊/抽屉/图集。 */
   document.addEventListener('click', (e) => {
     const body = e.target.closest?.('.nf-fold .nf-panel > .prose');
-    // 交互元素（链接、代码复制按钮、代码块、表单、音视频）不该触发“点正文收起”；
+    // 交互元素（链接、代码复制按钮、代码块、表单、音频）不该触发“点正文收起”；
     // 以前只排除 a，点笔记里的「复制代码」会把整篇折叠掉。
-    if (!body || e.target.closest('a, button, input, textarea, select, summary, pre, code, video, audio, [contenteditable], [data-no-fold-close]')) return;
+    if (!body || e.target.closest('a, button, input, textarea, select, summary, pre, code, audio, [contenteditable], [data-no-fold-close]')) return;
     const sel = document.getSelection();
     if (sel && !sel.isCollapsed && sel.toString().trim()) return;
     const fold = body.closest('details.nf-fold');
@@ -290,19 +290,16 @@
     sync();
   }
 
-  /* 正文插图/视频的「点开」都是 JS 能力：role/tabindex 也由 JS 补，写死在 HTML 里会让禁 JS 的读者拿到假按钮。
+  /* 正文插图的「点开大图」是 JS 能力：role/tabindex 也由 JS 补，写死在 HTML 里会让禁 JS 的读者拿到假按钮。
      首页封面那张是 <h1> 唯一内容：只补 role/tabindex，不加 aria-label，否则会改掉标题可访问名。
      笔记流图集是真链接，不补 role。 */
   function decorateLightbox(root = document) {
-    for (const node of root.querySelectorAll('img[data-lightbox]:not([role]), video[data-lightbox]:not([role])')) {
+    for (const node of root.querySelectorAll('img[data-lightbox]:not([role])')) {
       node.setAttribute('role', 'button');
       node.setAttribute('tabindex', '0');
       const alt = node.dataset.alt || node.getAttribute('aria-label') || node.getAttribute('alt') || '';
-      const label = node.tagName === 'VIDEO'
-        ? (alt ? `播放视频：${alt}` : '播放视频')
-        : (alt ? `查看大图：${alt}` : '查看大图');
-      // 标题即图片/视频时只补 role/tabindex，补 aria-label 会改掉 <h1> 的可访问名。
-      if (!node.closest('h1')) node.setAttribute('aria-label', label);
+      // 标题即图片时只补 role/tabindex，补 aria-label 会改掉 <h1> 的可访问名。
+      if (!node.closest('h1')) node.setAttribute('aria-label', alt ? `查看大图：${alt}` : '查看大图');
     }
   }
 
@@ -320,7 +317,6 @@
     const root = document.querySelector('[data-hero-carousel]');
     if (!root) return;
     const slides = [...root.querySelectorAll('.hero-slide')];
-    const copies = [...root.querySelectorAll('.hero-copy')];
     const dots = [...root.querySelectorAll('.hero-dot')];
     if (slides.length < 2) return;
     let at = Math.max(0, slides.findIndex((s) => s.classList.contains('is-active')));
@@ -359,13 +355,6 @@
       if (refocus) slides[at].focus({ preventScroll: true });
       slides.forEach((s, k) => {
         if (k === at) s.removeAttribute('aria-hidden'); else s.setAttribute('aria-hidden', 'true');
-      });
-      // 每张封面的文字跟着图一起切换；非当前张的链接移出 Tab 序，读屏也读不到。
-      copies.forEach((copy, k) => {
-        const on = k === at;
-        copy.classList.toggle('is-active', on);
-        copy.setAttribute('aria-hidden', String(!on));
-        for (const link of copy.querySelectorAll('a[href], button')) link.tabIndex = on ? 0 : -1;
       });
       dots.forEach((d, k) => d.setAttribute('aria-pressed', String(k === at)));
       root.setAttribute('aria-label', `首页封面，第 ${at + 1} 张，共 ${slides.length} 张`);
@@ -408,13 +397,9 @@
     start();
   }
 
-  // 视频懒加载在 request.js 里（前后台同一份）；这里只负责在每次换页时重建 observer。
-  const setupLazyVideoPreload = (root = document) => window.__lazyVideo(root);
-
   function setupPage() {
-    setupLazyVideoPreload();
     // 灯箱在 #app 外，pjax 不会替换它；换页前先关掉，否则旧灯箱会浮在新页面上，
-    // lbItems/lbTrigger 还指向已移除节点。close 事件负责停视频、还焦点（触发节点已断开时自动跳过）。
+    // lbItems/lbTrigger 还指向已移除节点。close 事件负责还焦点（触发节点已断开时自动跳过）。
     const staleLightbox = document.getElementById('lightbox');
     if (staleLightbox?.open) staleLightbox.close();
     lbItems = []; lbAt = 0; lbTrigger = null;
@@ -805,62 +790,22 @@
   let lbItems = [], lbAt = 0;
   let lbTrigger = null;
 
-  const lbVideo = () => lb()?.querySelector('.lb-video');
-  // 切图/关灯箱时把视频彻底停住：只 pause 不摘 src，部分浏览器会继续缓冲；下一次播放从头上开始也更符合直觉。
-  const stopLbVideo = () => {
-    const video = lbVideo();
-    if (!video) return;
-    video.pause();
-    video.hidden = true;
-    video.removeAttribute('src');
-    video.removeAttribute('width');
-    video.removeAttribute('height');
-    video.style.removeProperty('--lb-ar');
-    try { video.load(); } catch { /* 某些浏览器在没有 src 时 load 会抛，无关紧要 */ }
-  };
-
   function lbShow(i) {
     const box = lb();
     if (!box || !lbItems.length) return;
     lbAt = (i + lbItems.length) % lbItems.length;
     const cur = lbItems[lbAt];
     const img = box.querySelector('.lb-img');
-    const video = box.querySelector('.lb-video');
     const src = cur.dataset.full || cur.href;
     const alt = cur.dataset.alt || cur.getAttribute('alt') || '';
-    const isVideo = cur.dataset.media === 'video';
-
-    if (video) video.pause();
-
-    if (isVideo) {
-      // 图片那条线要连 loader 一起取消，否则慢图下完还会把 <img> 顶到视频旁边。
-      window.__ui?.clearImage?.(box);
-      img.hidden = true;
-      const width = Number(cur.dataset.w) || 0;
-      const height = Number(cur.dataset.h) || 0;
-      if (width > 0 && height > 0) {
-        video.width = width; video.height = height;
-        video.style.setProperty('--lb-ar', `${width} / ${height}`);
-      } else {
-        video.removeAttribute('width'); video.removeAttribute('height');
-        video.style.removeProperty('--lb-ar');
-      }
-      video.hidden = false;
-      video.setAttribute('aria-label', alt || '视频');
-      if (video.getAttribute('src') !== src) { video.src = src; video.load(); }
-      // 点击/键盘进入灯箱都是用户手势，允许带声音播放；被浏览器拦下时控制条仍可手动播。
-      video.play().catch(() => {});
-    } else {
-      stopLbVideo();
-      // 被点的这张此刻多半已经在列表里加载好、在浏览器缓存里：拿它的实际地址当占位，点开先秒显，再换大图。
-      const shown = cur.tagName === 'IMG' ? cur : cur.querySelector?.('img');
-      const placeholder = shown && !shown.hidden ? (shown.currentSrc || shown.src || '') : '';
-      // 第 5 张起的占位 span 没有可见 <img>，尺寸要优先从 data-w/data-h 取，否则灯箱会先空白再跳。
-      const width = Number(cur.dataset?.w) || Number(shown?.getAttribute?.('width')) || 0;
-      const height = Number(cur.dataset?.h) || Number(shown?.getAttribute?.('height')) || 0;
-      if (window.__ui) window.__ui.loadImage(box, src, alt, { placeholder, width, height });
-      else { img.src = src; img.alt = alt; img.hidden = false; }
-    }
+    // 被点的这张此刻多半已经在列表里加载好、在浏览器缓存里：拿它的实际地址当占位，点开先秒显，再换大图。
+    const shown = cur.tagName === 'IMG' ? cur : cur.querySelector?.('img');
+    const placeholder = shown && !shown.hidden ? (shown.currentSrc || shown.src || '') : '';
+    // 第 5 张起的占位 span 没有可见 <img>，尺寸要优先从 data-w/data-h 取，否则灯箱会先空白再跳。
+    const width = Number(cur.dataset?.w) || Number(shown?.getAttribute?.('width')) || 0;
+    const height = Number(cur.dataset?.h) || Number(shown?.getAttribute?.('height')) || 0;
+    if (window.__ui) window.__ui.loadImage(box, src, alt, { placeholder, width, height });
+    else { img.src = src; img.alt = alt; img.hidden = false; }
     box.querySelector('.lb-count').textContent = `${lbAt + 1} / ${lbItems.length}`;
     const many = lbItems.length > 1;
     box.querySelector('.lb-prev').hidden = !many;
@@ -911,8 +856,6 @@
     }
     const box = lb();
     if (box?.open) {
-      // 视频控制条自己要用左右键快退/快进；焦点在视频上时让给原生控件，别同时切下一条。
-      if (e.target?.closest?.('.lb-video') && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) return;
       if (e.key === 'ArrowLeft') lbShow(lbAt - 1);
       if (e.key === 'ArrowRight') lbShow(lbAt + 1);
       return;
@@ -929,7 +872,6 @@
   // Esc 的键盘模态点亮 :focus-visible，全局规则会在插图外画金框（Chromium 无此问题），故程序性移焦不画圈。
   document.addEventListener('close', (e) => {
     if (e.target !== lb()) return;
-    stopLbVideo();
     heroControl?.start();
     const t = lbTrigger;
     if (!t?.isConnected) return;

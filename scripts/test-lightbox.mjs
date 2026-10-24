@@ -48,40 +48,6 @@ try {
   await desktop.keyboard.press('Escape');
   console.log('✓ 桌面点击放大、拖动、滚轮、键盘还原、切图与关闭后重置');
 
-  {
-    // 灯箱视频：打开后 <video> 接管显示、图片让位；切条保持同组；关闭时停播并清掉 src。
-    const vp = await browser.newPage({ viewport: { width: 1280, height: 900 } });
-    const errs = []; vp.on('pageerror', (e) => errs.push(e.message));
-    await vp.route('**/__clip.webm', (route) => route.fulfill({ status: 200, contentType: 'video/webm', body: Buffer.alloc(0) }));
-    await vp.goto(server.base + '/posts/');
-    await vp.evaluate(() => {
-      for (let i = 0; i < 2; i++) {
-        const v = document.createElement('video');
-        v.dataset.lightbox = 'vid'; v.dataset.media = 'video'; v.dataset.full = '/__clip.webm';
-        v.dataset.alt = `视频 ${i}`; v.dataset.w = '640'; v.dataset.h = '360';
-        v.setAttribute('role', 'button'); v.tabIndex = 0;
-        v.style.cssText = 'width:100px;height:56px;background:#000'; v.muted = true;
-        document.body.append(v);
-      }
-    });
-    await vp.locator('video[data-lightbox="vid"]').first().click();
-    await vp.locator('#lightbox .lb-video').waitFor({ state: 'attached' });
-    await vp.waitForFunction(() => document.querySelector('#lightbox .lb-video').hidden === false);
-    assert.equal(await vp.locator('#lightbox .lb-img').evaluate((el) => el.hidden), true);
-    assert.equal(await vp.locator('#lightbox .lb-video').getAttribute('src'), '/__clip.webm');
-    assert.equal(await vp.locator('#lightbox .lb-video').getAttribute('aria-label'), '视频 0');
-    assert.equal(await count(vp), '1 / 2');
-    await vp.keyboard.press('ArrowRight');
-    assert.equal(await vp.locator('#lightbox .lb-video').getAttribute('src'), '/__clip.webm');
-    assert.equal(await count(vp), '2 / 2');
-    await vp.keyboard.press('Escape');
-    await vp.waitForTimeout(80);
-    assert.equal(await vp.locator('#lightbox .lb-video').evaluate((v) => v.hidden), true);
-    assert.equal(await vp.locator('#lightbox .lb-video').evaluate((v) => v.getAttribute('src')), null);
-    assert.deepEqual(errs, []);
-    console.log('✓ 灯箱视频：打开、切条、关闭后停播并清源');
-  }
-
   const mobile = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   const errors = []; mobile.on('pageerror', (error) => errors.push(error.message));
   await mount(mobile);

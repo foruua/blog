@@ -53,13 +53,10 @@ export const acceptsEncoding = (header, name) => {
 export const pickEncoding = (header, candidates) => candidates.find((name) => acceptsEncoding(header, name)) ?? '';
 
 export const MAX_UPLOAD = Math.min(32 * 1024 * 1024, Math.max(1024, Number(process.env.MAX_UPLOAD_BYTES) || 8 * 1024 * 1024));
-// 视频不重编码，原样落盘，所以能放宽得多；上限 1GB，默认 128MB。请求体仍然整块读进内存，
-// 别把它当无限量网盘用——真放长视频更适合外部对象存储/CDN。
-export const MAX_VIDEO_UPLOAD = Math.min(1024 * 1024 * 1024, Math.max(1024, Number(process.env.MAX_VIDEO_UPLOAD_BYTES) || 128 * 1024 * 1024));
 const WRITE = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 // 上传是少数会把整个请求体读进内存的路径。除了单请求上限，还要限制同时在飞的数量：
-// 两个 128MB 视频并发就足以让窄内存机器进入 swap。门闩在读取 body 之前拿，覆盖到路由处理结束。
+// 两个 MAX_UPLOAD 并发送入就足以让窄内存机器进入 swap。门闩在读取 body 之前拿，覆盖到路由处理结束。
 const MAX_CONCURRENT_UPLOADS = Math.max(1, Number.parseInt(process.env.MAX_CONCURRENT_UPLOADS ?? '', 10) || 2);
 let uploadsActive = 0;
 function enterUploadSlot() {
@@ -93,7 +90,7 @@ export async function readBodyObject(c) {
   return b && typeof b === 'object' ? b : {};
 }
 
-// 原始二进制上传（后台大文件）先落到系统临时文件，路由再按文件路径处理；避免 128MB 视频整块进内存。
+// 原始二进制上传（后台大文件）先落到系统临时文件，路由再按文件路径处理；避免大文件整块进内存。
 async function spoolRawUpload(c, { limit, timeoutMs }) {
   const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'blog-upload-'));
   const file = path.join(dir, 'body');
@@ -153,13 +150,13 @@ export function boundedBody() {
       return c.json({ ok: false, error: '上传任务过多，请稍后重试' }, 503);
     }
     try {
-      const limit = isUpload ? Math.max(MAX_UPLOAD, MAX_VIDEO_UPLOAD) + 65536
+      const limit = isUpload ? MAX_UPLOAD + 65536
         : isThemeUpload ? MAX_THEME_ZIP + 65536
         : p === '/admin/login' ? 4096
         : p.startsWith('/api/comments') || /\/comment$/.test(p) || p.startsWith('/moderate/') ? 32768 : 1024 * 1024;
       if (Number(c.req.header('content-length')) > limit) return c.json({ ok: false, error: '请求内容过大', status: 'too-large' }, 413);
-      // 大请求（上传）给更长的读取窗口：15s 是给普通表单的，几十 MB 视频在慢链路上会被误判成超时。
-      const timeoutMs = isUpload ? 600000 : isThemeUpload ? 120000 : limit > 1024 * 1024 ? 120000 : 15000;
+      // 大请求（上传）给更长的读取窗口：15s 是给普通表单的，慢链路上传一张图会被误判成超时。
+      const timeoutMs = isUpload ? 120000 : isThemeUpload ? 120000 : limit > 1024 * 1024 ? 120000 : 15000;
       // 新前端用 raw body 上传，只有 multipart 旧表单才整块读入内存。
       if (isUpload && (c.req.header('x-raw-upload') === '1'
         || !(c.req.header('content-type') ?? '').toLowerCase().includes('multipart/form-data'))) {

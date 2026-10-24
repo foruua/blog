@@ -1,13 +1,13 @@
 import { previewSrcsetOf, previewSourceOf } from '../../media/variants.js';
-import { isVideoSource } from '../../media/video.js';
 import { csrfField, esc } from '../../util/text.js';
 import { adminLayout } from '../layout.js';
 
 // 媒体库显示「上传时那份原件」的大小，而非 sharp 重编码后的体积（通常更小，见 media/image.js）。老记录（022 前）没有原图大小，退回 bytes，好过显示「—」。
 const sizeOf = (m) => m.original_bytes ?? m.bytes;
-const isVideo = (m) => String(m.mime ?? '').startsWith('video/') || isVideoSource(m.path);
-const dimensionOf = (m) => m.width && m.height ? `${m.width} × ${m.height}` : isVideo(m) ? '视频' : '尺寸未知';
-const playBadge = '<span class="a-media-play" aria-hidden="true">▶</span>';
+// 视频支持已下线：库里残留的非图片记录仍然列出来（好让人能删掉），只给一个中性占位，不当图片渲染。
+const isImage = (m) => !String(m.mime ?? '') || String(m.mime).startsWith('image/');
+const dimensionOf = (m) => m.width && m.height ? `${m.width} × ${m.height}` : isImage(m) ? '尺寸未知' : '非图片';
+const nonImageSlot = '<span class="a-media-ph" aria-hidden="true">非图片</span>';
 
 export function mediaPage({ pagination = '', items, stats, csrf, badges, heroPaths = [], notice = '', usage = new Map() }) {
 
@@ -23,9 +23,9 @@ export function mediaPage({ pagination = '', items, stats, csrf, badges, heroPat
     const srcset = previewSrcsetOf(m);   // 同一次调用结果复用：以前连调两次，等于两次 JSON.parse + 拼串
     return `<figure class="a-media">
         <a class="a-media-shot" href="/admin/media/${m.id}" data-media-details aria-haspopup="dialog" aria-label="查看 ${esc(nameOf(m))} 的引用详情">
-          ${isVideo(m)
-            ? `<video src="${esc(m.path)}#t=0.1" muted playsinline preload="none" data-lazy-preload aria-hidden="true"></video>${playBadge}`
-            : `<img src="${esc(previewSourceOf(m))}" alt="${esc(m.alt ?? '')}"${srcset ? ` srcset="${esc(srcset)}" sizes="auto, (max-width: 360px) calc(100vw - 32px), (max-width: 640px) calc((100vw - 44px) / 2), 260px"` : ''}${m.width > 0 && m.height > 0 ? ` width="${m.width}" height="${m.height}" style="aspect-ratio:${m.width}/${m.height}"` : ''} loading="lazy" decoding="async">`}
+          ${isImage(m)
+            ? `<img src="${esc(previewSourceOf(m))}" alt="${esc(m.alt ?? '')}"${srcset ? ` srcset="${esc(srcset)}" sizes="auto, (max-width: 360px) calc(100vw - 32px), (max-width: 640px) calc((100vw - 44px) / 2), 260px"` : ''}${m.width > 0 && m.height > 0 ? ` width="${m.width}" height="${m.height}" style="aspect-ratio:${m.width}/${m.height}"` : ''} loading="lazy" decoding="async">`
+            : nonImageSlot}
           ${isHero ? '<span class="a-media-flag">首页封面</span>' : ''}
         </a>
         <figcaption>
@@ -73,9 +73,9 @@ export function mediaDeletePage({ item, isHero, usedBy = [], csrf, badges }) {
     body: `    <div class="a-card a-panel a-confirm">
       <p class="a-kicker">即将删除</p>
       <p class="a-notice a-notice-plain">${esc(item.filename || item.path)}</p>
-      <div class="a-hero-preview">${isVideo(item)
-        ? `<video controls preload="metadata" playsinline src="${esc(item.path)}" aria-label="${esc(item.filename || item.path)}"></video>`
-        : `<img decoding="async" src="${esc(previewSourceOf(item, 960))}"${srcset ? ` srcset="${esc(srcset)}" sizes="(min-width: 700px) 480px, calc(100vw - 64px)"` : ''} alt=""${item.width > 0 && item.height > 0 ? ` width="${item.width}" height="${item.height}"` : ''}>`}</div>
+      <div class="a-hero-preview">${isImage(item)
+        ? `<img decoding="async" src="${esc(previewSourceOf(item, 960))}"${srcset ? ` srcset="${esc(srcset)}" sizes="(min-width: 700px) 480px, calc(100vw - 64px)"` : ''} alt=""${item.width > 0 && item.height > 0 ? ` width="${item.width}" height="${item.height}"` : ''}>`
+        : nonImageSlot}</div>
       <p class="a-dim"><code>${esc(item.path)}</code>${item.width ? ` · ${item.width}×${item.height}` : ''}${sizeOf(item) ? ` · ${Math.round(sizeOf(item) / 1024)}KB` : ''}</p>
 ${hero}${usage}
       <form method="post" action="/admin/media/delete/${item.id}">
@@ -94,9 +94,9 @@ export function mediaDetailContent({ item, isHero, usedBy }) {
   const kinds = { post: '文章', note: '笔记', page: '固定页' };
   return `<div class="a-media-detail">
       <div class="a-media-detail-top">
-        ${isVideo(item)
-          ? `<video class="a-media-detail-preview" controls preload="metadata" playsinline src="${esc(item.path)}" aria-label="${esc(item.filename || item.path)}"></video>`
-          : `<a class="a-media-detail-preview" data-media-original href="${esc(item.path)}" target="_blank" rel="noopener" aria-label="查看完整原图"><img decoding="async" src="${esc(previewSourceOf(item, 960))}"${srcset ? ` srcset="${esc(srcset)}" sizes="(min-width: 700px) 480px, calc(100vw - 64px)"` : ''} alt="${esc(item.alt ?? '')}"${item.width > 0 && item.height > 0 ? ` width="${item.width}" height="${item.height}"` : ''}></a>`}
+        ${isImage(item)
+          ? `<a class="a-media-detail-preview" data-media-original href="${esc(item.path)}" target="_blank" rel="noopener" aria-label="查看完整原图"><img decoding="async" src="${esc(previewSourceOf(item, 960))}"${srcset ? ` srcset="${esc(srcset)}" sizes="(min-width: 700px) 480px, calc(100vw - 64px)"` : ''} alt="${esc(item.alt ?? '')}"${item.width > 0 && item.height > 0 ? ` width="${item.width}" height="${item.height}"` : ''}></a>`
+          : `<span class="a-media-detail-preview">${nonImageSlot}</span>`}
         <div class="a-media-detail-info"><p class="a-media-detail-name">${esc(item.filename || item.path)}</p>
           <p class="a-dim">${dimensionOf(item)}${sizeOf(item) ? ` · ${Math.round(sizeOf(item) / 1024)} KB` : ''}</p>
           <code>${esc(item.path)}</code><button class="a-btn-ghost" type="button" data-copy="${esc(item.path)}">复制路径</button></div>

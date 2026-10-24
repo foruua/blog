@@ -850,17 +850,6 @@ html[data-theme="dark"] .a-select {
 .a-media:hover { border-color: var(--accent-line); box-shadow: var(--shadow-sm); }
 .a-media-shot { position: relative; display: grid; place-items: center; aspect-ratio: 4 / 3; padding: 0; background: var(--bg-soft); overflow: hidden; }
 .a-media .a-media-shot img { display: block; width: 100%; height: 100%; min-height: 0; object-fit: cover; border: 0; border-radius: 0; }
-.a-media .a-media-shot video { display: block; width: 100%; height: 100%; min-height: 0; object-fit: cover; border: 0; border-radius: 0; background: #000; pointer-events: none; }
-.a-media-play {
-  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
-  width: 2.25rem; height: 2.25rem; display: grid; place-items: center;
-  color: #fff; font-size: .9rem; line-height: 1;
-  background: rgb(0 0 0 / .62);
-  border: 1px solid rgb(255 255 255 / .38);
-  border-radius: 50%;
-  box-shadow: 0 2px 8px -3px rgb(0 0 0 / .5);
-  pointer-events: none;
-}
 .a-media-flag { position: absolute; top: .6rem; left: .6rem; padding: .2rem .5rem; border: 1px solid var(--rule); border-radius: var(--radius-pill); font-size: var(--a-fs-label); color: var(--fg); background: var(--bg-elev); }
 .a-media figcaption { min-width: 0; padding: .85rem; }
 .a-media-name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--a-fs-sm); font-weight: 500; color: var(--fg); }
@@ -897,9 +886,9 @@ html[data-theme="dark"] .a-select {
 .a-media-dialog-body { max-height: calc(100dvh - 8rem); overflow: auto; overscroll-behavior: contain; padding: 1.25rem; }
 .a-media-detail-top { display: grid; grid-template-columns: 9rem minmax(0, 1fr); gap: 1.15rem; align-items: center; }
 .a-media-detail-preview { display: block; height: 9rem; overflow: hidden; border-radius: var(--radius); background: var(--bg-soft); }
+/* 非图片文件（视频支持已下线，库里可能还有存量）：中性占位，不当图片渲染，也不藏起来 —— 留着才能删。 */
+.a-media-ph { display: grid; place-items: center; width: 100%; height: 100%; min-height: 6rem; color: var(--muted); font: .8rem/1.4 var(--sans); letter-spacing: .04em; background: var(--bg-soft); }
 .a-media-detail-preview img { display: block; width: 100%; height: 100%; min-height: 0; object-fit: cover; }
-.a-media-detail-preview video { display: block; width: 100%; height: 100%; min-height: 0; object-fit: contain; background: #000; }
-video.a-media-detail-preview { width: 100%; object-fit: contain; background: #000; }
 .a-media-detail-name { margin: 0 0 .3rem; font-size: var(--a-fs-base); font-weight: 600; overflow-wrap: anywhere; }
 .a-media-detail-info .a-dim { margin: 0 0 .6rem; }
 .a-media-detail-info code { display: block; font-size: var(--a-fs-label); color: var(--muted); overflow-wrap: anywhere; margin-bottom: .75rem; }
@@ -938,10 +927,6 @@ video.a-media-detail-preview { width: 100%; object-fit: contain; background: #00
   width: auto; height: auto;
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow-md);
-}
-.a-hero-preview video {
-  display: block; max-width: 100%; max-height: 15rem; width: auto; height: auto;
-  border-radius: var(--radius-sm); box-shadow: var(--shadow-md); background: #000;
 }
 .a-hero-x {
   position: absolute; top: .6rem; right: .6rem;
@@ -1009,39 +994,6 @@ video.a-media-detail-preview { width: 100%; object-fit: contain; background: #00
 .a-hero-nudge:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); }
 .a-hero-nudge:focus-visible { outline: none; border-color: var(--accent); box-shadow: var(--ring); }
 .a-hero-nudge:disabled { opacity: .35; cursor: default; }
-.a-hero-nudge.a-hero-textbtn { width: auto; padding: 0 .45rem; font-family: var(--sans); letter-spacing: 0; }
-.a-hero-text-dialog { width: min(34rem, calc(100vw - 2rem)); }
-.a-hero-text-dialog form { padding: 0; }
-.a-hero-text-head {
-  display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem;
-  padding: 1.25rem 1.4rem .9rem;
-  border-bottom: 1px solid var(--rule);
-}
-.a-hero-text-head .a-modal-title { margin: 0; }
-.a-hero-text-close {
-  flex: none; width: 2rem; height: 2rem; margin: -.2rem -.3rem 0 0;
-  display: grid; place-items: center;
-  border: 1px solid transparent; border-radius: 50%;
-  background: none; color: var(--muted);
-  font: 400 1.35rem/1 var(--sans); cursor: pointer;
-  transition: color var(--dur-1) var(--ease), background-color var(--dur-1) var(--ease);
-}
-.a-hero-text-close:hover { color: var(--fg); background: var(--bg-soft); }
-.a-hero-text-close:focus-visible { outline: none; box-shadow: var(--ring); }
-.a-hero-text-body { padding: 1rem 1.4rem .1rem; }
-.a-hero-text-body .a-field { margin: 0 0 .9rem; }
-.a-hero-text-grid { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.4fr); gap: .8rem; }
-.a-hero-text-actions {
-  margin: 0; padding: .9rem 1.4rem 1.1rem;
-  border-top: 1px solid var(--rule);
-  justify-content: flex-end;
-}
-@media (max-width: 520px) {
-  .a-hero-text-grid { grid-template-columns: minmax(0, 1fr); gap: 0; }
-  .a-hero-text-head { padding: 1.1rem 1.1rem .8rem; }
-  .a-hero-text-body { padding: .9rem 1.1rem .1rem; }
-  .a-hero-text-actions { padding: .8rem 1.1rem 1rem; }
-}
 .a-hero-item .a-hero-x { top: .3rem; right: .3rem; z-index: 1; }
 
 .a-hero-add {
@@ -1542,21 +1494,7 @@ video.a-media-detail-preview { width: 100%; object-fit: contain; background: #00
   background: var(--bg-soft);
   border-bottom: 1px solid var(--rule);
 }
-.a-picker-item .a-picker-video {
-  position: relative; display: block; width: 100%; height: 5rem; overflow: hidden;
-  color: var(--fg-soft); background: var(--bg-soft);
-  border-bottom: 1px solid var(--rule);
-}
-.a-picker-video video { display: block; width: 100%; height: 100%; object-fit: cover; }
-.a-picker-play {
-  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
-  display: grid; place-items: center; width: 2rem; height: 2rem;
-  color: #fff; background: rgb(0 0 0 / .58);
-  border: 1px solid rgb(255 255 255 / .38); border-radius: 50%;
-  pointer-events: none;
-}
-.a-picker-play svg { width: 1.1rem; height: 1.1rem; }
-.a-picker-item span:not(.a-picker-video) {
+.a-picker-item span {
   display: block; padding: .4rem .55rem;
   font: var(--a-fs-micro)/1.4 var(--mono); color: var(--muted);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;

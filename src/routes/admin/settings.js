@@ -1,7 +1,7 @@
 import { previewSourceOf } from '../../media/variants.js';
 import { externalWrite, bodyOf, val, notice } from './shared.js';
 import { subscriberCount, clearSubscribers } from '../../comments/subscribers.js';
-import { settingsFormState, saveSettings, KEYS, HERO_MAX, HERO_TONES, HERO_LEGACY_KEYS, HERO_RETIRED_KEYS, heroImages, heroMode, heroTone, safeHeroLink } from '../../settings.js';
+import { settingsFormState, saveSettings, KEYS, HERO_MAX, HERO_LEGACY_KEYS, HERO_RETIRED_KEYS, heroImages, heroMode } from '../../settings.js';
 import {
   KEYS as MAIL_KEYS, DEFAULTS as MAIL_DEFAULTS, TLS_MODES, TLS_LABEL, PRESETS,
   configSource, smtpConfig, ownerEmail, fromAddress,
@@ -10,7 +10,6 @@ import {
 import { systemPage } from '../../admin/views/system.js';
 import { EMAIL_LOOSE_RE } from '../../util/validation.js';
 import { isSafeUploadPath } from '../../util/url.js';
-import { isVideoSource } from '../../media/video.js';
 import { smtpTestLetter } from '../../email/letters.js';
 
 
@@ -167,6 +166,14 @@ export function registerSettingsRoutes(app, { repo, crypt, adminRepo, mutate = (
     return isSafeUploadPath(u);
   }
 
+  // 封面只能是图片：优先看媒体库记录的 MIME；记录已被清掉的老路径退回扩展名判断。
+  const IMAGE_EXT_RE = /\.(?:png|jpe?g|gif|webp|avif)(?:$|[?#])/i;
+  function heroImageOk(path) {
+    if (!heroUrlOk(path)) return false;
+    const mime = String(adminRepo.mediaByPath(path)?.mime ?? '');
+    return mime ? mime.startsWith('image/') : IMAGE_EXT_RE.test(path);
+  }
+
   const heroModeOk = (v) => ['manual', 'auto'].includes(String(v ?? '').trim().toLowerCase());
 
   function heroFormState() {
@@ -176,11 +183,10 @@ export function registerSettingsRoutes(app, { repo, crypt, adminRepo, mutate = (
         return { ...im, thumbnail: previewSourceOf(item, 960) };
       }),
       mode: heroMode(repo),
-      tone: heroTone(repo),
     };
   }
 
-  /** 表单里那份 JSON：只收 {path,w,h}，路径必须是站内上传地址，同一张图不重复。 */
+  /** 表单里那份 JSON：只收 {path,w,h}，路径必须是站内上传的图片地址，同一张图不重复。 */
   function parseHeroList(raw) {
     let data;
     try { data = JSON.parse(raw); } catch { return '首页封面数据不是合法的 JSON'; }
@@ -191,19 +197,11 @@ export function registerSettingsRoutes(app, { repo, crypt, adminRepo, mutate = (
       const path = String(it?.path ?? '').trim();
       if (!path) return '首页封面列表里有空的地址';
       if (!heroUrlOk(path)) return `首页封面只能用站内上传的地址（/uploads/…）：${path}`;
-      if (isVideoSource(path)) return '首页封面只能是图片，视频请放在正文里';
+      if (!heroImageOk(path)) return `首页封面只能用图片：${path}`;
       if (seen.has(path)) return `同一项重复出现：${path}`;
       seen.add(path);
       const dim = (v) => (/^\d{1,5}$/.test(String(v ?? '').trim()) ? String(v).trim() : '');
-      const text = (v, max) => String(v ?? '').replace(/\p{Cc}/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
-      const rawLink = String(it?.link ?? '').trim();
-      const link = safeHeroLink(rawLink);
-      if (rawLink && !link) return `封面按钮链接不安全或格式不对：${rawLink.slice(0, 80)}`;
-      list.push({
-        path, w: dim(it?.w), h: dim(it?.h),
-        title: text(it?.title, 80), subtitle: text(it?.subtitle, 160),
-        link, linkText: text(it?.linkText, 24),
-      });
+      list.push({ path, w: dim(it?.w), h: dim(it?.h) });
     }
     return list;
   }
@@ -219,19 +217,16 @@ export function registerSettingsRoutes(app, { repo, crypt, adminRepo, mutate = (
     } else {
       const url = val(b, 'url').trim();
       if (url && !heroUrlOk(url)) return `首页封面只能用站内上传的地址（/uploads/…）：${url}`;
-      if (url && isVideoSource(url)) return '首页封面只能是图片，视频请放在正文里';
+      if (url && !heroImageOk(url)) return `首页封面只能用图片：${url}`;
       const dim = (k) => (/^\d{1,5}$/.test(val(b, k).trim()) ? val(b, k).trim() : '');
       list = url ? [{ path: url, w: dim('w'), h: dim('h') }] : [];
     }
 
     const mode = list.length > 1 && heroModeOk(val(b, 'mode')) ? val(b, 'mode').trim().toLowerCase() : '';
-    const rawTone = val(b, 'tone').trim().toLowerCase();
-    const tone = HERO_TONES.some((item) => item.key === rawTone) ? rawTone : 'light';
     const first = list[0];
     repo.transaction(() => {
       repo.setSetting(KEYS.heroImages, list.length ? JSON.stringify(list) : '');
       repo.setSetting(KEYS.heroMode, mode);
-      repo.setSetting(KEYS.heroTone, tone);
       // 旧键镜像（单图时代的读者/脚本仍认这三个键）：存列表第一张。
       repo.setSetting(HERO_KEYS.url, first?.path ?? '');
       repo.setSetting(HERO_KEYS.w, first?.w && first?.h ? first.w : '');
@@ -250,13 +245,11 @@ export function registerSettingsRoutes(app, { repo, crypt, adminRepo, mutate = (
       const data = JSON.parse(val(body, 'images') || '[]');
       if (Array.isArray(data)) images = data.map((it) => ({
         path: String(it?.path ?? ''), w: String(it?.w ?? ''), h: String(it?.h ?? ''),
-        title: String(it?.title ?? ''), subtitle: String(it?.subtitle ?? ''),
-        link: String(it?.link ?? ''), linkText: String(it?.linkText ?? ''),
-      })).filter((it) => it.path && !isVideoSource(it.path));
+      })).filter((it) => it.path && heroImageOk(it.path));
     } catch { /* 保留空列表，至少显示错误 */ }
     if (!images.length) {
       const url = val(body, 'url').trim();
-      if (url && !isVideoSource(url)) images = [{ path: url, w: val(body, 'w'), h: val(body, 'h') }];
+      if (url && heroImageOk(url)) images = [{ path: url, w: val(body, 'w'), h: val(body, 'h') }];
     }
     const hero = {
       images: images.map((im) => {
@@ -264,14 +257,13 @@ export function registerSettingsRoutes(app, { repo, crypt, adminRepo, mutate = (
         return { ...im, thumbnail: previewSourceOf(item, 960) };
       }),
       mode: val(body, 'mode'),
-      tone: val(body, 'tone') || 'light',
     };
     return systemHtml(c, { notice: `✗ ${err}`, hero });
   });
 
   app.post('/admin/hero/clear', (c) => {
     repo.transaction(() => {
-      for (const k of [KEYS.heroImages, KEYS.heroMode, KEYS.heroTone, ...Object.values(HERO_LEGACY_KEYS), ...HERO_RETIRED_KEYS]) repo.setSetting(k, '');
+      for (const k of [KEYS.heroImages, KEYS.heroMode, ...Object.values(HERO_LEGACY_KEYS), ...HERO_RETIRED_KEYS]) repo.setSetting(k, '');
     });
     return notice(c, '/admin/system', '✓ 已移除首页展示，图片保留在媒体库');
   });

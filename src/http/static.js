@@ -24,10 +24,6 @@ export const MIME = {
   '.jpeg': 'image/jpeg',
   '.webp': 'image/webp',
   '.avif': 'image/avif',
-  '.mp4': 'video/mp4',
-  '.m4v': 'video/x-m4v',
-  '.webm': 'video/webm',
-  '.mov': 'video/quicktime',
   '.ico': 'image/x-icon',
   '.woff2': 'font/woff2',
   '.txt': 'text/plain; charset=utf-8',
@@ -210,7 +206,7 @@ export function createStaticFiles({ repo, assetVer }) {
         headers['Content-Length'] = String(buf.length);
         return c.body(c.req.method === 'HEAD' ? null : buf, 200, headers);
       }
-      // 视频需要分片请求（Safari 不给 206 就不放，Chrome 能放但拖进度条要整段重下）。只实现单区间：
+      // 大文件（原图、归档）需要分片请求：只实现单区间：
       // 多区间按 RFC 允许忽略，直接回整份 200。
       headers['Accept-Ranges'] = 'bytes';
       const range = c.req.header('range');

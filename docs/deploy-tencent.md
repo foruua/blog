@@ -13,7 +13,7 @@
 | `/srv/blog` | 运行目录（代码 + `.env`） |
 | `/srv/blog/state/data` | SQLite、`.app-secret`、头像、备份 |
 | `/srv/blog/state/content` | Markdown 原稿 |
-| `/srv/blog/state/uploads` | 上传的图片与视频 |
+| `/srv/blog/state/uploads` | 上传的图片 |
 | `/srv/blog-releases` | 每次发布的完整源码与依赖 |
 
 ## 1. 首次装机
@@ -122,8 +122,8 @@ journalctl -u blog -f      # 日志由 journald 轮转，不需要再看文件�
 ```nginx
 server {
     server_name example.com;
-    # 覆盖 128MB 视频上限；同时给大文件上传留足超时
-    client_max_body_size 160m;
+    # 覆盖单文件上限（默认 8MB、最多 32MB）；同时给大文件上传留足超时
+    client_max_body_size 40m;
     client_body_timeout 300s;
 
     location / {
@@ -166,7 +166,7 @@ sudo certbot --nginx -d example.com      # 自动续期由 certbot.timer 负责
 sudo certbot renew --dry-run
 ```
 
-`client_max_body_size` 小于视频上限时，后台上传大视频会得到 Nginx 的 413，而不是应用的错误。
+`client_max_body_size` 小于单文件上限时，后台上传大图会得到 Nginx 的 413，而不是应用的错误。
 
 ## 4. 发布
 
@@ -283,7 +283,7 @@ sudo env BLOG_DEPLOY_APP_ROOT=/srv/blog \
 | 现象 | 检查 |
 | --- | --- |
 | 502 | `systemctl status blog`、`journalctl -u blog -n 100` |
-| 413 / 大视频传不上去 | Nginx `client_max_body_size` 与 `client_body_timeout` |
+| 413 / 大图传不上去 | Nginx `client_max_body_size` 与 `client_body_timeout` |
 | `/healthz` 没有备份字段 | 生产 `.env` 是否配 `MONITOR_TOKEN`，探针 header 是否一致 |
 | 页面没有备案号 | `.env` 的 `SITE_ICP`，改完 `systemctl restart blog` |
 | 证书快过期 | `systemctl list-timers | grep certbot`、`certbot renew --dry-run` |

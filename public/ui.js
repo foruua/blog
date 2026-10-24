@@ -578,12 +578,12 @@
   };
   window.__theme = theme;
 
-  /* 灯箱切到视频 / 关闭时把图片这条线彻底停住：还在飞的 loader 不能再把 <img> 顶回可见（否则视频旁边闪出一张图）。 */
+  /* 灯箱关闭时把图片这条线彻底停住：还在飞的 loader 不能再把 <img> 顶回可见。 */
   const clearImage = (dialog) => {
     const state = imageLoads.get(dialog);
     if (state) {
       cancelImage(dialog, state);
-      // 切到视频时把图片缩放器一并复位：否则放大按钮仍可点，操作的却是隐藏的 <img>。
+      // 顺带把图片缩放器复位：否则放大按钮仍可点，操作的却是隐藏的 <img>。
       state.viewer?.reset();
     }
     const image = dialog.querySelector('.lb-img');

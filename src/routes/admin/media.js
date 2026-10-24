@@ -1,14 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import crypto from 'node:crypto';
 import { ADMIN_PAGE_SIZE, UPLOADS_DIR, DATA_DIR } from '../../config.js';
 import { mediaPage, mediaDeletePage, mediaDetailPage, mediaDetailContent } from '../../admin/views/media.js';
 import { variantFile, thumbnailFile, previewSrcsetOf, previewSourceOf, originalPathOf, parseVariants, serializeVariants } from '../../media/variants.js';
 import { deleteWithFiles } from '../../content/commit.js';
 import { mediaFile } from '../../media/paths.js';
-import { MAX_UPLOAD, MAX_VIDEO_UPLOAD } from '../../util/http.js';
+import { MAX_UPLOAD } from '../../util/http.js';
 import { normalizeImage, probeImage, ALLOWED_MIME, extensionFor } from '../../media/image.js';
-import { sniffVideoType, videoDimensions, videoExtension } from '../../media/video.js';
 import { bumpMediaRevision } from '../../media/revision.js';
 import { heroImages } from '../../settings.js';
 import { bodyOf, pageNumber, pagination, externalWrite, notice, notFoundPage } from './shared.js';
@@ -17,7 +15,7 @@ import { syncDirectory } from '../../util/files.js';
 
 
 // 独占创建 + 顺手做一次符号链接检查：mediaFile() 只校验现有祖先，新建文件本身得由 wx 保证不会覆盖。
-// 视频/图片可能很大：异步写 + fsync，别用同步调用堵住整个进程的事件循环。
+// 图片可能很大：异步写 + fsync，别用同步调用堵住整个进程的事件循环。
 
 async function writeNewFileAsync(filePath, data, createdFiles) {
   mediaFile('/uploads/' + path.relative(UPLOADS_DIR, filePath).split(path.sep).join('/'));
@@ -40,46 +38,6 @@ async function writeIfAbsentAsync(filePath, data, createdFiles) {
     if (!same) throw e;
   }
 }
-
-// 原始上传已经落在临时文件里：视频直接复制进媒体目录（内核 copy，不经过 JS 堆），写后 fsync。
-// 先写同目录 .part 再 rename：ENOSPC/EIO 中途失败不会留下占住内容哈希路径的半截正式文件。
-async function writeNewFileFromPathAsync(filePath, sourcePath, createdFiles) {
-  mediaFile('/uploads/' + path.relative(UPLOADS_DIR, filePath).split(path.sep).join('/'));
-  const tmp = `${filePath}.part-${process.pid}-${crypto.randomBytes(4).toString('hex')}`;
-  try {
-    await fs.promises.copyFile(sourcePath, tmp, fs.constants.COPYFILE_EXCL);
-    const fh = await fs.promises.open(tmp, 'r+');
-    try { await fh.sync(); } finally { await fh.close(); }
-    const source = await fs.promises.stat(sourcePath).catch(() => null);
-    const existing = await fs.promises.stat(filePath).catch(() => null);
-    if (existing?.isFile() && source && existing.size === source.size) {
-      // 同尺寸不等于同内容（截断/内容哈希前 16 位碰撞）：比较内容后再决定复用。
-      const [a, b] = await Promise.all([hashFileAsync(tmp), hashFileAsync(filePath)]);
-      if (a === b) { await fs.promises.rm(tmp, { force: true }); return false; }
-    }
-    await fs.promises.rename(tmp, filePath);
-    createdFiles.push(filePath);
-    syncDirectory(path.dirname(filePath));
-    return true;
-  } finally {
-    await fs.promises.rm(tmp, { force: true }).catch(() => {});
-  }
-}
-
-const hashFileAsync = async (file) => {
-  const hash = crypto.createHash('sha256');
-  for await (const chunk of fs.createReadStream(file)) hash.update(chunk);
-  return hash.digest('hex');
-};
-
-const readHeadAsync = async (file, bytes = 64) => {
-  const fh = await fs.promises.open(file, 'r');
-  try {
-    const buf = Buffer.alloc(bytes);
-    const { bytesRead } = await fh.read(buf, 0, bytes, 0);
-    return buf.subarray(0, bytesRead);
-  } finally { await fh.close(); }
-};
 
 export function registerMediaRoutes(app, { repo, adminRepo, mutate = (fn) => fn() }, { ctx }) {
 
@@ -116,119 +74,35 @@ export function registerMediaRoutes(app, { repo, adminRepo, mutate = (fn) => fn(
     return c.json({ ok: true, url: dup.path, thumbnail: previewSourceOf(dup), width: dup.width, height: dup.height, bytes: original.length, deduped: true });
   }
 
-  // 视频不生成缩略图/变体，也不重编码：上传只做魔数校验、按内容哈希落盘、写一条 media。
-  function finishVideoUpload(c, dup, original, fallbackMime) {
-    if (!mediaComplete(dup)) return c.json({ ok: false, error: '媒体文件缺失，正在重建，请重试' }, 503);
-    if (!dup.original_bytes) adminRepo.mediaSetOriginalBytes(dup.id, original.length);
-    return c.json({ ok: true, url: dup.path, mime: dup.mime ?? fallbackMime, width: dup.width, height: dup.height, bytes: original.length, deduped: true });
-  }
-
-  // 视频上传：原始缓冲与临时文件共用同一条落盘/去重/写库路径。大视频只走临时文件，不把字节读进 JS 堆。
-  async function saveVideoUpload({ c, hash, mime, size, original = null, tempPath = null, filename = null }) {
-    const existing = adminRepo.mediaByHash(hash);
-    if (existing && mediaComplete(existing)) return mutate(() => finishVideoUpload(c, existing, { length: size }, mime));
-
-    // 尺寸只是展示辅助；超大视频不为了读 moov 把整段文件再拉进内存。
-    let dims = { width: 0, height: 0 };
-    if (original) dims = videoDimensions(original, mime);
-    else if (size <= 32 * 1024 * 1024) {
-      const buf = await fs.promises.readFile(tempPath);
-      dims = videoDimensions(buf, mime);
-    }
-
-    // 视频写盘 + fsync 可能持续数秒：放在全局写队列外，队列内只做去重与一条 INSERT。
-    const now = new Date();
-    const y = String(now.getUTCFullYear());
-    const m = String(now.getUTCMonth() + 1).padStart(2, '0');
-    const dir = path.join(UPLOADS_DIR, y, m);
-    const abs = path.join(dir, `${hash.slice(0, 16)}.${videoExtension(mime)}`);
-    const rel = `/uploads/${y}/${m}/${path.basename(abs)}`;
-    const createdFiles = [];
-    try {
-      fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-      mediaFile(rel);
-      fs.mkdirSync(dir, { recursive: true });
-      if (tempPath) await writeNewFileFromPathAsync(abs, tempPath, createdFiles);
-      else await writeNewFileAsync(abs, original, createdFiles);
-
-      return mutate(() => {
-        const again = adminRepo.mediaByHash(hash);
-        if (again && mediaComplete(again)) {
-          if (createdFiles.length && again.path !== rel) for (const f of createdFiles) fs.rmSync(f, { force: true });
-          return finishVideoUpload(c, again, { length: size }, mime);
-        }
-        // 记录还在但文件丢了：删掉坏行，按本次写入的新文件重建。
-        if (again) adminRepo.mediaDelete(again.id);
-        try {
-          adminRepo.mediaAdd({
-            path: rel, width: dims.width || null, height: dims.height || null, bytes: size,
-            originalBytes: size, mime, hash, filename,
-          });
-        } catch (e) {
-          for (const f of createdFiles) fs.rmSync(f, { force: true });
-          throw e;
-        }
-        bumpMediaRevision(repo);
-        return c.json({ ok: true, url: rel, mime, width: dims.width, height: dims.height, bytes: size });
-      });
-    } catch (e) {
-      for (const f of createdFiles) fs.rmSync(f, { force: true });
-      throw e;
-    }
-  }
-
   // 上传：解码/重编码（可达数百毫秒到数秒）在全局写队列【之外】完成，只把短促的同步写放回队列——否则大图上传期间评论、保存、登录会全部排队。
   externalWrite(app, '/admin/api/upload', async (c) => {
     const temp = c.get('uploadTemp');
     let original = null;
-    let videoMime = null;
     let hash = '';
     let filename = null;
 
     if (temp) {
-      // 新前端：body 是原始二进制，已由 boundedBody 流式落到临时文件；这里只读文件头判类型。
-      const head = await readHeadAsync(temp.file);
-      videoMime = sniffVideoType(head);
-      const limit = videoMime ? MAX_VIDEO_UPLOAD : MAX_UPLOAD;
-      if (temp.size > limit) {
-        return c.json({ ok: false, error: videoMime ? `视频超过 ${Math.round(limit / 1048576)}MB` : '上传文件过大' }, 413);
+      // 新前端：body 是原始二进制，已由 boundedBody 流式落到临时文件。
+      if (temp.size > MAX_UPLOAD) {
+        return c.json({ ok: false, error: `文件超过 ${Math.round(MAX_UPLOAD / 1048576)}MB` }, 413);
       }
       const rawName = c.req.header('x-file-name') ?? '';
       try { filename = decodeURIComponent(rawName).slice(0, 200); } catch { filename = rawName.slice(0, 200); }
-      if (videoMime) {
-        hash = await hashFileAsync(temp.file);
-        return saveVideoUpload({ c, hash, mime: videoMime, size: temp.size, tempPath: temp.file, filename });
-      }
-      // 不是视频的 raw 上传按图片上限先拦一次：临时文件可能已经有 100MB+，
-      // 先 readFile 再判长度会把整块字节装进 Node 堆，正好抵消流式落盘的意义。
-      if (temp.size > MAX_UPLOAD) return c.json({ ok: false, error: '上传文件过大' }, 413);
       original = await fs.promises.readFile(temp.file);
     } else {
       // 旧 multipart 表单（兼容旧客户端/脚本）：仍然整块读入，但先按 File.size 拦住超大请求，
-      // 别等 arrayBuffer() 把 128MB 视频/伪装成视频的负载读进堆再判 413。图片上限只有 8MB。
+      // 别等 arrayBuffer() 把超限负载整块读进堆再判 413。
       const b = await bodyOf(c);
       const file = b instanceof FormData ? b.get('file') : null;
       if (!file || typeof file === 'string') return c.json({ ok: false, error: '没有拿到文件' }, 400);
       const declaredSize = Number(file.size);
-      const declaredType = String(file.type ?? '').toLowerCase();
-      const declaredVideo = declaredType.startsWith('video/') || /\.(?:mp4|webm|mov|m4v)$/i.test(String(file.name ?? ''));
-      if (Number.isFinite(declaredSize) && declaredSize > MAX_VIDEO_UPLOAD) {
-        return c.json({ ok: false, error: `视频超过 ${Math.round(MAX_VIDEO_UPLOAD / 1048576)}MB` }, 413);
-      }
-      if (Number.isFinite(declaredSize) && declaredSize > MAX_UPLOAD && !declaredVideo) {
+      if (Number.isFinite(declaredSize) && declaredSize > MAX_UPLOAD) {
         return c.json({ ok: false, error: `文件超过 ${Math.round(MAX_UPLOAD / 1048576)}MB` }, 413);
       }
       original = Buffer.from(await file.arrayBuffer());
       filename = file.name ?? null;
-      // 类型只认文件头，不信浏览器给的 MIME：video/* 的文本会被下面的图片分支拒掉，反之亦然。
-      videoMime = sniffVideoType(original);
-      const limit = videoMime ? MAX_VIDEO_UPLOAD : MAX_UPLOAD;
-      if (original.length > limit) {
-        return c.json({ ok: false, error: videoMime ? `视频超过 ${Math.round(limit / 1048576)}MB` : '上传文件过大' }, 413);
-      }
-      if (videoMime) {
-        hash = probeImage.sha256(original);
-        return saveVideoUpload({ c, hash, mime: videoMime, size: original.length, original, filename });
+      if (original.length > MAX_UPLOAD) {
+        return c.json({ ok: false, error: '上传文件过大' }, 413);
       }
     }
 
@@ -246,7 +120,7 @@ export function registerMediaRoutes(app, { repo, adminRepo, mutate = (fn) => fn(
 
     const mime = probeImage.mime(buf);
     if (!mime || !ALLOWED_MIME.has(mime)) {
-      return c.json({ ok: false, error: '只接受图片 PNG / JPEG / GIF / WebP、视频 MP4 / WebM / MOV（不接受 SVG：它可携带脚本）' }, 415);
+      return c.json({ ok: false, error: '只接受图片 PNG / JPEG / GIF / WebP（不接受 SVG：它可携带脚本）' }, 415);
     }
 
     const now = new Date();

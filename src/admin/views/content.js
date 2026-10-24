@@ -174,8 +174,8 @@ export function editorPage({ conflict = false, post, csrf, aliases = [], revisio
   const actions = `          <button type="submit" class="a-btn" name="action" value="save" data-saved="已保存" title="保存当前内容和发布设置">保存</button>
           <button type="submit" name="action" value="publish" class="a-btn-ghost" data-saved="已保存并发布" title="保存内容并发布；未来时间将定时发布">保存并发布</button>
           <button type="button" data-editor-preview class="a-btn-ghost">预览</button>
-          <button type="button" id="a-upload-btn" class="a-btn-ghost">插入图片/视频</button>
-          <input type="file" id="a-file" accept="image/*,video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov" hidden>`;
+          <button type="button" id="a-upload-btn" class="a-btn-ghost">插入图片</button>
+          <input type="file" id="a-file" accept="image/*" hidden>`;
 
   const danger = post.id ? `          <a class="a-btn-danger" href="/admin/delete/${post.id}"
             data-modal-action="/admin/delete/${post.id}"

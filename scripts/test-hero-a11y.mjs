@@ -30,7 +30,7 @@ try {
     admin.mediaAdd({ path: source, width: result.width, height: result.height, mime: 'image/png', animated: 0,
       thumbnail: thumbnailFile(source),
       variants: serializeVariants(result.variants.map((v) => ({ w: v.width, path: variantFile(source, v.width) })))});
-    entries.push({ path: source, w: result.width, h: result.height, title: `第 ${i + 1} 张文案`, subtitle: '副标题', link: '/about/', linkText: '关于' });
+    entries.push({ path: source, w: result.width, h: result.height });
   }
   repo.setSetting('hero_images', JSON.stringify(entries));
   repo.setSetting('hero_mode', 'auto');   // 自动模式：正是自动轮播推进才逼出这个 bug
@@ -63,17 +63,8 @@ try {
   }));
   assert.equal(swapped.inHiddenSubtree, false, '换张后焦点不得处在 aria-hidden 子树里');
   assert.equal(swapped.isActiveSlide, true, '被换下的那张要把焦点交给新的当前张');
-  const copyState = await page.evaluate(() => {
-    const copies = [...document.querySelectorAll('.hero-copy')];
-    return {
-      active: copies.findIndex((copy) => copy.classList.contains('is-active')),
-      hidden: copies.map((copy) => copy.getAttribute('aria-hidden')),
-      text: copies.map((copy) => copy.textContent.replace(/\s+/g, ' ').trim()),
-    };
-  });
-  assert.equal(copyState.active, 1, '文字层要跟着当前张切换');
-  assert.equal(copyState.hidden[0], 'true', '非当前张文字要对读屏隐藏');
-  assert.match(copyState.text[1], /第 2 张文案/);
+  // 封面文字已下线：页面上不该再有 .hero-copy（旧的断言一并撤掉）。
+  assert.equal(await page.locator('.hero-copy').count(), 0, '首页不该再渲染封面文字层');
 
   // ② 开灯箱后等超过一个自动轮播周期：灯箱开着时不许推进（否则关灯箱会把焦点还给已隐藏的封面）。
   const before = await page.locator('.hero-slide.is-active').evaluate((el) => el.getAttribute('data-full'));

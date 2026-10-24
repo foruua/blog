@@ -1,7 +1,7 @@
 (() => {
   'use strict';
   // 超时覆盖请求发送与响应体读取，避免只发响应头时永久挂起。
-  // timeoutMs 可由调用方覆盖：上传大视频时 15 秒会把正常请求误杀（服务端给上传留了 600 秒）。
+  // timeoutMs 可由调用方覆盖：上传大文件时 15 秒会把正常请求误杀（服务端给上传留了 600 秒）。
   window.__request = async (url, options) => {
     const controller = new AbortController();
     const { timeoutMs: rawTimeout, signal, ...fetchOptions } = options ?? {};
@@ -24,11 +24,7 @@
   window.__csrf = () => document.querySelector('input[name="_csrf"]')?.value ?? '';
   window.__reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  // 视频判断：正文渲染（src/media/video.js）、媒体库格子、选择器都按同一份扩展名认。
-  const VIDEO_RE = /\.(?:mp4|webm|mov|m4v)(?:$|[?#])/i;
-  window.__isVideoPath = (p) => VIDEO_RE.test(String(p ?? ''));
-
-  // 原始文件直传（编辑器插图、首页封面共用）：服务端流式落临时文件，视频 128MB 走 600 秒窗口，
+  // 原始文件直传（编辑器插图、首页封面共用）：服务端流式落临时文件，走 600 秒窗口，
   // 别被 15 秒的默认超时先掐断。返回服务端 JSON，调用方自己判 out.ok。
   window.__uploadRaw = async (file, { signal } = {}) => {
     const res = await window.__request('/admin/api/upload', {
@@ -44,29 +40,6 @@
     return res.json();
   };
 
-  // 视频默认 preload=none；进入视口（或笔记展开）后再要 metadata，首帧预览保留，但不在首屏抢带宽。
-  // observer 在每次 pjax 换页时重建：旧节点已从 DOM 移除，必须 disconnect，否则会一直被观察。
-  let lazyVideoObserver = null;
-  window.__lazyVideo = (root = document) => {
-    lazyVideoObserver?.disconnect();
-    lazyVideoObserver = null;
-    const videos = [...root.querySelectorAll('video[data-lazy-preload]')];
-    if (!videos.length) return;
-    if (typeof IntersectionObserver !== 'function') {
-      videos.forEach((v) => { v.preload = 'metadata'; v.removeAttribute('data-lazy-preload'); });
-      return;
-    }
-    lazyVideoObserver = new IntersectionObserver((entries, io) => {
-      for (const entry of entries) {
-        if (!entry.isIntersecting) continue;
-        const video = entry.target;
-        video.preload = 'metadata';
-        video.removeAttribute('data-lazy-preload');
-        io.unobserve(video);
-      }
-    }, { rootMargin: '200px' });
-    videos.forEach((v) => lazyVideoObserver.observe(v));
-  };
   // 打开弹层：有 ui.js 走它（带滚动锁/焦点处理）；没有则退回原生 showModal，绝不因为缺一个脚本就打不开。
   window.__openDialog = (dialog) => {
     if (!dialog) return;

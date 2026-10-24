@@ -1,6 +1,6 @@
 import { csrfField, esc } from '../../util/text.js';
 import { adminLayout } from '../layout.js';
-import { PALETTES, HERO_MAX, HERO_TONES } from '../../settings.js';
+import { PALETTES, HERO_MAX } from '../../settings.js';
 import { TLS_MODES, TLS_LABEL } from '../../mail.js';
 import { pickerDialog } from './picker.js';
 
@@ -27,8 +27,6 @@ export function systemPage({ mail = {}, hero = {}, site = {}, history = {}, csrf
                       aria-label="上移第 ${i + 1} 项"${i === 0 ? ' disabled' : ''}>↑</button>
               <button type="button" class="a-hero-nudge" data-hero-move="1"
                       aria-label="下移第 ${i + 1} 项"${i === hero.images.length - 1 ? ' disabled' : ''}>↓</button>
-              <button type="button" class="a-hero-nudge a-hero-textbtn" data-hero-text="${esc(im.path)}"
-                      aria-label="编辑第 ${i + 1} 项文案" title="编辑这一张的封面文字">文</button>
             </span>
           </figcaption>
           <button type="button" class="a-hero-x" data-hero-remove="${esc(im.path)}"
@@ -41,9 +39,7 @@ export function systemPage({ mail = {}, hero = {}, site = {}, history = {}, csrf
         </button>`;
   // data-thumbs 给 JS「路径 → 预览图」对照。整段 JSON 一次 esc：结构引号在属性值里也必须转义，否则属性会被截断。
   const heroThumbs = esc(JSON.stringify(Object.fromEntries(hero.images.map((im) => [im.path, im.thumbnail || '']))));
-  const heroValue = JSON.stringify(hero.images.map(({ path, w, h, title, subtitle, link, linkText }) => ({
-    path, w, h, title: title ?? '', subtitle: subtitle ?? '', link: link ?? '', linkText: linkText ?? '',
-  })));
+  const heroValue = JSON.stringify(hero.images.map(({ path, w, h }) => ({ path, w, h })));
   const heroSection = `    <h2 class="a-h2">首页封面</h2>
     <div class="a-card a-panel">
     <form method="post" action="/admin/hero" id="heroForm">
@@ -56,12 +52,6 @@ ${hero.images.length ? heroItems + '\n' : ''}${heroAdd}
         <select class="a-select" id="heroMode" name="mode">
           <option value="manual"${hero.mode !== 'auto' ? ' selected' : ''}>手动切换</option>
           <option value="auto"${hero.mode === 'auto' ? ' selected' : ''}>自动轮播</option>
-        </select>
-      </div>
-      <div class="a-hero-mode">
-        <label for="heroTone">文字颜色</label>
-        <select class="a-select" id="heroTone" name="tone">
-          ${HERO_TONES.map((item) => `<option value="${esc(item.key)}"${hero.tone === item.key ? ' selected' : ''}>${esc(item.name)}</option>`).join('')}
         </select>
       </div>
       <input type="hidden" id="heroImages" name="images" value="${esc(heroValue)}" data-thumbs="${heroThumbs}">
@@ -78,39 +68,7 @@ ${hero.images.length ? heroItems + '\n' : ''}${heroAdd}
       </div>
       <input type="file" id="heroFile" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden>
     </form>
-    </div>
-    <dialog class="a-modal a-hero-text-dialog" id="heroTextDialog" aria-labelledby="heroTextDialogTitle">
-      <form method="dialog">
-        <header class="a-hero-text-head">
-          <h2 class="a-modal-title" id="heroTextDialogTitle">封面文字</h2>
-          <button type="button" class="a-hero-text-close" data-hero-text-cancel aria-label="关闭封面文字编辑">×</button>
-        </header>
-        <div class="a-hero-text-body">
-          <div class="a-field">
-            <label for="heroTextTitle">标题</label>
-            <input class="a-input" id="heroTextTitle" maxlength="80" autocomplete="off">
-          </div>
-          <div class="a-field">
-            <label for="heroTextSubtitle">副标题</label>
-            <input class="a-input" id="heroTextSubtitle" maxlength="160" autocomplete="off">
-          </div>
-          <div class="a-hero-text-grid">
-            <div class="a-field">
-              <label for="heroTextLinkText">按钮文字</label>
-              <input class="a-input" id="heroTextLinkText" maxlength="24" autocomplete="off">
-            </div>
-            <div class="a-field">
-              <label for="heroTextLink">按钮链接</label>
-              <input class="a-input" id="heroTextLink" maxlength="500" autocomplete="off">
-            </div>
-          </div>
-        </div>
-        <footer class="a-modal-actions a-hero-text-actions">
-          <button type="button" class="a-btn-ghost" data-hero-text-cancel>取消</button>
-          <button type="button" class="a-btn" data-hero-text-save>保存文字</button>
-        </footer>
-      </form>
-    </dialog>`;
+    </div>`;
 
   const presets = mail.presets ?? [];
   const matched = presets.find((p) => p.host && p.host === (mail.host ?? ''))?.id ?? 'custom';

@@ -166,11 +166,7 @@
     setReplyRow(row, row?.previousElementSibling?.querySelector('[data-reply-toggle]') ?? null, false);
   });
 
-  // 视频懒加载在 request.js 里（前后台同一份）；这里只负责在每次换页时重建 observer。
-  const setupLazyVideoPreload = (root = document) => window.__lazyVideo(root);
-
   function setupPage() {
-    setupLazyVideoPreload();
     ed?.dispose();
     // admin-editor.js 只在编辑器页加载；其余后台页别无条件调用，否则初始化会在这里抛错。
     ed = window.__setupAdminEditor ? window.__setupAdminEditor() : null;
@@ -326,12 +322,8 @@
     const modeRow = $('heroModeRow');
     const x = $('heroX');
     const state = $('heroState');
-    const textDialog = $('heroTextDialog');
-    const textTitle = $('heroTextTitle');
-    const textSubtitle = $('heroTextSubtitle');
-    const textLink = $('heroTextLink');
-    const textLinkText = $('heroTextLinkText');
-    let textPath = '';
+    // 封面只收图片。上传接口已只收图片，这里再挡一道：也挡住把 .mp4 改名成 .png 混进来的情况。
+    const NON_IMAGE_RE = /\.(?:mp4|webm|mov|m4v)(?:$|[?#])/i;
     const MAX = 8;
     let items = [];
     try { items = JSON.parse(input.value).filter((it) => it && it.path); } catch { items = []; }
@@ -341,7 +333,7 @@
     let dragged = null;         // 正在拖的格子
     let suppressClick = false;  // 拖完紧接着的那次 click 要吞掉，别误触移除叉
     // 一枚缩略格：原比例图 + 拖拽柄·序号·封面 + 移除叉。「封面」= 第一位。标记要与 views/system.js 首屏那份一致。
-    // 封面只收图片（首页封面视频的能力已删除），比例固定 16:9，与前台同一套。
+    // 封面比例固定 16:9，与前台同一套。
     const tile = (it, i) => {
       const fig = document.createElement('figure');
       fig.className = 'a-hero-item';
@@ -389,14 +381,6 @@
         nudge.textContent = text;
         moves.append(nudge);
       }
-      const textBtn = document.createElement('button');
-      textBtn.type = 'button';
-      textBtn.className = 'a-hero-nudge a-hero-textbtn';
-      textBtn.dataset.heroText = it.path;
-      textBtn.setAttribute('aria-label', `编辑第 ${i + 1} 项文案`);
-      textBtn.title = '编辑这一张的封面文字';
-      textBtn.textContent = '文';
-      moves.append(textBtn);
       cap.append(moves);
 
       const btn = document.createElement('button');
@@ -439,15 +423,14 @@
       modeRow.hidden = items.length < 2;
     };
 
-    // 媒体库选择器（与编辑器同一份实现）：选中的图片加进封面列表，点保存才生效。视频不入封面，选择器里也不列。
+    // 媒体库选择器（与编辑器同一份实现）：选中的图片加进封面列表，点保存才生效。
     heroPicker = window.__setupMediaPicker?.({
       dialog: $('a-picker'),
       body: $('a-picker-body'),
       uploadButton: $('a-picker-upload'),
       fileInput: file,
-      accept: 'image',
       onPick: (it) => {
-        if (window.__isVideoPath(it.path)) { state.textContent = '首页封面只能用图片'; return; }
+        if (NON_IMAGE_RE.test(it.path)) { state.textContent = '首页封面只能用图片'; return; }
         if (items.length >= MAX) { state.textContent = `最多 ${MAX} 项，先移掉几项再选`; return; }
         if (items.some((x) => x.path === it.path)) { state.textContent = '这个已经在列表里了'; return; }
         items.push({ path: it.path, w: String(it.width ?? ''), h: String(it.height ?? '') });
@@ -458,30 +441,6 @@
         state.textContent = '已从媒体库添加（还没保存）';
       },
     });
-
-    if (textDialog) {
-      const saveText = () => {
-        const item = items.find((it) => it.path === textPath);
-        if (item) {
-          item.title = String(textTitle?.value ?? '').trim().slice(0, 80);
-          item.subtitle = String(textSubtitle?.value ?? '').trim().slice(0, 160);
-          item.linkText = String(textLinkText?.value ?? '').trim().slice(0, 24);
-          item.link = String(textLink?.value ?? '').trim().slice(0, 500);
-        }
-        textDialog.close();
-        render();
-        [...list.querySelectorAll('[data-hero-text]')].find((btn) => btn.dataset.heroText === textPath)?.focus();
-        state.textContent = '已更新封面文字（还没保存）';
-      };
-      textDialog.querySelectorAll('[data-hero-text-cancel]').forEach((btn) => btn.addEventListener('click', () => textDialog.close()));
-      textDialog.querySelector('[data-hero-text-save]')?.addEventListener('click', saveText);
-      // 输入框里按 Enter 直接保存；不用把对话框变成会提交整页的表单。
-      textDialog.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && e.target instanceof HTMLInputElement && !e.isComposing) {
-          e.preventDefault(); saveText();
-        }
-      });
-    }
 
     // 缩略格与「添加」格每次重画，监听挂容器上（委托），别挂节点上
     list.addEventListener('click', (e) => {
@@ -504,20 +463,6 @@
         (moved?.querySelector(`[data-hero-move="${nudge.dataset.heroMove}"]:not(:disabled)`)
           ?? moved?.querySelector('[data-hero-move]:not(:disabled)'))?.focus();
         state.textContent = '已调整顺序（还没保存）';
-        return;
-      }
-      const text = e.target.closest?.('[data-hero-text]');
-      if (text) {
-        const path = text.dataset.heroText;
-        const item = items.find((it) => it.path === path);
-        if (!item || !textDialog) return;
-        textPath = path;
-        if (textTitle) textTitle.value = item.title ?? '';
-        if (textSubtitle) textSubtitle.value = item.subtitle ?? '';
-        if (textLink) textLink.value = item.link ?? '';
-        if (textLinkText) textLinkText.value = item.linkText ?? '';
-        window.__openDialog(textDialog);
-        textTitle?.focus({ preventScroll: true });
         return;
       }
       const rm = e.target.closest?.('[data-hero-remove]');
@@ -599,11 +544,11 @@
       for (const f of files) {
         state.textContent = `上传 ${f.name}…`;
         try {
-          // 原始文件直传（与编辑器插图同一份实现）：服务端流式落临时文件，大视频不整块进 Node 堆。
+          // 原始文件直传（与编辑器插图同一份实现）：服务端流式落临时文件，不整块进 Node 堆。
           const out = await window.__uploadRaw(f);
           if (!out.ok) { state.textContent = `上传失败：${out.error}`; failed++; continue; }
-          // 上传接口图片、视频都收；封面只要图片（也挡住把 .mp4 改名成 .png 混进来的情况）。
-          if (window.__isVideoPath(out.url)) { state.textContent = '首页封面只能用图片，视频请放在正文里'; continue; }
+          // 上传接口只收图片；封面再确认一次地址后缀。
+          if (NON_IMAGE_RE.test(out.url)) { state.textContent = '首页封面只能用图片'; continue; }
           if (items.some((it) => it.path === out.url)) { state.textContent = '这个已经在列表里了'; continue; }
           items.push({ path: out.url, w: String(out.width ?? ''), h: String(out.height ?? '') });
           thumbs[out.url] = out.thumbnail || '';

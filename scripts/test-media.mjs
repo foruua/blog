@@ -6,7 +6,6 @@ import { spawnSync } from 'node:child_process';
 import sharp from 'sharp';
 import { DatabaseSync } from 'node:sqlite';
 import { normalizeImage, PREVIEW_REUSE_MAX_BYTES } from '../src/media/image.js';
-import { sniffVideoType, videoDimensions, isVideoSource } from '../src/media/video.js';
 import { thumbnailFile, variantFile, previewSrcsetOf, previewSourceOf, variantWidthsOf, originalPathOf, parseVariants } from '../src/media/variants.js';
 import { createRenderer } from '../src/render/markdown.js';
 import { withLightbox } from '../src/render/lightbox.js';
@@ -65,16 +64,6 @@ const lit = withLightbox(previewHtml,'test');
 assert.equal((lit.match(/data-full=/g)??[]).length,1);
 assert.match(lit,/data-lightbox="test"/);
 
-// 正文视频：不进 <img> 那条线，而是补一枚独立的灯箱按钮；重复调用不会叠第二枚。
-const videoBody = createRenderer({ videoInfo: () => ({ width: 640, height: 360, mime: 'video/mp4' }) })
-  .render('![演示](/uploads/clip.mp4)').html;
-const videoLit = withLightbox(videoBody, 'p-demo', () => null);
-assert.match(videoLit, /<span class="prose-video">/);
-assert.match(videoLit, /class="prose-video-expand"[^>]*data-lightbox="p-demo"[^>]*data-media="video"/);
-assert.match(videoLit, /data-full="\/uploads\/clip\.mp4"/);
-assert.match(videoLit, /data-w="640" data-h="360"/);
-assert.match(videoLit, /aria-label="在灯箱中播放：演示"/);
-assert.equal((withLightbox(videoLit, 'p-demo', () => null).match(/prose-video-expand/g) ?? []).length, 1);
 assert.match(withLightbox('<a href="/uploads/a.gif"><img src="/uploads/a.gif"></a>','test',()=>info),/data-lightbox="test"/);
 assert.ok(!withLightbox('<a href="https://example.com"><img src="/uploads/a.gif"></a>','test',()=>info).includes('data-lightbox'));
 assert.equal(originalPathOf('/uploads/a.gif.v4-w240.webp?x=1&y=2'), '/uploads/a.gif');
@@ -85,46 +74,9 @@ const renderer = createRenderer();
 assert.match(renderer.render('![开头](/a.png)\n\n![后面](/b.png)').html, /loading="eager" fetchpriority="high"/);
 assert.match(renderer.render('长'.repeat(500) + '\n\n![后面](/b.png)').html, /loading="lazy"/);
 
-// 视频：按魔数识别 MP4/WebM，尺寸从容器头部解析；图片语法直接渲染成 <video>，不经过 <img>/灯箱。
-const mp4Box = (type, payload) => {
-  const b = Buffer.alloc(8 + payload.length);
-  b.writeUInt32BE(8 + payload.length, 0); b.write(type, 4, 'latin1'); payload.copy(b, 8);
-  return b;
-};
-const ftypPayload = Buffer.concat([Buffer.from('isom'), Buffer.from('isom')]);
-const tkhdPayload = Buffer.alloc(84);
-tkhdPayload.writeUInt32BE(1920 * 65536, 76);
-tkhdPayload.writeUInt32BE(1080 * 65536, 80);
-const mp4 = Buffer.concat([mp4Box('ftyp', ftypPayload), mp4Box('moov', mp4Box('trak', mp4Box('tkhd', tkhdPayload)))]);
-assert.equal(sniffVideoType(mp4), 'video/mp4');
-assert.deepEqual(videoDimensions(mp4, 'video/mp4'), { width: 1920, height: 1080 });
-assert.equal(sniffVideoType(Buffer.from('this is not a video at all')), null);
-assert.equal(isVideoSource('/uploads/a.mp4?x=1'), true);
-assert.equal(isVideoSource('/uploads/a.png'), false);
-const videoRenderer = createRenderer({ videoInfo: () => ({ width: 1920, height: 1080, mime: 'video/mp4' }) });
-const videoHtml = videoRenderer.render('![演示](/uploads/demo.mp4)').html;
-assert.match(videoHtml, /<video[^>]*controls[^>]*playsinline/);
-assert.match(videoHtml, /<source src="\/uploads\/demo\.mp4" type="video\/mp4">/);
-assert.match(videoHtml, /width="1920" height="1080" style="aspect-ratio:1920\/1080"/);
-assert.ok(!videoHtml.includes('<img'));
 const gallery = notesStream([{ slug: 'test', title: 'test', day: '', text: '', images: [{ src: '/original.gif', thumb: '/preview.webp', previewSrcset: '/small.webp 240w', width: 1200, height: 800 }], commentsHtml: '' }]);
 assert.match(gallery, /data-full="\/original.gif"/);
 assert.match(gallery, /srcset="\/small.webp 240w"/);
-
-// 笔记图集里的视频：从正文抽出、进 gallery；原位可播，另有灯箱按钮；顺序与图片混排时保持文档顺序。
-const videoNote = createRenderer({ videoInfo: () => ({ width: 640, height: 360, mime: 'video/mp4' }) })
-  .render('前文\n\n![演示](/uploads/clip.mp4)\n\n![照片](/uploads/pic.png)\n\n后文').html;
-const splitVideo = splitImages(videoNote);
-assert.deepEqual(splitVideo.images.map((x) => ({ video: Boolean(x.video), src: x.src })), [
-  { video: true, src: '/uploads/clip.mp4' }, { video: false, src: '/uploads/pic.png' },
-]);
-assert.ok(!splitVideo.text.includes('prose-video'));
-const videoGallery = notesStream([{ slug: 'vid', title: '视频笔记', day: '', text: '', commentCount: 0,
-  images: [{ video: true, src: '/uploads/clip.mp4', alt: '演示', width: 640, height: 360 }], commentsHtml: '' }]);
-assert.match(videoGallery, /class="gal-item gal-video"/);
-assert.match(videoGallery, /<video class="gal-video-el" src="\/uploads\/clip\.mp4" controls playsinline/);
-assert.match(videoGallery, /class="gal-video-expand"[^>]*data-lightbox="vid"[^>]*data-media="video"/);
-assert.match(videoGallery, /data-full="\/uploads\/clip\.mp4"/);
 
 const work = fs.mkdtempSync(path.join(os.tmpdir(), 'blog-media-'));
 const env = { ...process.env, DATA_DIR: work, DB_FILE: path.join(work, 'blog.db'), UPLOADS_DIR: path.join(work, 'uploads'), CONTENT_DIR: path.join(work, 'content') };

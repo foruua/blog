@@ -1,6 +1,5 @@
 import { PAGE_SIZE, RECENT, COMMENTS_PER_PAGE, FEEDS_PER_PAGE } from './config.js';
 import { isSafeUploadPath } from './util/url.js';
-import { isVideoSource } from './media/video.js';
 
 export const KEYS = {
   pageSize: 'page_size',
@@ -10,7 +9,6 @@ export const KEYS = {
   paletteDefault: 'palette_default',
   heroImages: 'hero_images',
   heroMode: 'hero_mode',
-  heroTone: 'hero_text_tone',
   themeActive: 'theme_active',
   themeOptionsPrefix: 'theme_options:',
 };
@@ -21,48 +19,11 @@ export const themeOptionsKey = (id) => `${KEYS.themeOptionsPrefix}${String(id ??
 /* 首页封面旧键（单图时代）：写入仍镜像维护（脚本/备份对比还认），读取仅在多图键缺失/损坏时回落。 */
 export const HERO_LEGACY_KEYS = { url: 'hero_image', w: 'hero_image_w', h: 'hero_image_h' };
 
-/* 已下线的首页封面选项（封面视频的播放方式）：不再读取，只在「全部移除」时顺手清掉残值。 */
-/* 已下线的首页封面选项（封面视频的播放方式、文字版式）：不再读取，只在「全部移除」时顺手清掉残值。 */
-export const HERO_RETIRED_KEYS = ['hero_video_mode', 'hero_layout'];
+/* 已下线的首页封面选项（视频播放方式、文字版式、文字颜色）：不再读取，只在「全部移除」时顺手清掉残值。 */
+export const HERO_RETIRED_KEYS = ['hero_video_mode', 'hero_layout', 'hero_text_tone'];
 
 /* 首页轮播上限，写死而非设置项：这是封面不是相册，八张还翻不到头就该换内容。 */
 export const HERO_MAX = 8;
-
-// 封面文字只有一套固定版式（左下角 + 轻渐变垫底），位置/字号/遮罩全在 CSS 里；
-// 后台只剩「文字颜色」，避免自由布局做出白字压白图。
-export const HERO_TONES = [
-  { key: 'light', name: '浅色字', hint: '深色图用' },
-  { key: 'dark', name: '深色字', hint: '浅色图用' },
-];
-
-const HERO_TITLE_MAX = 80;
-const HERO_SUBTITLE_MAX = 160;
-const HERO_LINK_TEXT_MAX = 24;
-
-const cleanHeroText = (value, max) => String(value ?? '')
-  .replace(/\p{Cc}/gu, ' ')
-  .replace(/\s+/g, ' ')
-  .trim()
-  .slice(0, max);
-
-/** 封面按钮链接：站内绝对路径或 http(s)；不放行 javascript:/data:/协议相对地址。 */
-export function safeHeroLink(raw) {
-  const s = String(raw ?? '').trim().slice(0, 500);
-  if (!s || /[\p{Cc}\\]/u.test(s)) return '';
-  if (s.startsWith('/')) {
-    if (s.startsWith('//') || s.includes('..') || /[?#]/.test(s)) return '';
-    return s;
-  }
-  try {
-    const url = new URL(s);
-    return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : '';
-  } catch { return ''; }
-}
-
-export function heroTone(repo) {
-  const value = String(repo.getSetting(KEYS.heroTone) ?? '').trim().toLowerCase();
-  return HERO_TONES.some((item) => item.key === value) ? value : 'light';
-}
 
 // 访客可选配色的唯一真相源：后台校验、配色面板里的色样、THEME_BOOT 白名单都取自这里。paper/ink 只是两个
 // 色样点；chroma 是「自定义」滑块从预设接上来的浓度（与 palette.js 的 LEVELS 同步，test-palette 会比对）。
@@ -132,7 +93,9 @@ export function parsePaletteDefault(raw) {
 
 // 首页封面列表的读取侧（前台渲染、后台表单、媒体库守卫共用）。宽松解析：JSON 坏了或挑不出时回落旧单图键
 // （存量站点免迁移）；单条坏只丢那条。路径只认 /uploads/，越界直接扔。
-// 封面只收图片：历史数据里可能还留着视频路径（该能力已删除），这里统一滤掉，渲染与后台都当它不存在。
+// 每条只有 path/w/h：封面文字（标题/副标题/按钮/颜色/版式）已整块下线，历史数据里多出来的字段直接忽略。
+// 只收图片：视频支持已下线，库里若还留着视频路径（历史数据），这里统一滤掉，首页直接回落站名。
+const HERO_IMAGE_EXT_RE = /\.(?:png|jpe?g|gif|webp|avif)(?:$|[?#])/i;
 export function heroImages(repo) {
   const raw = String(repo.getSetting(KEYS.heroImages) ?? '').trim();
   if (raw) {
@@ -140,30 +103,25 @@ export function heroImages(repo) {
       const data = JSON.parse(raw);
       if (Array.isArray(data)) {
         const list = data
-          .filter((it) => it && typeof it === 'object' && isSafeUploadPath(it.path) && !isVideoSource(it.path))
+          .filter((it) => it && typeof it === 'object' && isSafeUploadPath(it.path) && HERO_IMAGE_EXT_RE.test(it.path))
           .slice(0, HERO_MAX)
           .map((it) => ({
             path: it.path,
             w: /^\d{1,5}$/.test(String(it.w ?? '')) ? Number(it.w) : 0,
             h: /^\d{1,5}$/.test(String(it.h ?? '')) ? Number(it.h) : 0,
-            title: cleanHeroText(it.title, HERO_TITLE_MAX),
-            subtitle: cleanHeroText(it.subtitle, HERO_SUBTITLE_MAX),
-            link: safeHeroLink(it.link),
-            linkText: cleanHeroText(it.linkText, HERO_LINK_TEXT_MAX),
           }));
         if (list.length) return list;
       }
     } catch { /* 落到旧键 */ }
   }
   const legacy = String(repo.getSetting(HERO_LEGACY_KEYS.url) ?? '').trim();
-  if (!isSafeUploadPath(legacy) || isVideoSource(legacy)) return [];
+  if (!isSafeUploadPath(legacy) || !HERO_IMAGE_EXT_RE.test(legacy)) return [];
   const w = String(repo.getSetting(HERO_LEGACY_KEYS.w) ?? '');
   const h = String(repo.getSetting(HERO_LEGACY_KEYS.h) ?? '');
   return [{
     path: legacy,
     w: /^\d{1,5}$/.test(w) ? Number(w) : 0,
     h: /^\d{1,5}$/.test(h) ? Number(h) : 0,
-    title: '', subtitle: '', link: '', linkText: '',
   }];
 }
 

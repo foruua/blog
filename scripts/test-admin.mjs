@@ -38,7 +38,7 @@ const html = async (url) => (await req(url)).text();
 const sharp = (await import('sharp')).default;
 const PNG_1x1 = await sharp({ create: { width: 1, height: 1, channels: 4, background: '#ff3300' } }).png().toBuffer();
 const PNG_RAW = await sharp({ create: { width: 2, height: 2, channels: 4, background: '#33aaff' } }).png().toBuffer();
-// 最小的 MP4 头：ftyp + moov/trak/tkhd（1920×1080）。只用于验证魔数识别、尺寸解析与 Range，不要求能解码播放。
+// 最小的 MP4 头：ftyp + moov/trak/tkhd（1920×1080）。只用于确认视频上传会被拒，不要求能解码播放。
 const mp4Box = (type, payload) => {
   const b = Buffer.alloc(8 + payload.length);
   b.writeUInt32BE(8 + payload.length, 0); b.write(type, 4, 'latin1'); payload.copy(b, 8);
@@ -50,13 +50,6 @@ tkhdPayload.writeUInt32BE(1080 * 65536, 80);
 const FAKE_MP4 = Buffer.concat([
   mp4Box('ftyp', Buffer.concat([Buffer.from('isom'), Buffer.from('isom')])),
   mp4Box('moov', mp4Box('trak', mp4Box('tkhd', tkhdPayload))),
-]);
-const altTkhd = Buffer.from(tkhdPayload);
-altTkhd.writeUInt32BE(1280 * 65536, 76);
-altTkhd.writeUInt32BE(720 * 65536, 80);
-const FAKE_MP4_ALT = Buffer.concat([
-  mp4Box('ftyp', Buffer.concat([Buffer.from('isom'), Buffer.from('isom')])),
-  mp4Box('moov', mp4Box('trak', mp4Box('tkhd', altTkhd))),
 ]);
 
 const created = [];
@@ -251,9 +244,7 @@ let slug = `${PREFIX}hello`;
 }
 
 let uploadedUrl = '';
-let uploadedVideoUrl = '';
 let uploadedRawUrl = '';
-let uploadedRawVideoUrl = '';
 {
   const page = await html(`/admin/edit/${postId}`);
   const csrf = csrfOf(page);
@@ -303,105 +294,20 @@ let uploadedRawVideoUrl = '';
     edPicker.includes('id="a-picker"') && edPicker.includes('id="a-picker-upload"')
     && edPicker.includes('data-picker-cancel'), '');
 
+  // 视频支持已下线：上传接口只收图片，multipart 与 raw 两条路径都把视频挡在门外。
   const fdV = new FormData();
   fdV.append('_csrf', csrf);
   fdV.append('file', new Blob([FAKE_MP4], { type: 'video/mp4' }), 'clip.mp4');
   const rv = await req('/admin/api/upload', { method: 'POST', headers: { 'x-csrf-token': csrf }, body: fdV });
-  const jv = await rv.json();
-  uploadedVideoUrl = jv.url ?? '';
-  check('T8v1 MP4 按魔数上传成功，带 MIME 与解析出的宽高',
-    rv.status === 200 && jv.ok === true && jv.mime === 'video/mp4' && jv.width === 1920 && jv.height === 1080
-    && /^\/uploads\/\d{4}\/\d{2}\/[0-9a-f]{16}\.mp4$/.test(uploadedVideoUrl), JSON.stringify(jv));
-  const videoFile = path.join(UPLOADS_DIR, uploadedVideoUrl.replace(/^\/uploads\//, ''));
-  check('T8v2 视频原样落盘（不重编码）', fs.existsSync(videoFile) && fs.readFileSync(videoFile).equals(FAKE_MP4), '');
-  // 去重命中但磁盘文件丢了（手工清理/上次复制失败）：重传必须能重建，而不是永远返回 404 URL。
-  fs.rmSync(videoFile, { force: true });
-  const fdVRepair = new FormData();
-  fdVRepair.append('_csrf', csrf);
-  fdVRepair.append('file', new Blob([FAKE_MP4], { type: 'video/mp4' }), 'clip.mp4');
-  const repaired = await (await req('/admin/api/upload', { method: 'POST', headers: { 'x-csrf-token': csrf }, body: fdVRepair })).json();
-  check('T8v2a 磁盘文件缺失时重传会重建文件而不是复用坏记录',
-    repaired.ok === true && repaired.url === uploadedVideoUrl && fs.existsSync(videoFile), JSON.stringify(repaired));
-
+  check('T8v1 视频上传被拒（multipart 表单）', rv.status === 415, `status=${rv.status}`);
   const rawVideo = await req('/admin/api/upload', {
     method: 'POST',
     headers: { 'x-csrf-token': csrf, 'content-type': 'video/mp4', 'x-file-name': 'raw-clip.mp4' },
-    body: FAKE_MP4_ALT,
+    body: FAKE_MP4,
   });
   const rawVideoJson = await rawVideo.json();
-  uploadedRawVideoUrl = rawVideoJson.url ?? '';
-  const rawVideoFile = path.join(UPLOADS_DIR, uploadedRawVideoUrl.replace(/^\/uploads\//, ''));
-  check('T8v2b 原始二进制视频流式落盘并解析尺寸',
-    rawVideo.status === 200 && rawVideoJson.ok === true && rawVideoJson.width === 1280 && rawVideoJson.height === 720
-    && fs.existsSync(rawVideoFile) && fs.readFileSync(rawVideoFile).equals(FAKE_MP4_ALT), JSON.stringify(rawVideoJson));
-  const rawVideoDup = await (await req('/admin/api/upload', {
-    method: 'POST', headers: { 'x-csrf-token': csrf, 'content-type': 'video/mp4' }, body: FAKE_MP4_ALT,
-  })).json();
-  check('T8v2c 原始二进制视频重复上传复用同一条记录', rawVideoDup.deduped === true && rawVideoDup.url === uploadedRawVideoUrl, JSON.stringify(rawVideoDup));
-
-  const full = await fetch(BASE + uploadedVideoUrl);
-  check('T8v3 视频以 video/mp4 提供且支持分片（Range → 206）', full.headers.get('content-type') === 'video/mp4'
-    && full.headers.get('accept-ranges') === 'bytes', `type=${full.headers.get('content-type')}`);
-  const ranged = await fetch(BASE + uploadedVideoUrl, { headers: { Range: 'bytes=0-9' } });
-  const rangeBody = Buffer.from(await ranged.arrayBuffer());
-  check('T8v4 Range 返回 206、正确的 Content-Range 与 10 字节', ranged.status === 206
-    && ranged.headers.get('content-range') === `bytes 0-9/${FAKE_MP4.length}` && rangeBody.length === 10,
-    `status=${ranged.status} range=${ranged.headers.get('content-range')}`);
-
-  const preview = await req('/admin/api/preview', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-csrf-token': csrf },
-    body: JSON.stringify({ body: `![演示](${uploadedVideoUrl})` }),
-  });
-  const previewOut = await preview.json();
-  check('T8v5 预览把 .mp4 图片语法渲染成 <video>（不再输出 <img>）',
-    previewOut.ok === true && previewOut.html.includes('<video') && previewOut.html.includes('controls')
-    && previewOut.html.includes(`<source src="${uploadedVideoUrl}" type="video/mp4">`) && !previewOut.html.includes('<img'),
-    JSON.stringify(previewOut).slice(0, 160));
-
-  const fdB = new FormData();
-  fdB.append('_csrf', csrf);
-  fdB.append('file', new Blob([Buffer.from('not really a video')], { type: 'video/mp4' }), 'fake.mp4');
-  const rb = await req('/admin/api/upload', { method: 'POST', headers: { 'x-csrf-token': csrf }, body: fdB });
-  check('T8v6 伪装成 video/mp4 的文本被拒（按 magic bytes 判定）', rb.status === 415, `status=${rb.status}`);
-
-  const mediaApiVideo = await (await req('/admin/api/media')).json();
-  const videoItem = mediaApiVideo.items?.find((x) => x.path === uploadedVideoUrl);
-  check('T8v7 媒体库接口带 mime，选择器据此渲染视频占位', videoItem?.mime === 'video/mp4', JSON.stringify(videoItem));
-  const mediaPageVideo = await html('/admin/media');
-  check('T8v7b 媒体库视频先惰性占位，进入视口后再读取首帧作封面',
-    mediaPageVideo.includes(`src="${uploadedVideoUrl}#t=0.1"`)
-    && mediaPageVideo.includes('preload="none"')
-    && mediaPageVideo.includes('data-lazy-preload'), '');
-
-  // 笔记图集：视频从正文抽出来进 gallery，格子里可原位播放，右上角按钮进灯箱。
-  const noteSlug = `${PREFIX}video-note`;
-  const noteSave = await req('/admin/save', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      _csrf: csrf, action: 'publish', id: '', kind: 'note',
-      title: '测试视频笔记', slug: noteSlug,
-      date: toLocalInput(new Date().toISOString()),
-      body: `一句话说明。\n\n![演示视频](${uploadedVideoUrl})`, draft: '', comments: '1',
-    }),
-  });
-  const noteId = Number(/\/admin\/edit\/(\d+)/.exec(noteSave.headers.get('location') ?? '')?.[1] ?? 0);
-  created.push({ id: noteId, slug: noteSlug });
-  createdFiles.push(path.join(CONTENT_DIR, 'notes', `${noteSlug}.md`));
-  const notesPage = await (await fetch(BASE + '/notes/')).text();
-  check('T8v8 笔记图集里出现视频格：原生控制条 + 灯箱播放按钮，正文不再留 inline 视频',
-    noteSave.status === 303 && noteId > 0
-    && notesPage.includes('class="gal-item gal-video"')
-    && notesPage.includes(`<video class="gal-video-el" src="${uploadedVideoUrl}" controls playsinline`)
-    && notesPage.includes('class="gal-video-expand"') && notesPage.includes('data-media="video"')
-    && !notesPage.includes('class="prose-video"'),
-    `status=${noteSave.status} id=${noteId}`);
-  const notePage = await (await fetch(`${BASE}/n/${noteSlug}/`)).text();
-  check('T8v9 单篇笔记正文仍直接渲染可播放的 <video>，并带灯箱按钮',
-    notePage.includes(`<source src="${uploadedVideoUrl}" type="video/mp4">`) && notePage.includes('controls')
-    && notePage.includes('class="prose-video-expand"') && notePage.includes('data-media="video"'),
-    '');
+  check('T8v2 视频上传被拒（原始二进制路径）', rawVideo.status === 415 && rawVideoJson.ok === false,
+    `status=${rawVideo.status} ${JSON.stringify(rawVideoJson).slice(0, 140)}`);
 
   const fd3 = new FormData();
   fd3.append('_csrf', csrf);
@@ -472,6 +378,7 @@ let uploadedRawVideoUrl = '';
     && home.includes('width="1" height="1"') && !/<h1 class="hero-title">/.test(home)
     && /<link rel="preload" as="image"[^>]*imagesrcset="[^"]*v4-w1\.webp 1w"[^>]*imagesizes="[^"]+"/.test(home), '');
 
+  // 封面文字已下线：表单里再带 title/subtitle/link/tone 也会被忽略，落地只剩 path/w/h。
   const textSaved = await save({
     images: JSON.stringify([{
       path: uploadedUrl, w: '1', h: '1',
@@ -481,18 +388,16 @@ let uploadedRawVideoUrl = '';
   });
   const homeText = await (await fetch(BASE + '/')).text();
   const sysText = await html('/admin/system');
-  check('T8j-4b 封面文字固定左下版式、只切明暗；旧客户端的 layout 参数被忽略，标题被转义且按钮链接可用',
+  check('T8j-4b 封面文字已下线：文字字段被丢弃（不渲染、不入库），设置页不再有文字弹窗与颜色选择',
     textSaved.status === 303
-    && homeText.includes('hero-copy hero-copy-bottom hero-copy-dark is-active')
-    && !homeText.includes('hero-copy-center')
-    && homeText.includes('封面标题 &lt;测试&gt;')
-    && homeText.includes('一行副标题')
-    && homeText.includes('href="/about/"')
-    && homeText.includes('关于我')
-    && sysText.includes('id="heroTextDialog"')
-    && sysText.includes('id="heroTone"')
+    && !homeText.includes('hero-copy')
+    && !homeText.includes('封面标题')
+    && !homeText.includes('一行副标题')
+    && !homeText.includes('关于我')
+    && !sysText.includes('id="heroTextDialog"')
+    && !sysText.includes('id="heroTone"')
     && !sysText.includes('id="heroLayout"')
-    && /<option value="dark"[^>]*selected/.test(sysText),
+    && !/name="(?:tone|layout)"/.test(sysText),
     `status=${textSaved.status}`);
 
   const fdX = new FormData();
@@ -521,24 +426,20 @@ let uploadedRawVideoUrl = '';
     !rowGone && !xTrash && (await fetch(BASE + xUrl)).status === 200,
     `row=${rowGone} trash=${xTrash}`);
 
-  // 封面视频已下线：视频路径写进首页封面会被服务端拒收，页面上不再有任何封面视频的标记与开关。
-  const savedVideoHero = await save({ images: JSON.stringify([{ path: uploadedVideoUrl, w: '1920', h: '1080' }]) });
+  // 封面只收图片：视频路径写进首页封面会被服务端拒收，设置页也不再有视频/文字相关的控件。
+  const savedVideoHero = await save({ images: JSON.stringify([{ path: `${uploadedUrl}.mp4`, w: '1920', h: '1080' }]) });
   // 拒收是把表单重渲染回来（不是 303），提示只在这一次响应里，所以要在 POST 的响应体里找。
   const videoPostHtml = await savedVideoHero.text();
-  const homeVideo = await (await fetch(BASE + '/')).text();
   const sysVideo = await html('/admin/system');
-  check('T8j-6v 视频不能再当封面：服务端拒收并给出提示，首页仍是站名，设置页没有视频格/播放开关/视频文件类型',
+  check('T8j-6v 非图片不能当封面：服务端拒收并给出提示，设置页没有视频文件类型/播放开关/文字弹窗',
     savedVideoHero.status === 200
-    && videoPostHtml.includes('首页封面只能是图片')
-    && !sysVideo.includes('id="heroVideoModeRow"')
-    && !sysVideo.includes('class="a-hero-shot" muted')
-    && !sysVideo.includes('video/mp4')
+    && videoPostHtml.includes('首页封面只能用图片')
     && sysVideo.includes('accept="image/png,image/jpeg,image/gif,image/webp"')
-    && /<h1 class="hero-title">[^<]+<\/h1>/.test(homeVideo)
-    && !homeVideo.includes('hero-video')
-    && !/class="hero-[^"]*"[^>]*\bvideo\b/.test(homeVideo)
-    && !/<img[^>]*mp4/.test(homeVideo),
-    `status=${savedVideoHero.status} err=${videoPostHtml.includes('首页封面只能是图片')}`);
+    && !sysVideo.includes('video/mp4')
+    && !sysVideo.includes('id="heroVideoModeRow"')
+    && !sysVideo.includes('id="heroTextDialog"')
+    && !sysVideo.includes('id="heroTone"'),
+    `status=${savedVideoHero.status} err=${videoPostHtml.includes('首页封面只能用图片')}`);
 
   const PNG_2x2 = await sharp({ create: { width: 2, height: 2, channels: 4, background: '#0033ff' } }).png().toBuffer();
   const fdY = new FormData();
@@ -1341,20 +1242,10 @@ if (uploadedUrl) {
   if (fs.existsSync(p)) fs.unlinkSync(p);
   db.prepare('DELETE FROM media WHERE path = ?').run(uploadedUrl);
 }
-if (uploadedVideoUrl) {
-  const p = path.join(UPLOADS_DIR, uploadedVideoUrl.replace(/^\/uploads\//, ''));
-  if (fs.existsSync(p)) fs.unlinkSync(p);
-  db.prepare('DELETE FROM media WHERE path = ?').run(uploadedVideoUrl);
-}
 if (uploadedRawUrl) {
   const p = path.join(UPLOADS_DIR, uploadedRawUrl.replace(/^\/uploads\//, ''));
   if (fs.existsSync(p)) fs.unlinkSync(p);
   db.prepare('DELETE FROM media WHERE path = ?').run(uploadedRawUrl);
-}
-if (uploadedRawVideoUrl) {
-  const p = path.join(UPLOADS_DIR, uploadedRawVideoUrl.replace(/^\/uploads\//, ''));
-  if (fs.existsSync(p)) fs.unlinkSync(p);
-  db.prepare('DELETE FROM media WHERE path = ?').run(uploadedRawVideoUrl);
 }
 db.prepare('DELETE FROM posts WHERE slug LIKE ?').run(`${PREFIX}%`);
 

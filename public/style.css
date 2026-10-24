@@ -541,82 +541,6 @@ body.mnav-open .mnav-panel { transform: none; opacity: 1; }
 }
 .hero-slide { position: relative; }
 
-/* —— 首页封面文字（方案 2+3） ——
-   文字是真实 DOM 覆盖层，不烘焙进图片：可搜索、可访问、无 JS 也能看到第一张。
-   版式只有一套（左下角 + 轻渐变垫底），明暗由后台选择；只给 .hero-copy-link 接指针，图片点击/灯箱不受影响。 */
-.hero-copies {
-  position: absolute; inset: 0; z-index: 2;
-  pointer-events: none;
-}
-.hero-copy {
-  position: absolute; inset: .5rem;
-  display: flex; flex-direction: column;
-  z-index: 2; pointer-events: none;
-  color: #fff;
-  opacity: 0; visibility: hidden;
-  transition: opacity var(--dur-2) var(--ease);
-}
-.hero-copy.is-active { opacity: 1; visibility: visible; }
-.hero-copy.is-empty { padding: 0; background: none; }
-.hero-copy-inner { position: relative; z-index: 1; min-width: 0; display: block; }
-/* 单图时这层文字在 <h1> 里，标记必须是 phrasing content：用 span + block 显示，
-   视觉与原来的 p 一致，HTML 校验/读屏语义才正确。 */
-.hero-copy-title, .hero-copy-sub { display: block; }
-.hero-copy-title {
-  margin: 0;
-  font-family: var(--display); font-weight: 700;
-  font-size: clamp(1.25rem, 4.6vw, 2rem);
-  line-height: 1.1; letter-spacing: .012em; text-wrap: balance;
-  text-shadow: 0 1px 12px rgba(0, 0, 0, .45);
-  overflow-wrap: anywhere;
-}
-.hero-copy-sub {
-  margin: .35rem 0 0;
-  font-size: clamp(.8rem, 2.2vw, .95rem);
-  line-height: 1.55; letter-spacing: .02em;
-  text-shadow: 0 1px 10px rgba(0, 0, 0, .4);
-  overflow-wrap: anywhere;
-}
-.hero-copy-link {
-  display: inline-flex; align-items: center; align-self: flex-start;
-  margin-top: .8rem; padding: .45rem .85rem;
-  color: #fff; font: 500 .8rem/1 var(--sans); letter-spacing: .03em;
-  background: rgba(8, 7, 5, .32); border: 1px solid rgba(255, 255, 255, .5);
-  border-radius: var(--radius-pill);
-  text-decoration: none; pointer-events: auto;
-  -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
-  transition: background-color var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease);
-}
-.hero-copy-link:hover { background: rgba(8, 7, 5, .55); border-color: rgba(255, 255, 255, .8); }
-.hero-copy-link:focus-visible { outline: none; box-shadow: var(--ring); }
-
-.hero-copy-bottom {
-  justify-content: flex-end;
-  padding: 2.6rem .9rem .9rem;
-  background: linear-gradient(180deg, transparent 22%, rgba(0, 0, 0, .62));
-  border-radius: calc(var(--radius) - 1px);
-}
-.hero-copy-bottom .hero-copy-inner { max-width: 92%; }
-
-/* 浅色图：文字换成深色，遮罩也换成浅色，别出现白字压白图。 */
-.hero-copy-dark { color: #1f1d18; }
-.hero-copy-dark .hero-copy-title { text-shadow: 0 1px 10px rgba(255, 255, 255, .35); }
-.hero-copy-dark .hero-copy-sub { text-shadow: 0 1px 8px rgba(255, 255, 255, .3); }
-.hero-copy-dark.hero-copy-bottom {
-  background: linear-gradient(180deg, transparent 22%, rgba(255, 255, 255, .76));
-}
-.hero-copy-dark .hero-copy-link {
-  color: #1f1d18; border-color: rgba(31, 29, 24, .35);
-  background: rgba(255, 255, 255, .68);
-}
-.hero-copy-dark .hero-copy-link:hover { background: rgba(255, 255, 255, .92); }
-
-@media (max-width: 620px) {
-  .hero-copy { inset: .35rem; }
-  .hero-copy-bottom { padding: 2rem .65rem .7rem; }
-  .hero-copy-link { padding: .4rem .7rem; }
-}
-
 /* 轮播的几张 slide 叠在同一网格单元（见 .hero-track）。这条 width: 100% 是**审计硬要求**：Chrome 判「图有没有尺寸」看计算样式 IsUnsizedImage()，img 基础规则的 width:auto 在轮播里就成了「没尺寸」；补百分比宽度配合行内 aspect-ratio 才算有尺寸。 */
 .hero-figure .hero-slide { width: 100%; }
 /* 封面图可点（开灯箱，data-lightbox="hero"）：光标得说出来。与正文插图同一规矩 —— 只在 .has-js 下给 zoom-in（没有 JS 时 data-lightbox 只是没人理的属性，光标不该骗人）。 多图轮播时只有当前那张接指针，所以也只有露出来的那张会变放大镜。 */
@@ -1487,27 +1411,6 @@ html[data-theme="dark"] :is(.hero-figure, .prose, .gallery) img { filter: bright
   html:not([data-theme="light"]):not([data-theme="dark"]) :is(.hero-figure, .prose, .gallery) img { filter: brightness(var(--img-dim)); }
 }
 .prose p > img:only-child { margin-inline: auto; }
-/* 正文视频：沿用图片的圆角/阴影，但宽度吃满栏宽、高度按固有比例。preload=metadata 只取头部，
-   Safari 需要 /uploads/* 的 206 分片响应才能播放/拖动（见 server.js sendFile）。 */
-.prose-video { display: block; margin: 1.6rem 0; position: relative; }
-.prose-video video {
-  display: block; width: 100%; height: auto; max-height: 80vh;
-  background: #000; border-radius: var(--radius-lg);
-  border: 1px solid var(--rule); box-shadow: var(--shadow-md);
-}
-/* 正文视频的「灯箱播放」按钮；不抢原生控制条的点击。hover 只保留光标，不换底色、不换字色。 */
-.prose-video-expand {
-  position: absolute; top: .55rem; right: .55rem; z-index: 2;
-  display: grid; place-items: center; width: 2.1rem; height: 2.1rem; padding: 0;
-  color: #f2f1ec; background: rgba(8, 7, 5, .46);
-  border: 1px solid rgba(250, 248, 244, .38); border-radius: var(--radius-pill);
-  cursor: pointer; text-decoration: none;
-  -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
-}
-.prose-video-expand svg { width: .95rem; height: .95rem; }
-/* 全局 a:hover 会把字色改成 --accent-read；这枚按钮悬停时保持原样。 */
-a.prose-video-expand:hover { color: #f2f1ec; background: rgba(8, 7, 5, .46); border-color: rgba(250, 248, 244, .38); }
-.prose-video-expand:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 /* 正文插图宽高比走行内 aspect-ratio（render 脚本写死）：只有 width/height 属性时浏览器算出的比例是 `auto W / H`，懒加载审计认不出；attr() 又并非各浏览器都支持。 */
 /* 正文插图挂了灯箱属性，只在真的会开灯箱时（.has-js）给可点的手型 —— 没有 JS 时它只是普通属性。 */
 .has-js .prose img[data-lightbox] { cursor: zoom-in; }
@@ -1558,15 +1461,6 @@ a.prose-video-expand:hover { color: #f2f1ec; background: rgba(8, 7, 5, .46); bor
   transition: color var(--dur-2) var(--ease), border-color var(--dur-2) var(--ease);
 }
 .prose a:not(.wikilink):hover { color: var(--accent); border-bottom-color: var(--accent); }
-
-/* 正文视频右上角的灯箱按钮不是正文链接：别继承「墨色 + 金下划线」那套，外观与首页封面视频的按钮一致。 */
-.prose a.prose-video-expand,
-.prose a.prose-video-expand:hover {
-  color: #f2f1ec;
-  background: rgba(8, 7, 5, .46);
-  border: 1px solid rgba(250, 248, 244, .38);
-  padding: 0;
-}
 
 .wikilink {
   color: var(--accent);
@@ -2187,37 +2081,13 @@ footer.site .foot-tools .pal .pal-ico {
   display: block; width: 100%; height: auto; aspect-ratio: 3 / 2; object-fit: cover;
   transition: opacity var(--dur-3) var(--ease);
 }
-/* 视频格：原生控制条让「点一下就能播」；右上角另有灯箱按钮。和图片同尺寸裁切，保持一行整齐。 */
-.gal-item.gal-video { position: relative; }
-.gal-item video {
-  display: block; width: 100%; height: auto; aspect-ratio: 3 / 2; object-fit: cover;
-  background: #000;
-}
-.gal-video-expand {
-  position: absolute; top: .5rem; right: .5rem; z-index: 1;
-  display: grid; place-items: center; width: 2rem; height: 2rem; padding: 0;
-  color: #f2f1ec; background: rgba(20, 20, 22, .55); border: 1px solid rgba(242, 241, 236, .3);
-  border-radius: var(--radius-pill); cursor: pointer;
-  text-decoration: none;
-  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
-}
-.gal-video-expand svg { width: 1rem; height: 1rem; margin-left: .1rem; }
-/* hover 不变色：与正文/首页的灯箱按钮一致，底色、边框、图标都保持原样。 */
-a.gal-video-expand:hover { color: #f2f1ec; background: rgba(20, 20, 22, .55); border-color: rgba(242, 241, 236, .3); }
-.gal-video-expand:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .gal-item:hover {
   border-color: var(--accent-line);
   box-shadow: var(--card-sh-up);
 }
-/* 视频格本身也不要在 hover 时变金色边框/加深阴影，避免看起来像整块可点进灯箱；播放交给原生控制条与右上角按钮。 */
-.gal-item.gal-video:hover {
-  border-color: var(--card-bd);
-  box-shadow: var(--card-sh);
-}
 /* 单图整幅铺满版心、按原始比例，只封一个最大高度。`aspect-ratio: auto` 取消了浏览器从 width/height 推的比例，lazy 图解码前盒子会塌成 2px（ui-audit 报命中区不足），故 gallery() 对单图额外写了行内 aspect-ratio。 */
 .gallery[data-count="1"] .gal-item { grid-column: 1 / -1; }
 .gallery[data-count="1"] .gal-item img { aspect-ratio: auto; max-height: 26rem; }
-.gallery[data-count="1"] .gal-item video { aspect-ratio: auto; max-height: 26rem; }
 
 /* 篇末：左端相对日期、右端评论胶囊（margin-left:auto 推到右端）；两端贴列宽，与正文起笔、 分割线共用边界。 */
 .note-foot {
@@ -2764,19 +2634,6 @@ html[data-theme="dark"] .ncp-flash-bad, html[data-theme="dark"] .ncp-flash-limit
 }
 .lb-img.is-zoomed { cursor: grab; }
 .lb-img.is-zoomed:active { cursor: grabbing; }
-/* 灯箱视频：比例与图片同一套算法（84vh 折算高度上限，--lb-ar 由脚本按源文件写）。
-   原生控制条自己管播放/音量/全屏，不挂图片那套缩放手势。 */
-.lb-video {
-  display: block;
-  width: auto; height: auto;
-  max-width: min(92vw, calc(84vh * var(--lb-ar, 1000))); max-height: 84vh;
-  margin: 0 auto;
-  object-fit: contain;
-  border-radius: var(--radius);
-  background: #000;
-  box-shadow: 0 40px 90px -40px rgba(0, 0, 0, .9);
-}
-.lb-video[hidden] { display: none; }
 .lb-close, .lb-nav, .lb-zoom {
   position: fixed; z-index: 2;
   display: grid; place-items: center;
@@ -2821,8 +2678,6 @@ html[data-theme="dark"] .ncp-flash-bad, html[data-theme="dark"] .ncp-flash-limit
   .gallery[data-count="3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   /* 画廊高度交给 3:2 的 aspect-ratio，这里不再写死，只留灯箱导航的缩放。 */
   .lb-nav { width: 36px; height: 36px; }
-  /* 正文视频的灯箱按钮抬到 44px 触控下限。 */
-  .prose-video-expand { width: 2.75rem; height: 2.75rem; }
 }
 
 /* 首页整屏骨架 */

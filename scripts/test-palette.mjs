@@ -16,7 +16,7 @@ const css = ['base.css', 'style.css']
   .join('\n');
 const appSource = fs.readFileSync(path.join(root, 'public', 'app.js'), 'utf8');
 const uiSource = fs.readFileSync(path.join(root, 'public', 'ui.js'), 'utf8');
-// app.js 依赖 request.js 挂上的共享工具（__lazyVideo 等）；页面里 request.js 永远先执行，这里照搬。
+// app.js 依赖 request.js 挂上的共享工具（__csrf、__uploadRaw 等）；页面里 request.js 永远先执行，这里照搬。
 const requestSource = fs.readFileSync(path.join(root, 'public', 'request.js'), 'utf8');
 // 生成器是经典脚本（挂 globalThis.PaletteLib），页面里以 defer 加载在 ui.js 之前；
 // 这里用 vm 跑同一份文件，不复制逻辑 —— 生成器改了，下面这套扫描断言立刻跟着变。

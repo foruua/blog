@@ -220,11 +220,6 @@ try {
     w.__marker = 'alive';
     const link = [...w.document.querySelectorAll('.list a')][0];
     const target = link.getAttribute('href');
-    // 旧页面的媒体必须在 #app 被换掉前暂停：移动内核会继续占着解码器，新页封面可能不播或播一遍不循环。
-    let mediaPaused = 0;
-    const oldMedia = w.document.createElement('video');
-    oldMedia.pause = () => { mediaPaused++; };
-    w.document.getElementById('app').appendChild(oldMedia);
     click(w, link);
 
     check('T14b 快速换页不显示加载指示（延迟 150ms 才出现）',
@@ -259,8 +254,6 @@ try {
     check('T14h 换页后浮入不再走"直接显示"的短路分支', !/swapped/.test(appJs), '');
 
     check('T15 容器内容已替换', w.document.getElementById('app').innerHTML !== before);
-    check('T15b 换页前会先暂停旧页面里的音视频（避免占着移动端解码器）', mediaPaused === 1,
-      `pause() 调用 ${mediaPaused} 次`);
     check('T16 没有发生整页刷新（window 标记仍在）', w.__marker === 'alive');
     check('T17 URL 已更新为文章地址', w.location.pathname === target, `${w.location.pathname} vs ${target}`);
     check('T18 标题已更新', w.document.title !== beforeTitle && w.document.title.length > 0, w.document.title);

@@ -291,7 +291,7 @@
     body.addEventListener('dragover', (e) => { e.preventDefault(); body.style.borderColor = 'var(--accent)'; });
     body.addEventListener('dragleave', () => { body.style.borderColor = ''; });
     body.addEventListener('drop', (e) => {
-      const f = [...(e.dataTransfer?.files ?? [])].find((x) => x.type.startsWith('image/') || x.type.startsWith('video/'));
+      const f = [...(e.dataTransfer?.files ?? [])].find((x) => x.type.startsWith('image/'));
       body.style.borderColor = '';
       if (!f) return;
       e.preventDefault();

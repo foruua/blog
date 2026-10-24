@@ -1,4 +1,4 @@
-/* 媒体库选择器。编辑器和「设置 → 首页封面」共用同一份：读 /admin/api/media、分页、图片/视频格子、
+/* 媒体库选择器。编辑器和「设置 → 首页封面」共用同一份：读 /admin/api/media、分页、图片格子、
    失败重试、关闭时取消在飞的请求。选中的处理由调用方给（编辑器插 Markdown，首页封面加进列表）。
    经典脚本（无构建），挂在 window.__setupMediaPicker 上；admin-editor.js 与 admin.js 都在之后加载。 */
 (() => {
@@ -6,7 +6,7 @@
   const request = window.__request;
   const PLACEHOLDER = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
 
-  window.__setupMediaPicker = ({ dialog, body, uploadButton, fileInput, onPick, onUpload, accept = 'all' } = {}) => {
+  window.__setupMediaPicker = ({ dialog, body, uploadButton, fileInput, onPick, onUpload } = {}) => {
     if (!dialog || !body) {
       return { open: () => fileInput?.click(), dispose: () => {} };
     }
@@ -15,39 +15,16 @@
     let controller = null;
     let page = 1;
     let items = [];
-    let videoObserver = null;
-
-    // 视频格只在进入视口时才挂 src：一页 20 个视频时，否则会同时发 20 个 range 请求取元数据。
-    const ensureVideoObserver = () => {
-      if (videoObserver || typeof IntersectionObserver !== 'function') return videoObserver;
-      videoObserver = new IntersectionObserver((entries, observer) => {
-        for (const entry of entries) {
-          if (!entry.isIntersecting) continue;
-          const frame = entry.target;
-          if (frame.dataset.videoSrc) { frame.src = frame.dataset.videoSrc; delete frame.dataset.videoSrc; }
-          observer.unobserve(frame);
-        }
-      }, { rootMargin: '200px' });
-      return videoObserver;
-    };
 
     const cancel = () => {
       session++; controller?.abort(); controller = null;
-      videoObserver?.disconnect(); videoObserver = null;
     };
-    const isVideo = (it) => String(it.mime ?? '').startsWith('video/') || window.__isVideoPath(it.path);
-    // accept: 'image' 时（首页封面）不列视频格：选了也用不上，列表里少一半噪声。
-    const allowed = (it) => accept !== 'image' || !isVideo(it);
+    // 只列图片（视频支持已下线，库里残留的非图片记录留给媒体库页去删）。
+    const allowed = (it) => !String(it.mime ?? '') || String(it.mime).startsWith('image/');
 
     const render = () => {
-      // 重绘会把所有 <video> 从 DOM 里换掉；旧的 IntersectionObserver 仍持有这些节点，
-      // 不 disconnect 的话「加载更多」翻几页就会攒下一串已断开的观察对象。
-      videoObserver?.disconnect();
-      videoObserver = null;
       if (!items.length) {
-        body.innerHTML = accept === 'image'
-          ? '<p class="a-dim" role="status">媒体库里还没有图片 —— 点右上角「上传新文件」传一张。</p>'
-          : '<p class="a-dim" role="status">媒体库还是空的 —— 点右上角「上传新文件」传一个。</p>';
+        body.innerHTML = '<p class="a-dim" role="status">媒体库里还没有图片 —— 点右上角「上传新文件」传一张。</p>';
         return;
       }
       body.innerHTML = '';
@@ -59,33 +36,12 @@
         btn.className = 'a-picker-item';
         btn.dataset.path = it.path;
         btn.dataset.name = it.filename;
-        if (isVideo(it)) {
-          // 只读 metadata 并 seek 到 0.1s：让浏览器把首帧画成封面；播放标记叠在上面提示这是视频。
-          const ph = document.createElement('span');
-          ph.className = 'a-picker-video';
-          ph.setAttribute('aria-hidden', 'true');
-          const frame = document.createElement('video');
-          frame.muted = true;
-          frame.playsInline = true;
-          frame.preload = 'metadata';
-          const src = `${it.path}#t=0.1`;
-          const observer = ensureVideoObserver();
-          if (observer) { frame.dataset.videoSrc = src; observer.observe(frame); }
-          else frame.src = src;
-          frame.setAttribute('aria-hidden', 'true');
-          const mark = document.createElement('span');
-          mark.className = 'a-picker-play';
-          mark.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg>';
-          ph.append(frame, mark);
-          btn.append(ph);
-        } else {
-          const im = document.createElement('img');
-          im.src = it.thumbnail || PLACEHOLDER;
-          im.alt = ''; im.loading = 'lazy'; im.decoding = 'async';
-          if (it.previewSrcset) { im.srcset = it.previewSrcset; im.sizes = 'auto, 120px'; }
-          if (it.width > 0 && it.height > 0) { im.width = it.width; im.height = it.height; im.style.aspectRatio = `${it.width}/${it.height}`; }
-          btn.append(im);
-        }
+        const im = document.createElement('img');
+        im.src = it.thumbnail || PLACEHOLDER;
+        im.alt = ''; im.loading = 'lazy'; im.decoding = 'async';
+        if (it.previewSrcset) { im.srcset = it.previewSrcset; im.sizes = 'auto, 120px'; }
+        if (it.width > 0 && it.height > 0) { im.width = it.width; im.height = it.height; im.style.aspectRatio = `${it.width}/${it.height}`; }
+        btn.append(im);
         const cap = document.createElement('span');
         cap.textContent = it.filename;
         btn.append(cap);
@@ -166,8 +122,6 @@
       dispose: () => {
         cancel();
         listeners.abort();
-        videoObserver?.disconnect();
-        videoObserver = null;
       },
     };
   };

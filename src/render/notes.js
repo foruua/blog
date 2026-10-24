@@ -1,7 +1,6 @@
 import { mediaFallback } from '../media/variants.js';
 import { esc, decodeHtmlAttribute, htmlAttr, noteHref, cleanExcerpt } from '../util/text.js';
 import { dateBadge, commentLabel } from './layout.js';
-import { EXPAND_ICON } from './icons.js';
 
 export function splitImages(html) {
   const images = [];
@@ -10,18 +9,9 @@ export function splitImages(html) {
     const value = htmlAttr(tag, name);
     return /^\d+$/.test(value) ? value : null;
   };
-  // 图片与视频按文档顺序一起抽出来：以前只认 <img>，视频留在正文里、图集里看不到它。
-  // 视频是渲染器写的 <span class="prose-video">…</span> 包一层 <video>（见 markdown.js），整块摘掉，别在正文里留空壳。
-  // 属性值里允许出现被引号包住的 `>`（alt="a > b"），别让正则在这里提前截断标签。
-  const MEDIA_RE = /<img\b(?:[^>"']|"[^"]*"|'[^']*')*>|<span class="prose-video">[\s\S]*?<\/span>/gi;
+  // 图片按文档顺序抽出来；属性值里允许出现被引号包住的 `>`（alt="a > b"），别让正则在这里提前截断标签。
+  const MEDIA_RE = /<img\b(?:[^>"']|"[^"]*"|'[^']*')*>/gi;
   let text = String(html ?? '').replace(MEDIA_RE, (block) => {
-    if (/^<span/i.test(block)) {
-      const videoTag = /<video\b[^>]*>/i.exec(block)?.[0] ?? '';
-      const src = decodeHtmlAttribute(/<source\b[^>]*\bsrc="([^"]*)"/i.exec(block)?.[1] ?? '');
-      const alt = decodeHtmlAttribute(/\baria-label="([^"]*)"/i.exec(videoTag)?.[1] ?? '');
-      if (src) images.push({ video: true, src, alt, width: attr(videoTag, 'width'), height: attr(videoTag, 'height') });
-      return '';
-    }
     const src = decodeHtmlAttribute(htmlAttr(block, 'data-full') || htmlAttr(block, 'src'));
     const alt = decodeHtmlAttribute(/alt="([^"]*)"/i.exec(block)?.[1] ?? '');
     const width = attr(block, 'width');
@@ -30,7 +20,7 @@ export function splitImages(html) {
     return '';
   });
 
-  // 剥掉 <img>/<video> 会留下空的 <a href></a> 或空段落——不可见却能被 Tab/读屏触及，这里一并清掉。
+  // 剥掉 <img> 会留下空的 <a href></a> 或空段落——不可见却能被 Tab/读屏触及，这里一并清掉。
   text = text.replace(/<a\b[^>]*>\s*<\/a>/gi, '');
   text = text.replace(/<p>\s*<\/p>/gi, '').replace(/\n{3,}/g, '\n\n').trim();
   return { text, images };
@@ -55,26 +45,14 @@ const gallery = (images, slug, eager = false) => {
         : '(max-width: 620px) calc((100vw - 59px) / 2), (min-width: 832px) 188px, calc((100vw - 82px) / 4)';
   /* 单图把原始比例写行内：单图档 CSS 是 aspect-ratio:auto（别被多图 3/2 硬裁），而 auto 只用固有尺寸；折叠行的图 lazy、解码前无固有尺寸，盒子会塌成两条 1px 边框（实测 784×2），行内比例盖过 auto 先占住地方。 */
   const solo = n === 1;
-  const expandIcon = EXPAND_ICON;
   const cells = shown.map((im, index) => {
-    if (im.video) {
-      // 视频格：原生控制条负责「点一下就播」；右上角另给一枚「灯箱播放」按钮（不抢视频自己的点击）。
-      const dim = im.width && im.height ? ` width="${esc(im.width)}" height="${esc(im.height)}"` : '';
-      const soloStyle = solo && im.width && im.height ? ` style="aspect-ratio: ${esc(im.width)} / ${esc(im.height)}"` : '';
-      return `        <div class="gal-item gal-video">
-          <video class="gal-video-el" src="${esc(im.src)}" controls playsinline preload="none" data-lazy-preload${dim}${soloStyle} aria-label="${esc(im.alt || '视频')}"></video>
-          <a class="gal-video-expand" href="${esc(im.src)}" target="_blank" rel="noopener" data-lightbox="${esc(slug)}" data-media="video"
-                  data-full="${esc(im.src)}"${im.alt ? ` data-alt="${esc(im.alt)}"` : ''}${im.width && im.height ? ` data-w="${esc(im.width)}" data-h="${esc(im.height)}"` : ''}
-                  aria-label="${esc(im.alt ? `在灯箱中播放：${im.alt}` : '在灯箱中播放视频')}">${expandIcon}</a>
-        </div>`;
-    }
     return `        <a class="gal-item" href="${esc(im.src)}" data-lightbox="${esc(slug)}"
            data-full="${esc(im.full ?? im.src)}"${im.alt ? ` data-alt="${esc(im.alt)}"` : ''}>
           <img src="${esc(im.thumb ?? mediaFallback(im.src))}" alt="${esc(im.alt)}"${im.previewSrcset ? ` srcset="${esc(im.previewSrcset)}" sizes="${sizes}"` : ''}${im.width && im.height ? ` width="${esc(im.width)}" height="${esc(im.height)}"` : ''}${solo && im.width && im.height ? ` style="aspect-ratio: ${esc(im.width)} / ${esc(im.height)}"` : ''} loading="${eager && index === 0 ? 'eager' : 'lazy'}" decoding="async">
         </a>`;
   }).join('\n');
   /* 第 5 张起不占位，只把灯箱要的数据挂在空 span 上；用 <span hidden> 而非 .gal-item，因为它不该可交互（decorateLightbox() 只认 img[data-lightbox]）。 */
-  const offstage = rest.map((im) => `        <span hidden data-lightbox="${esc(slug)}" data-full="${esc(im.full ?? im.src)}"${im.video ? ' data-media="video"' : ''}${im.alt ? ` data-alt="${esc(im.alt)}"` : ''}${im.width && im.height ? ` data-w="${esc(im.width)}" data-h="${esc(im.height)}"` : ''}></span>`).join('\n');
+  const offstage = rest.map((im) => `        <span hidden data-lightbox="${esc(slug)}" data-full="${esc(im.full ?? im.src)}"${im.alt ? ` data-alt="${esc(im.alt)}"` : ''}${im.width && im.height ? ` data-w="${esc(im.width)}" data-h="${esc(im.height)}"` : ''}></span>`).join('\n');
   return `      <div class="gallery" data-count="${n}">
 ${cells}${offstage ? `\n${offstage}` : ''}
       </div>`;

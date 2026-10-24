@@ -18,7 +18,7 @@ const release = apply ? acquireMaintenanceLock([DB_FILE, CONTENT_DIR, UPLOADS_DI
 const db = apply ? open(DB_FILE) : new DatabaseSync(DB_FILE, { readOnly: true });
 if (apply) migrate(db, { log() {} });
 
-const rows = db.prepare("SELECT id, path, width, height, thumbnail, variants, animated FROM media WHERE COALESCE(mime, '') NOT LIKE 'video/%' ORDER BY id").all();
+const rows = db.prepare("SELECT id, path, width, height, thumbnail, variants, animated FROM media ORDER BY id").all();
 const update = db.prepare('UPDATE media SET thumbnail = ?, variants = ?, width = ?, height = ?, animated = ? WHERE id = ? AND path = ? AND thumbnail IS ? AND variants IS ?');
 const absOf = mediaFile;
 

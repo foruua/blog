@@ -1,14 +1,12 @@
 import { mediaFallback } from '../media/variants.js';
 import { esc, decodeHtmlAttribute, htmlAttr } from '../util/text.js';
-import { EXPAND_ICON } from './icons.js';
 
-/** 灯箱（点图看大图 / 正文视频放大播放）。弹窗纯静态，交互全在 public/app.js（监听 [data-lightbox]、用 data-full 取展示图/视频、按 data-lightbox 串同组媒体翻页）；哪些媒体能点完全由标记决定。 */
+/** 灯箱（点图看大图）。弹窗纯静态，交互全在 public/app.js（监听 [data-lightbox]、用 data-full 取展示图、按 data-lightbox 串同组图片翻页）；哪些图片能点完全由标记决定。 */
 
 export const lightboxHtml = `  <dialog class="lightbox" id="lightbox" aria-label="图片查看">
     <button type="button" class="lb-close" data-lb-close aria-label="关闭图片查看"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M4.4 4.4 11.6 11.6M11.6 4.4 4.4 11.6"/></svg></button>
     <button type="button" class="lb-nav lb-prev" data-lb-prev aria-label="上一张">‹</button>
     <img class="lb-img" alt="">
-    <video class="lb-video" controls playsinline hidden></video>
     <button type="button" class="lb-nav lb-next" data-lb-next aria-label="下一张">›</button>
     <!-- 「第 3 / 12 张」由 app.js 的 lbShow() 改写，所以这里要是个 live region：
          翻页时视觉上看得到换了张，读屏不播报就等于什么都没发生。 -->
@@ -30,27 +28,10 @@ function withAspectRatio(tag) {
     : tag.replace(/\bstyle="[^"]*"/i, `style="aspect-ratio:${w}/${h};${style}"`);
 }
 
-/** 给正文插图挂灯箱属性；正文视频再补一枚「灯箱播放」按钮。渲染页面时做，不写回数据库。@param group 同组标识（一般 p-<slug>）：翻页只在这一篇的图里走。 */
+/** 给正文插图挂灯箱属性。渲染页面时做，不写回数据库。@param group 同组标识（一般 p-<slug>）：翻页只在这一篇的图里走。 */
 export function withLightbox(html, group, imageInfo) {
   const id = esc(group);
-  const expandIcon = EXPAND_ICON;
-  // 正文视频（<span class="prose-video"> 包着 <video controls>）自带控制条，不能抢它的点击；
-  // 在右上角补一枚独立按钮进灯箱。组 id 与图片一致，混合翻页时顺序就是正文顺序。
-  let out = String(html ?? '').replace(/<span class="prose-video">([\s\S]*?)<\/span>/gi, (whole, inner) => {
-    if (/prose-video-expand|data-lightbox=/i.test(whole)) return whole;
-    const src = decodeHtmlAttribute(/<source\b[^>]*\bsrc="([^"]*)"/i.exec(inner)?.[1] ?? '');
-    if (!src) return whole;
-    const videoTag = /<video\b[^>]*>/i.exec(inner)?.[0] ?? '';
-    const alt = decodeHtmlAttribute(/\baria-label="([^"]*)"/i.exec(videoTag)?.[1] ?? '');
-    const w = /\bwidth="(\d+)"/i.exec(videoTag)?.[1] ?? '';
-    const h = /\bheight="(\d+)"/i.exec(videoTag)?.[1] ?? '';
-    const label = esc(alt ? `在灯箱中播放：${alt}` : '在灯箱中播放视频');
-    const button = `<a class="prose-video-expand" href="${esc(src)}" target="_blank" rel="noopener"`
-      + ` data-lightbox="${id}" data-media="video" data-full="${esc(src)}"`
-      + `${alt ? ` data-alt="${esc(alt)}"` : ''}${w && h ? ` data-w="${w}" data-h="${h}"` : ''}`
-      + ` aria-label="${label}">${expandIcon}</a>`;
-    return `<span class="prose-video">${inner}${button}</span>`;
-  });
+  const out = String(html ?? '');
   return out.replace(/<img\b[^>]*>/gi, (tag, offset, whole) => {
     tag = withAspectRatio(tag);
     if (/\bdata-lightbox=/i.test(tag)) return tag;

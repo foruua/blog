@@ -40,7 +40,7 @@ BLOG_DEPLOY_NODE=/opt/node24/bin/node \
 
 默认服务名 `blog`、应用目录 `/srv/blog`、发布目录 `/srv/blog-releases`、Node 路径 `/usr/bin/node`，可分别用 `BLOG_DEPLOY_SERVICE`、`BLOG_DEPLOY_APP_ROOT`、`BLOG_DEPLOY_RELEASE_ROOT`、`BLOG_DEPLOY_NODE` 覆盖；服务运行用户默认 `blog`，用 `BLOG_DEPLOY_USER` 改；保留最近 N 个发布版本用 `BLOG_DEPLOY_KEEP_RELEASES`（默认 5，0 = 不清理）。当前生产用官方 Node 24.22.1，装在 `/opt/node24`，所以发布时传 `BLOG_DEPLOY_NODE`，让 `npm ci`、语法检查、备份和恢复演练都用同一个 Node。发布前会做 Node 语法检查（`.js` 与 `.mjs`）、依赖安装（以服务用户执行，不用 root 跑 postinstall）、静态资源预构建（`npm run build:assets`，随后裁掉 devDependencies）、健康检查，失败自动回滚。
 
-生产机的 Nginx 上传上限要覆盖视频：`client_max_body_size` 至少 160m（默认视频上限 128MB），`proxy_read_timeout` / `proxy_send_timeout` 放到 300s。完整装机步骤、DNS/ICP 与异地备份见 [`docs/deploy-tencent.md`](docs/deploy-tencent.md)。
+生产机的 Nginx 上传上限要覆盖图片上限：`client_max_body_size` 至少 40m（默认单文件 8MB、最多 32MB），`proxy_read_timeout` / `proxy_send_timeout` 放到 300s。完整装机步骤、DNS/ICP 与异地备份见 [`docs/deploy-tencent.md`](docs/deploy-tencent.md)。
 
 ### 发布回滚
 
@@ -95,11 +95,11 @@ date: 2026-10-11 10:00
 
 后台「外观」页可以安装、启用、预览和配置主题。所有主题统一放在 `themes/<id>/`，没有「内置 / 用户安装」两套目录：上传的主题直接进 `themes/`，随完整备份一起归档。站点始终有一个主题在用；使用中的主题不能删除，必须先启用其它主题。主题是 Liquid 模板包，不执行服务端 JavaScript；按 `home`、`single-post`、`page`、`archive`、`search`、`404` 等模板层级覆盖页面，缺失的模板会回退，渲染失败也会自动兜底，不会白屏。结构、模板层级、上下文与安全边界见 [`docs/themes.md`](docs/themes.md)；`scripts/fixtures/fixture/` 是覆盖全部模板层级的可运行骨架，复制到 `themes/<id>/` 改名即可起步。
 
-首页封面支持给每张图片单独配文字：标题、副标题、按钮文字与链接，位置固定在左下角、轻渐变垫底，文字颜色可选浅色或深色；轮播时文字跟着当前封面切换，无 JS 时首屏文字也直接可见。封面只收图片，视频请放在正文里。
+首页封面是一组图片（可轮播，最多 8 张），只收站内上传的图片。
 
 图片灯箱支持点击图片或按钮放大、拖动查看、滚轮缩放，键盘 `+` / `-` 缩放、`0` 还原。手机支持双指缩放；还原状态下左右滑动切换同组照片，放大状态下单指拖动查看。切图或关闭会重置缩放，后台原图查看也支持放大。
 
-后台「插入图片/视频」也能传 MP4 / WebM / MOV：视频不重编码、按内容哈希原样存进 `data/uploads`，正文里仍然写成 `![说明](地址)`，渲染时自动变成带控制条的 `<video>`（`/uploads/*` 支持 Range 分片，Safari 可正常播放和拖进度）。文章、笔记内页和笔记图集里的视频都能在灯箱中放大播放。体积上限由 `MAX_VIDEO_UPLOAD_BYTES` 控制，默认 128MB；后台新上传路径会把原始请求体流式落到临时文件再处理，避免大视频整块占满 Node 堆，超长视频仍更适合放外部存储/CDN。
+后台「插入图片」支持 PNG / JPEG / GIF / WebP（不接受 SVG：它可携带脚本），按内容哈希原样存进 `data/uploads`，正文里写成 `![说明](地址)`；`/uploads/*` 支持 Range 分片。体积上限由 `MAX_UPLOAD_BYTES` 控制，默认 8MB、最多 32MB；后台新上传路径会把原始请求体流式落到临时文件再处理，避免大文件整块占满 Node 堆。
 
 ## 验证
 
@@ -128,7 +128,7 @@ npm run drill
 
 评论邮箱与 SMTP 密码用 AES-GCM 加密后落库，密钥默认在 `DATA_DIR/.app-secret`（600 权限），也可用 `APP_SECRET` 或 `APP_SECRET_FILE` 指定。`APP_SECRET` 至少 32 字节，太短会拒绝启动（`node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` 生成一个）。发信队列 `mail_outbox` 的收件人同样以密文保存（`enc:` 前缀），发信时解密；历史明文行在启动时自动补加密。**密钥不在备份里**：恢复备份到新机器时要一并带上这个文件/环境变量，否则旧邮箱和邮件密码解不开；反过来说，备份泄漏也不会顺带泄漏密钥。老库首次启动会自动把 `settings.app_secret` 搬到该文件并删除库内副本。
 
-上传分两条路径：后台新前端的 raw 上传（`/admin/api/upload`，`x-raw-upload: 1`）会流式落到系统临时文件再处理，大视频不会整块进 Node 堆；旧的 multipart 表单仍会整块读入内存。两条路径都受单文件上限约束，`MAX_CONCURRENT_UPLOADS`（默认 2）限制同时在飞的上传数，超出时返回 503。要传更大的视频，建议放外置存储/CDN，而不是继续抬高内存上限。
+上传分两条路径：后台新前端的 raw 上传（`/admin/api/upload`，`x-raw-upload: 1`）会流式落到系统临时文件再处理，大文件不会整块进 Node 堆；旧的 multipart 表单仍会整块读入内存。两条路径都受单文件上限约束，`MAX_CONCURRENT_UPLOADS`（默认 2）限制同时在飞的上传数，超出时返回 503。要放更大的媒体，建议用外置存储/CDN，而不是继续抬高内存上限。
 
 异地副本有两种做法：生产机推送 `BACKUP_REMOTE=user@host:/path`（SSH 走 `~/.ssh/config` 或 agent）；或由另一台机器 pull。当前部署是后者：Mac 上的 launchd 任务 `me.uua.offsite` 每 6 小时跑 `scripts/pull-offsite.sh`，把 `/srv/blog/state/data/backups` 镜像到 `~/.local/share/blog-hosting/offsite-backups`，最新备份超过 48 小时时以非零退出。主机与私钥路径由 `BLOG_OFFSITE_SOURCE` / `BLOG_OFFSITE_KEY` 提供（脚本里不内置生产地址，缺失即中止），launchd 的 `EnvironmentVariables` 里要一并写上。`/healthz` 的 `offsiteBackup` 只反映生产机自己的推送状态；pull 模式由外部探针的 `MONITOR_OFFSITE_DIR` 检查。推送模式下异地目录与本地**镜像同步**：本地按 `BACKUP_KEEP` 保留、资产包按引用计数回收，异地照抄这一份，不再按 mtime 删（共享资产包下按时间删必然删坏还能用的备份）。推送模式下 `/healthz` 的 `offsiteBackup.state` 为 `ok` 才算异地成功；也可用 `BACKUP_HOOK` 改走 rclone 等自定义命令。自动备份失败会立即发告警，并按 5 分钟 / 15 分钟 / 1 小时 / 6 小时退避重试；`/healthz` 的 `backupLastError`、`backupNextRetryAt` 记录最近失败与下次重试时间。
 
