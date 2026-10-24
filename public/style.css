@@ -588,6 +588,9 @@ body.mnav-open .mnav-panel { transform: none; opacity: 1; }
 .hero-copy {
   position: absolute; inset: 0; z-index: 2;
   display: flex; flex-direction: column; justify-content: flex-end;
+  /* align-items:center：inner 有 max-width:92%，默认 stretch 会从左侧起拉伸，文字盒中心
+     比封面中心偏左约半格（实测 16.5px）——文字在歪盒子里居中等于没居中。 */
+  align-items: center;
   /* 底部留出圆点行（.hero-ctrl 在 bottom .75rem + 1.5rem 高），文字别压上去。 */
   padding: 2.6rem .9rem 2.7rem;
   background: linear-gradient(180deg, transparent 30%, rgba(0, 0, 0, .55));
