@@ -67,12 +67,13 @@ sudo env BLOG_DEPLOY_APP_ROOT=/srv/blog \
 
 | 目录                                   | 用途                         |
 | ------------------------------------ | -------------------------- |
-| `server.js`                          | 启动、路由组装、安全头、静态文件与定时任务      |
+| `server.js`                          | 启动、路由组装、安全头与定时任务（健康检查、备份调度已拆到 `src/`） |
 | `src/routes`                         | 前台、评论和后台 HTTP 接口           |
 | `src/http`                           | 静态文件、Range 分片响应与匿名 HTML 缓存 |
 | `src/render`、`src/admin/views`       | 前台与后台 HTML 渲染              |
 | `src/content`                        | Markdown 同步、原子写入与恢复日志      |
 | `src/feeds`、`src/media`、`src/avatar` | 订阅抓取解析、图片处理、头像缓存           |
+| `src/health.js`、`src/backup-scheduler.js` | 健康检查口径与自动备份调度（含失败退避） |
 | `db`                                 | SQLite 数据访问、事务与 SQL 迁移     |
 | `public`                             | 浏览器脚本和样式                   |
 | `themes`                             | 全部主题（Liquid 模板包；自带 classic 只有 layout 外壳） |
@@ -108,7 +109,7 @@ npx playwright install chromium
 npm test
 ```
 
-`npm test` 先执行 ESLint，再运行隔离的功能回归与浏览器审计；不会读取 `.env` 或修改真实内容和上传目录。浏览器审计缺少运行依赖时明确报告跳过，CI 可使用 `UI_AUDIT_REQUIRED=1 npm test` 要求它必须运行。`test-lifecycle` / `test-maintenance` 里有真实浏览器用例，也需要先装 Chromium；想在无浏览器的机器上只跑功能回归，可用 `UI_AUDIT=off npm test`（仍会执行不需要浏览器的套件）。
+`npm test` 先执行 ESLint，再运行隔离的功能回归与浏览器审计；不会读取 `.env` 或修改真实内容和上传目录。单跑一个套件用 `npm test -- --only test-comments`（套件清单只维护在 `scripts/_suites.mjs`，`package.json` 不再为每个套件保留别名）。浏览器审计缺少运行依赖时明确报告跳过，CI 可使用 `UI_AUDIT_REQUIRED=1 npm test` 要求它必须运行。`test-lifecycle` / `test-maintenance` 里有真实浏览器用例，也需要先装 Chromium；想在无浏览器的机器上只跑功能回归，可用 `UI_AUDIT=off npm test`（仍会执行不需要浏览器的套件）。
 
 ## 备份与恢复
 
@@ -128,7 +129,7 @@ npm run drill
 
 评论邮箱与 SMTP 密码用 AES-GCM 加密后落库，密钥默认在 `DATA_DIR/.app-secret`（600 权限），也可用 `APP_SECRET` 或 `APP_SECRET_FILE` 指定。`APP_SECRET` 至少 32 字节，太短会拒绝启动（`node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` 生成一个）。发信队列 `mail_outbox` 的收件人同样以密文保存（`enc:` 前缀），发信时解密；历史明文行在启动时自动补加密。**密钥不在备份里**：恢复备份到新机器时要一并带上这个文件/环境变量，否则旧邮箱和邮件密码解不开；反过来说，备份泄漏也不会顺带泄漏密钥。老库首次启动会自动把 `settings.app_secret` 搬到该文件并删除库内副本。
 
-上传分两条路径：后台新前端的 raw 上传（`/admin/api/upload`，`x-raw-upload: 1`）会流式落到系统临时文件再处理，大文件不会整块进 Node 堆；旧的 multipart 表单仍会整块读入内存。两条路径都受单文件上限约束，`MAX_CONCURRENT_UPLOADS`（默认 2）限制同时在飞的上传数，超出时返回 503。要放更大的媒体，建议用外置存储/CDN，而不是继续抬高内存上限。
+上传分两条路径：后台新前端的 raw 上传（`/admin/api/upload`，`x-raw-upload: 1`）会流式落到系统临时文件再处理，大文件不会整块进 Node 堆；旧的 multipart 表单仍会整块读入内存，因此单独限 32MB（`MAX_MULTIPART_UPLOAD_BYTES`），而 raw 路径沿用 `MAX_UPLOAD_BYTES`（默认不限）。两条路径都受并发上传数约束，`MAX_CONCURRENT_UPLOADS`（默认 2）限制同时在飞的上传数，超出时返回 503。要放更大的媒体，建议用外置存储/CDN，而不是继续抬高内存上限。
 
 异地副本有两种做法：生产机推送 `BACKUP_REMOTE=user@host:/path`（SSH 走 `~/.ssh/config` 或 agent）；或由另一台机器 pull。当前部署是后者：Mac 上的 launchd 任务 `me.uua.offsite` 每 6 小时跑 `scripts/pull-offsite.sh`，把 `/srv/blog/state/data/backups` 镜像到 `~/.local/share/blog-hosting/offsite-backups`，最新备份超过 48 小时时以非零退出。主机与私钥路径由 `BLOG_OFFSITE_SOURCE` / `BLOG_OFFSITE_KEY` 提供（脚本里不内置生产地址，缺失即中止），launchd 的 `EnvironmentVariables` 里要一并写上。`/healthz` 的 `offsiteBackup` 只反映生产机自己的推送状态；pull 模式由外部探针的 `MONITOR_OFFSITE_DIR` 检查。推送模式下异地目录与本地**镜像同步**：本地按 `BACKUP_KEEP` 保留、资产包按引用计数回收，异地照抄这一份，不再按 mtime 删（共享资产包下按时间删必然删坏还能用的备份）。推送模式下 `/healthz` 的 `offsiteBackup.state` 为 `ok` 才算异地成功；也可用 `BACKUP_HOOK` 改走 rclone 等自定义命令。自动备份失败会立即发告警，并按 5 分钟 / 15 分钟 / 1 小时 / 6 小时退避重试；`/healthz` 的 `backupLastError`、`backupNextRetryAt` 记录最近失败与下次重试时间。
 

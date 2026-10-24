@@ -601,5 +601,22 @@
       const retry = feedback.querySelector('button'); if (retry) retry.hidden = true;
     }
   };
-  window.__ui = { open, confirm, busy, loadImage, clearImage };
+  /* 复制文本：Clipboard API 优先，失败退回「选区 + execCommand」（HTTP 页面或旧浏览器）。
+     前台代码块复制与后台 [data-copy] 共用这一份，别再各写一套降级路径。 */
+  const copyText = async (text) => {
+    const value = String(text ?? '');
+    try {
+      if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(value); return true; }
+    } catch { /* 无权限或非安全上下文：走下面的兜底 */ }
+    const area = document.createElement('textarea');
+    area.value = value; area.setAttribute('readonly', '');
+    area.style.cssText = 'position:fixed;top:0;left:-9999px;opacity:0';
+    document.body.appendChild(area); area.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch { ok = false; }
+    area.remove();
+    return ok;
+  };
+  window.__copyText = copyText;
+  window.__ui = { open, confirm, busy, loadImage, clearImage, copyText };
 })();

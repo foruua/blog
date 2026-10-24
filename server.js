@@ -1,7 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { Worker } from 'node:worker_threads';
 import { acquireMaintenanceLock, createMutationQueue, createWriteBarrier } from './src/util/lock.js';
 import { recoverWrites } from './src/content/commit.js';
 import { isExternalWrite } from './src/util/external-writes.js';
@@ -14,7 +13,7 @@ import { esc } from './src/util/text.js';
 import { Hono } from 'hono';
 import { compress } from 'hono/compress';
 import { serve } from '@hono/node-server';
-import { open, close, sqliteVersion } from './db/driver.js';
+import { open, close, sqliteVersion, optimize } from './db/driver.js';
 import { migrate } from './db/migrate.js';
 import { createRepo } from './db/repo.js';
 import { setNavPages, setPaletteDefault } from './src/render/layout.js';
@@ -41,12 +40,14 @@ import { normalizeAvatar } from './src/avatar/image.js';
 import { avatarRoutes } from './src/routes/avatar.js';
 import { DB_FILE, CONTENT_DIR, DATA_DIR, UPLOADS_DIR, PORT, HOST, SITE, configWarnings, AVATAR_DIR, AVATAR_UPSTREAMS, AVATAR_FETCH_SIZE, AVATAR_CACHE_MAX_FILES, THEMES_DIR, PUBLIC_DIR } from './src/config.js';
 import { pruneTrash, pruneTrashDirs, TRASH_DERIVED_RETENTION_DAYS } from './src/util/trash.js';
-import { envInt, envDurationMs } from './src/util/env.js';
+import { envDurationMs } from './src/util/env.js';
 import { initMail, deliver as deliverMail } from './src/mail.js';
 import { createMailOutbox } from './src/mail-outbox.js';
 import { createImageInfo } from './src/media/info.js';
-import { createBackupSummaryCache, latestRecoverableBackup, isRecoverableBackup } from './src/backup.js';
-import { createWatchdog, offsiteStale } from './src/monitor.js';
+import { createBackupSummaryCache, isRecoverableBackup } from './src/backup.js';
+import { createBackupScheduler } from './src/backup-scheduler.js';
+import { createHealthMonitor } from './src/health.js';
+import { createWatchdog } from './src/monitor.js';
 import { rotateLogsAsync, resolveLogDir } from './src/log-rotate.js';
 import { THEME_BOOT as PUBLIC_THEME_BOOT, VERSIONED_ASSETS, assetVer, setThemeResolver, setThemeRenderer, setThemeErrorLogger } from './src/render/layout.js';
 import { THEME_BOOT as ADMIN_THEME_BOOT } from './src/admin/layout.js';
@@ -249,83 +250,24 @@ const watchdogIntervalMs = envDurationMs(
 );
 const WATCHDOG_MAX_AGE_SEC = Number(process.env.MONITOR_BACKUP_MAX_AGE_SEC ?? 48 * 3600) || 48 * 3600;
 const WATCHDOG_REQUIRE_OFFSITE = process.env.MONITOR_REQUIRE_OFFSITE === 'true';
-// 磁盘/WAL 的硬阈值：磁盘满会同时坏掉 SQLite、上传和备份；WAL 异常膨胀通常意味着长事务或检查点失败。
-// 默认 512MB 对个人站点足够宽，环境变量可覆盖（设 0 = 不按该项判定，健康检查仍会返回数值）。
-const HEALTH_MIN_DISK_FREE_BYTES = envInt(process.env.HEALTH_MIN_DISK_FREE_BYTES, 512 * 1024 * 1024, { min: 0, max: 1024 ** 4 });
-const HEALTH_MAX_WAL_BYTES = envInt(process.env.HEALTH_MAX_WAL_BYTES, 512 * 1024 * 1024, { min: 0, max: 1024 ** 4 });
-const HEALTH_BACKUP_TIMEOUT_SEC = envInt(process.env.HEALTH_BACKUP_TIMEOUT_SEC, 20 * 60, { min: 60, max: 24 * 3600 });
 
-// 备份状态：失败时既要尽快重试，也要在 /healthz 和后台可见，不能只留一行日志。
-let backupLastError = null;
-let backupLastAttemptAt = null;
-let backupNextRetryAt = null;
-let backupStartedAt = null;
-let backupRetryStep = 0;
-let backupRetryDelayMs = null;
-let backupAlertedAt = 0;
-let backupRunFailed = false;
-const BACKUP_RETRY_STEPS = [5 * 60 * 1000, 15 * 60 * 1000, 60 * 60 * 1000, 6 * 3600 * 1000];
-let backupQueued = false;
-let backupWorker = null;
+// 自动备份与健康检查各自成模块：server.js 只负责装配和接线路由，状态维护与重试策略都在模块内部。
+// 备份失败时既要尽快重试，也要在 /healthz 和后台可见，不能只留一行日志。
+const backupScheduler = createBackupScheduler({
+  identity: SITE.identity,
+  outbox, backgroundWrites, backupSummary, logError,
+});
+const { healthSnapshot, infraHealth, localHealth } = createHealthMonitor({
+  repo,
+  dataDir: DATA_DIR,
+  dbFile: DB_FILE,
+  backupSummary,
+  backupState: () => backupScheduler.state(),
+  maxAgeSec: WATCHDOG_MAX_AGE_SEC,
+  requireOffsite: WATCHDOG_REQUIRE_OFFSITE,
+});
+
 let closing = false;
-
-function diskStats() {
-  const out = { diskFreeBytes: null, diskTotalBytes: null, dbBytes: null, dbWalBytes: null };
-  try {
-    const s = fs.statfsSync(DATA_DIR);
-    out.diskFreeBytes = Number(s.bavail) * Number(s.bsize);
-    out.diskTotalBytes = Number(s.blocks) * Number(s.bsize);
-  } catch { /* 平台不支持 statfs 时只返回 null，不阻断健康检查 */ }
-  try { out.dbBytes = fs.statSync(DB_FILE).size; } catch { /* 数据库刚被移走 */ }
-  try { out.dbWalBytes = fs.statSync(`${DB_FILE}-wal`).size; } catch { out.dbWalBytes = 0; }
-  return out;
-}
-
-function healthSnapshot() {
-  return {
-    ...diskStats(),
-    backupWorkerState: backupWorker ? 'running' : (backupQueued ? 'queued' : 'idle'),
-    backupLastError,
-    backupLastAttemptAt,
-    backupNextRetryAt,
-    backupStartedAt: backupStartedAt ? new Date(backupStartedAt).toISOString() : null,
-    rssBytes: process.memoryUsage().rss,
-  };
-}
-
-// 磁盘/WAL/备份卡住三项硬检查：localHealth 与 /healthz 共用同一口径，避免两处漂移。
-// 备份年龄/异地新鲜度不在这里判——/healthz 只回报字段、由探针侧（monitor.probe）判，
-// 本地检查（localHealth）才有完整判断语义。
-function infraHealth() {
-  const disk = diskStats();
-  if (HEALTH_MIN_DISK_FREE_BYTES > 0 && Number.isFinite(disk.diskFreeBytes) && disk.diskFreeBytes < HEALTH_MIN_DISK_FREE_BYTES) {
-    return { ok: false, reason: `磁盘剩余空间不足：${Math.round(disk.diskFreeBytes / 1048576)}MB < ${Math.round(HEALTH_MIN_DISK_FREE_BYTES / 1048576)}MB` };
-  }
-  if (HEALTH_MAX_WAL_BYTES > 0 && Number.isFinite(disk.dbWalBytes) && disk.dbWalBytes > HEALTH_MAX_WAL_BYTES) {
-    return { ok: false, reason: `SQLite WAL 过大：${Math.round(disk.dbWalBytes / 1048576)}MB > ${Math.round(HEALTH_MAX_WAL_BYTES / 1048576)}MB` };
-  }
-  if (backupStartedAt && Date.now() - backupStartedAt > HEALTH_BACKUP_TIMEOUT_SEC * 1000) {
-    return { ok: false, reason: '备份任务运行时间过长' };
-  }
-  return { ok: true, reason: '基础设施正常' };
-}
-
-// 本地部分直接读库，不必绕 HTTP 一圈；公网可达性才必须走网络。
-function localHealth() {
-  try { repo.stats(); } catch { return { ok: false, reason: '数据库读取失败' }; }
-  const infra = infraHealth();
-  if (!infra.ok) return infra;
-  const { recoverable } = backupSummary.get();
-  if (!recoverable) return { ok: false, reason: '没有可完整恢复的备份' };
-  const age = Math.round((Date.now() - Date.parse(recoverable.createdAt)) / 1000);
-  if (!Number.isFinite(age) || age > WATCHDOG_MAX_AGE_SEC) return { ok: false, reason: '可恢复备份已过期' };
-  if (WATCHDOG_REQUIRE_OFFSITE) {
-    let offsite = null;
-    try { offsite = JSON.parse(repo.getSetting('backup_offsite_status') ?? 'null'); } catch { /* 未记录 */ }
-    if (offsiteStale(offsite, WATCHDOG_MAX_AGE_SEC)) return { ok: false, reason: '异地备份未成功或已过期' };
-  }
-  return { ok: true, reason: '本地检查正常' };
-}
 
 
 const watchdog = createWatchdog({
@@ -352,135 +294,7 @@ const watchdog = createWatchdog({
     if (!queued?.queued) console.log(JSON.stringify({ event: 'watchdog.mail-queued', reason: queued?.reason ?? 'unknown' }));
   },
 });
-function notifyBackupFailure(reason) {
-  if (backupAlertedAt && Date.now() - backupAlertedAt < 6 * 3600 * 1000) return;
-  backupAlertedAt = Date.now();
-  const queued = outbox.enqueue({
-    subject: `[告警] ${SITE.identity} 自动备份失败`,
-    text: [
-      '站点自动备份失败。',
-      '',
-      `原因：${reason}`,
-      `时间：${new Date().toISOString()}`,
-      backupNextRetryAt ? `下次重试：${backupNextRetryAt}` : '',
-      '',
-      '本地备份与异地备份都会受影响；请登录后台「设置」查看发信队列，或在服务器上检查 backup 日志。',
-    ].filter(Boolean).join('\n'),
-  });
-  if (!queued?.queued) {
-    // 入队失败（库暂时不可写等）就别把“已告警”钉死，下一轮失败再试。
-    backupAlertedAt = 0;
-    console.log(JSON.stringify({ event: 'backup.alert-queued-failed', reason: queued?.reason ?? 'unknown' }));
-  }
-}
-
-function recordBackupFailure(reason) {
-  if (backupRunFailed) return;
-  backupRunFailed = true;
-  backupLastAttemptAt = new Date().toISOString();
-  backupLastError = { at: backupLastAttemptAt, reason: String(reason ?? 'unknown').slice(0, 300) };
-  backupRetryStep = Math.min(backupRetryStep + 1, BACKUP_RETRY_STEPS.length);
-  backupRetryDelayMs = BACKUP_RETRY_STEPS[backupRetryStep - 1] ?? BACKUP_RETRY_STEPS.at(-1);
-  backupNextRetryAt = new Date(Date.now() + backupRetryDelayMs).toISOString();
-  notifyBackupFailure(backupLastError.reason);
-}
-
-function scheduleBackup(delayMs = 0) {
-  if (backupQueued || closing) return;
-  backupQueued = true;
-
-  // 不占全局写队列：备份的一致性由 SQLite 的 VACUUM INTO + 文件树 mtime 校验保证，评论/设置这类
-  // 只写库的操作不该排队等整次备份；文章/上传/主题变更会触发快照失败并在 worker 里重试。
-  setTimeout(() => {
-    if (closing) { backupQueued = false; return; }
-    backupStartedAt = Date.now();
-    backupRunFailed = false;
-    let worker;
-    try { worker = new Worker(new URL('./src/backup-worker.js', import.meta.url)); }
-    catch (error) {
-      // 起不来必须立刻放标志位，否则自动备份会被永久静默关闭；同时按失败处理，避免只留一行日志。
-      backupQueued = false;
-      backupStartedAt = null;
-      console.error(JSON.stringify({ event: 'backup.failed', code: error.code ?? 'WORKER_START' }));
-      recordBackupFailure(`备份 worker 启动失败（${error.code ?? 'WORKER_START'}）`);
-      const retry = backupRetryDelayMs;
-      backupRetryDelayMs = null;
-      if (retry) scheduleBackup(retry);
-      return;
-    }
-    backupWorker = worker;
-    let resumeBackgroundWrites = () => {};
-    try { resumeBackgroundWrites = backgroundWrites.pause(); }
-    catch (error) {
-      // 屏障已存在（另一个后台写还在飞）：本次跳过，别让同步异常从定时器里炸掉进程。
-      backupQueued = false;
-      backupWorker = null;
-      backupStartedAt = null;
-      logError(error, null, 'backup.barrier');
-      void worker.terminate();
-      return;
-    }
-    let released = false;
-    const releaseWrites = () => { if (!released) { released = true; resumeBackgroundWrites(); } };
-    // 自检 + 异地 rsync 允许 15 分钟；给 worker 留足余量，别再 3 分钟就把上传中的异地备份杀掉。
-    const timer = setTimeout(() => {
-      console.error(JSON.stringify({ event: 'backup.timeout' }));
-      recordBackupFailure('备份超时（15 分钟）');
-      void worker.terminate();
-    }, 15 * 60 * 1000);
-    worker.on('message', (message) => {
-      backupSummary.invalidate();
-      if (message.event === 'backup.local-ready') releaseWrites();
-      if (message.event === 'backup.completed') {
-        backupLastError = null;
-        backupLastAttemptAt = new Date().toISOString();
-        backupNextRetryAt = null;
-        backupRetryStep = 0;
-        backupRetryDelayMs = null;
-        backupAlertedAt = 0;
-      } else if (message.event === 'backup.failed') {
-        recordBackupFailure(message.reason ?? message.code ?? '备份失败');
-      } else if (message.event === 'backup.incomplete') {
-        recordBackupFailure(message.reason ?? '备份不完整');
-      }
-      console.log(JSON.stringify(message));
-    });
-    worker.on('error', (error) => {
-      if (!closing) recordBackupFailure(`备份 worker 异常（${error?.code ?? 'WORKER_FAILED'}）`);
-      console.error(JSON.stringify({ event: 'backup.failed', code: error.code ?? 'WORKER_FAILED', message: String(error?.message ?? '').slice(0, 300) }));
-    });
-    worker.on('exit', (code, signal) => {
-      clearTimeout(timer);
-      backupQueued = false;
-      backupWorker = null;
-      backupStartedAt = null;
-      releaseWrites();
-      // worker 自己崩溃/被 SIGKILL 时不会走 message 分支；这里兜住，否则失败会被静默吞掉。
-      if (!closing && !backupRunFailed && (code !== 0 || signal)) recordBackupFailure(`备份 worker 退出（${signal ?? code}）`);
-      const retry = backupRetryDelayMs;
-      backupRetryDelayMs = null;
-      if (retry && !closing) scheduleBackup(retry);
-    });
-  }, Math.max(0, Number(delayMs) || 0)).unref();
-}
-const autoBackupOn = process.env.BACKUP_ON_PUBLISH !== 'false';
-// 0 = 关闭自动备份，与 FEED_REFRESH_MS 等其它间隔约定一致；min 只约束非零值。
-const backupIntervalMs = envDurationMs(process.env.BACKUP_INTERVAL_MS, 6 * 3600000, { min: 60000 });
-const backupInterval = setInterval(scheduleBackup, backupIntervalMs);
-backupInterval.unref();
-if (!autoBackupOn) clearInterval(backupInterval);
-
-let backupCatchup = null;
-if (autoBackupOn) {
-  const lastBackup = latestRecoverableBackup();
-  const lastAgeMs = lastBackup?.createdAt ? Date.now() - Date.parse(lastBackup.createdAt) : null;
-  if (lastAgeMs === null || lastAgeMs >= backupIntervalMs) {
-    const delay = Math.min(90000, Math.max(5000, Math.round(backupIntervalMs / 20)));
-    backupCatchup = setTimeout(scheduleBackup, delay);
-    backupCatchup.unref();
-    console.log(JSON.stringify({ event: 'backup.catchup', lastAgeSec: lastAgeMs === null ? null : Math.round(lastAgeMs / 1000), delayMs: delay }));
-  }
-}
+// 备份调度、失败退避与 worker 生命周期都在 src/backup-scheduler.js（上文 createBackupScheduler）。
 
 // 日志轮转：仅文件日志模式需要，systemd 部署走 journald。这里按小时看一眼大小，
 // 超过阈值就 copytruncate，避免文件日志无限增长。
@@ -505,6 +319,11 @@ const logRotateTimer = logRotateMs > 0 ? setInterval(() => {
     .catch((error) => console.error(JSON.stringify({ event: 'logs.rotate-failed', code: error?.code ?? 'INTERNAL' })));
 }, logRotateMs) : null;
 logRotateTimer?.unref();
+
+// SQLite 长期运行维护：PRAGMA optimize 在没有过期统计时几乎零成本，每天跑一次让查询计划跟上数据变化。
+// 关闭时 db/driver.js 的 close() 也会再跑一次。定时器不阻止进程退出。
+const dbOptimizeTimer = setInterval(() => optimize(db), 24 * 3600 * 1000);
+dbOptimizeTimer.unref();
 
 // 定时器回调里刷新/检查会在返回 Promise 前同步读库：DB 临时错误若直接抛出，会变成未捕获异常
 // 从 setInterval 回调里终止进程。统一接住同步异常与 Promise 拒绝。
@@ -679,7 +498,7 @@ app.get('/healthz', (c) => {
   const body = {
     ...base,
     ...health,
-    backupNextRetryInSec: backupNextRetryAt ? Math.max(0, Math.round((Date.parse(backupNextRetryAt) - Date.now()) / 1000)) : null,
+    backupNextRetryInSec: health.backupNextRetryAt ? Math.max(0, Math.round((Date.parse(health.backupNextRetryAt) - Date.now()) / 1000)) : null,
     latestRecoverableBackupAgeSec: recoverable ? Math.max(0, Math.round((Date.now() - Date.parse(recoverable.createdAt)) / 1000)) : null,
     backupComplete: Boolean(last && isRecoverableBackup(last)),
     offsiteBackup: offsite,
@@ -790,7 +609,7 @@ app.route('/', avatarRoutes(avatarCache, { isKnown: knownAvatars }));
 
 const commentNotifier = createCommentNotifier({ repo, comments, crypt, mail: outbox });
 app.route('/', adminRoutes({
-  repo, comments, adminRepo, crypt, auth, renderer, scheduleBackup, notifier: commentNotifier,
+  repo, comments, adminRepo, crypt, auth, renderer, scheduleBackup: backupScheduler.schedule, notifier: commentNotifier,
   feeds, refresher, mutate,
   links, linkChecker,
   themes, themeEngine,
@@ -855,17 +674,16 @@ for (const sig of ['SIGINT', 'SIGTERM']) {
   process.on(sig, () => {
     if (closing) return;
     closing = true;
-    clearInterval(backupInterval);
     if (feedInterval) clearInterval(feedInterval);
     if (feedBoot) clearTimeout(feedBoot);
     if (linkInterval) clearInterval(linkInterval);
     if (linkBoot) clearTimeout(linkBoot);
-    if (backupCatchup) clearTimeout(backupCatchup);
     if (logRotateTimer) clearInterval(logRotateTimer);
+    clearInterval(dbOptimizeTimer);
     watchdog.stop();
     outbox.stop();
     // 先把备份 worker 停掉并等它退出，再关主库/释放维护锁；否则另一个实例可能在 worker 仍写备份时启动。
-    const workerDone = backupWorker ? backupWorker.terminate().catch(() => {}) : Promise.resolve();
+    const workerDone = backupScheduler.stop();
     console.log('\n[server] 正在退出，合并 WAL…');
     // 主动断开空闲 keep-alive 连接（nginx 回源常驻连接默认要等 75s 空闲超时），
     // 否则几乎必然先撞 15s 兜底强退：drain 顺序形同虚设，且兜底不等备份 worker 就释放锁。

@@ -97,7 +97,10 @@ try {
     await page.goto(instance.base + '/admin/media'); await lengthen(page);
     await checkDialog(page, '删除确认', () => page.locator('[data-modal-title]').click(), '#a-modal[open]');
     await checkDialog(page, '复制失败提示', () => page.evaluate(() => {
-      navigator.clipboard.writeText = async () => { throw new Error('clipboard unavailable'); }; document.querySelector('[data-copy]').click();
+      // 复制降级与 Clipboard API 都在 ui.js：要走到「失败提示」这个弹窗，两条路径都得断掉。
+      navigator.clipboard.writeText = async () => { throw new Error('clipboard unavailable'); };
+      document.execCommand = () => false;
+      document.querySelector('[data-copy]').click();
     }), '.ui-dialog[open]');
     await checkDialog(page, '引用详情', () => page.locator('.a-media-reference').click(), '#a-media-dialog[open] .a-media-detail');
     // 在详情中再打开原图；关闭第二层时第一层仍应保持同一份滚动锁。

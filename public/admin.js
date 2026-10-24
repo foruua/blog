@@ -48,8 +48,10 @@
     // 原始文案只在第一次点击时记进 dataset：以前每次点击都抓当前 innerHTML，1400ms 内连点第二次抓到的已是「已复制」，就会永久卡在它上面。
     if (btn.dataset.copyLabel === undefined) btn.dataset.copyLabel = btn.innerHTML;
     clearTimeout(Number(btn.dataset.copyTimer) || 0);
-    try { await navigator.clipboard.writeText(text); if (iconOnly) window.__toast?.('路径已复制'); else btn.textContent = '已复制'; }
-    catch { await window.__ui?.confirm({ title: '复制文本', body: '点击复制，或选中文本后使用系统复制操作。', value: text }); }
+    // 复制与降级路径统一在 ui.js：后台不再自带一份 execCommand 兜底。
+    const ok = await window.__copyText?.(text);
+    if (!ok) { await window.__ui?.confirm({ title: '复制文本', body: '点击复制，或选中文本后使用系统复制操作。', value: text }); return; }
+    if (iconOnly) window.__toast?.('路径已复制'); else btn.textContent = '已复制';
     btn.dataset.copyTimer = String(setTimeout(() => { btn.innerHTML = btn.dataset.copyLabel; }, 1400));
   });
 

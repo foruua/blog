@@ -138,7 +138,7 @@ console.log(`  临时备份目录 ${DIR}\n`);
 {
   // T11/T12：服务启动时的「欠账补做」。背景：`setInterval` 从本次启动开始计时，只要「启动后不到一个间隔又重启」，自动备份就永远排不上
   // （2026-10-08 线上真发生过：最新一份停在 06:11，到 16:59 已 10.8 小时）。夹具全隔离（自有 DATA / CONTENT / UPLOADS / BACKUP 目录），
-  // 所以单跑 `npm run test:backup` 也不会去抢线上那套维护锁。
+  // 所以单跑 `npm test -- --only test-backup` 也不会去抢线上那套维护锁。
   const work = fs.mkdtempSync(path.join(os.tmpdir(), 'blog-catchup-'));
   const bdir = path.join(work, 'backups');
   fs.mkdirSync(bdir, { recursive: true });

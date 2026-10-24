@@ -896,18 +896,8 @@
     const code = btn.closest('pre')?.querySelector('code');
     if (!code) return;
     const text = code.innerText;
-    let ok = false;
-    try {
-      if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(text); ok = true; }
-    } catch { ok = false; }
-    if (!ok) {
-      const ta = document.createElement('textarea');
-      ta.value = text; ta.setAttribute('readonly', '');
-      ta.style.cssText = 'position:fixed;top:0;left:-9999px;opacity:0';
-      document.body.appendChild(ta); ta.select();
-      try { ok = document.execCommand('copy'); } catch { ok = false; }
-      ta.remove();
-    }
+    // 降级路径（无 Clipboard API 时选区 + execCommand）收敛在 ui.js，见 window.__copyText。
+    const ok = await window.__copyText?.(text);
     if (!ok) { window.__toast?.('复制失败，请手动选择'); return; }
     // 原始文案只在第一次点击时记下来：连点第二次时 textContent 已经是「已复制」，不能拿它当还原值。
     if (!btn.dataset.copyLabel) btn.dataset.copyLabel = btn.textContent;

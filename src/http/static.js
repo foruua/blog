@@ -35,47 +35,54 @@ export function createStaticFiles({ repo, assetVer }) {
   // 构建期产物：scripts/build-assets.mjs 生成 .build/manifest.json + 精简/压缩文件。
   // 清单按源文件 sha256 校验，源改过而没重新构建时自动退回运行时精简，绝不发旧内容。
   const buildDir = path.join(PUBLIC_DIR, '.build');
-  let precompiled = null;
   const precompiledCache = new Map();
   const compressedCache = new Map();
   const COMPRESSED_CACHE_MAX = 64;
 
+  // 校验要读并哈希整个 public/：放在启动后异步预热，别让第一个静态请求同步阻塞事件循环。
+  let precompiledPromise = null;
   function loadPrecompiled() {
-    if (precompiled) return precompiled;
-    precompiled = new Map();
+    precompiledPromise ??= loadPrecompiledAsync();
+    return precompiledPromise;
+  }
+  async function loadPrecompiledAsync() {
+    const map = new Map();
     try {
-      const manifest = JSON.parse(fs.readFileSync(path.join(buildDir, 'manifest.json'), 'utf8'));
+      const manifest = JSON.parse(await fs.promises.readFile(path.join(buildDir, 'manifest.json'), 'utf8'));
       for (const [rel, entry] of Object.entries(manifest.files ?? {})) {
         if (!entry || typeof entry.hash !== 'string') continue;
         try {
-          const source = fs.readFileSync(path.join(PUBLIC_DIR, rel));
+          const source = await fs.promises.readFile(path.join(PUBLIC_DIR, rel));
           const hash = crypto.createHash('sha256').update(source).digest('hex');
-          if (hash === entry.hash) precompiled.set(rel, entry);
+          if (hash === entry.hash) map.set(rel, entry);
         } catch { /* 源文件已删除，忽略这一条 */ }
       }
     } catch { /* 没有构建产物：运行时精简即可 */ }
-    return precompiled;
+    return map;
   }
 
-  function precompiledFor(rel, stat) {
-    const entry = loadPrecompiled().get(rel);
+  async function precompiledFor(rel, stat) {
+    const entry = (await loadPrecompiled()).get(rel);
     if (!entry) return null;
     // 源文件在构建后被替换/编辑过：只看 size+mtime 足够；内容哈希已在加载清单时校验。
     if (Number(entry.size) !== stat.size || Math.abs(Number(entry.mtimeMs) - stat.mtimeMs) > 1) return null;
     return entry;
   }
 
-  function readBuildFile(entry, suffix) {
+  async function readBuildFile(entry, suffix) {
     const key = `${entry.hash}:${suffix}`;
     const hit = precompiledCache.get(key);
     if (hit) return hit;
     try {
-      const buf = fs.readFileSync(path.join(buildDir, entry[suffix]));
+      const buf = await fs.promises.readFile(path.join(buildDir, entry[suffix]));
       if (precompiledCache.size >= 64) precompiledCache.delete(precompiledCache.keys().next().value);
       precompiledCache.set(key, buf);
       return buf;
     } catch { return null; }
   }
+
+  // 启动即预热：没有构建产物时这个 Promise 也会很快解析成空 Map。
+  void loadPrecompiled();
 
   async function compressedBuffer(real, stat, buf, encoding) {
     const key = `${real}:${stat.ino}:${stat.size}:${stat.mtimeMs}:${stat.ctimeMs}:${encoding}`;
@@ -95,14 +102,14 @@ export function createStaticFiles({ repo, assetVer }) {
       // 若部署用整目录替换（mv 换 inode），旧 realpath 会把请求判成「不在受管根内」而 404，直到重启。
       // 每次顺手 stat 根目录校验 dev:ino（一次 stat 远比 realpath 便宜），换了就重算。
       try {
-        const st = fs.statSync(root);
+        const st = await fs.promises.stat(root);
         if (st.dev === cached.dev && st.ino === cached.ino) return cached.real;
       } catch { return null; }
       realRootCache.delete(root);
     }
     try {
       const real = await fs.promises.realpath(root);
-      const st = fs.statSync(root);
+      const st = await fs.promises.stat(root);
       realRootCache.set(root, { real, dev: st.dev, ino: st.ino });
       return real;
     } catch { return null; }
@@ -190,12 +197,12 @@ export function createStaticFiles({ repo, assetVer }) {
         await fh.close(); fh = null;
         const relName = rel.replace(/^\/+/, '');
         const accepted = c.req.header('accept-encoding') ?? '';
-        const pre = precompiledFor(relName, stat);
+        const pre = await precompiledFor(relName, stat);
         let encoding = pickEncoding(accepted, ['br', 'gzip']);
         let buf = null;
         if (pre) {
-          buf = encoding ? readBuildFile(pre, encoding) : null;
-          if (!buf) { encoding = ''; buf = readBuildFile(pre, 'min'); }
+          buf = encoding ? await readBuildFile(pre, encoding) : null;
+          if (!buf) { encoding = ''; buf = await readBuildFile(pre, 'min'); }
           if (buf) {
             headers.Vary = 'Accept-Encoding';
             if (encoding) headers['Content-Encoding'] = encoding;

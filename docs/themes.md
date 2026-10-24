@@ -213,4 +213,4 @@ cp -r scripts/fixtures/fixture themes/my-theme
 # 改 theme.json 的 id / name（id 必须等于目录名）
 ```
 
-它同时是 `npm run test:themes` 的夹具，改动它会连带验证模板层级、设置项、上传安装、预览与备份。
+它同时是 `npm test -- --only test-themes` 的夹具，改动它会连带验证模板层级、设置项、上传安装、预览与备份。

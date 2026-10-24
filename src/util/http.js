@@ -69,6 +69,11 @@ export const pickEncoding = (header, candidates) => candidates.find((name) => ac
 export const MAX_UPLOAD = Number(process.env.MAX_UPLOAD_BYTES) > 0
   ? Math.max(1024, Number(process.env.MAX_UPLOAD_BYTES))
   : Infinity;
+// 旧 multipart 路径会把整个请求体读进内存（只有 raw 路径才流式落临时文件）。即便它要求登录，
+// 也不该默认无上限：单独给一个保守上限，需要更大就显式配 MAX_MULTIPART_UPLOAD_BYTES。
+export const MAX_MULTIPART_UPLOAD = Number(process.env.MAX_MULTIPART_UPLOAD_BYTES) > 0
+  ? Math.max(1024, Number(process.env.MAX_MULTIPART_UPLOAD_BYTES))
+  : 32 * 1024 * 1024;
 const WRITE = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 // 上传是少数会把整个请求体读进内存的路径。除了单请求上限，还要限制同时在飞的数量：
@@ -150,6 +155,18 @@ async function spoolRawUpload(c, { limit, timeoutMs }) {
   }
 }
 
+// 请求体上限规则集中一处：上传的两条路径上限不同——raw 走流式落盘，沿用 MAX_UPLOAD（默认不限）；
+// multipart 整块进内存，用独立的保守上限兜底，避免旧表单一次误用就吃掉整个堆。
+const MEDIA_WRITE_RE = /\/comment$|^\/moderate\//;
+export function bodyLimitFor({ path: p, contentType, isUpload = false, isThemeUpload = false }) {
+  const isMultipart = contentType.includes('multipart/form-data');
+  if (isUpload) return (isMultipart ? MAX_MULTIPART_UPLOAD : MAX_UPLOAD) + 65536;
+  if (isThemeUpload) return MAX_THEME_ZIP + 65536;
+  if (p === '/admin/login') return 4096;
+  if (p.startsWith('/api/comments') || MEDIA_WRITE_RE.test(p)) return 32768;
+  return 1024 * 1024;
+}
+
 // 该中间件幂等：用过一次就把请求体标成 bodyBounded，后续实例直接短路。所以 server/admin/comment 各
 // 挂一份都安全——子应用可独立使用（测试就这么挂），分量限制按路径决定，与谁注册无关。
 export function boundedBody() {
@@ -169,16 +186,14 @@ export function boundedBody() {
       return c.json({ ok: false, error: '上传任务过多，请稍后重试' }, 503);
     }
     try {
-      const limit = isUpload ? MAX_UPLOAD + 65536
-        : isThemeUpload ? MAX_THEME_ZIP + 65536
-        : p === '/admin/login' ? 4096
-        : p.startsWith('/api/comments') || /\/comment$/.test(p) || p.startsWith('/moderate/') ? 32768 : 1024 * 1024;
+      const contentType = (c.req.header('content-type') ?? '').toLowerCase();
+      const isMultipart = contentType.includes('multipart/form-data');
+      const limit = bodyLimitFor({ path: p, contentType, isUpload, isThemeUpload });
       if (Number(c.req.header('content-length')) > limit) return c.json({ ok: false, error: '请求内容过大', status: 'too-large' }, 413);
       // 大请求（上传）给更长的读取窗口：15s 是给普通表单的，慢链路上传一张图会被误判成超时。
       const timeoutMs = isUpload ? 120000 : isThemeUpload ? 120000 : limit > 1024 * 1024 ? 120000 : 15000;
       // 新前端用 raw body 上传，只有 multipart 旧表单才整块读入内存。
-      if (isUpload && (c.req.header('x-raw-upload') === '1'
-        || !(c.req.header('content-type') ?? '').toLowerCase().includes('multipart/form-data'))) {
+      if (isUpload && (c.req.header('x-raw-upload') === '1' || !isMultipart)) {
         let temp;
         try { temp = await spoolRawUpload(c, { limit, timeoutMs }); }
         catch (error) {

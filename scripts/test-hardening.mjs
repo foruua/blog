@@ -659,4 +659,35 @@ await test('T12b 隔离审计对写入目标有"必须在临时目录内"的防�
   assert.match(serverDefaults, /AVATAR_UPSTREAMS: ''/, '头像回源没有在测试服务默认值里关闭');
 });
 
+await test('T15a 代码读取的每个环境变量都在 .env.example 里有说明', () => {
+  // 只豁免测试专用与系统级变量：前者不该出现在示例文件里，后者由运行环境提供。
+  const allow = new Set(['BLOG_TEST_ROOT', 'TMPDIR']);
+  const documented = new Set(
+    [...fs.readFileSync('.env.example', 'utf8').matchAll(/^#?\s*([A-Z][A-Z0-9_]+)=/gm)].map((m) => m[1]),
+  );
+  const files = [
+    ...fs.readdirSync('src', { recursive: true }).filter((f) => /\.(js|mjs)$/.test(f)).map((f) => path.join('src', f)),
+    ...fs.readdirSync('db', { recursive: true }).filter((f) => /\.(js|mjs)$/.test(f)).map((f) => path.join('db', f)),
+    'server.js',
+  ];
+  const used = new Set();
+  for (const file of files) {
+    const source = fs.readFileSync(file, 'utf8');
+    for (const m of source.matchAll(/process\.env(?:\.([A-Z][A-Z0-9_]+)|\[['"]([A-Z][A-Z0-9_]+))/g)) used.add(m[1] ?? m[2]);
+  }
+  const missing = [...used].filter((key) => !documented.has(key) && !allow.has(key)).sort();
+  assert.deepEqual(missing, [], `以下环境变量被代码读取但未写进 .env.example：${missing.join(', ')}`);
+});
+
+await test('T15b 旧 multipart 上传有独立上限，raw 路径不受它约束', async () => {
+  const { bodyLimitFor, MAX_MULTIPART_UPLOAD, MAX_UPLOAD } = await import('../src/util/http.js');
+  const { MAX_THEME_ZIP } = await import('../src/config.js');
+  const mp = { path: '/admin/api/upload', contentType: 'multipart/form-data; boundary=x', isUpload: true };
+  const raw = { path: '/admin/api/upload', contentType: 'application/octet-stream', isUpload: true };
+  assert.equal(bodyLimitFor(mp), MAX_MULTIPART_UPLOAD + 65536, 'multipart 必须走独立上限');
+  assert.equal(bodyLimitFor(raw), MAX_UPLOAD + 65536, 'raw 流式上传不该被 multipart 上限误伤');
+  assert.equal(bodyLimitFor({ path: '/admin/themes/upload', contentType: 'multipart/form-data; boundary=x', isThemeUpload: true }), MAX_THEME_ZIP + 65536);
+  assert.ok(MAX_MULTIPART_UPLOAD <= 32 * 1024 * 1024, 'multipart 默认上限不该继续无界');
+});
+
 process.exitCode = report();

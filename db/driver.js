@@ -41,6 +41,9 @@ export function close(db) {
   // shutdown 的 server.close 回调与 5 秒兜底可能各调一次；重复 close 不能把引用计数减穿。
   if (db.__closed) return;
   db.__closed = true;
+  // PRAGMA optimize 只在统计信息明显过期时才真正做 ANALYZE，日常开销极低；放在 checkpoint 前，
+  // 让最后的查询计划是最新的。失败不该阻断关闭。
+  try { db.exec('PRAGMA optimize'); } catch { /* 统计信息维护失败不影响数据一致性 */ }
   try { db.exec('PRAGMA wal_checkpoint(TRUNCATE)'); } catch {  }
   try {
     db.close();
@@ -53,3 +56,8 @@ export function close(db) {
 }
 
 export const sqliteVersion = (db) => (db.__sqliteVersion ??= db.prepare('SELECT sqlite_version() AS v').get().v);
+
+// 长期运行时的查询计划维护：SQLite 推荐周期调用 PRAGMA optimize（没有过期统计时几乎零成本）。
+export const optimize = (db) => {
+  try { db.exec('PRAGMA optimize'); } catch { /* 统计信息维护失败不影响数据一致性 */ }
+};
