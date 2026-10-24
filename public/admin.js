@@ -319,7 +319,6 @@
     const file = $('heroFile');
     const input = $('heroImages');
     const list = $('heroList');
-    const modeRow = $('heroModeRow');
     const x = $('heroX');
     const state = $('heroState');
     // 封面只收图片。上传接口已只收图片，这里再挡一道：也挡住把 .mp4 改名成 .png 混进来的情况。
@@ -420,7 +419,6 @@
       list.replaceChildren(...items.map(tile), ...(add ? [add] : []));
       list.classList.toggle('is-empty', !items.length);
       x.hidden = !items.length;
-      modeRow.hidden = items.length < 2;
     };
 
     // 媒体库选择器（与编辑器同一份实现）：选中的图片加进封面列表，点保存才生效。

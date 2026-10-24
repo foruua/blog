@@ -327,9 +327,10 @@ let uploadedRawUrl = '';
 
 {
   const page = await html('/admin/system');
-  check('T8j-1 首页封面表单：一行缩略格 + 末尾「添加」格 + 轮播方式 + 保存，没有地址/替代文字栏',
+  check('T8j-1 首页封面表单：一行缩略格 + 末尾「添加」格 + 蒙版文案 + 保存，没有轮播方式/地址/替代文字栏',
     page.includes('id="heroForm"') && page.includes('id="heroFile"') && page.includes('id="heroPick"')
-    && page.includes('<input type="hidden" id="heroImages"') && page.includes('id="heroMode"')
+    && page.includes('<input type="hidden" id="heroImages"') && page.includes('id="heroOverlay"')
+    && !page.includes('id="heroMode"')
     && !page.includes('id="heroUrl"') && !page.includes('图片地址') && !page.includes('替代文字') && !page.includes('id="heroAlt"')
     && !page.includes('上传图片'), '');
 
@@ -341,10 +342,9 @@ let uploadedRawUrl = '';
   check('T8j-1c 首页封面可以从媒体库选择（与编辑器共用选择器）',
     page.includes('id="a-picker"') && page.includes('从媒体库选择') && page.includes('id="a-picker-upload"'), '');
 
-  check('T8j-1b 全部移除入口挂在操作条上，空图片时隐藏；单图时轮播方式不出现',
+  check('T8j-1b 全部移除入口挂在操作条上，空图片时隐藏',
     page.includes('id="heroX"') && page.includes('formaction="/admin/hero/clear"')
-    && /id="heroX"[^>]*hidden/.test(page) && !page.includes('>移除<')
-    && /id="heroModeRow"[^>]*hidden/.test(page), '');
+    && /id="heroX"[^>]*hidden/.test(page) && !page.includes('>移除<'), '');
 
   const csrf = csrfOf(page);
   const save = (fields) => req('/admin/hero', {
@@ -447,28 +447,27 @@ let uploadedRawUrl = '';
   fdY.append('file', new Blob([PNG_2x2], { type: 'image/png' }), 'y.png');
   const upY = await (await req('/admin/api/upload', { method: 'POST', headers: { 'x-csrf-token': csrf }, body: fdY })).json();
   const yUrl = upY.url;
-  const saveImages = (list, mode = '', overlay = '') => save({ images: JSON.stringify(list), ...(mode ? { mode } : {}), overlay });
+  const saveImages = (list, overlay = '') => save({ images: JSON.stringify(list), overlay });
 
   const savedMulti = await saveImages(
-    [{ path: uploadedUrl, w: '1', h: '1' }, { path: yUrl, w: '2', h: '2' }], 'auto', '沉沦的独立博客');
+    [{ path: uploadedUrl, w: '1', h: '1' }, { path: yUrl, w: '2', h: '2' }], '沉沦的独立博客');
   check('T8j-7 两张图 + 自动轮播保存成功', savedMulti.status === 303
     && decodeURIComponent(savedMulti.headers.get('location') ?? '').includes('已保存'), '');
 
   const homeMulti = await (await fetch(BASE + '/')).text();
   const slideCount = (homeMulti.match(/class="hero-slide/g) ?? []).length;
-  check('T8j-8 首页渲染轮播：两张 slide、圆点两枚、控制条先隐藏且只剩圆点（无箭头无暂停钮）、蒙版文案压在轮播上、自动模式挂在容器上',
-    homeMulti.includes('data-hero-carousel') && homeMulti.includes('data-hero-mode="auto"')
+  check('T8j-8 首页渲染轮播：两张 slide、无控制条无圆点、蒙版文案压在渐变上、自动轮播',
+    homeMulti.includes('data-hero-carousel') && !homeMulti.includes('data-hero-mode')
     && slideCount === 2 && homeMulti.includes('class="hero-slide is-active"')
-    && (homeMulti.match(/class="hero-dot"/g) ?? []).length === 2
-    && homeMulti.includes('hero-ctrl" hidden') && homeMulti.includes('data-lightbox="hero"')
-    && !homeMulti.includes('hero-pause')
+    && !homeMulti.includes('hero-ctrl') && !homeMulti.includes('hero-dot')
+    && homeMulti.includes('data-lightbox="hero"')
     && homeMulti.includes('class="hero-copy"') && homeMulti.includes('沉沦的独立博客')
     && homeMulti.includes('style="--hero-ar: 16 / 9"') && homeMulti.includes('style="aspect-ratio:16/9"')
     && !homeMulti.includes('hero-nav'),
     `slides=${slideCount}`);
 
   const sysMulti = await html('/admin/system');
-  check('T8j-9 设置页回显两张缩略格（图下带序号、第一张标封面），轮播方式下拉出现且选中自动',
+  check('T8j-9 设置页回显两张缩略格（图下带序号、第一张标封面），轮播方式已从表单移除',
     (sysMulti.match(/class="a-hero-item"/g) ?? []).length === 2
     && sysMulti.includes('id="heroList" style="--hero-ar: 16 / 9"')
     && (sysMulti.match(/class="a-hero-cap"/g) ?? []).length === 2
@@ -476,8 +475,7 @@ let uploadedRawUrl = '';
     && !sysMulti.includes('data-hero-cover')    && (sysMulti.match(/draggable="true"/g) ?? []).length === 2
     && sysMulti.includes('class="a-hero-grip"')
     && !sysMulti.includes('is-empty')
-    && !/id="heroModeRow"[^>]*hidden/.test(sysMulti)
-    && /<option value="auto"[^>]*selected/.test(sysMulti), '');
+    && !sysMulti.includes('id="heroMode"'), '');
 
   const tooMany = await saveImages(Array.from({ length: 9 }, (_, i) => ({ path: `/uploads/x/${i}.png` })));
   const dup = await saveImages([{ path: uploadedUrl }, { path: uploadedUrl }]);
@@ -501,17 +499,14 @@ let uploadedRawUrl = '';
     guardTry.status === 303 && decodeURIComponent(guardTry.headers.get('location') ?? '').includes('先换掉或移除它'), '');
 
   const savedManual = await saveImages([{ path: uploadedUrl, w: '1', h: '1' }]);
-  const sysManual = await html('/admin/system');
   const homeSingle = await (await fetch(BASE + '/')).text();
-  check('T8j-13 单图回落旧渲染（无轮播壳），轮播方式行重新藏起',
-    savedManual.status === 303 && !homeSingle.includes('data-hero-carousel') && homeSingle.includes('hero-figure')
-    && /id="heroModeRow"[^>]*hidden/.test(sysManual)
-    && /<option value="manual"[^>]*selected/.test(sysManual), '');
+  check('T8j-13 单图回落旧渲染（无轮播壳、无蒙版层挂在轮播上）',
+    savedManual.status === 303 && !homeSingle.includes('data-hero-carousel') && homeSingle.includes('hero-figure'), '');
 
   await save({});
-  check('T8j-14 空 images 清空首页展示（含轮播方式）',
+  check('T8j-14 空 images 清空首页展示',
     /<h1 class="hero-title">[^<]+<\/h1>/.test(await (await fetch(BASE + '/')).text())
-    && !db.prepare("SELECT value FROM settings WHERE key = 'hero_mode'").get()?.value, '');
+    && !db.prepare("SELECT value FROM settings WHERE key = 'hero_images'").get()?.value, '');
 }
 
 {

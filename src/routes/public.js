@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { SITE, FRIENDS_PER_PAGE, FRIENDS_PER_SOURCE, LINKS_PER_PAGE } from '../config.js';
-import { settings, heroImages, heroMode, heroOverlay } from '../settings.js';
+import { settings, heroImages, heroOverlay } from '../settings.js';
 import { layout, listBlock, emptyPage, masthead, entriesBlock, moreLink, defaultOgImage } from '../render/layout.js';
 import { notesStream, splitImages } from '../render/notes.js';
 import { withLightbox } from '../render/lightbox.js';
@@ -196,16 +196,14 @@ export function publicRoutes(repo, { comments, crypt, media = null, feeds = null
     }
     return rows;
   };
-  // 首页封面：hero() 与 heroPreload() 各要一份，heroMode() 又多一次 settings 查询——都收进请求缓存。
+  // 首页封面：hero() 与 heroPreload() 各要一份，overlay 又是一次 settings 查询——都收进请求缓存。
   const heroImgsOf = (c) => settingOf(c, 'heroImages', () => heroImages(repo));
-  const heroModeOf = (c) => settingOf(c, 'heroMode', () => heroMode(repo));
   const heroOverlayOf = (c) => settingOf(c, 'heroOverlay', () => heroOverlay(repo));
 
   function hero(c) {
     return heroBlock({
       stats: statsOf(c),
       imgs: heroImgsOf(c),
-      mode: heroModeOf(c),
       overlay: heroOverlayOf(c),
       mediaOf: (src) => mediaOf(c, src),
       recentHtml: recent(c),

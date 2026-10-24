@@ -33,7 +33,6 @@ try {
     entries.push({ path: source, w: result.width, h: result.height });
   }
   repo.setSetting('hero_images', JSON.stringify(entries));
-  repo.setSetting('hero_mode', 'auto');   // 自动模式：正是自动轮播推进才逼出这个 bug
   close(db);
 
   server = await startServer({ env: fixtures.env });
@@ -49,12 +48,14 @@ try {
   assert.match(homeHtml, /class="hero-slide" src="[^"]*\.v4-w240\.webp" data-src="[^"]*\.v4-w\d+\.webp"/,
     '第二张封面应延迟到 data-src，而不是直接下正式尺寸');
 
-  // ① 焦点停在封面上时切张：焦点应让给新的当前张，而不是留在被 aria-hidden 的那张上。
-  await page.evaluate(() => {
-    document.querySelectorAll('.hero-slide')[0].focus();
-    document.querySelectorAll('.hero-dot')[1].click();   // 程序化 click 不移动焦点，复现「隐藏持有焦点的封面」
-  });
-  await page.waitForFunction(() => !document.querySelectorAll('.hero-slide')[1].hasAttribute('data-src'));
+  // ① 焦点停在封面上时自动切张：焦点应让给新的当前张，而不是留在被 aria-hidden 的那张上。
+  // 圆点已删，切换只由自动轮播推进：开一次灯箱再关（焦点回到封面），鼠标移开后轮播重启，
+  // 等下一轮推进时断言焦点交接。
+  await page.locator('.hero-slide.is-active').click();
+  await page.locator('#lightbox[open]').waitFor();
+  await page.locator('#lightbox [data-lb-close]').click();
+  await page.mouse.move(10, 10);
+  await page.waitForFunction(() => document.querySelectorAll('.hero-slide')[1].classList.contains('is-active'), null, { timeout: 9000 });
   assert.match(await page.locator('.hero-slide').nth(1).getAttribute('srcset') ?? '', /\.v4-w480\.webp 480w/,
     '切到第二张时应把占位图升级成正式 srcset');
   const swapped = await page.evaluate(() => ({

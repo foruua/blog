@@ -47,13 +47,6 @@ export function systemPage({ mail = {}, hero = {}, site = {}, history = {}, csrf
       <div class="a-hero-list${hero.images.length ? '' : ' is-empty'}" id="heroList" style="--hero-ar: 16 / 9">
 ${hero.images.length ? heroItems + '\n' : ''}${heroAdd}
       </div>
-      <div class="a-hero-mode" id="heroModeRow"${hero.images.length > 1 ? '' : ' hidden'}>
-        <label for="heroMode">轮播方式</label>
-        <select class="a-select" id="heroMode" name="mode">
-          <option value="manual"${hero.mode !== 'auto' ? ' selected' : ''}>手动切换</option>
-          <option value="auto"${hero.mode === 'auto' ? ' selected' : ''}>自动轮播</option>
-        </select>
-      </div>
       <div class="a-hero-mode">
         <label for="heroOverlay">蒙版文案</label>
         <input class="a-input" id="heroOverlay" name="overlay" type="text" maxlength="200"

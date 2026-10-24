@@ -303,7 +303,7 @@
     }
   }
 
-  /* 首页轮播（多于一张图才渲染）。自动模式 5 秒一张，悬停/聚焦/切走标签页/「减弱动态效果」暂停。 */
+  /* 首页轮播（多于一张图才渲染）。5 秒一张自动推进，悬停/聚焦/切走标签页/「减弱动态效果」暂停。 */
   const HERO_AUTO_MS = 5000;
   let heroTimer = null;
   // 灯箱打开要停住轮播：对话框不置 document.hidden，否则关灯箱时已不是当时那张。
@@ -317,7 +317,6 @@
     const root = document.querySelector('[data-hero-carousel]');
     if (!root) return;
     const slides = [...root.querySelectorAll('.hero-slide')];
-    const dots = [...root.querySelectorAll('.hero-dot')];
     if (slides.length < 2) return;
     let at = Math.max(0, slides.findIndex((s) => s.classList.contains('is-active')));
     // 悬停时不自动播：手动点击会调 start()，它必须尊重这个状态位，否则悬停着点一下 5 秒后又自己动。
@@ -354,7 +353,6 @@
       slides.forEach((s, k) => {
         if (k === at) s.removeAttribute('aria-hidden'); else s.setAttribute('aria-hidden', 'true');
       });
-      dots.forEach((d, k) => d.setAttribute('aria-pressed', String(k === at)));
       root.setAttribute('aria-label', `首页封面，第 ${at + 1} 张，共 ${slides.length} 张`);
       // 提前把下一张升级好：自动轮播 5 秒一张，空闲时足够下完；手动跳远张时也会在 show() 里当场升级。
       warm(slides[(at + 1) % slides.length]);
@@ -364,19 +362,17 @@
       stop();
       if (lightboxOpen()) return;
       if (hovering) return;
-      if (root.dataset.heroMode !== 'auto' || reduceMotion()) return;
+      if (reduceMotion()) return;
       heroTimer = setInterval(() => {
         if (document.hidden) return;
-        // 焦点用 :focus-visible 现查而非存状态位：点过按钮后焦点会留在轮播里，存状态位等于"点一次永久停播"。
+        // 焦点在轮播里（键盘 Tab 到封面）时暂停推进：用户正读着那张，别抽走。
         const f = document.activeElement;
         if (f && root.contains(f) && f.matches?.(':focus-visible')) return;
         show(at + 1);
       }, HERO_AUTO_MS);
     };
-    dots.forEach((d, k) => d.addEventListener('click', () => { show(k); start(); }));
     root.addEventListener('pointerenter', () => { hovering = true; stop(); });
     root.addEventListener('pointerleave', () => { hovering = false; start(); });
-    root.querySelector('.hero-ctrl')?.removeAttribute('hidden');
     show(at);
     heroControl = { stop, start };
     start();

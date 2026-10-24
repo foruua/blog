@@ -11,12 +11,11 @@ import { IMAGE_PLACEHOLDER, mediaFallback } from '../media/variants.js';
  * @param {object} o
  * @param {Array} o.stats         publishedStats()：按 kind 汇总的 { kind, n, first, last, words }
  * @param {Array} o.imgs          封面图列表（{ path, w, h }）
- * @param {string} o.mode         轮播模式：'auto' | 'manual'
  * @param {string} o.overlay      蒙版文案（压在封面下缘渐变上，留空不渲染整层）
  * @param {Function} o.mediaOf    路径 → 媒体变体信息（可为 null）
  * @param {string} o.recentHtml   「最近更新」区块（已渲染；空串则不占位）
  */
-export function heroBlock({ stats = [], imgs = [], mode = 'manual', overlay = '', mediaOf = () => null, recentHtml = '' }) {
+export function heroBlock({ stats = [], imgs = [], overlay = '', mediaOf = () => null, recentHtml = '' }) {
   const posts = stats.find((p) => p.kind === 'post')?.n ?? 0;
   const notes = stats.find((p) => p.kind === 'note')?.n ?? 0;
   const first = stats.map((p) => p.first).sort()[0];
@@ -61,7 +60,7 @@ export function heroBlock({ stats = [], imgs = [], mode = 'manual', overlay = ''
     const { src, srcsetValue, dims, full } = slideAttrs(im);
     title = `<h1 class="hero-title hero-figure"${ar}${copyAria}><img src="${src}"${srcsetValue ? ` srcset="${srcsetValue}" sizes="${HERO_IMAGE_SIZES}"` : ''} data-full="${full}" data-lightbox="hero" alt="${esc(heroAlt)}"${dims} fetchpriority="high" decoding="async">${copy}</h1>`;
   } else if (imgs.length > 1) {
-    // 多图轮播：图叠在 .hero-track（CSS 只露第一张），控制条由 JS 揭开——没 JS 时只有一张安静封面，不会拿到按了没反应的按钮。
+    // 多图轮播：图叠在 .hero-track（CSS 只露第一张），5 秒一张自动推进；无手动控制条。
     const slides = imgs.map((im, i) => {
       const { src, srcsetValue, dims, full, tiny } = slideAttrs(im);
       const active = i === 0;
@@ -71,14 +70,11 @@ export function heroBlock({ stats = [], imgs = [], mode = 'manual', overlay = ''
         : ` src="${tiny}" data-src="${src}"${srcsetValue ? ` data-srcset="${srcsetValue}" sizes="${HERO_IMAGE_SIZES}"` : ''} loading="lazy" decoding="async"`;
       return `<img class="hero-slide${active ? ' is-active' : ''}"${source} data-full="${full}" data-lightbox="hero" alt="${esc(heroAlt)}"${dims}>`;
     }).join('');
-    const dots = imgs.map((_, i) =>
-      `<button type="button" class="hero-dot" aria-label="第 ${i + 1} 张" aria-pressed="${i ? 'false' : 'true'}"></button>`).join('');
     // 图幅比 --hero-ar 交给 CSS：轮播整层宽高必须由样式先算，不能等图片固有尺寸，否则 CSS 那条 width 失效、退回 auto。
     const ar = ` style="${heroArStyle}"`;
-    title = `<div class="hero-carousel"${ar} data-hero-carousel data-hero-mode="${mode}" role="group" aria-roledescription="图片轮播">
+    title = `<div class="hero-carousel"${ar} data-hero-carousel role="group" aria-roledescription="图片轮播">
         <h1 class="hero-title hero-figure" aria-label="${esc(heroAlt)}"><span class="hero-track">${slides}</span></h1>
         ${copy}
-        <div class="hero-ctrl" hidden><span class="hero-dots">${dots}</span></div>
       </div>`;
   } else {
     title = `<h1 class="hero-title">${esc(SITE.identity)}</h1>`;

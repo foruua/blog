@@ -564,75 +564,34 @@ body.mnav-open .mnav-panel { transform: none; opacity: 1; }
   transition: opacity var(--dur-1) linear;
 }
 .hero-slide.is-active { z-index: 1; pointer-events: auto; opacity: 1; transition: opacity var(--dur-2) var(--ease) var(--dur-1); }
-/* 控制条浮在封面下沿。容器 pointer-events: none：否则会把封面底部点击整块吃掉（灯箱打不开），事件只由圆点接。[hidden] 由 app.js 揭开 —— 无 JS 读者仍是安静封面。 */
 .hero-carousel {
   position: relative;
   margin: 0 auto;
   /* 轮播整层的宽高必须由样式先定出来，不能等图片固有尺寸 —— 首帧即终值。PJAX 换页那一帧叠图还没选好图源、内容盒 0×0，Chrome 的「懒加载图没有显式尺寸」检查据此报警，慢网络下封面会先小后大跳一下。三项 min() 与 .hero-figure img 的 max-width 收口出终值；--hero-ar 固定为 16:9。 */
   width: min(100%, 30rem, calc(min(34vh, 15.5rem) * var(--hero-ar)));
 }
-.hero-ctrl {
-  position: absolute; left: 50%; bottom: .75rem; z-index: 3;
-  /* 必须压过 .hero-slide 的 z-index（(非)当前张是 0/1，见上）：slide 是网格项，z-index 生效后
-     会盖住这条 position:absolute + z-index:auto 的控制条 —— 圆点看不见，点击也落到封面上（会误开灯箱）。 */
-  z-index: 2;
-  transform: translateX(-50%);
-  margin: 0;
-  display: flex; align-items: center; justify-content: center;
-  pointer-events: none;
-}
-.hero-ctrl[hidden] { display: none; }
-/* —— 首页封面蒙版文字（玻璃纸签） ——
-   真实 DOM 覆盖层，不烘焙进图片：可搜索、可访问、无 JS 也能看到。整幅不再铺渐变，
-   只浮一枚磨砂深签（深底 + 纸字，任何明暗的封面上都读得清）；水平居中在圆点行上方。
-   整层 pointer-events:none，点击/灯箱落到图上不受影响。 */
+/* —— 首页封面蒙版文字 ——
+   真实 DOM 覆盖层，不烘焙进图片：可搜索、可访问、无 JS 也能看到。整幅渐变垫底 + 白字，
+   水平居中；无控制条（轮播恒为自动），整层 pointer-events:none，点击/灯箱落到图上不受影响。 */
 .hero-copy {
   position: absolute; inset: 0; z-index: 2;
   display: flex; flex-direction: column; justify-content: flex-end;
-  /* align-items:center：文字签要先在封面里水平居中，中间那粒圆点才在文字正中。 */
+  /* align-items:center：文字要先在封面里水平居中，保持与封面中线对齐。 */
   align-items: center;
-  /* 底部留出圆点行（.hero-ctrl 在 bottom .75rem + 1.5rem 高），签别压上去。 */
-  padding: 2.6rem .9rem 2.7rem;
-  pointer-events: none;
+  padding: 2.6rem .9rem 1.1rem;
+  background: linear-gradient(180deg, transparent 30%, rgba(0, 0, 0, .55));
+  border-radius: calc(var(--radius) - 1px);
+  color: #fff; pointer-events: none;
 }
 .hero-copy-inner {
-  display: inline-block; max-width: 92%;
-  padding: .5rem .85rem;
-  background: rgba(23, 22, 15, .58);
-  color: rgba(255, 254, 251, .96);
-  border-radius: calc(var(--radius) - 2px);
-  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
-  box-shadow: 0 1px 6px rgba(0, 0, 0, .25);
+  max-width: 92%;
   font-size: clamp(.8rem, 2.2vw, .95rem);
   line-height: 1.55; letter-spacing: .02em;
   text-align: center;
+  text-shadow: 0 1px 10px rgba(0, 0, 0, .4);
   overflow-wrap: anywhere;
 }
-@media (max-width: 620px) { .hero-copy { padding: 2rem .65rem 2.5rem; } }
-.hero-dots { display: flex; }
-/* 每粒点做成 1.5rem 按钮、里面画 6px 小圆：点按目标 24×24 达标，视觉仍是一粒安静的点。 */
-.hero-dot {
-  width: 1.5rem; height: 1.5rem; padding: 0;
-  display: grid; place-items: center;
-  background: none; border: 0; cursor: pointer;
-  pointer-events: auto;
-}
-/* 无底色的点：墨色实心圆 + 1.5px 纸色描边。封面底色不随明暗主题变，不能用 --fg/--muted-soft；墨芯 + 纸描边两色并置，浅底读墨芯、深底读轮廓。 */
-.hero-dot::before {
-  content: "";
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: rgba(23, 22, 15, .55);
-  box-shadow: 0 0 0 1.5px rgba(255, 254, 251, .45);
-  /* 尺寸也要过渡：当前点会从 6px 长到 8px，只过渡颜色的话这一下是硬跳。 */
-  transition: background-color var(--dur-1), box-shadow var(--dur-1), width var(--dur-2) var(--ease), height var(--dur-2) var(--ease);
-}
-/* 当前点跟 --accent 走（五套配色各自成立），但单靠颜色必有看不清的组合（浅 accent 压深封面、深 accent 压浅封面都糊），所以当前点大一圈、内外各描一层（内墨外纸），四种「主题明暗 × 封面明暗」组合里总有一圈能勾出它。 */
-.hero-dot[aria-pressed="true"]::before {
-  width: 8px; height: 8px;
-  background: var(--accent);
-  box-shadow: 0 0 0 1.5px rgba(23, 22, 15, .45), 0 0 0 3px rgba(255, 254, 251, .4);
-}
+@media (max-width: 620px) { .hero-copy { padding: 2rem .65rem .9rem; } }
 
 .hero-meta {
   position: relative;

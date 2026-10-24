@@ -8,7 +8,6 @@ export const KEYS = {
   feedsPerPage: 'feeds_per_page',
   paletteDefault: 'palette_default',
   heroImages: 'hero_images',
-  heroMode: 'hero_mode',
   heroOverlay: 'hero_overlay',
   themeActive: 'theme_active',
   themeOptionsPrefix: 'theme_options:',
@@ -20,8 +19,9 @@ export const themeOptionsKey = (id) => `${KEYS.themeOptionsPrefix}${String(id ??
 /* 首页封面旧键（单图时代）：写入仍镜像维护（脚本/备份对比还认），读取仅在多图键缺失/损坏时回落。 */
 export const HERO_LEGACY_KEYS = { url: 'hero_image', w: 'hero_image_w', h: 'hero_image_h' };
 
-/* 已下线的首页封面选项（视频播放方式、文字版式、文字颜色）：不再读取，只在「全部移除」时顺手清掉残值。 */
-export const HERO_RETIRED_KEYS = ['hero_video_mode', 'hero_layout', 'hero_text_tone'];
+/* 已下线的首页封面选项（视频播放方式、文字版式、文字颜色、轮播方式——已恒为自动轮播）：
+   不再读取，只在「全部移除」时顺手清掉残值。 */
+export const HERO_RETIRED_KEYS = ['hero_video_mode', 'hero_layout', 'hero_text_tone', 'hero_mode'];
 
 /* 首页轮播上限，写死而非设置项：这是封面不是相册，八张还翻不到头就该换内容。 */
 export const HERO_MAX = 8;
@@ -124,10 +124,6 @@ export function heroImages(repo) {
     w: /^\d{1,5}$/.test(w) ? Number(w) : 0,
     h: /^\d{1,5}$/.test(h) ? Number(h) : 0,
   }];
-}
-
-export function heroMode(repo) {
-  return String(repo.getSetting(KEYS.heroMode) ?? '').trim().toLowerCase() === 'auto' ? 'auto' : 'manual';
 }
 
 // 封面蒙版文案：压在封面下缘的渐变蒙版上，留空则整层不渲染。上限 200 字与后台输入框 maxlength 一致。
