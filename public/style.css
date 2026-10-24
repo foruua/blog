@@ -580,14 +580,19 @@ body.mnav-open .mnav-panel { transform: none; opacity: 1; }
   /* align-items:center：文字签要先在封面里水平居中，保持与封面中线对齐。 */
   align-items: center;
   padding: 2.6rem .9rem 1.1rem;
-  background: linear-gradient(180deg, transparent 30%, rgba(0, 0, 0, .55));
+  /* 渐变随配色走：color-mix 把当前 accent 掺进近黑 —— 五套配色的深端各带一点自家色相
+     （素笺暖棕 / 青瓷黛青 / 黛蓝藏青 / 茜色绛红 / 紫藤黛紫），不再是无彩黑。
+     暗色主题下 accent 是浅色，掺 16% 依旧近黑，白字对比不塌。 */
+  background: linear-gradient(180deg, transparent 30%,
+    color-mix(in srgb, var(--accent) 16%, rgb(8 8 10 / .58)));
   border-radius: calc(var(--radius) - 1px);
   pointer-events: none;
 }
 .hero-copy-inner {
   display: inline-block; max-width: 92%;
   padding: .35rem .65rem;
-  background: rgba(23, 22, 15, .58);
+  /* 签底同样掺 accent：与渐变同族但更实一档，签的轮廓才压得住照片。 */
+  background: color-mix(in srgb, var(--accent) 20%, rgb(10 10 12 / .52));
   color: rgba(255, 254, 251, .96);
   border-radius: calc(var(--radius) - 2px);
   -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
