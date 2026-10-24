@@ -11,7 +11,7 @@ import { mediaFile } from '../src/media/paths.js';
 import { acquireMaintenanceLock } from '../src/util/lock.js';
 import { syncDirectory } from '../src/util/files.js';
 import path from 'node:path';
-import { MEDIA_REVISION_KEY } from '../src/media/revision.js';
+import { bumpMediaRevisionDb } from '../src/media/revision.js';
 
 const apply = process.argv.includes('--apply');
 const release = apply ? acquireMaintenanceLock([DB_FILE, CONTENT_DIR, UPLOADS_DIR], 'backfill-media') : () => {};
@@ -95,10 +95,8 @@ try {
   // 补出来的派生文件要让**存量正文**也享用：body_html 里的 srcset 是渲染当时算的。抬一下媒体修订号，下次内容同步就会重渲染 ——
   // 以前要人工改 PIPELINE_VERSION，忘了改就等于白跑。
   if (apply && done > 0) {
-    const current = Number(db.prepare('SELECT value FROM settings WHERE key = ?').get(MEDIA_REVISION_KEY)?.value ?? 0) || 0;
-    db.prepare(`INSERT INTO settings(key,value) VALUES(?,?)
-      ON CONFLICT(key) DO UPDATE SET value = excluded.value`).run(MEDIA_REVISION_KEY, String(current + 1));
-    console.log(`已抬媒体修订号 ${current} → ${current + 1}：下次内容同步会重渲染存量正文`);
+    const next = bumpMediaRevisionDb(db);
+    console.log(`已抬媒体修订号 → ${next}：下次内容同步会重渲染存量正文`);
   }
 } finally {
   try { if (apply) close(db); else db.close(); } finally { release(); }

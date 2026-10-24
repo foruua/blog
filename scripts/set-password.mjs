@@ -35,7 +35,7 @@ function ask(prompt) {
     const done = () => { process.stdin.off('data', onData); process.stdin.setRawMode(false); process.stdin.pause(); process.stdout.write('\n'); };
     const onData = (chunk) => {
       for (const char of chunk.toString()) {
-        if (char === '\u0003') { done(); reject(new Error('已取消')); return; }
+        if (char === '\u0003' || char === '\u0004') { done(); reject(new Error('已取消')); return; }   // Ctrl-C / Ctrl-D（EOF）都别把 Promise 挂死
         if (char === '\r' || char === '\n') { done(); resolve(answer); return; }
         if (char === '\u007f' || char === '\b') answer = [...answer].slice(0, -1).join('');
         else if (char >= ' ') answer += char;
@@ -47,14 +47,13 @@ function ask(prompt) {
 
 if (clearing) {
   const db = openLocked();
-  clearPassword(db);
+  try { clearPassword(db); } finally { close(db); }
 
   // 只在真的删掉时才说已删除：以前无条件打印，文件本来就不在也照样报。
   let removed = false;
   try { fs.unlinkSync(new URL('../.admin-password.txt', import.meta.url)); removed = true; } catch { }
   console.log('✓ 已清除后台密码。后台现在无法登录，重新设置即可恢复。');
   if (removed) console.log('  已删除 .admin-password.txt（里面的密码已失效，留着会误导）');
-  close(db);
   process.exit(0);
 }
 

@@ -24,10 +24,13 @@ try {
     // 先持久化原地址映射；中断时仍可按映射找回已经移动的文件。
     const manifestFile = path.join(DATA_DIR, 'cleanup-media', stamp + '.json');
     atomicWrite(manifestFile, JSON.stringify(manifest, null, 2));
+    let failedMoves = 0;
     for (const item of manifest.files) {
       try { moveFile(mediaFile(item.path), item.trash); }
-      catch (error) { console.error(`移动失败：${item.path}（${error.code ?? error.message}）`); }
+      catch (error) { failedMoves++; console.error(`移动失败：${item.path}（${error.code ?? error.message}）`); }
     }
     console.log(`已移入回收站；恢复映射：${manifestFile}`);
+    // cron/运维链路上「部分失败」不能被当成成功：让调用方看到非零退出码。
+    if (failedMoves) { console.error(`✗ ${failedMoves} 个文件移动失败`); process.exitCode = 1; }
   }
 } finally { db.close(); release(); }

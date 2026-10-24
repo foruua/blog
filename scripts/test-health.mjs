@@ -8,12 +8,7 @@ import { createChecker, waitFor } from './_check.mjs';
 import { startServer } from './_server.mjs';
 
 const { check, report } = createChecker();
-const baseEnv = {
-  FEED_REFRESH_MS: '0',
-  LINK_CHECK_MS: '0',
-  WATCHDOG_INTERVAL_MS: '0',
-  HEALTH_MIN_DISK_FREE_BYTES: '0',
-};
+const baseEnv = { HEALTH_MIN_DISK_FREE_BYTES: '0' };  // 后台轮次默认已由 _server.mjs 静默
 const srv = await startServer({
   isolateDb: true,
   env: { ...baseEnv, MONITOR_TOKEN: 'health-test-token' },

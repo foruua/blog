@@ -1,3 +1,4 @@
+import { parseFlags } from './_cli.mjs';
 import { acquireMaintenanceLock } from '../src/util/lock.js';
 
 import path from 'node:path';
@@ -6,12 +7,7 @@ import { open, close } from '../db/driver.js';
 import { DB_FILE, CONTENT_DIR, UPLOADS_DIR } from '../src/config.js';
 import { snapshot, listBackups, verifyBackupLite, DEFAULT_DIR, DEFAULT_KEEP, recordOffsiteResult, isRecoverableBackup } from '../src/backup.js';
 
-const argv = process.argv.slice(2);
-const has = (f) => argv.includes(f);
-const opt = (f, d = null) => {
-  const i = argv.indexOf(f);
-  return i >= 0 && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[i + 1] : d;
-};
+const { has, opt } = parseFlags();
 
 const DIR = opt('--dir') ?? process.env.BACKUP_DIR ?? DEFAULT_DIR;
 const REMOTE = opt('--remote') ?? process.env.BACKUP_REMOTE ?? '';
@@ -42,6 +38,8 @@ console.log('─'.repeat(52));
 
 // 主题目录在应用根下，生产环境归 root 只读；服务自身的自动备份也不锁它。
 // 手动备份要求先停服，DB 锁已经能阻止服务并发写，别为了主题锁把发布流程卡死。
+// 返回值故意不接：这把锁要持有到进程退出——下面的 recordOffsiteResult（若有 --remote/--hook）
+// 也得在锁内写。别「修复」成用完即 release，否则异地状态写入就不在锁保护里了。
 acquireMaintenanceLock([DB_FILE, CONTENT_DIR, UPLOADS_DIR], 'backup');
 const db = open(DB_FILE);
 let result;

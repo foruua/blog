@@ -85,4 +85,7 @@ if (!plan.length && !themePlan.length) {
   }
   console.log(`已删除 ${removed} 个文件，释放 ${mb(bytes)}。`);
   if (removedThemes) console.log(`已删除 ${removedThemes} 个过期主题。`);
+  // 部分失败也要让 cron 看到：失败文件下次重扫还在，退出码 0 会掩盖回收失败。
+  const failed = (plan.length - removed) + (themePlan.length - removedThemes);
+  if (failed) { console.error(`✗ ${failed} 个条目删除失败`); process.exitCode = 1; }
 }

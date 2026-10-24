@@ -43,6 +43,8 @@ for (const rel of files) {
   const entry = {
     hash: sha256(source),
     size: stat.size,
+    // mtimeMs 不参与本脚本 --check 的 stale 判断（hash 已覆盖），但 src/http/static.js 的
+    // precompiledFor 运行时会用 size+mtimeMs 拒收「构建后源文件又被编辑过」的产物。
     mtimeMs: stat.mtimeMs,
     min: rel,
     br: `${rel}.br`,

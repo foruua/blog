@@ -7,7 +7,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { once } from 'node:events';
 import { hasFixtures } from './_fixtures.mjs';
 
-function freePort() {
+export function freePort() {
   return new Promise((resolve, reject) => {
     const srv = net.createServer();
     srv.on('error', reject);
@@ -18,7 +18,7 @@ function freePort() {
   });
 }
 
-function cloneDb(src, clearTables = ['comments', 'mail_outbox']) {
+export function cloneDb(src, clearTables = ['comments', 'mail_outbox']) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'blog-testdb-'));
   const dst = path.join(dir, 'blog.db');
   const db = new DatabaseSync(src, { readOnly: true });
@@ -49,6 +49,9 @@ export async function startServer({ env = {}, isolateDb, timeoutMs = 20000 } = {
     NODE_ENV: 'production', BACKUP_ON_PUBLISH: 'false',
     // 测试一律发源码：一批用例按可读格式断言线上 CSS/JS。想验精简请显式传 SERVE_MINIFIED: '1'。
     SERVE_MINIFIED: '0',
+    // 测试默认静默所有后台轮次（此前各套件各自传一遍，改一处忘一处）；要测后台任务的套件显式覆盖。
+    FEED_REFRESH_MS: '0', LINK_CHECK_MS: '0', WATCHDOG_INTERVAL_MS: '0',
+    LOG_ROTATE_INTERVAL_MS: '0', AVATAR_UPSTREAMS: '', BACKUP_REMOTE: '', BACKUP_HOOK: '',
     ...env,
   };
   // dbFile 一律绝对路径：相对 "data/blog.db" 就是真实库，当临时副本写会改掉用户数据（ui-audit 出过事故）。

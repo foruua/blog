@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { parseFlags } from './_cli.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -551,12 +552,15 @@ export async function startIsolated() {
   for (const d of Object.values(dirs)) fs.mkdirSync(d, { recursive: true });
 
   const srcDb = process.env.DB_FILE ?? path.join(ROOT, 'data', 'blog.db');
-  const { DatabaseSync } = await import('node:sqlite');
-  const snap = new DatabaseSync(srcDb, { readOnly: true });
-  try { snap.exec(`VACUUM INTO '${path.join(dirs.data, 'blog.db').replace(/'/g, "''")}'`); } finally { snap.close(); }
+  const { cloneDb } = await import('./_server.mjs');
+  const { dst } = cloneDb(srcDb, []);
+  fs.renameSync(dst, path.join(dirs.data, 'blog.db'));
 
   // 复制内容与附件：子进程会拿维护锁，指向真实目录会和正在跑的服务抢锁。
   // 同一文件系统优先硬链接（不复制几百 MB 字节），跨设备/权限不允许时退回 copyFile。
+  // ⚠ 隐性契约：硬链接指向真实 inode——被审计服务对任何文件做「就地写入」都会改坏真实
+  // content/uploads。当前服务的全部写入都走 atomicWrite（临时文件 + rename，rename 会断开
+  // 链接），所以安全；往这里加「原地改写已有文件」的代码前必须先改成 cpSync。
   const copy = (from, to) => {
     if (!fs.existsSync(from)) return;
     const walk = (src, dest) => {
@@ -595,12 +599,12 @@ export async function startIsolated() {
       DATA_DIR: dirs.data, DB_FILE: dbFile,
       CONTENT_DIR: dirs.content, UPLOADS_DIR: dirs.uploads, THEMES_DIR: dirs.themes,
       SITE_DOMAIN: process.env.SITE_DOMAIN ?? 'example.invalid', NODE_ENV: 'production',
-      // 快照含真实站点友链/订阅记录；审计只量 UI，关掉抓取、探活、头像回源与自动备份。
-      LINK_CHECK_MS: '0', FEED_REFRESH_MS: '0', AVATAR_UPSTREAMS: '',
-      BACKUP_ON_PUBLISH: 'false', BACKUP_REMOTE: '', BACKUP_HOOK: '', WATCHDOG_INTERVAL_MS: '0',
+      // 审计只量 UI：后台轮次由 _server.mjs 默认静默；快照含真实站点友链/订阅记录，别让它外发。
+      BACKUP_ON_PUBLISH: 'false',
     },
   });
   const { hashPassword } = await import('../src/admin/auth.js');
+  const { DatabaseSync } = await import('node:sqlite');
   const db = new DatabaseSync(guard(dbFile));
   try {
     db.prepare(`INSERT INTO settings(key,value) VALUES('admin_password_hash',?)
@@ -618,12 +622,7 @@ export async function startIsolated() {
 
 const isCli = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isCli) {
-  const argv = process.argv.slice(2);
-  const opt = (flag, fallback = null) => {
-    const i = argv.indexOf(flag);
-    return i >= 0 && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[i + 1] : fallback;
-  };
-  const has = (flag) => argv.includes(flag);
+  const { has, opt } = parseFlags(process.argv.slice(2));
   const ISOLATE = has('--isolate');
   // `--only bogus` 以前会静默落进只审前台分支：拼错参数反而审得更少、还报通过。
   const ONLY = opt('--only');
@@ -635,7 +634,8 @@ if (isCli) {
   let instance = null;
   try {
     let base = (opt('--base') ?? '').replace(/\/$/, '');
-    let password = opt('--admin-password') ?? process.env.UI_AUDIT_PASSWORD ?? '';
+    // 口令只从 env 读：argv 会出现在同机其他用户的 ps 里，真实密码不过 argv（与 set-password.mjs 同一原则）。
+    let password = process.env.UI_AUDIT_PASSWORD ?? '';
     if (ISOLATE) {
       instance = await startIsolated();
       base = instance.base;

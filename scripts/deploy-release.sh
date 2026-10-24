@@ -16,7 +16,8 @@ sync_code() {
   # themes/ 同时存放代码自带主题与后台上传的主题。同步新文件，但 protect 住远端已有主题，
   # 避免 --delete 把线上安装的主题删掉。
   rsync -a --checksum --delete --filter='protect /themes/***' \
-    --exclude='/state/' --exclude='/data' --exclude='/content' --exclude='/.env' "$1/" "$app_root/"
+    --exclude='/state/' --exclude='/data' --exclude='/content' --exclude='/.env' \
+    --exclude='*.blog-lock*' "$1/" "$app_root/"
   # themes 同时是后台上传/删除主题的可写目录；代码同步是 root 做的，交还所有权给服务用户。
   if [ "$(id -u)" = 0 ] && [ -d "$app_root/themes" ]; then
     chown -R "$run_user:$run_user" "$app_root/themes"
@@ -28,14 +29,14 @@ rollback() {
     echo '另一个版本正在验证，拒绝回滚其代码' >&2; return 1
   fi
   if test -f "$release/switched"; then
-    test -f "$release/previous.complete" || return 1
-    systemctl stop "$service" || return 1
-    sync_code "$release/previous" || return 1
+    test -f "$release/previous.complete" || { echo '回滚中止：previous.complete 不存在，没有可回滚的上一版' >&2; return 1; }
+    systemctl stop "$service" || { echo "回滚中止：systemctl stop $service 失败" >&2; return 1; }
+    sync_code "$release/previous" || { echo '回滚中止：同步 previous 代码失败' >&2; return 1; }
     rm -f "$release/switched"
   fi
   if test -f "$release/stopped"; then
-    systemctl start "$service" || return 1
-    curl -fsS --max-time 10 --retry 10 --retry-delay 1 --retry-connrefused "$health" || return 1
+    systemctl start "$service" || { echo "回滚中止：systemctl start $service 失败" >&2; return 1; }
+    curl -fsS --max-time 10 --retry 10 --retry-delay 1 --retry-connrefused "$health" || { echo "回滚中止：健康检查未通过（$health）" >&2; return 1; }
     rm -f "$release/stopped"
   fi
   if test -f "$active" && test "$(cat "$active")" = "$release"; then rm -f "$active"; fi
@@ -43,7 +44,11 @@ rollback() {
 case "$mode" in
   rollback) rollback; exit ;;
   commit)
-    test -f "$active" && test "$(cat "$active")" = "$release"
+    # 校验失败必须说明原因：test && test 静默返回 1 时，操作者面对的是「commit 失败但一个字都没有」。
+    if ! test -f "$active" || ! test "$(cat "$active")" = "$release"; then
+      echo "commit 拒绝：$active 不存在或不是当前版本 $release（未 activate / 已过期 / 被别的版本占用）" >&2
+      exit 1
+    fi
     rm -f "$release/stopped" "$release/switched" "$active"
     exit ;;
   activate)

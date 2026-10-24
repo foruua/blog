@@ -20,7 +20,9 @@ node_bin="${BLOG_DEPLOY_NODE:-/usr/bin/node}"
 run_user="${BLOG_DEPLOY_USER:-blog}"
 keep_releases="${BLOG_DEPLOY_KEEP_RELEASES:-5}"
 case "$key" in "~/"*) key="$HOME/${key#~/}" ;; esac
-if [[ "$key" == *"'"* ]]; then echo "DEPLOY_KEY 不能包含单引号（会破坏 rsync -e 的引号）" >&2; exit 1; fi
+if [[ "$key" == *"'"* || "$key" == *" "* ]]; then
+  echo 'DEPLOY_KEY 不能包含单引号或空格（会破坏 rsync -e 的引号拼接）' >&2; exit 1
+fi
 if ! [[ "$port" =~ ^[0-9]+$ ]] || (( port < 1 || port > 65535 )); then
   echo 'DEPLOY_PORT 必须是 1–65535 的整数' >&2; exit 1
 fi
@@ -28,13 +30,21 @@ if ! [[ "$keep_releases" =~ ^[0-9]+$ ]]; then
   echo 'BLOG_DEPLOY_KEEP_RELEASES 必须是非负整数' >&2; exit 1
 fi
 if ! test -f "$key"; then echo "找不到部署密钥：$key" >&2; exit 1; fi
-chmod 600 "$key"
+# 只在权限过宽时收紧；密钥在只读挂载上时 chmod 失败不应让整个部署挂掉（ssh 自己会拒绝过宽的私钥）。
+if ! chmod 600 "$key" 2>/dev/null; then
+  cur_mode=$(stat -f '%Lp' "$key" 2>/dev/null || stat -c '%a' "$key" 2>/dev/null || echo '?')
+  echo "⚠ 无法收紧密钥权限（当前 $cur_mode）；若 ssh 拒绝该密钥请手动 chmod 600" >&2
+fi
 
 # 远端命令统一带这套 env：否则 deploy-release.sh 的 BLOG_DEPLOY_* 默认值会悄悄覆盖本地配置。
 q() { printf '%q' "$1"; }
 remote_env="BLOG_DEPLOY_APP_ROOT=$(q "$app_root") BLOG_DEPLOY_SERVICE=$(q "$service") BLOG_DEPLOY_HEALTH=$(q "$health") BLOG_DEPLOY_NODE=$(q "$node_bin") BLOG_DEPLOY_USER=$(q "$run_user")"
 ssh_opts=(-i "$key" -p "$port" -o BatchMode=yes -o ConnectTimeout=15 -o StrictHostKeyChecking=accept-new)
-ssh "${ssh_opts[@]}" "$remote" "sudo -n env $remote_env test -d $(q "$app_root/state/data") && sudo -n env $remote_env test -f $(q "$app_root/.env")"
+# 远端预检：失败时给出能照做的提示，别让 set -e 静默吞掉原因。
+if ! ssh "${ssh_opts[@]}" "$remote" "sudo -n env $remote_env test -d $(q "$app_root/state/data") && sudo -n env $remote_env test -f $(q "$app_root/.env")"; then
+  echo "远端预检失败：$app_root/state/data 或 $app_root/.env 不存在 —— 先完成首次安装（见 docs/deploy-tencent.md）" >&2
+  exit 1
+fi
 # 先准备独立版本，依赖安装失败不会影响正在运行的网站。
 release="${release_root}/$(date -u +%Y%m%dT%H%M%SZ)-$$"
 rollback_ready=0

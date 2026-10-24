@@ -5,15 +5,12 @@ import os from 'node:os';
 import net from 'node:net';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
+import { parseFlags } from './_cli.mjs';
 import { open, close } from '../db/driver.js';
 import { SITE } from '../src/config.js';
 import { listBackups, isRecoverableBackup, verifyBackup, restoreBackup, DEFAULT_DIR } from '../src/backup.js';
 
-const argv = process.argv.slice(2);
-const opt = (f, d = null) => {
-  const i = argv.indexOf(f);
-  return i >= 0 && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[i + 1] : d;
-};
+const { argv, opt } = parseFlags();
 const DIR = opt('--dir') ?? process.env.BACKUP_DIR ?? DEFAULT_DIR;
 const KEEP_WORK = argv.includes('--keep-work');
 

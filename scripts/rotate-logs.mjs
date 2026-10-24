@@ -4,13 +4,10 @@
 //
 // 用法：node scripts/rotate-logs.mjs [--dir <目录>] [--max-mb 5] [--keep 5] [--dry-run]
 import path from 'node:path';
+import { parseFlags } from './_cli.mjs';
 import { rotateLogs, rotateLogsAsync, resolveLogDir } from '../src/log-rotate.js';
 
-const argv = process.argv.slice(2);
-const opt = (flag, fallback) => {
-  const i = argv.indexOf(flag);
-  return i >= 0 && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[i + 1] : fallback;
-};
+const { argv, opt } = parseFlags();
 
 const dirArg = opt('--dir', null);
 const dir = dirArg ? path.resolve(dirArg) : resolveLogDir();

@@ -1,3 +1,4 @@
+import { parseFlags } from './_cli.mjs';
 import { acquireMaintenanceLock } from '../src/util/lock.js';
 
 import fs from 'node:fs';
@@ -8,11 +9,7 @@ import { migrate, LATEST_SCHEMA_VERSION } from '../db/migrate.js';
 import { DB_FILE, DATA_DIR, CONTENT_DIR, UPLOADS_DIR, THEMES_DIR } from '../src/config.js';
 import { listBackups, isRecoverableBackup, verifyBackup, restoreBackup, snapshot, DEFAULT_DIR } from '../src/backup.js';
 
-const argv = process.argv.slice(2);
-const opt = (f, d = null) => {
-  const i = argv.indexOf(f);
-  return i >= 0 && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[i + 1] : d;
-};
+const { argv, opt } = parseFlags();
 if (argv.includes('--help')) {
   console.log('用法：npm run restore -- [--dir <目录>] [--from <备份名>] [--yes]\n恢复前须停止服务；默认选择最新完整备份。');
   process.exit(0);
@@ -84,8 +81,10 @@ try {
   if (!before.complete) console.log('  · 当前内容目录已有文件缺失，保底备份保留原数据库与所有残存文件');
 } catch (err) {
   // SQL 快照失败时保留原始状态；不要求损坏的数据库仍能执行 SQL。
-  const raw = fs.mkdtempSync(path.join(DIR, 'pre-restore-raw-'));
+  // mkdtemp 也在守卫内：备份目录不可写时走下面的友好报错，而不是裸堆栈。
+  let raw = null;
   try {
+    raw = fs.mkdtempSync(path.join(DIR, 'pre-restore-raw-'));
     fs.chmodSync(raw, 0o700);
     const sources = { database: DB_FILE, wal: DB_FILE + '-wal', shm: DB_FILE + '-shm',
       content: CONTENT_DIR, uploads: UPLOADS_DIR, themes: THEMES_DIR, journal: path.join(DATA_DIR, '.write-journal') };

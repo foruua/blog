@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { atomicWrite } from '../src/util/files.js';
 import { DATA_DIR } from '../src/config.js';
+import { pathToFileURL } from 'node:url';
 import { probe, offsiteBackupAge, stateFingerprint } from '../src/monitor.js';
 
 // 外部定时探针（launchd / cron / 另一台机器都能跑）：单次探测，失败非零，
@@ -86,6 +87,6 @@ async function main() {
   process.exitCode = result.ok ? 0 : 1;
 }
 
-if (process.argv[1] && import.meta.url === new URL(`file://${path.resolve(process.argv[1])}`).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
   main().catch((error) => { console.error(error.message); process.exitCode = 1; });
 }

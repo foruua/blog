@@ -652,8 +652,11 @@ await test('T12b 隔离审计对写入目标有"必须在临时目录内"的防�
   assert.match(src, /不在临时目录内/, '缺少越界写入防护');
   assert.match(src, /startsWith\(path\.resolve\(work\)/, '防护没有比对临时目录前缀');
   assert.match(src, /THEMES_DIR: dirs\.themes/, '主题没有隔离');
-  assert.match(src, /FEED_REFRESH_MS: '0'/, '抓取没有关闭');
-  assert.match(src, /AVATAR_UPSTREAMS: ''/, '头像回源没有关闭');
+  // 抓取/探活/头像回源的关闭已收敛为 _server.mjs 对全部测试服务的默认值（ui-audit 只显式关备份）。
+  const serverDefaults = fs.readFileSync('scripts/_server.mjs', 'utf8');
+  assert.match(serverDefaults, /FEED_REFRESH_MS: '0'/, '抓取没有在测试服务默认值里关闭');
+  assert.match(serverDefaults, /LINK_CHECK_MS: '0'/, '友链探活没有在测试服务默认值里关闭');
+  assert.match(serverDefaults, /AVATAR_UPSTREAMS: ''/, '头像回源没有在测试服务默认值里关闭');
 });
 
 process.exitCode = report();
