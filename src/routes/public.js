@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { SITE, FRIENDS_PER_PAGE, FRIENDS_PER_SOURCE, LINKS_PER_PAGE } from '../config.js';
 import { settings, heroImages, heroOverlay } from '../settings.js';
-import { layout, listBlock, emptyPage, masthead, entriesBlock, moreLink, defaultOgImage } from '../render/layout.js';
+import { layout, listBlock, emptyPage, masthead, entriesBlock, moreLink, defaultOgImage, heroToolsHtml } from '../render/layout.js';
 import { notesStream, splitImages } from '../render/notes.js';
 import { withLightbox } from '../render/lightbox.js';
 import { heroBlock, heroPreload as heroPreloadTag } from '../render/hero.js';
@@ -207,6 +207,7 @@ export function publicRoutes(repo, { comments, crypt, media = null, feeds = null
       overlay: heroOverlayOf(c),
       mediaOf: (src) => mediaOf(c, src),
       recentHtml: recent(c),
+      toolsHtml: heroToolsHtml(),
     });
   }
 

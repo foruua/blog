@@ -273,8 +273,8 @@ try {
     !!homeDoc.querySelector('a.nav-search-fallback[href="/search"]')
     && /html:not\(\.has-js\)\s*\.nav-search\s*\{\s*display:\s*none/.test(css)
     && /html\.has-js\s*\.nav-search-fallback\s*\{\s*display:\s*none/.test(css));
-  check('M8f 配色已移出导航、进页脚（页头无 .pal，页脚有 #palettePickerF）',
-    !homeDoc.querySelector('nav.nav .pal') && !!homeDoc.querySelector('footer.site #palettePickerF'));
+  check('M8f 配色已移出导航、进首页 hero-meta（页头无 .pal，hero-meta 有 #palettePickerH）',
+    !homeDoc.querySelector('nav.nav .pal') && !!homeDoc.querySelector('.hero-meta #palettePickerH'));
 
   check('M9 search.js 已登记进 VERSIONED_ASSETS（长期缓存正则用的就是这一份）', VERSIONED_ASSETS.includes('search.js'));
 

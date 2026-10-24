@@ -621,10 +621,35 @@ body.mnav-open .mnav-panel { transform: none; opacity: 1; }
 }
 .hero-meta a { color: var(--muted); border-bottom: 1px solid transparent; padding-bottom: .15em; padding-block-start: .25rem; margin-block-start: -.25rem; }
 .hero-meta a:hover { color: var(--accent); border-bottom-color: var(--accent-line); }
-/* 分隔符是装饰，可以用更浅的 --muted-soft；「自 2023 年」是正文，必须用 --muted（4.9:1） */
+/* 分隔符是装饰，可以用更浅的 --muted-soft；「N 篇文章」是正文，必须用 --muted（4.9:1） */
 .hero-meta span { color: var(--muted); }
 .hero-meta .sep { color: var(--muted-soft); }
 .hero-meta b { color: var(--fg); font-weight: 500; }
+
+/* —— hero-meta 行尾的两枚工具（RSS / 配色）——
+   它们原先在页脚是 34px 细线圆钮；搬进这行 13px 小字后收成 24px 的圆形命中区（WCAG 2.5.8 下限）：
+   不带边框，常态与旁边文字同为 --muted，悬停/展开才亮成 --accent + 软金底 —— 工具不该比统计更抢眼。
+   整组 align-self:center：这一行按基线对齐（文字链接为下划线预留了 padding），图标没有文字基线，
+   交给 center 才不会比文字矮半头。 */
+.hero-tools { display: inline-flex; align-items: center; gap: .3rem; align-self: center; }
+.hero-meta .hero-tool,
+.hero-meta .pal-hero > summary {
+  box-sizing: border-box;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 1.5rem; height: 1.5rem;
+  padding: 0; margin: 0;
+  border: 0; border-radius: var(--radius-pill);
+  background: none; color: var(--muted);
+  cursor: pointer; list-style: none;
+  transition: color var(--dur-2) var(--ease), background var(--dur-1) var(--ease);
+}
+.hero-meta .hero-tool:hover,
+.hero-meta .pal-hero > summary:hover,
+.hero-meta .pal-hero[open] > summary { color: var(--accent); background: var(--accent-soft); border-bottom-color: transparent; }
+.hero-meta .hero-tool:focus-visible,
+.hero-meta .pal-hero > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.hero-meta .hero-tool svg,
+.hero-meta .pal-hero .pal-ico { display: block; width: 15px; height: 15px; }
 
 /* 320px：四个 1.1rem 间隙让最后一段必然折行，行尾会孤零零剩一个「·」。收一档间隙即可整行放下。 */
 @media (max-width: 340px) {
@@ -1938,7 +1963,9 @@ footer.site .foot-inner {
   padding: clamp(1.35rem, 2.5vw, 1.75rem) 0 clamp(1.3rem, 2.4vw, 1.7rem);
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  /* 页脚只剩一法务行（RSS 与配色搬进了首页 hero-meta）：宽屏落在正中，手机端由下面那条
+     @media 让 .foot-legal 撑满、两端分开。 */
+  justify-content: center;
   gap: 1rem 1.5rem;
 }
 footer.site .foot-legal {
@@ -1961,44 +1988,8 @@ footer.site .foot-icp {
   transition: color var(--dur-2) var(--ease);
 }
 footer.site .foot-icp:hover { color: var(--accent); }
-footer.site .foot-tools {
-  flex: none;
-  display: flex; align-items: center;
-  gap: .5rem;
-}
-/* RSS 与配色统一成 34px 细线圆钮：图标是主体，圆框只负责把命中区做到触控尺寸。
-   details/summary 自带的三角与默认内距在这里一并抹掉，两枚钮才会等高。 */
-footer.site .foot-ico,
-footer.site .foot-tools .pal > summary {
-  box-sizing: border-box;
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 2.15rem; height: 2.15rem;
-  padding: 0; margin: 0;
-  border: 1px solid var(--rule-strong);
-  border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--bg-elev) 55%, transparent);
-  color: var(--muted);
-  list-style: none;
-  cursor: pointer;
-  transition: color var(--dur-2) var(--ease), border-color var(--dur-2) var(--ease), background var(--dur-2) var(--ease);
-}
-footer.site .foot-tools .pal > summary::-webkit-details-marker { display: none; }
-footer.site .foot-ico:hover,
-footer.site .foot-tools .pal > summary:hover,
-footer.site .foot-tools .pal[open] > summary {
-  color: var(--accent);
-  border-color: var(--accent-line);
-  background: var(--accent-soft);
-}
-footer.site .foot-ico svg,
-footer.site .foot-tools .pal .pal-ico {
-  display: block;
-  width: 16px; height: 16px;
-}
 @media (max-width: 620px) {
-  /* 手机端页脚只留法务细字：RSS 与配色在抽屉里都有入口，不再占页脚一行。 */
-  footer.site .foot-tools { display: none; }
-  /* 只剩两项时把两端拉开：© 靠左、备案号靠右，固定一行，不再在窄屏折成上下两行。 */
+  /* 手机端一行放不下两段：让 .foot-legal 撑满、端点分开（© 靠左、备案号靠右），固定一行不折行。 */
   footer.site .foot-legal {
     flex: 1 1 auto;
     flex-wrap: nowrap;
@@ -3025,10 +3016,10 @@ mark {
   }
 }
 
-/* —— 配色入口（页头导航）：与「检索」逐项同规格的一枚药丸 —— 图标 + 「配色」。
-   文字恒为「配色」（不再随当前色名变），当前是哪套只由面板里那一行的 ✓ 表示（色名同时进 aria-label）。
-   面板从页脚时代的「fixed 居中悬浮」改成锚定在触发器的右下方：入口在页头，面板自然要往下翻。
-   无脚本时 details 仍能开合但选了不生效，故整枚藏掉（与页脚时代同一条规矩）。 */
+/* —— 配色入口（首页 hero-meta / 窄屏抽屉底部）：两处同一个模板，都只剩一枚图标。
+   入口从不随当前色名伸缩：色名只进 aria-label，选中哪套只由面板里那一行的 ✓ 表示。
+   面板统一从触发器往下翻；首页那枚的锚点是整行（见 .pal-hero），抽屉那枚在底部、单独向上展开。
+   无脚本时 details 仍能开合但选了不生效，故整枚藏掉。 */
 html:not(.has-js) .pal { display: none; }
 .pal { position: relative; }
 .pal > summary {
@@ -3044,12 +3035,12 @@ html:not(.has-js) .pal { display: none; }
 .pal-ico { width: 14px; height: 14px; flex: 0 0 auto; display: block; }
 /* 与 .nav .nsub-panel 同一条规矩：关着就不许占盒子。它是 absolute（包含块是 .pal），UA 那条
    「收起的 <details> 跳过内容」只管绘制、不管布局，于是关着的面板照旧在每页被排一遍
-   （页脚那枚 232×371，里面还有色样、滑块、七个按钮）。审计的「关着的浮层连盒子都不占」扫的就是它。 */
+   （收起的那份 232×371，里面还有色样、滑块、七个按钮）。审计的「关着的浮层连盒子都不占」扫的就是它。 */
 .pal:not([open]) .pal-panel { display: none; }
 .pal-panel {
   position: absolute; top: calc(100% + 5px); right: 0; z-index: 40;
   width: max-content; min-width: 14.5rem; max-width: calc(100vw - 2rem);
-  /* 明暗三格 + 五套预设 + 自定义，比页脚时代更高：横屏手机 / 分屏上要能自己滚，不能顶出视口。
+  /* 明暗三格 + 五套预设 + 自定义，比早先页脚那版更高：横屏手机 / 分屏上要能自己滚，不能顶出视口。
      上边留出页头的高度，面板从触发器下方展开、向下长。 */
   max-height: calc(100dvh - 8rem); overflow-y: auto; overscroll-behavior: contain;
   padding: .55rem;
@@ -3064,26 +3055,17 @@ html:not(.has-js) .pal { display: none; }
     0 0 0 1px color-mix(in srgb, var(--rule-strong) 50%, transparent),
     var(--shadow-lg);
 }
-/* 页脚那枚「配色」：与 RSS / 后台 / 回到顶部 同规格（纯文字、同字距、同命中区）；
-   面板向上展开（页脚在页面底部，向下就出屏了）。 */
-.pal-foot { display: inline; }
-.pal-foot > summary {
-  display: inline-flex; align-items: center;
-  list-style: none; cursor: pointer;
-  line-height: 1; letter-spacing: .06em;
-  padding: .32rem 0; margin-block: -.32rem;
-  color: var(--muted);
-  transition: color var(--dur-2) var(--ease);
-}
-.pal-foot > summary::-webkit-details-marker { display: none; }
-.pal-foot > summary:hover { color: var(--accent); }
-.pal-foot .pal-panel {
-  top: auto; bottom: calc(100% + 6px);
-  max-height: calc(100dvh - 6rem);
+/* 首页 hero-meta 那枚：入口样式在 .hero-meta 那一节（图标 + 24px 圆点命中区）。
+   面板锚在整行中间向下展开 —— 锚在 24px 的图标上会贴到屏幕边缘，窄屏直接顶出去。 */
+.pal-hero { display: flex; position: static; }
+.pal-hero > summary::-webkit-details-marker { display: none; }
+.pal-hero .pal-panel {
+  left: 50%; right: auto; top: calc(100% + 6px);
+  transform: translateX(-50%);
 }
 
-/* —— 明暗三态（跟随 / 亮色 / 暗色）—— 三枚同形的图标格：一轮实心半圆代表"跟随"（纸墨各半，
-   与页头那枚入口同形），再是日、月。名称只留给读屏与悬停标题（图标进了可访问名就成了噪音）。
+/* —— 明暗三态（跟随 / 亮色 / 暗色）—— 三枚同形的图标格：一轮实心半圆代表"跟随"（纸墨各半），
+   再是日、月。名称只留给读屏与悬停标题（图标进了可访问名就成了噪音）。
    与下面那排色样同一套"选中即软金底"的行规，所以整块看起来是"两组并列的选择"。 */
 .pal-theme { display: flex; gap: .35rem; }
 .pal-panel .pal-tm {
@@ -3200,7 +3182,7 @@ html:not(.has-js) .pal { display: none; }
 }
 
 /* —— 抽屉底部工具条：左 RSS、右配色 ——
-   窄屏页脚那排是隐藏的（见 footer.site .foot-tools），这两枚就是手机上唯一的入口，故与页脚同一规格：
+   页脚与首页 hero-meta 那两枚在窄屏都不出现，这两枚就是手机上唯一的入口，故保持触控尺寸：
    34px 细线圆钮、图标 16px、悬停转金。工具条不参与目录滚动（滚动收在 ul 里），始终钉在屏幕底部两角。
    不画分隔线：目录最后一行自带发丝线，再加一条会变成两条并排的横线。 */
 .mnav-foot {

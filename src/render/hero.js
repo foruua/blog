@@ -2,7 +2,7 @@
 // 纯函数：数据、设置、媒体查询结果都由调用方传进来 —— 这里不碰 repo、不读请求上下文，
 // 因此同一份标记可以被首页路由、主题预览与测试直接复用。markup 与拆分前逐字相同。
 import { SITE } from '../config.js';
-import { esc, formatDay } from '../util/text.js';
+import { esc } from '../util/text.js';
 import { HERO_IMAGE_SIZES } from './icons.js';
 import { IMAGE_PLACEHOLDER, mediaFallback } from '../media/variants.js';
 
@@ -14,12 +14,11 @@ import { IMAGE_PLACEHOLDER, mediaFallback } from '../media/variants.js';
  * @param {string} o.overlay      蒙版文案（压在封面下缘渐变上，留空不渲染整层）
  * @param {Function} o.mediaOf    路径 → 媒体变体信息（可为 null）
  * @param {string} o.recentHtml   「最近更新」区块（已渲染；空串则不占位）
+ * @param {string} o.toolsHtml    hero-meta 行尾的两枚工具（RSS / 配色，已渲染；空串则只剩统计）
  */
-export function heroBlock({ stats = [], imgs = [], overlay = '', mediaOf = () => null, recentHtml = '' }) {
+export function heroBlock({ stats = [], imgs = [], overlay = '', mediaOf = () => null, recentHtml = '', toolsHtml = '' }) {
   const posts = stats.find((p) => p.kind === 'post')?.n ?? 0;
   const notes = stats.find((p) => p.kind === 'note')?.n ?? 0;
-  const first = stats.map((p) => p.first).sort()[0];
-  const since = first ? formatDay(first).slice(0, 4) : String(new Date().getFullYear());
 
   const heroAlt = SITE.identity;
   // 蒙版文案：一条全局覆盖层（不分张），无 JS 也能看到。单图时在 <h1> 里，必须是 phrasing content：
@@ -86,13 +85,13 @@ export function heroBlock({ stats = [], imgs = [], overlay = '', mediaOf = () =>
   return `    <section class="hero">
       ${mark}
       ${title}
-      <p class="hero-meta">
+      <div class="hero-meta">
         <a href="/posts/">${posts} 篇文章</a>
         <span class="sep">·</span>
         <a href="/notes/">${notes} 篇笔记</a>
         <span class="sep">·</span>
-        <span>自 ${since} 年</span>
-      </p>
+        ${toolsHtml}
+      </div>
 ${recentHtml}
     </section>`;
 }

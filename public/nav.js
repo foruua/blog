@@ -630,8 +630,8 @@
   function groupOf(node) {
     if (!node || !node.closest) return null;
     var d = node.closest('.nsub, .pal');
-    // 抽屉里的配色是点击展开的行；页脚那枚也走点击（鼠标扫过页脚就弹面板太吵），都不参与桌面悬停。
-    return d && !d.classList.contains('pal-drawer') && !d.classList.contains('pal-foot') ? d : null;
+    // 抽屉底部的配色是点击展开的钮；首页 hero-meta 那枚也走点击（鼠标扫过封面信息行就弹面板太吵），都不参与桌面悬停。
+    return d && !d.classList.contains('pal-drawer') && !d.classList.contains('pal-hero') ? d : null;
   }
   function cancelClose(d) {
     if (!d.__closeTimer) return;

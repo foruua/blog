@@ -155,16 +155,17 @@ const searchDrawerForm = () => `<form class="s-drawer-form" action="/search" met
       <button class="s-drawer-go" type="submit">搜索</button>
     </form>`;
 
-// 配色选择器：宽屏在页脚、窄屏在抽屉，各一份（同一个模板，id 不同）。访客存了选择时由 ui.js 首帧对齐。
-// 页头导航里没有它 —— 配色是低频偏好，放页脚不占导航（test-search 的 M8f 钉着这条）。
+// 配色选择器：宽屏在首页 hero-meta 那一行、窄屏在抽屉底部工具条，各一份（同一个模板，id 不同）。访客存了选择时由 ui.js 首帧对齐。
+// 页头导航里没有它 —— 配色是低频偏好，不占导航（test-search 的 M8f 钉着这条）。
 // 面板里「明暗」与「配色」并列：前者管纸的明暗，后者管纸墨的色调 —— 都是"选一个生效的状态"，故同一套
-// aria-pressed 按钮，不再用页脚那枚写着"下一个动作"（显示「暗色」其实是点了会变暗）的开关。
+// aria-pressed 按钮，不再用早先页脚那枚写着"下一个动作"（显示「暗色」其实是点了会变暗）的开关。
 // 「自定义」区只预置当前预设的种子（色相 / 浓度 / 纸色），真正的令牌由 ui.js 按需调 PaletteLib 现算，
 // 服务端不生成那段 CSS。初始值取当前生效预设 —— 从「青瓷」滑进自定义时观感要接得上，不能一拖就跳色。
-// 入口图标是「右半实心的圆」：明暗 + 色调这对语义一眼可读，14px 缩下去仍是实心/空心的对比（调色盘那种细线会糊）。
-const PAL_ICO = '<svg class="pal-ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="10" cy="10" r="7.2"/><path d="M10 2.8a7.2 7.2 0 0 0 0 14.4z" fill="currentColor" stroke="none"/></svg>';
-// 页脚订阅入口：同一块 20 格画布、1.6 描边。点 + 两道弧，缩到 16px 也读得出是 RSS。
-const RSS_ICO = '<svg class="ico-rss" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="5.1" cy="14.9" r="1.35" fill="currentColor" stroke="none"/><path d="M4.2 10.2a5.6 5.6 0 0 1 5.6 5.6"/><path d="M4.2 4.6A11.2 11.2 0 0 1 15.4 15.8"/></svg>';
+// 入口图标是「一滴墨」：与旁边 RSS 的圆点/弧线同属圆头细线，缩到 15px 轮廓仍然干净。
+// （半实心圆交给面板里的「跟随系统」：入口和状态用同一个形，会读成"点了就跟随系统"。）
+const PAL_ICO = '<svg class="pal-ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3.5c2.9 3.2 4.6 5.4 4.6 7.5a4.6 4.6 0 0 1-9.2 0c0-2.1 1.7-4.3 4.6-7.5Z"/></svg>';
+// 订阅入口：同一块 20 格画布、1.6 描边。点 + 两道弧，缩到 15px 也读得出是 RSS；图形略上移，与墨滴同高。
+const RSS_ICO = '<svg class="ico-rss" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5.6" cy="13.3" r="1.15" fill="currentColor" stroke="none"/><path d="M4.5 9.3a5.1 5.1 0 0 1 5.1 5.1"/><path d="M4.5 4.8a9.6 9.6 0 0 1 9.6 9.6"/></svg>';
 
 // 明暗三态的三枚图标：与 PAL_ICO 同一格画布、同一描边，缩到 16px 仍是实心/空心的对比。
 // 名称不写进按钮里 —— 图标就是那一格的全部内容，名称只留给读屏（aria-label）与悬停（title）。
@@ -202,22 +203,29 @@ const palettePanelHtml = (cur) => `<div class="pal-panel">
         </div>
       </div>`;
 
-// 入口只有图标（页脚与抽屉底部各一枚）：当前是哪套不进入口，面板里那一行有 ✓。色名留给读屏（aria-label）。
-// 两处入口都只剩图标：宽屏在页脚（pal-foot），窄屏在抽屉底部工具条（pal-drawer，面板向上展开）。
-// 抽屉那份曾经是「整宽一行、面板就地展开」，现在挪到底部右下角与 RSS 并排 —— 目录里不再占一行。
-// 只有这两处：曾经还有页头导航一份，已按「低频偏好不占导航」撤掉 —— 别再加回来，test-search 的 M8f 会当场失败。
+// 入口只有图标（首页 hero-meta 与抽屉底部各一枚）：当前是哪套不进入口，面板里那一行有 ✓。色名留给读屏（aria-label）。
+// 两处入口都只剩图标：宽屏在首页 hero-meta（pal-hero，面板在整行下方居中展开），
+// 窄屏在抽屉底部工具条（pal-drawer，面板向上展开）。
+// 只有这两处：页头导航没有它，页脚也不再放（RSS + 配色已收编到首页 hero-meta 那行）—— 别再加回来，test-search 的 M8f 会当场失败。
 const PAL_WHERE = {
   drawer: ['palettePickerM', ' pal-drawer'],
-  footer: ['palettePickerF', ' pal-foot'],
+  hero: ['palettePickerH', ' pal-hero'],
 };
-const palettePickerHtml = (palDefault = '', where = 'footer') => {
+const palettePickerHtml = (palDefault = '', where = 'hero') => {
   const cur = PALETTES.find((p) => p.key === palDefault) ?? PALETTES[0];
-  const [id, cls] = PAL_WHERE[where] ?? PAL_WHERE.footer;
+  const [id, cls] = PAL_WHERE[where] ?? PAL_WHERE.hero;
   return `<details class="pal${cls}" id="${id}">
       <summary aria-label="配色（${esc(cur.name)}）" title="配色">${PAL_ICO}</summary>
       ${palettePanelHtml(cur)}
     </details>`;
 };
+
+/** 首页 hero-meta 那一行的两枚工具：RSS 与配色。图标式入口 —— 与两侧「N 篇文章」同一层小字，不抢视线。
+ *  配色面板锚在整行中间（见 style.css 的 .pal-hero）：锚在 24px 的图标上，窄屏会顶出视口。 */
+export const heroToolsHtml = (palDefault = sitePaletteDefault()) => `<span class="hero-tools">
+        <a class="hero-tool" href="/feed.xml" aria-label="RSS 订阅" title="RSS 订阅">${RSS_ICO}</a>
+        ${palettePickerHtml(palDefault, 'hero')}
+      </span>`;
 
 
 const pageMenuItems = () => [
@@ -431,18 +439,14 @@ function chromeOf(ctx) {
   </div>
 </header>`,
     drawer: ctx.drawer,
-    // 页脚：左边只留法务细字（© / 备案号），右边两枚图标（RSS / 配色）。
-    // 后台入口与「回到顶部」从页脚撤掉 —— 手机端不再需要第二枚回到顶部（悬浮钮仍按原断点隐藏）。
+    // 页脚只剩一法务行（© / 备案号），宽屏居中落在正中；RSS 与配色搬进了首页 hero-meta 那一行。
+    // 后台入口与「回到顶部」早先已从页脚撤掉 —— 手机端不再需要第二枚回到顶部（悬浮钮仍按原断点隐藏）。
     footer: `<footer class="site">
     <div class="foot-inner">
       <div class="foot-legal">
         <span>© ${new Date().getFullYear()}${SITE.author ? ` ${esc(SITE.author)}` : ''}</span>
         ${SITE.icp ? `<a class="foot-icp" href="https://beian.miit.gov.cn/" rel="nofollow noopener">${esc(SITE.icp)}</a>` : ''}
       </div>
-      <nav class="foot-tools" aria-label="页脚工具">
-        <a class="foot-ico" href="/feed.xml" aria-label="RSS 订阅" title="RSS 订阅">${RSS_ICO}</a>
-        ${palettePickerHtml(ctx.palDefault, 'footer')}
-      </nav>
     </div>
   </footer>`,
     emoji: ctx.emojiTpl,
