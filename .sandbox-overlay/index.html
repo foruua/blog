@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>封面蒙版文字 · 4 候选并排对比</title>
+<style>
+  :root {
+    --paper: #FFFEFB;
+    --ink: #17160F;
+    --accent: #8a6a2f; /* 近似站点金色 accent，落地时取真实 token */
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 2rem 1.5rem 3rem;
+    background: #f4f1ea;
+    font: 15px/1.6 -apple-system, "PingFang SC", "Hiragino Sans GB", sans-serif;
+    color: var(--ink);
+  }
+  h1 { font-size: 1.15rem; margin: 0 0 .3rem; }
+  .intro { color: #6b675e; margin: 0 0 1.8rem; font-size: .88rem; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 1.8rem; max-width: 1400px; margin: 0 auto; }
+  .cell h2 { font-size: .92rem; margin: 0 0 .5rem; display: flex; align-items: baseline; gap: .5rem; }
+  .cell h2 .tag { font-size: .72rem; font-weight: 400; color: #6b675e; }
+  .card { list-style: none; padding: 0; margin: 0 0 .5rem; }
+  .shot {
+    position: relative; aspect-ratio: 16 / 9;
+    border-radius: var(--radius); overflow: hidden;
+    box-shadow: 0 1px 4px rgba(23, 22, 15, .18);
+  }
+  .shot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  /* —— 蒙版层公共骨架（与线上 .hero-copy 相同：inset:0、pointer-events:none、文字在圆点行上方） —— */
+  .copy { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; pointer-events: none; }
+  .copy-inner { max-width: 92%; font-size: .88rem; line-height: 1.55; letter-spacing: .02em; }
+  .copy-b { padding: 2.6rem .9rem 2.7rem; }
+  /* —— 圆点（模拟线上：墨芯 + 纸描边，当前点金色放大） —— */
+  .dots { position: absolute; left: 50%; bottom: .75rem; transform: translateX(-50%); display: flex; gap: 0; }
+  .dot { width: 1.5rem; height: 1.5rem; display: grid; place-items: center; }
+  .dot::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: rgba(23,22,15,.55); box-shadow: 0 0 0 1.5px rgba(255,254,251,.45); }
+  .dot.on::before { width: 8px; height: 8px; background: var(--accent); box-shadow: 0 0 0 1.5px rgba(23,22,15,.45), 0 0 0 3px rgba(255,254,251,.4); }
+
+  /* ── A 现状：白字 + 黑渐变 ── */
+  .a .copy { padding: 2.6rem .9rem 2.7rem; background: linear-gradient(180deg, transparent 30%, rgba(0,0,0,.55)); color: #fff; border-radius: var(--radius); }
+  .a .copy-inner { text-shadow: 0 1px 10px rgba(0,0,0,.4); }
+
+  /* ── B 墨字 + 纸色渐变（显影留白感）：蒙版换成纸色，文字回归墨色，与博客纸底同语言 ── */
+  .b .copy { padding: 2.6rem .9rem 2.7rem; background: linear-gradient(180deg, transparent 30%, rgba(255,254,251,.92)); color: var(--ink); border-radius: var(--radius); }
+  .b .dot::before { background: rgba(23,22,15,.7); box-shadow: 0 0 0 1.5px rgba(255,254,251,.9); }
+  .b .dot.on::before { box-shadow: 0 0 0 1.5px rgba(23,22,15,.5), 0 0 0 3px rgba(255,254,251,.95); }
+
+  /* ── C 深色玻璃纸签：整幅渐变撤掉，只在左下角浮一枚磨砂深签，纸色字；照片整幅最干净 ── */
+  .c .copy { align-items: flex-start; padding: 0 .9rem 2.7rem; }
+  .c .copy-inner {
+    display: inline-block; padding: .5rem .85rem; margin-left: -.2rem;
+    background: rgba(23,22,15,.58); color: var(--paper);
+    border-radius: var(--radius);
+    -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+    box-shadow: 0 1px 6px rgba(0,0,0,.25);
+  }
+
+  /* ── D 米白纸签：实底纸签贴在照片左下角，墨字 + 细边框，像冲洗照片的手写标注 ── */
+  .d .copy { align-items: flex-start; padding: 0 .9rem 2.7rem; }
+  .d .copy-inner {
+    display: inline-block; padding: .5rem .85rem; margin-left: -.2rem;
+    background: rgba(255,254,251,.93); color: var(--ink);
+    border: 1px solid rgba(23,22,15,.14); border-radius: var(--radius);
+    box-shadow: 0 1px 5px rgba(23,22,15,.2);
+  }
+  .why { font-size: .8rem; color: #6b675e; margin: 0; }
+  .why b { color: var(--ink); }
+</style>
+</head>
+<body>
+<h1>封面蒙版文字 · 4 候选</h1>
+<p class="intro">同一张封面、同一句文案、同一版骨架（文字居中于圆点行上方）。金色圆点=当前张。挑一个告诉我字母即可。</p>
+<div class="grid">
+
+  <div class="cell a">
+    <h2>A · 现状基线 <span class="tag">白字 + 黑渐变</span></h2>
+    <div class="shot">
+      <img src="cover.webp" alt="">
+      <div class="copy"><span class="copy-inner">一夜凉风起　人间又一秋</span></div>
+      <div class="dots"><span class="dot"></span><span class="dot on"></span><span class="dot"></span></div>
+    </div>
+    <p class="why">对照用。问题：<b>黑渐变压暗了照片下缘，白字跟站点的纸/墨气质不搭</b>，且白字无信息层级。</p>
+  </div>
+
+  <div class="cell b">
+    <h2>B · 显影留白 <span class="tag">墨字 + 纸色渐变</span></h2>
+    <div class="shot">
+      <img src="cover.webp" alt="">
+      <div class="copy"><span class="copy-inner">一夜凉风起　人间又一秋</span></div>
+      <div class="dots"><span class="dot"></span><span class="dot on"></span><span class="dot"></span></div>
+    </div>
+    <p class="why">渐变换成<b>纸色</b>、文字回归墨色——像照片显影时下缘留的一道白边，与博客纸底、钤印同一语言。<b>推荐</b>：整幅构图不变、气质最顺；浅色封面图片素也压得住字。</p>
+  </div>
+
+  <div class="cell c">
+    <h2>C · 玻璃纸签 <span class="tag">深签浮在左下角</span></h2>
+    <div class="shot">
+      <img src="cover.webp" alt="">
+      <div class="copy"><span class="copy-inner">一夜凉风起　人间又一秋</span></div>
+      <div class="dots"><span class="dot"></span><span class="dot on"></span><span class="dot"></span></div>
+    </div>
+    <p class="why">撤掉整幅蒙版，只浮一枚<b>磨砂深签</b>：照片最完整、最「摄影作品」，字也有层级。代价：文字从居中变左下角，与圆点的居中关系要重排。</p>
+  </div>
+
+  <div class="cell d">
+    <h2>D · 实底纸签 <span class="tag">米白标签贴左下角</span></h2>
+    <div class="shot">
+      <img src="cover.webp" alt="">
+      <div class="copy"><span class="copy-inner">一夜凉风起　人间又一秋</span></div>
+      <div class="dots"><span class="dot"></span><span class="dot on"></span><span class="dot"></span></div>
+    </div>
+    <p class="why">纸色实签 + 墨字 + 细边框，像<b>贴在照片上的手写标注</b>，任何封面上对比度都稳。与 C 同样把文字挪到左下角。</p>
+  </div>
+
+</div>
+</body>
+</html>
