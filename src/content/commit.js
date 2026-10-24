@@ -96,6 +96,16 @@ export function recoverWrites(repo, { log = console } = {}) {
   for (const name of fs.readdirSync(journalDir).filter((n) => n.includes('.tmp-'))) {
     fs.rmSync(path.join(journalDir, name), { force: true });
   }
+  // crash 兜底：durableRemove(journal) 与 deleteSetting 之间被杀，会留下没有日志文件对应的孤儿键；
+  // 上面的循环只按文件驱动，永远碰不到它们——随保存事故缓慢累积，这里顺带清掉。
+  // 被隔离（.corrupt/.failed）的日志键一并清：恢复以文件为准，隔离件仍留在磁盘上供人工检查。
+  if (typeof repo.settingKeysLike === 'function') {
+    for (const key of repo.settingKeysLike('write_journal:')) {
+      const journalFile = path.join(journalDir, `${key.slice('write_journal:'.length)}.json`);
+      if (fs.existsSync(journalFile)) continue;
+      try { repo.deleteSetting(key); } catch { /* 清不掉就留给下一次启动 */ }
+    }
+  }
   return recovered;
 }
 

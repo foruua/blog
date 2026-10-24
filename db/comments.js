@@ -7,8 +7,8 @@ export const MAX_DEPTH = 6;
 export function createCommentRepo(db) {
   const q = {
     insert: db.prepare(`INSERT INTO comments
-      (post_id, parent_id, author, email_hash, email_enc, website, website_host, body_md, status, ip_hash, is_author, moderation_nonce, submission_id)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`),
+      (post_id, parent_id, author, email_hash, email_enc, website, website_host, body_md, status, is_author, moderation_nonce, submission_id)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`),
     byId: db.prepare('SELECT * FROM comments WHERE id = ?'),
     bySubmission: db.prepare('SELECT * FROM comments WHERE post_id = ? AND submission_id = ? LIMIT 1'),
     approvedOfPost: db.prepare(`SELECT * FROM comments
@@ -102,7 +102,7 @@ export function createCommentRepo(db) {
       // 记得带迟早会漏一条——那时会出现「有人在评论区却不在访客页」的错。
       const r = q.insert.run(
         c.postId, clampParent(c.parentId ?? null), c.author, c.emailHash ?? null, c.emailEnc ?? null,
-        c.website ?? null, websiteHost(c.website), c.bodyMd, c.status, c.ipHash ?? null, c.isAuthor ? 1 : 0, crypto.randomUUID(),
+        c.website ?? null, websiteHost(c.website), c.bodyMd, c.status, c.isAuthor ? 1 : 0, crypto.randomUUID(),
         c.submissionId ?? null,
       );
       const id = Number(r.lastInsertRowid);

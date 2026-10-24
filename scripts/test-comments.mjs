@@ -317,8 +317,8 @@ let firstId = 0;
 {
   const { MAX_DEPTH } = await import('../db/comments.js');
   const pid = db.prepare('SELECT id FROM posts WHERE slug = ?').get(SLUG).id;
-  const ins = db.prepare(`INSERT INTO comments (post_id, parent_id, author, email_hash, email_enc, website, body_md, status, ip_hash, is_author, moderation_nonce, created_at)
-    VALUES (?, ?, ?, NULL, NULL, NULL, ?, 'approved', NULL, 0, ?, ?)`);
+  const ins = db.prepare(`INSERT INTO comments (post_id, parent_id, author, email_hash, email_enc, website, body_md, status, is_author, moderation_nonce, created_at)
+    VALUES (?, ?, ?, NULL, NULL, NULL, ?, 'approved', 0, ?, ?)`);
   let parent = null;
   const chain = [];
   for (let level = 1; level <= 4; level++) {
@@ -387,8 +387,8 @@ let firstId = 0;
 {
   const pid = db.prepare('SELECT id FROM posts WHERE slug = ?').get(SLUG).id;
   db.prepare("INSERT INTO settings(key,value) VALUES('comments_per_page','5') ON CONFLICT(key) DO UPDATE SET value='5'").run();
-  const ins = db.prepare(`INSERT INTO comments (post_id, parent_id, author, email_hash, email_enc, website, body_md, status, ip_hash, is_author, moderation_nonce, created_at)
-    VALUES (?, ?, ?, NULL, NULL, NULL, ?, 'approved', NULL, 0, ?, ?)`);
+  const ins = db.prepare(`INSERT INTO comments (post_id, parent_id, author, email_hash, email_enc, website, body_md, status, is_author, moderation_nonce, created_at)
+    VALUES (?, ?, ?, NULL, NULL, NULL, ?, 'approved', 0, ?, ?)`);
   const roots = [];
   const chain = [];
   for (let i = 1; i <= 7; i++) {
@@ -470,8 +470,8 @@ let firstId = 0;
   const npid = note.id;
   // 注意 commentsPerPage 合法区间 5—100（更小会被夹取），要用 8 条串触发封顶
   db.prepare("INSERT INTO settings(key,value) VALUES('comments_per_page','5') ON CONFLICT(key) DO UPDATE SET value='5'").run();
-  const ins = db.prepare(`INSERT INTO comments (post_id, parent_id, author, email_hash, email_enc, website, body_md, status, ip_hash, is_author, moderation_nonce, created_at)
-    VALUES (?, NULL, ?, NULL, NULL, NULL, '笔记上的评论', 'approved', NULL, 0, ?, '2031-01-01T00:00:00.000Z')`);
+  const ins = db.prepare(`INSERT INTO comments (post_id, parent_id, author, email_hash, email_enc, website, body_md, status, is_author, moderation_nonce, created_at)
+    VALUES (?, NULL, ?, NULL, NULL, NULL, '笔记上的评论', 'approved', 0, ?, '2031-01-01T00:00:00.000Z')`);
   for (let i = 0; i < 8; i++) ins.run(npid, `笔记读者${i}`, `nonce-note-pg-${i}`);
   const notesHtml = await (await fetch(`${BASE}/notes/`)).text();
   // 评论抽屉改首次展开时取：列表页只留空壳，面板走 partial 端点（见 app.js 的 loadDrawer）。
@@ -542,8 +542,8 @@ let firstId = 0;
 {
   // 填了网址的名字是链接，样式不能比不填更弱（曾退回 .c-head 浅灰）。走公共接口会撞写入限流，直接入库再读页面、用完删除。
   const pid = db.prepare('SELECT id FROM posts WHERE slug = ?').get(SLUG).id;
-  const ins = db.prepare(`INSERT INTO comments (post_id, parent_id, author, email_hash, email_enc, website, body_md, status, ip_hash, is_author, moderation_nonce, created_at)
-    VALUES (?, NULL, '陈', NULL, NULL, 'https://example.com/me', '带网址的一条，用来核对名字样式。', 'approved', NULL, 0, 'nonce-cname', '2026-01-01T00:00:00.000Z')`).run(pid);
+  const ins = db.prepare(`INSERT INTO comments (post_id, parent_id, author, email_hash, email_enc, website, body_md, status, is_author, moderation_nonce, created_at)
+    VALUES (?, NULL, '陈', NULL, NULL, 'https://example.com/me', '带网址的一条，用来核对名字样式。', 'approved', 0, 'nonce-cname', '2026-01-01T00:00:00.000Z')`).run(pid);
   const id = Number(ins.lastInsertRowid);
   const html3 = await (await fetch(`${BASE}/p/${SLUG}/`)).text();
   check('T6i 带网址的评论入库后网址保留', (db.prepare('SELECT website FROM comments WHERE id = ?').get(id) ?? {}).website === 'https://example.com/me');
@@ -554,8 +554,8 @@ let firstId = 0;
     && /\.c-head b,\s*\.c-head \.c-name \{[^}]*color: var\(--fg\)[^}]*font-weight: 600/.test(await (await fetch(`${BASE}/style.css`)).text()), '');
   check('T6l 链接名字有悬停反馈（金色 + 下划线），仍然可点击辨认',
     /\.c-head a\.c-name:hover \{[^}]*color: var\(--accent\)/.test(await (await fetch(`${BASE}/style.css`)).text()), '');
-  const badIns = db.prepare(`INSERT INTO comments (post_id, parent_id, author, email_hash, email_enc, website, body_md, status, ip_hash, is_author, moderation_nonce, created_at)
-    VALUES (?, NULL, '旧数据', NULL, NULL, 'javascript:alert(1)', '历史脏网址', 'approved', NULL, 0, 'nonce-badurl', '2026-01-01T00:00:00.000Z')`).run(pid);
+  const badIns = db.prepare(`INSERT INTO comments (post_id, parent_id, author, email_hash, email_enc, website, body_md, status, is_author, moderation_nonce, created_at)
+    VALUES (?, NULL, '旧数据', NULL, NULL, 'javascript:alert(1)', '历史脏网址', 'approved', 0, 'nonce-badurl', '2026-01-01T00:00:00.000Z')`).run(pid);
   const badId = Number(badIns.lastInsertRowid);
   try {
     const badHtml = await (await fetch(`${BASE}/p/${SLUG}/`)).text();
@@ -600,8 +600,8 @@ let firstId = 0;
       cookie: (res.headers.get('set-cookie') ?? '').split(';')[0] || null,      id: db2.prepare('SELECT id FROM comments ORDER BY id DESC LIMIT 1').get()?.id,
     };
   };
-  const mark = (status, hash = hash2) => db2.prepare(`INSERT INTO comments (post_id, parent_id, author, email_hash, email_enc, website, body_md, status, ip_hash, is_author, moderation_nonce, created_at)
-    VALUES (?, NULL, '回头客', ?, NULL, NULL, '历史评论', ?, NULL, 0, 'nonce-reader', '2026-01-01T00:00:00.000Z')`).run(pid2, hash, status);
+  const mark = (status, hash = hash2) => db2.prepare(`INSERT INTO comments (post_id, parent_id, author, email_hash, email_enc, website, body_md, status, is_author, moderation_nonce, created_at)
+    VALUES (?, NULL, '回头客', ?, NULL, NULL, '历史评论', ?, 0, 'nonce-reader', '2026-01-01T00:00:00.000Z')`).run(pid2, hash, status);
 
   try {
     const fresh = await say('第一次来。');
@@ -824,10 +824,10 @@ let firstId = 0;
   const avatarPostId = db.prepare('SELECT id FROM posts WHERE slug = ?').get(avatarSlug).id;
   const email = 'avatar-check@example.com';
   const md5 = emailMd5(email);
-  const ins = db.prepare(`INSERT INTO comments(post_id, parent_id, author, email_hash, email_enc, body_md, status, ip_hash, is_author, moderation_nonce, created_at)
-    VALUES(?,?,?,?,?,?,?,?,?,?, datetime('now'))`);
-  ins.run(avatarPostId, null, '头像读者', crypt.fingerprint(email), crypt.encrypt(email), '带头像的评论', 'approved', null, 0, 'n1');
-  ins.run(avatarPostId, null, '博主', null, null, '作者回复没有邮箱', 'approved', null, 1, 'n2');
+  const ins = db.prepare(`INSERT INTO comments(post_id, parent_id, author, email_hash, email_enc, body_md, status, is_author, moderation_nonce, created_at)
+    VALUES(?,?,?,?,?,?,?,?,?, datetime('now'))`);
+  ins.run(avatarPostId, null, '头像读者', crypt.fingerprint(email), crypt.encrypt(email), '带头像的评论', 'approved', 0, 'n1');
+  ins.run(avatarPostId, null, '博主', null, null, '作者回复没有邮箱', 'approved', 1, 'n2');
 
   const page = await (await fetch(`${BASE}/p/${avatarSlug}/`)).text();
   check('T19a 有邮箱的评论挂上本站反代头像（img 指向 /avatar/<邮箱 md5>）',

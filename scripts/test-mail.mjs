@@ -314,8 +314,8 @@ try {
       const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       const addComment = (sql, ...args) => Number(db.prepare(sql).run(...args).lastInsertRowid);
       const insert = `INSERT INTO comments
-        (post_id, parent_id, author, email_hash, email_enc, website, body_md, status, ip_hash, created_at, is_author, moderation_nonce)
-        VALUES (?, ?, ?, ?, ?, NULL, ?, ?, NULL, ?, ?, ?)`;
+        (post_id, parent_id, author, email_hash, email_enc, website, body_md, status, created_at, is_author, moderation_nonce)
+        VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?)`;
       // 夹具里 posts 首行可能是笔记（kind='note'），按 /p/ 取页面会 404，所以显式排序取文章
       const postId = db.prepare("SELECT id FROM posts WHERE kind = 'post' ORDER BY id LIMIT 1").get().id;
       const parentEmail = 'reader-parent@example.com';

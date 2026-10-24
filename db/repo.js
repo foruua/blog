@@ -388,6 +388,8 @@ export function createRepo(db) {
     pageFiles: () => q.pageFiles.all(),
     publishedStats: () => q.publishedStats.all(),
     deleteSetting: (k) => { settingsMap = null; q.deleteSetting.run(k); },
+    // settings 全表只有几十行；recoverWrites 用它找没有日志文件对应的孤儿键。
+    settingKeysLike: (prefix) => q.allSettings.all().map((row) => row.key).filter((key) => key.startsWith(prefix)),
 
     getSetting, refreshSettings,
     setSetting: (k, v) => { settingsMap = null; q.setSetting.run(k, String(v)); },

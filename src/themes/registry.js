@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { indexTheme } from './templates.js';
+import { safeRelativeFsPath as isSafeRelative } from '../util/safe-path.js';
 
 // 主题 API 版本。模板引擎、上下文结构、manifest 字段有不兼容变化时 +1；
 // 主题在 theme.json 的 engine 里声明自己面向哪一版，加载时只认当前版本。
@@ -17,10 +18,7 @@ const SCREENSHOT_EXT = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg'
 // 只认合法的 CSS 十六进制颜色长度（3/4/6/8），别让 #12345 这种「像颜色」的值混进样式表。
 export const COLOR_RE = /^#(?:[0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
 
-const isSafeRelative = (value) => typeof value === 'string' && value.length > 0 && value.length <= 300
-  && !value.includes('\\') && !value.includes('\0')
-  && !path.posix.isAbsolute(value) && !/^[a-z]:/i.test(value)
-  && value.split('/').every((part) => part !== '' && part !== '.' && part !== '..');
+// 相对路径词法校验收敛进 util/safe-path.js（与 backup.js 共用一份），以 isSafeRelative 别名沿用。
 
 // 主题里的图片只认站内路径：外站图片会被 CSP 的 img-src 'self' 直接拦掉，
 // 与其让它静默坏成空白，不如保存时就拒绝。
@@ -240,6 +238,19 @@ export function createThemeRegistry({
     const errors = [];
     let entries = [];
     try { entries = root ? fs.readdirSync(root, { withFileTypes: true }) : []; } catch { /* 首次部署时目录可能还不存在 */ }
+    // SIGKILL 窗口会遗留安装/替换的临时目录与上传中的 ZIP（finally 不执行）；
+    // registry/backup 都特意跳过它们，但此前没有清理路径——趁扫描顺带清掉超龄孤儿。
+    for (const entry of entries) {
+      const stale = entry.isDirectory()
+        ? /^(?:\.install-|\.replace-)/.test(entry.name)
+        : /^\.upload-.*\.zip$/.test(entry.name);
+      if (!stale) continue;
+      try {
+        const file = path.join(root, entry.name);
+        if (at - fs.statSync(file).mtimeMs < 7 * 86400_000) continue;
+        fs.rmSync(file, { recursive: true, force: true });
+      } catch { /* 下次扫描再清 */ }
+    }
     for (const entry of entries) {
       if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
       const themeDir = path.join(root, entry.name);

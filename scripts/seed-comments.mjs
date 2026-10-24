@@ -1,3 +1,4 @@
+import { parseFlags } from './_cli.mjs';
 import { acquireMaintenanceLock } from '../src/util/lock.js';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -5,13 +6,9 @@ import { open, close } from '../db/driver.js';
 import { snapshot, DEFAULT_DIR } from '../src/backup.js';
 import { DATA_DIR, DB_FILE, CONTENT_DIR, UPLOADS_DIR } from '../src/config.js';
 
-// 造一批评论数据，肉眼验收「多级嵌套 + 评论分页」。用法：node scripts/seed-comments.mjs [--slug <slug>] [--threads 40] [--clear]。
+// 造一批评论数据，肉眼验收「多级嵌套 + 评论分页」。用法：node scripts/seed-comments.mjs [--slug <slug>] [--threads <1-200>，默认 34] [--clear]。
 // 只写数据库、不碰 Markdown 与附件；插入的 id 记在 data/seed-comments.json，可精确回滚。运行前请先停掉服务（它也要拿维护锁）。
-const argv = process.argv.slice(2);
-const opt = (flag, fallback = null) => {
-  const i = argv.indexOf(flag);
-  return i >= 0 && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[i + 1] : fallback;
-};
+const { argv, opt } = parseFlags();
 const SLUG = opt('--slug', 'sqlite-as-blog');
 // `--threads abc` 会得到 NaN，接着循环一次都不跑、写出一份空记账并报「已插入 0 条」、退出码 0。
 const THREADS_RAW = opt('--threads', 34);
@@ -99,8 +96,8 @@ try {
   console.log(`插入前快照：${before.gzFile}`);
 
   const insert = db.prepare(`INSERT INTO comments
-    (post_id, parent_id, author, email_hash, email_enc, website, body_md, status, ip_hash, is_author, moderation_nonce, created_at)
-    VALUES (?, ?, ?, NULL, NULL, ?, ?, 'approved', NULL, ?, ?, ?)`);
+    (post_id, parent_id, author, email_hash, email_enc, website, body_md, status, is_author, moderation_nonce, created_at)
+    VALUES (?, ?, ?, NULL, NULL, ?, ?, 'approved', ?, ?, ?)`);
 
   const created = [];
   let at = THREADS * 90;  for (let t = 1; t <= THREADS; t++) {
