@@ -457,7 +457,8 @@ function scheduleBackup(delayMs = 0) {
   }, Math.max(0, Number(delayMs) || 0)).unref();
 }
 const autoBackupOn = process.env.BACKUP_ON_PUBLISH !== 'false';
-const backupIntervalMs = Math.max(60000, Number(process.env.BACKUP_INTERVAL_MS) || 6 * 3600000);
+// 0 = 关闭自动备份，与 FEED_REFRESH_MS 等其它间隔约定一致；min 只约束非零值。
+const backupIntervalMs = envDurationMs(process.env.BACKUP_INTERVAL_MS, 6 * 3600000, { min: 60000 });
 const backupInterval = setInterval(scheduleBackup, backupIntervalMs);
 backupInterval.unref();
 if (!autoBackupOn) clearInterval(backupInterval);
@@ -866,6 +867,9 @@ for (const sig of ['SIGINT', 'SIGTERM']) {
       const backgroundDone = (async () => {
         await Promise.allSettled([watchdog.drain?.()]);
         await Promise.allSettled([refresher.drain?.(), linkChecker.drain?.()]);
+    // 主动断开空闲 keep-alive 连接（nginx 回源常驻连接默认要等 75s 空闲超时），
+    // 否则几乎必然先撞 15s 兜底强退：drain 顺序形同虚设，且兜底不等备份 worker 就释放锁。
+    server.closeIdleConnections?.();
         await outbox.drain?.();
       })();
       void Promise.allSettled([workerDone, backgroundDone]).finally(() => {
