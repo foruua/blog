@@ -30,3 +30,4 @@ design/
 .vscode/
 .idea/
 *.swp
+.sandbox-overlay/
