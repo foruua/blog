@@ -820,7 +820,8 @@ ${emptyPage('这一年还没有内容', `换一年看看，或者去 <a href="/a
   const NOT_FOUND_TTL_MS = 60_000;
   function notFound(c) {
     const hit = notFoundCache;
-    if (hit && Date.now() - hit.at < NOT_FOUND_TTL_MS) return c.body(hit.body, 404);
+    // 命中也要走 c.html：c.body 默认 text/plain，会把缓存住的页面当纯文本渲染成裸 <pre>。
+    if (hit && Date.now() - hit.at < NOT_FOUND_TTL_MS) return c.html(hit.body, 404);
     // 404 不只是一个死胡同：给搜索框与最近更新，把误入的人接回内容里。
     const recentRows = repo.recentEntries(3);
     const recentCounts = recentRows.length ? comments.countsOf(recentRows.map((row) => row.id)) : new Map();

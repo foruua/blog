@@ -363,6 +363,16 @@ const page = await (await fetch(`${BASE}/p/${SLUG}/`)).text();
       (await (await fetch(`${BASE}/colophon`)).text()).includes('版本说明'), '');
     check('T8h 通用路由不会凭空造页：不存在的 slug 仍是 404',
       (await fetch(`${BASE}/zz-not-a-page/`)).status === 404, '');
+    // 404 有 60s 进程内缓存：命中路径曾用 c.body 返回（默认 text/plain），第二个 404 会变成裸 <pre>。
+    // 连打两次、第二次（命中缓存）必须仍是 text/html。
+    {
+      await fetch(`${BASE}/zz-not-a-page-2/`);
+      const again = await fetch(`${BASE}/zz-not-a-page-2/`);
+      const ctype = again.headers.get('content-type') ?? '';
+      check('T8h2 缓存命中的 404 仍是 text/html（不是裸文本 <pre>）',
+        again.status === 404 && ctype.includes('text/html'),
+        `status=${again.status} type=${ctype}`);
+    }
     check('T8i 导航高亮当前这一页（固定页各自高亮自己）',
       html.includes('href="/about" aria-current="page"')
       && twoHtml.includes('href="/colophon" aria-current="page"'), '');
