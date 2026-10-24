@@ -570,25 +570,31 @@ body.mnav-open .mnav-panel { transform: none; opacity: 1; }
   /* 轮播整层的宽高必须由样式先定出来，不能等图片固有尺寸 —— 首帧即终值。PJAX 换页那一帧叠图还没选好图源、内容盒 0×0，Chrome 的「懒加载图没有显式尺寸」检查据此报警，慢网络下封面会先小后大跳一下。三项 min() 与 .hero-figure img 的 max-width 收口出终值；--hero-ar 固定为 16:9。 */
   width: min(100%, 30rem, calc(min(34vh, 15.5rem) * var(--hero-ar)));
 }
-/* —— 首页封面蒙版文字 ——
-   真实 DOM 覆盖层，不烘焙进图片：可搜索、可访问、无 JS 也能看到。整幅渐变垫底 + 白字，
-   水平居中；无控制条（轮播恒为自动），整层 pointer-events:none，点击/灯箱落到图上不受影响。 */
+/* —— 首页封面蒙版文字（渐变 + 玻璃纸签） ——
+   真实 DOM 覆盖层，不烘焙进图片：可搜索、可访问、无 JS 也能看到。整幅下缘渐变垫底，
+   文字浮在一枚磨砂深签里（深底 + 纸字，任何明暗的封面上都读得清），水平居中。
+   无控制条（轮播恒为自动），整层 pointer-events:none，点击/灯箱落到图上不受影响。 */
 .hero-copy {
   position: absolute; inset: 0; z-index: 2;
   display: flex; flex-direction: column; justify-content: flex-end;
-  /* align-items:center：文字要先在封面里水平居中，保持与封面中线对齐。 */
+  /* align-items:center：文字签要先在封面里水平居中，保持与封面中线对齐。 */
   align-items: center;
   padding: 2.6rem .9rem 1.1rem;
   background: linear-gradient(180deg, transparent 30%, rgba(0, 0, 0, .55));
   border-radius: calc(var(--radius) - 1px);
-  color: #fff; pointer-events: none;
+  pointer-events: none;
 }
 .hero-copy-inner {
-  max-width: 92%;
+  display: inline-block; max-width: 92%;
+  padding: .5rem .85rem;
+  background: rgba(23, 22, 15, .58);
+  color: rgba(255, 254, 251, .96);
+  border-radius: calc(var(--radius) - 2px);
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+  box-shadow: 0 1px 6px rgba(0, 0, 0, .25);
   font-size: clamp(.8rem, 2.2vw, .95rem);
   line-height: 1.55; letter-spacing: .02em;
   text-align: center;
-  text-shadow: 0 1px 10px rgba(0, 0, 0, .4);
   overflow-wrap: anywhere;
 }
 @media (max-width: 620px) { .hero-copy { padding: 2rem .65rem .9rem; } }
