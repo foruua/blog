@@ -2,6 +2,8 @@
 // 以前两处各写一遍，规则已经开始漂移（一处带长度上限、一处没有），这类「看起来一样的安全检查」
 // 是最容易在改一处时漏掉另一处的地方。
 
+import path from 'node:path';
+
 const CONTROL = (text) => {
   for (const ch of text) {
     const code = ch.codePointAt(0);
@@ -26,4 +28,18 @@ export function safeInternalPath(value, { prefix = '', fallback = '/', maxLength
   if (pathname.includes('//') || /%2e|%2f|%5c/i.test(pathname)
       || pathname.split('/').some((part) => part === '.' || part === '..')) return fallback;
   return text.slice(0, maxLength);
+}
+
+/**
+ * POSIX 相对路径（文件/目录段，不含开头的 /）词法校验。
+ * 主题清单（themes/registry.js）与备份归档（backup.js）共用同一份——此前 registry 与 backup
+ * 各写一遍且规则细节已不一致（长度上限、盘符检查）。拒绝：反斜杠、NUL、绝对路径、盘符、
+ * 空段/点段/..段。只做词法判断；需要挡软链的调用方（media/paths.js 的逐段 lstat、
+ * content/commit.js 的 realpath 逐级解析）另按各自模型处理，那是不同类型的检查，不在这里合并。
+ */
+export function safeRelativeFsPath(value, { maxLength = 300 } = {}) {
+  return typeof value === 'string' && value.length > 0 && value.length <= maxLength
+    && !value.includes('\\') && !value.includes('\0')
+    && !path.posix.isAbsolute(value) && !/^[a-z]:/i.test(value)
+    && value.split('/').every((part) => part !== '' && part !== '.' && part !== '..');
 }

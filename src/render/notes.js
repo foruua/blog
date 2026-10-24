@@ -13,7 +13,7 @@ export function splitImages(html) {
   const MEDIA_RE = /<img\b(?:[^>"']|"[^"]*"|'[^']*')*>/gi;
   let text = String(html ?? '').replace(MEDIA_RE, (block) => {
     const src = decodeHtmlAttribute(htmlAttr(block, 'data-full') || htmlAttr(block, 'src'));
-    const alt = decodeHtmlAttribute(/alt="([^"]*)"/i.exec(block)?.[1] ?? '');
+    const alt = decodeHtmlAttribute(htmlAttr(block, 'alt'));
     const width = attr(block, 'width');
     const height = attr(block, 'height');
     if (src) images.push({ src, alt, width, height });

@@ -196,15 +196,24 @@ async function resolveTarget(raw, { signal, lookup = defaultLookup } = {}) {
   return { url, addresses };
 }
 
+// 仅测试使用（scripts/test-feed-dns.mjs）：生产路径的地址校验都在 fetchDocument 内联走 resolveTarget。
 export async function assertPublicUrl(raw, options = {}) {
   return (await resolveTarget(raw, options)).url;
 }
+
+// 抓取共享 keep-alive 连接池：此前 agent:false 每次请求都重新 TCP+TLS 握手，
+// 30 分钟一轮 × 4 并发、再叠加友链探活，握手开销可观。SSRF 防护与连接池无关——
+// 仍靠 resolveTarget 的地址验证 + requestPinned 的自定义 lookup（首次建连同样走 pinned 解析）；
+// agent 只按 origin 复用已验证过的连接。timeout 让空闲 socket 30s 后被销毁，别攥着连接不放。
+const POOL = { keepAlive: true, keepAliveMsecs: 15_000, timeout: 30_000, maxSockets: 8, scheduling: 'lifo' };
+const httpAgent = new http.Agent(POOL);
+const httpsAgent = new https.Agent(POOL);
 
 function requestPinned(url, addresses, { signal, headers }) {
   return new Promise((resolve, reject) => {
     const client = url.protocol === 'https:' ? https : http;
     const req = client.get(url, {
-      signal, headers, agent: false,
+      signal, headers, agent: url.protocol === 'https:' ? httpsAgent : httpAgent,
       lookup(_host, options, callback) {
         // 地址在 resolveTarget 里已全部验证过；这里只按调用方要的 family 过滤，让 Node 拿到期望的地址族（不传则返回全部）。
         const list = options?.family ? addresses.filter((a) => a.family === options.family) : addresses;

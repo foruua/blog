@@ -3,6 +3,7 @@ import { safeHttpUrl } from '../../util/url.js';
 import { failureLabel } from '../../util/failure.js';
 import { adminLayout } from '../layout.js';
 import { progressMarkup } from '../progress.js';
+import { ICON_CLOSE } from '../../render/icons.js';
 
 /** 后台「友圈」页：登记地址、看每个源的抓取状态。失败原因直接摊在行里，编辑字段收进 popover（声明式、零 JS）。「编辑」用 popover 而非 <details>：四个动作要并排；<summary> 要么嵌站名链接（Chrome 无障碍报「Interactive element inside of a <summary>」）、要么与表单绑死。 */
 
@@ -71,7 +72,7 @@ ${back}          <button type="submit" class="a-btn-danger"
       <dialog class="a-modal a-feed-editor" id="${editId}" aria-labelledby="${editId}-title">
         <form method="post" action="/admin/feeds/${f.id}/save">
           ${csrfField(csrf)}
-${back}          <header class="a-media-dialog-head"><h2 id="${editId}-title">编辑订阅源</h2><button class="a-media-icon" type="button" data-feed-close aria-label="关闭编辑订阅源"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M4.4 4.4 11.6 11.6M11.6 4.4 4.4 11.6"/></svg></button></header>
+${back}          <header class="a-media-dialog-head"><h2 id="${editId}-title">编辑订阅源</h2><button class="a-media-icon" type="button" data-feed-close aria-label="关闭编辑订阅源">${ICON_CLOSE}</button></header>
           <div class="a-feed-editor-body">
           <div class="a-field">
             <label for="f-url-${f.id}">地址</label>
@@ -125,7 +126,7 @@ function pager({ page, lastPage, perPage, total, csrf }) {
 const IMPORT_ORDER = { failed: 0, added: 1, skipped: 2 };
 const IMPORT_MARK = { failed: '✗', added: '✓', skipped: '–' };
 const IMPORT_HINT = '自动寻找 RSS / Atom；已订阅（含停用）、隐藏或已下线的站会跳过，找不到订阅源会列出原因。';
-const IMPORT_CLOSE_ICON = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M4.4 4.4 11.6 11.6M11.6 4.4 4.4 11.6"/></svg>';
+const IMPORT_CLOSE_ICON = ICON_CLOSE;
 const IMPORT_FRAGMENT_URL = '/admin/feeds/subscribe-report';
 
 // 入口按钮何时不能点：一轮还在跑 或 没有待订阅的站。admin.js 拿片段后照它补禁用态与文案（文案由服务端给，避免两处走样）。

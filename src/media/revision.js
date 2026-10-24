@@ -11,3 +11,12 @@ export function bumpMediaRevision(repo) {
   repo.setSetting(MEDIA_REVISION_KEY, String(next));
   return next;
 }
+
+// 裸 DatabaseSync 入口（运维脚本没有 repo 包装时用）：与 repo.setSetting 相同的 upsert 语义。
+export function bumpMediaRevisionDb(db) {
+  const current = Number(db.prepare('SELECT value FROM settings WHERE key = ?').get(MEDIA_REVISION_KEY)?.value ?? 0) || 0;
+  const next = current + 1;
+  db.prepare(`INSERT INTO settings(key,value) VALUES(?,?)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value`).run(MEDIA_REVISION_KEY, String(next));
+  return next;
+}

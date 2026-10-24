@@ -24,6 +24,13 @@ export function variantWidthsOf(width) {
 
 export const originalPathOf = (source) => String(source ?? '').split(/[?#]/, 1)[0].replace(/\.(?:thumb(?:-v\d+)?|(?:v\d+-)?w\d+)\.webp$/, '');
 
+// 一条 media 行派生出的全部文件路径（原图 + 缩略图 + 全部变体）。
+// 使用索引（usage.js）/回收计划（cleanup.js）/备份（backup.js）三家共用，
+// 避免派生文件命名规则长出第三份会漂移的拷贝。
+export function expandMediaPaths(row) {
+  return [row?.path, row?.thumbnail, ...parseVariants(row?.variants).map((v) => v.path)].filter(Boolean);
+}
+
 export const IMAGE_PLACEHOLDER = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
 
 /** 媒体表没有这一行时退回原图（只接受站内路径）；外站/数据地址才用占位图。 */

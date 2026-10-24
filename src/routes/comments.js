@@ -110,9 +110,11 @@ export function commentRoutes({ repo, comments, crypt, auth = null, notifier = c
       : String(payload.author ?? '').normalize('NFC').replace(/\p{Cc}/gu, ' ').trim().slice(0, 40);
     const bodyMd = String(payload.body ?? '').trim().slice(0, 3000);
     if (!author || !bodyMd) return { code: 400, result: 'bad' };
+    let emailForInsert = null;   // 校验时顺手留下，下面插入复用，不再重新取一遍
     if (!asAuthor) {
       const email = String(payload.email ?? '').trim().slice(0, 120);
       if (hasControlChar(email) || !EMAIL_RE.test(email)) return { code: 400, result: 'bad-email' };
+      emailForInsert = email;
     }
     // 同一次页面提交（双击/重试）用同一个 submission_id：重复到达直接返回已有结果。
     const rawSubmission = String(payload.submission_id ?? '').trim();
@@ -149,7 +151,7 @@ export function commentRoutes({ repo, comments, crypt, auth = null, notifier = c
       return { code: 200, result: 'ok', id, post };
     }
 
-    const email = String(payload.email ?? '').trim().slice(0, 120);
+    const email = emailForInsert;
     const website = normalizeUserUrl(payload.website);
 
     const emailHash = crypt.fingerprint(email);

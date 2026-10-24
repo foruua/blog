@@ -1,6 +1,7 @@
 import { previewSrcsetOf, previewSourceOf } from '../../media/variants.js';
 import { csrfField, esc } from '../../util/text.js';
 import { adminLayout } from '../layout.js';
+import { ICON_CLOSE } from '../../render/icons.js';
 
 // 媒体库显示「上传时那份原件」的大小，而非 sharp 重编码后的体积（通常更小，见 media/image.js）。老记录（022 前）没有原图大小，退回 bytes，好过显示「—」。
 const sizeOf = (m) => m.original_bytes ?? m.bytes;
@@ -49,7 +50,7 @@ export function mediaPage({ pagination = '', items, stats, csrf, badges, heroPat
 ${cells || '      <p class="a-empty">媒体库还是空的。</p>'}
     </div>${pagination}
     <dialog class="a-modal a-media-dialog" id="a-media-dialog" data-dismiss-outside aria-labelledby="a-media-dialog-title">
-      <header class="a-media-dialog-head"><h2 id="a-media-dialog-title">引用详情</h2><button class="a-media-icon" type="button" data-media-close aria-label="关闭引用详情"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M4.4 4.4 11.6 11.6M11.6 4.4 4.4 11.6"/></svg></button></header>
+      <header class="a-media-dialog-head"><h2 id="a-media-dialog-title">引用详情</h2><button class="a-media-icon" type="button" data-media-close aria-label="关闭引用详情">${ICON_CLOSE}</button></header>
       <div class="a-media-dialog-body" id="a-media-dialog-body"></div>
     </dialog>`;
 

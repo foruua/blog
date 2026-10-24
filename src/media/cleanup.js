@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { referencedUploads, uploadPath } from './usage.js';
-import { originalPathOf, thumbnailFile, variantFile, parseVariants } from './variants.js';
+import { originalPathOf, thumbnailFile, variantFile, expandMediaPaths } from './variants.js';
 import { mediaFile } from './paths.js';
 
 function markdownFiles(root) {
@@ -22,7 +22,7 @@ export function obsoleteMediaPlan(db, { uploadsDir, contentDir }) {
   const protectMarkdown = (value) => { for (const p of referencedUploads(value)) protectedPaths.add(p); };
   const rows = db.prepare('SELECT path, thumbnail, variants FROM media').all();
   const originals = new Set(rows.map((row) => row.path));
-  for (const row of rows) for (const p of [row.path, row.thumbnail, ...parseVariants(row.variants).map((v) => v.path)]) protect(p);
+  for (const row of rows) for (const p of expandMediaPaths(row)) protect(p);
   for (const row of db.prepare('SELECT body_md, body_html FROM posts').all()) {
     protectMarkdown(row.body_md);
     const html = String(row.body_html ?? '');

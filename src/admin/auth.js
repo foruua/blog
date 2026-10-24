@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { promisify } from 'node:util';
 import { cookieBase, readBody } from '../util/http.js';
+import { createAntispam } from '../comments/antispam.js';
 
 const PW_KEY = 'admin_password_hash';
 const EP_KEY = 'admin_session_epoch';
@@ -61,9 +62,11 @@ export function clearPassword(db) {
 }
 
 export function createAdminAuth({ db, crypt }) {
-  const loginAttempts = new Map();
-  const WINDOW = 15 * 60 * 1000;
-  const MAX_FAILS = 5;
+  // 登录失败限流与全站 antispam 共用同一实现（含 sweep、MAX_KEYS 硬淘汰），
+  // 不再自建一份会漂移的滑动窗口。blocked() 只查不记，失败在验证后由 recordFailure 记账。
+  const loginLimiter = createAntispam({ windowMs: 15 * 60 * 1000, maxPerWindow: 5 });
+  const loginBlocked = (ipHash) => loginLimiter.blocked(ipHash);
+  const recordFailure = (ipHash) => { loginLimiter.rateLimited(ipHash); };
   // scrypt 单次约 32MB 内存；同时最多跑 2 个，超出的请求短暂排队，而不是直接判失败把站主也锁在门外。
   const SLOT_LIMIT = 2;
   const SLOT_WAIT_MS = 1500;
@@ -153,7 +156,7 @@ export function createAdminAuth({ db, crypt }) {
     const sid = crypto.randomUUID();
     const token = crypt.sign({ uid: 'owner', ep: epoch(), csrf, sid }, SESSION_TTL);
     setCookie(c, COOKIE, token, cookieExtra());
-    if (ipHash) loginAttempts.delete(ipHash);
+    if (ipHash) loginLimiter.clear(ipHash);
     try { pruneRevoked(); } catch { /* 清理失败不影响本次登录 */ }
     return token;
   }
@@ -180,23 +183,6 @@ export function createAdminAuth({ db, crypt }) {
     revoke(session(c));
     deleteCookie(c, COOKIE, { path: '/' });
   }
-
-  function loginBlocked(ipHash, now = Date.now()) {
-    for (const [key, attempts] of loginAttempts) if (!attempts.some((t) => now - t < WINDOW)) loginAttempts.delete(key);
-    // 表满时淘汰最旧的一条，而不是拒绝所有新 IP：后者会让攻击者用大量 IP 把站主也锁在门外。
-    if (!loginAttempts.has(ipHash) && loginAttempts.size >= 4096) {
-      const oldest = loginAttempts.keys().next().value;
-      if (oldest !== undefined) loginAttempts.delete(oldest);
-    }
-    const fails = (loginAttempts.get(ipHash) ?? []).filter((t) => now - t < WINDOW);
-    loginAttempts.set(ipHash, fails);
-    return fails.length >= MAX_FAILS;
-  }
-  const recordFailure = (ipHash, now = Date.now()) => {
-    const fails = (loginAttempts.get(ipHash) ?? []).filter((t) => now - t < WINDOW);
-    fails.push(now);
-    loginAttempts.set(ipHash, fails);
-  };
 
   async function attemptLogin(c, password, ipHash) {
     const stored = getSetting(PW_KEY);

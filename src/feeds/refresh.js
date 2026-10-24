@@ -1,7 +1,7 @@
 // 友圈刷新编排：决定何时抓、抓失败怎么办。失败源按 5 分 → 10 → 20 … 指数退避，上限 6 小时一次——不退避的话，
 // 一个关站的友链每轮定时刷新都撞一次超时、把整轮拖到几分钟；退避后一天只花几秒。
 
-import { createLimiter } from '../util/concurrency.js';
+import { createLimiter, createRoundRunner } from '../util/concurrency.js';
 import { envInt } from '../util/env.js';
 
 import { fetchDocument, discoverFeeds, FeedError, TIMEOUT_MS } from './fetch.js';
@@ -28,9 +28,8 @@ export function revalidateIfParserChanged({ feeds, settings, version = PARSER_VE
 }
 
 export function createRefresher({ feeds, keep = DEFAULT_KEEP, log = () => {}, now = () => Date.now(), fetchDoc = fetchDocument, beforeWrite = () => Promise.resolve(), commit = async (write) => { await beforeWrite(); return write(); } }) {
-  let inFlight = null;
-  // 排队中的「强制轮」：正在跑自动轮次时手动「刷新全部」不能被吞掉（见 refreshAll）。
-  let forced = null;
+  // 整轮单飞 + 强制轮排队，统一走 createRoundRunner（与 links/check.js 同构）。
+  const rounds = createRoundRunner({ tag: 'feeds', log, runRound: (opts) => runRound(opts) });
   // 整轮刷新进度（后台「刷新全部」读它）。那页是静态快照，而一轮要跑几秒到几十秒——不记进度站主只会盯着
   // 不动的「0 / 41」以为卡死（友链「立即检查全部」踩过同一个坑）。
   let progress = null;
@@ -141,22 +140,14 @@ export function createRefresher({ feeds, keep = DEFAULT_KEEP, log = () => {}, no
     return promise;
   }
 
-  function refreshAll({ force = false, limit = Infinity, timeoutMs = TIMEOUT_MS } = {}) {
-    if (inFlight) {
-      if (!force) return inFlight;
-      // 手动全量刷新不能被正在进行的自动轮次吞掉：排队等这轮结束后再跑一轮强制的。照抄 links/check.js 的写法（那里同一个坑）。
-      if (!forced) forced = inFlight.then(() => refreshAll({ force, limit, timeoutMs }))
-        .finally(() => { forced = null; });
-      forced.catch((error) => log(JSON.stringify({ event: 'feeds.forced-round-failed', code: error.code ?? 'FEED' })));
-      return forced;
-    }
+  function runRound({ force = false, limit = Infinity, timeoutMs = TIMEOUT_MS } = {}) {
     const due = feeds.listEnabled().filter((f) => force || isDue(f))
       .sort((a, b) => String(a.last_fetch_at ?? '').localeCompare(String(b.last_fetch_at ?? '')) || a.id - b.id)
       .slice(0, limit);
     // 进度按这一轮的源数算，跑完冻在 completed = total（页面刷新回来还说得出"上一轮跑了几个"）。计数放 finally：
     // 源被删/停用而提前退出的那路也得算完成，否则条子永远差几格。
     progress = { running: true, total: due.length, completed: 0 };
-    const run = Promise.resolve().then(async () => {
+    return Promise.resolve().then(async () => {
       let ok = 0, failed = 0;
       const results = await Promise.allSettled(due.map(async (feed) => {
         try {
@@ -173,13 +164,11 @@ export function createRefresher({ feeds, keep = DEFAULT_KEEP, log = () => {}, no
       if (due.length) log(JSON.stringify({ event: 'feeds.round', total: due.length, ok, failed }));
       return { total: due.length, ok, failed };
     }).finally(() => {
-      inFlight = null;
       progress = progress ? { ...progress, running: false } : null;
     });
-    inFlight = run;
-    run.catch((error) => log(JSON.stringify({ event: 'feeds.round-failed', code: error.code ?? 'FEED' })));
-    return run;
   }
+
+  const refreshAll = (opts = {}) => rounds.run(opts);
 
   return {
     inspectSource: (url) => schedule(() => load({ url }, { timeoutMs: TIMEOUT_MS })),
@@ -187,11 +176,10 @@ export function createRefresher({ feeds, keep = DEFAULT_KEEP, log = () => {}, no
     refreshAll,
     // 整轮刷新是否在跑：测试用它断言并发调用复用同一轮；关闭流程不看它（drain 负责）。
     // 设计约束：/friends 不让匿名请求驱动对外抓取，需要刷新时由后台定时器调用 refreshAll。
-    busy: () => Boolean(inFlight),
+    busy: rounds.busy,
     // 关闭进程前等待所有在飞轮次/单源刷新落库，避免 close(db) 之后还有 markOk/markFail 写入。
     drain: () => Promise.allSettled([
-      inFlight,
-      forced,
+      ...rounds.pending(),
       ...[...bySource.values()].map((item) => item.promise),
     ].filter(Boolean)),
     // 这轮跑到哪儿了（没跑过为 null）。返回副本：调用方拿到的数字不许被下一轮改掉。

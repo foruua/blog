@@ -21,8 +21,9 @@ export function createAntispam({ windowMs = 10 * 60 * 1000, maxPerWindow = 5 } =
   }
 
   // sweep 只删「窗口内已无命中」的桶。被大量不同 key（多 IP/代理池）灌满时活跃桶一个都删不掉，Map 会
-  // 越过 MAX_KEYS 持续增长；这里按最近命中时间强制淘汰最旧一批给它硬上限（对照 admin/auth.js 的
-  // loginAttempts）。每次接受命中都把 key 删掉重插（见 rateLimited），故插入序即最近命中序，淘汰只看最前几个。
+  // 越过 MAX_KEYS 持续增长；这里按最近命中时间强制淘汰最旧一批给它硬上限（admin 登录限流也走这里，
+  // 见 admin/auth.js 的 loginLimiter）。每次接受命中都把 key 删掉重插（见 rateLimited），
+  // 故插入序即最近命中序，淘汰只看最前几个。
   function evictOldest() {
     const drop = Math.max(1, hits.size - MAX_KEYS + 1);
     const keys = hits.keys();
@@ -49,6 +50,15 @@ export function createAntispam({ windowMs = 10 * 60 * 1000, maxPerWindow = 5 } =
       hits.set(bucket, kept);
       return false;
     },
+
+    // 只查不记：供「先判定、验证通过才算失败」的场景（如登录限流）。
+    blocked(key, now = Date.now()) {
+      const kept = (hits.get(key || 'unknown') ?? []).filter((t) => now - t < windowMs);
+      return kept.length >= maxPerWindow;
+    },
+
+    // 清掉某个 key 的历史（如登录成功后重置失败计数）。
+    clear(key) { hits.delete(key || 'unknown'); },
   };
 }
 

@@ -1,7 +1,7 @@
 // 友链健康检查：2xx 可用；404/410/451 与网络故障失败；403/429/5xx 不明。连续失败达门槛才隐藏，
 // 不明结果不修改累计失败；自动与手动检查按站点合并。
 
-import { createLimiter } from '../util/concurrency.js';
+import { createLimiter, createRoundRunner } from '../util/concurrency.js';
 
 import { fetchDocument, TIMEOUT_MS, ALLOW_PRIVATE_NETWORK, isPublicWebPort } from '../feeds/fetch.js';
 import { decodeEntities } from '../util/entities.js';
@@ -76,11 +76,11 @@ export function createLinkChecker({
   links, probe = probeSite, log = () => {},
   beforeWrite = () => Promise.resolve(), commit = async (write) => { await beforeWrite(); return write(); }, failLimit = FAIL_LIMIT, now = () => Date.now(),
 }) {
-  let inFlight = null;
+  // 整轮单飞 + 强制轮排队，统一走 createRoundRunner（与 feeds/refresh.js 同构）。
+  const rounds = createRoundRunner({ tag: 'links', log, runRound: (opts) => runRound(opts) });
   const schedule = createLimiter(4);
   const byHost = new Map();
   let progress = null;
-  let forced = null;
   const targetOf = (site) => site.url || `https://${site.host}/`;
 
   async function checkOne(site) {
@@ -111,17 +111,9 @@ export function createLinkChecker({
     });
   }
 
-  function checkAll({ force = false, intervalMs = DEFAULT_CHECK_INTERVAL_MS, limit = Infinity } = {}) {
-    if (inFlight) {
-      if (!force) return inFlight;
-      // 手动全量检查不能被正在进行的有限自动轮次吞掉。
-      if (!forced) forced = inFlight.then(() => checkAll({ force, intervalMs, limit }))
-        .finally(() => { forced = null; });
-      forced.catch((error) => log(JSON.stringify({ event: 'links.forced-round-failed', code: error?.code ?? 'LINK' })));
-      return forced;
-    }
+  function runRound({ force = false, intervalMs = DEFAULT_CHECK_INTERVAL_MS, limit = Infinity } = {}) {
     const sites = links.listSites().filter((s) => force || due(s, intervalMs, now())).slice(0, limit);
-    const run = (async () => {
+    return (async () => {
       const tally = { total: sites.length, ok: 0, dead: 0, unknown: 0 };
       progress = { total: sites.length, completed: 0, running: true };
       const results = await Promise.allSettled(sites.map(async (site) => {
@@ -137,11 +129,10 @@ export function createLinkChecker({
       const pruned = await commit(() => links.pruneOrphans());
       if (tally.total || pruned) log(JSON.stringify({ event: 'links.round', ...tally, pruned }));
       return { ...tally, pruned };
-    })().finally(() => { inFlight = null; if (progress) progress.running = false; });
-    inFlight = run;
-    run.catch((error) => log(JSON.stringify({ event: 'links.round-failed', code: error?.code ?? 'LINK' })));
-    return run;
+    })().finally(() => { if (progress) progress.running = false; });
   }
+
+  const checkAll = (opts = {}) => rounds.run(opts);
 
   function enqueue(siteOrHost) {
     const site = typeof siteOrHost === 'string' ? links.getSite(siteOrHost) : siteOrHost;
@@ -166,11 +157,10 @@ export function createLinkChecker({
     progress: () => progress ? { ...progress } : null,
     checkAll,
     checkHost,
-    busy: () => Boolean(inFlight),
+    busy: rounds.busy,
     // 与 feeds 的 drain 同义：关闭数据库前等在飞的检查/落库结束。
     drain: () => Promise.allSettled([
-      inFlight,
-      forced,
+      ...rounds.pending(),
       ...[...byHost.values()].map((item) => item.promise),
     ].filter(Boolean)),
   };

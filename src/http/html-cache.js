@@ -33,11 +33,14 @@ export function createHtmlCache({
   const enabled = ttlMs > 0;
   const cache = new Map();
   let chars = 0;
+  // 记账要含压缩副本：无令牌页面的条目上会挂 br/gzip 两份 Buffer（见 compressedFor），
+  // 只算 body 的话实际峰值内存可达声明预算的 ~3 倍。
+  const encBytes = (entry) => (entry.enc ? Object.values(entry.enc).reduce((n, b) => n + b.length, 0) : 0);
 
   function drop(key) {
     const entry = cache.get(key);
     if (!entry) return;
-    chars -= entry.body.length;
+    chars -= entry.body.length + encBytes(entry);
     cache.delete(key);
   }
 
@@ -142,7 +145,10 @@ export function createHtmlCache({
       let out;
       try { out = await compressOnce(body, encoding); } catch { continue; }
       // 有令牌的页面下次还得重签，缓存这份压缩字节没有意义。
-      if (!entry.hasTokens) (entry.enc ??= {})[encoding] = out;
+      if (!entry.hasTokens) {
+        (entry.enc ??= {})[encoding] = out;
+        chars += out.length;   // 压缩副本也要计入内存预算（见 encBytes）
+      }
       return { body: out, encoding };
     }
     return null;

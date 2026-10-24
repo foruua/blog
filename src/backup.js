@@ -8,8 +8,9 @@ import { acquireMaintenanceLock } from './util/lock.js';
 import { assertDatabaseClosed, sqliteVersion } from '../db/driver.js';
 import { DatabaseSync } from 'node:sqlite';
 import { DATA_DIR, DB_FILE, CONTENT_DIR, UPLOADS_DIR, THEMES_DIR } from './config.js';
-import { parseVariants } from './media/variants.js';
+import { expandMediaPaths } from './media/variants.js';
 import { atomicWrite, syncDirectory } from './util/files.js';
+import { safeRelativeFsPath as safeRelative } from './util/safe-path.js';
 
 export const DEFAULT_DIR = path.resolve(process.env.BACKUP_DIR ?? path.join(DATA_DIR, 'backups'));
 
@@ -181,7 +182,7 @@ export async function snapshot(db, { dir = DEFAULT_DIR, keep = DEFAULT_KEEP, lab
       }
       const mediaHasVariants = indexed.prepare('PRAGMA table_info(media)').all().some((c) => c.name === 'variants');
       const mediaQuery = `SELECT path, ${mediaHasThumb ? 'thumbnail' : 'NULL AS thumbnail'}, ${mediaHasVariants ? 'variants' : 'NULL AS variants'} FROM media`;
-      for (const row of indexed.prepare(mediaQuery).all()) for (const mediaPath of [row.path, row.thumbnail, ...parseVariants(row.variants).map((v) => v.path)].filter(Boolean)) {
+      for (const row of indexed.prepare(mediaQuery).all()) for (const mediaPath of expandMediaPaths(row)) {
         const relative = mediaPath.startsWith('/uploads/') ? mediaPath.slice(9) : null;
         if (!safeRelative(relative)) throw new Error('无效的附件路径');
         if (!uploadPaths.has(relative)) {
@@ -464,6 +465,9 @@ export async function verifyBackupLite(name, { dir = DEFAULT_DIR } = {}) {
   }
 }
 
+// ⚠ 仅限脚本/恢复流程调用（restore.mjs / restore-drill.mjs / test-*）：同步 gunzip + 整包读进内存
+// （上限 MAX_BACKUP_BYTES×2）。绝不能挂到 admin 路由或任何请求路径——那会秒级阻塞事件循环；
+// 请求路径一律走流式的 verifyBackupLite（见上）。
 export function verifyBackup(name, { dir = DEFAULT_DIR, workDir } = {}) {
   const reasons = [];
   if (!/^blog-[A-Za-z0-9-]+$/.test(name)) return { ok: false, reasons: ['备份名称无效'] };
@@ -540,9 +544,7 @@ function dbFileOf(db) {
 }
 
 const digest = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
-const safeRelative = (name) => typeof name === 'string' && name.length > 0
-  && !name.includes('\\') && !name.includes('\0') && !path.posix.isAbsolute(name)
-  && name.split('/').every((part) => part !== '' && part !== '.' && part !== '..');
+// 归档成员路径的词法校验：import 顶部引自 util/safe-path.js（与 themes/registry.js 共用一份）。
 
 function readBounded(file) {
   if (fs.statSync(file).size > MAX_BACKUP_BYTES * 2) throw new Error('备份文件超过大小上限');

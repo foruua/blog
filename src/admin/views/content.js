@@ -1,6 +1,7 @@
 import { csrfField, esc, toLocalInput, contentUrl, nowIso } from '../../util/text.js';
 import { adminLayout, shortTime } from '../layout.js';
 import { pickerDialog } from './picker.js';
+import { ICON_CLOSE } from '../../render/icons.js';
 
 
 
@@ -200,7 +201,7 @@ ${pickerDialog()}
     <dialog class="a-modal a-editor-preview" data-dismiss-outside data-editor-preview-dialog aria-labelledby="editor-preview-title">
       <header class="a-media-dialog-head a-preview-head">
         <h2 id="editor-preview-title">内容预览</h2>
-        <button type="button" class="a-media-icon" data-preview-close aria-label="关闭预览" autofocus><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M4.4 4.4 11.6 11.6M11.6 4.4 4.4 11.6"/></svg></button>
+        <button type="button" class="a-media-icon" data-preview-close aria-label="关闭预览" autofocus>${ICON_CLOSE}</button>
       </header>
       <div class="a-preview-scroll">
         <article class="post a-preview-sheet">

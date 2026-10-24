@@ -3,7 +3,7 @@ import { ADMIN_PAGE_SIZE, CONTENT_DIR } from '../config.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { Hono } from 'hono';
-import { esc, csrfField, slugify, validateSlug, wordCount, fromLocalInput, toIsoOffset, nowIso } from '../util/text.js';
+import { esc, csrfField, slugify, validateSlug, wordCount, fromLocalInput, toIsoOffset, nowIso, utcDate } from '../util/text.js';
 import { adminLayout, loginPage } from '../admin/layout.js';
 import { listPage, editorPage, revisionPage } from '../admin/views/content.js';
 import { morePage } from '../admin/views/more.js';
@@ -142,7 +142,8 @@ export function adminRoutes({ repo, comments, adminRepo, crypt, auth, renderer, 
           wordCount: wordCount(bodyMd), filePath: w.filePath, fileHash: w.hash, source: 'file',
         }, { force: true, expectedVersion: existing ? Number(version) : null });
         const last = adminRepo.lastRevision(res.id);
-        const stale = !last || Date.now() - Date.parse(`${last.created_at.replace(' ', 'T')}Z`) > 120000;
+        // created_at 是 SQLite 的 "YYYY-MM-DD HH:MM:SS"（UTC）：归一化口径统一走 utcDate()。
+        const stale = !last || Date.now() - utcDate(last.created_at).getTime() > 120000;
         if (!autosave || (stale && (!last || last.body_md !== bodyMd || last.title !== title))) {
           adminRepo.addRevision(res.id, title, bodyMd, autosave ? 'autosave' : action === 'publish' ? 'publish' : 'manual');
         }

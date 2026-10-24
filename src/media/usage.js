@@ -1,6 +1,6 @@
 import MarkdownIt from 'markdown-it';
 import { SITE } from '../config.js';
-import { parseVariants } from './variants.js';
+import { expandMediaPaths } from './variants.js';
 
 const md = new MarkdownIt({ html: false, linkify: true });
 const origin = new URL(SITE.url).origin;
@@ -15,8 +15,7 @@ export function uploadPath(value) {
 }
 
 function mediaPaths(item) {
-  return [...new Set([item.path, item.thumbnail, ...parseVariants(item.variants).map((v) => v.path)]
-    .filter(Boolean).map(uploadPath).filter(Boolean))];
+  return [...new Set(expandMediaPaths(item).map(uploadPath).filter(Boolean))];
 }
 
 // 按 Markdown 的真实图片/链接解析：引用式图片、转义、查询参数均可识别，代码示例不算引用。
