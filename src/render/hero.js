@@ -11,36 +11,33 @@ import { IMAGE_PLACEHOLDER, mediaFallback } from '../media/variants.js';
  * @param {object} o
  * @param {Array} o.stats         publishedStats()：按 kind 汇总的 { kind, n, first, last, words }
  * @param {Array} o.imgs          封面图列表（{ path, w, h, title, subtitle, link, linkText }）
- * @param {string} o.layoutKey    文字层版式（'label' 等）
  * @param {string} o.tone         文字层色调
  * @param {string} o.mode         轮播模式：'auto' | 'manual'
  * @param {Function} o.mediaOf    路径 → 媒体变体信息（可为 null）
  * @param {string} o.recentHtml   「最近更新」区块（已渲染；空串则不占位）
  */
-export function heroBlock({ stats = [], imgs = [], layoutKey = '', tone = '', mode = 'manual', mediaOf = () => null, recentHtml = '' }) {
+export function heroBlock({ stats = [], imgs = [], tone = '', mode = 'manual', mediaOf = () => null, recentHtml = '' }) {
   const posts = stats.find((p) => p.kind === 'post')?.n ?? 0;
   const notes = stats.find((p) => p.kind === 'note')?.n ?? 0;
   const first = stats.map((p) => p.first).sort()[0];
   const since = first ? formatDay(first).slice(0, 4) : String(new Date().getFullYear());
 
   const heroAlt = SITE.identity;
-  const heroLayoutKey = layoutKey;
   const hasCopy = (im) => Boolean(im.title || im.subtitle || (im.link && im.linkText));
-  // 每张封面的文字层：位置/字号由版式类控制，内容完全来自首屏数据（无 JS 也能看到第一张）。
+  // 每张封面的文字层：只有一套固定版式（左下角 + 轻渐变垫底），内容完全来自首屏数据（无 JS 也能看到第一张）。
   const heroCopy = (im, active = false) => {
     const title = esc(im.title ?? '');
     const subtitle = esc(im.subtitle ?? '');
     const link = im.link && im.linkText ? String(im.link) : '';
     const empty = !title && !subtitle && !link;
-    const kicker = heroLayoutKey === 'label' && subtitle ? `<span class="hero-copy-kicker">${subtitle}</span>` : '';
-    const sub = subtitle && heroLayoutKey !== 'label' ? `<span class="hero-copy-sub">${subtitle}</span>` : '';
+    const sub = subtitle ? `<span class="hero-copy-sub">${subtitle}</span>` : '';
     const cta = link
       ? `<a class="hero-copy-link" href="${esc(link)}"${/^https?:\/\//i.test(link) ? ' target="_blank" rel="noopener"' : ''}>${esc(im.linkText)}</a>`
       : '';
     // 单图时标题是 <h1>，里面只能放 phrasing content：这里用 span（CSS 给 block 显示），
     // 别再换成 div/p —— 浏览器虽能渲染，HTML 校验和读屏的可访问名都会变。
-    return `<span class="hero-copy hero-copy-${heroLayoutKey} hero-copy-${tone}${empty ? ' is-empty' : ''}${active ? ' is-active' : ''}"${active ? '' : ' aria-hidden="true"'}>
-        ${empty ? '' : `<span class="hero-copy-inner">${kicker}${title ? `<span class="hero-copy-title">${title}</span>` : ''}${sub}${cta}</span>`}
+    return `<span class="hero-copy hero-copy-bottom hero-copy-${tone}${empty ? ' is-empty' : ''}${active ? ' is-active' : ''}"${active ? '' : ' aria-hidden="true"'}>
+        ${empty ? '' : `<span class="hero-copy-inner">${title ? `<span class="hero-copy-title">${title}</span>` : ''}${sub}${cta}</span>`}
       </span>`;
   };
   // 首页所有封面统一按 16:9 取景；图片用 CSS object-fit: cover 裁切，灯箱仍打开完整图。

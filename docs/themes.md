@@ -87,7 +87,7 @@ themes/<id>/
 
 | `page.type` | `data` 字段 |
 | --- | --- |
-| `home` | `hero_html` `hero{}`（`layout` `tone` `images[]`：`path` `w` `h` `title` `subtitle` `link` `linkText`）`stats[]`（每项 `kind` `n` `words` `first` `last`）`recent[]` `has_recent` |
+| `home` | `hero_html` `hero{}`（`tone` `images[]`：`path` `w` `h` `title` `subtitle` `link` `linkText`）`stats[]`（每项 `kind` `n` `words` `first` `last`）`recent[]` `has_recent` |
 | `posts` | `kind` `title` `mark` `posts[]` `has_more` `more_html` `masthead_html` `list_html` `empty` |
 | `notes` | `kind` `title` `mark` `notes[]` `has_more` `more_html` `masthead_html` `stream_html` `empty`（**列表在 `data.notes`，不是 `posts`**） |
 | `post` / `note` | `post{...}` `toc_html` `pager_html` `comments_html` `body_html` `words` `reading_minutes` `day_cn` |

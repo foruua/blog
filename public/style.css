@@ -543,7 +543,7 @@ body.mnav-open .mnav-panel { transform: none; opacity: 1; }
 
 /* —— 首页封面文字（方案 2+3） ——
    文字是真实 DOM 覆盖层，不烘焙进图片：可搜索、可访问、无 JS 也能看到第一张。
-   版式与明暗由后台选择，位置/字号/遮罩统一在这里控制；只给 .hero-copy-link 接指针，图片点击/灯箱不受影响。 */
+   版式只有一套（左下角 + 轻渐变垫底），明暗由后台选择；只给 .hero-copy-link 接指针，图片点击/灯箱不受影响。 */
 .hero-copies {
   position: absolute; inset: 0; z-index: 2;
   pointer-events: none;
@@ -561,7 +561,7 @@ body.mnav-open .mnav-panel { transform: none; opacity: 1; }
 .hero-copy-inner { position: relative; z-index: 1; min-width: 0; display: block; }
 /* 单图时这层文字在 <h1> 里，标记必须是 phrasing content：用 span + block 显示，
    视觉与原来的 p 一致，HTML 校验/读屏语义才正确。 */
-.hero-copy-title, .hero-copy-sub, .hero-copy-kicker { display: block; }
+.hero-copy-title, .hero-copy-sub { display: block; }
 .hero-copy-title {
   margin: 0;
   font-family: var(--display); font-weight: 700;
@@ -576,13 +576,6 @@ body.mnav-open .mnav-panel { transform: none; opacity: 1; }
   line-height: 1.55; letter-spacing: .02em;
   text-shadow: 0 1px 10px rgba(0, 0, 0, .4);
   overflow-wrap: anywhere;
-}
-.hero-copy-kicker {
-  margin: 0 0 .35rem;
-  font: var(--label-size)/1.25 var(--mono);
-  letter-spacing: .16em; text-transform: uppercase;
-  color: rgba(255, 255, 255, .8);
-  text-shadow: 0 1px 8px rgba(0, 0, 0, .5);
 }
 .hero-copy-link {
   display: inline-flex; align-items: center; align-self: flex-start;
@@ -605,59 +598,12 @@ body.mnav-open .mnav-panel { transform: none; opacity: 1; }
 }
 .hero-copy-bottom .hero-copy-inner { max-width: 92%; }
 
-.hero-copy-minimal {
-  justify-content: flex-end;
-  padding: 1.4rem .9rem .85rem;
-  background: linear-gradient(180deg, transparent 42%, rgba(0, 0, 0, .46));
-  border-radius: calc(var(--radius) - 1px);
-}
-.hero-copy-minimal .hero-copy-title { font-size: clamp(1.05rem, 3.8vw, 1.55rem); }
-.hero-copy-minimal .hero-copy-sub { display: none; }
-.hero-copy-minimal .hero-copy-link { margin-top: .55rem; }
-
-.hero-copy-center {
-  align-items: center; justify-content: center; text-align: center;
-  padding: 1rem;
-}
-.hero-copy-center .hero-copy-inner {
-  max-width: min(90%, 24rem);
-  padding: 1.1rem 1.2rem;
-  background: rgba(18, 16, 12, .64);
-  border: 1px solid rgba(255, 255, 255, .22);
-  border-radius: var(--radius);
-  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
-}
-.hero-copy-center .hero-copy-link { align-self: center; }
-
-.hero-copy-label {
-  align-items: flex-start; justify-content: flex-start;
-  padding: 1rem;
-}
-.hero-copy-label .hero-copy-inner {
-  max-width: 92%; padding: .7rem .9rem;
-  background: linear-gradient(90deg, rgba(0, 0, 0, .55), rgba(0, 0, 0, 0));
-  border-left: 2px solid rgba(255, 255, 255, .62);
-}
-.hero-copy-label .hero-copy-title { font-size: clamp(1.05rem, 3.8vw, 1.6rem); }
-
 /* 浅色图：文字换成深色，遮罩也换成浅色，别出现白字压白图。 */
 .hero-copy-dark { color: #1f1d18; }
 .hero-copy-dark .hero-copy-title { text-shadow: 0 1px 10px rgba(255, 255, 255, .35); }
 .hero-copy-dark .hero-copy-sub { text-shadow: 0 1px 8px rgba(255, 255, 255, .3); }
-.hero-copy-dark .hero-copy-kicker { color: rgba(31, 29, 24, .68); text-shadow: none; }
 .hero-copy-dark.hero-copy-bottom {
   background: linear-gradient(180deg, transparent 22%, rgba(255, 255, 255, .76));
-}
-.hero-copy-dark.hero-copy-minimal {
-  background: linear-gradient(180deg, transparent 42%, rgba(255, 255, 255, .62));
-}
-.hero-copy-dark.hero-copy-center .hero-copy-inner {
-  background: rgba(255, 255, 255, .84);
-  border-color: rgba(31, 29, 24, .10);
-}
-.hero-copy-dark.hero-copy-label .hero-copy-inner {
-  background: linear-gradient(90deg, rgba(255, 255, 255, .78), rgba(255, 255, 255, 0));
-  border-left-color: rgba(31, 29, 24, .35);
 }
 .hero-copy-dark .hero-copy-link {
   color: #1f1d18; border-color: rgba(31, 29, 24, .35);
@@ -668,7 +614,6 @@ body.mnav-open .mnav-panel { transform: none; opacity: 1; }
 @media (max-width: 620px) {
   .hero-copy { inset: .35rem; }
   .hero-copy-bottom { padding: 2rem .65rem .7rem; }
-  .hero-copy-center .hero-copy-inner { padding: .85rem .9rem; }
   .hero-copy-link { padding: .4rem .7rem; }
 }
 

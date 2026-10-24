@@ -10,7 +10,6 @@ export const KEYS = {
   paletteDefault: 'palette_default',
   heroImages: 'hero_images',
   heroMode: 'hero_mode',
-  heroLayout: 'hero_layout',
   heroTone: 'hero_text_tone',
   themeActive: 'theme_active',
   themeOptionsPrefix: 'theme_options:',
@@ -23,18 +22,14 @@ export const themeOptionsKey = (id) => `${KEYS.themeOptionsPrefix}${String(id ??
 export const HERO_LEGACY_KEYS = { url: 'hero_image', w: 'hero_image_w', h: 'hero_image_h' };
 
 /* 已下线的首页封面选项（封面视频的播放方式）：不再读取，只在「全部移除」时顺手清掉残值。 */
-export const HERO_RETIRED_KEYS = ['hero_video_mode'];
+/* 已下线的首页封面选项（封面视频的播放方式、文字版式）：不再读取，只在「全部移除」时顺手清掉残值。 */
+export const HERO_RETIRED_KEYS = ['hero_video_mode', 'hero_layout'];
 
 /* 首页轮播上限，写死而非设置项：这是封面不是相册，八张还翻不到头就该换内容。 */
 export const HERO_MAX = 8;
 
-// 封面文字版式：只给固定几套，位置/字号/遮罩由 CSS 统一控制，避免自由布局做出白字压白图。
-export const HERO_LAYOUTS = [
-  { key: 'bottom', name: '左下标题', hint: '标题与副标题压在左下角，轻渐变垫底' },
-  { key: 'center', name: '居中卡片', hint: '半透明纸片居中，适合一句主标题' },
-  { key: 'label', name: '顶部标签', hint: '副标题作小标签，标题紧随其下' },
-  { key: 'minimal', name: '极简一行', hint: '只突出标题，底部一条细线' },
-];
+// 封面文字只有一套固定版式（左下角 + 轻渐变垫底），位置/字号/遮罩全在 CSS 里；
+// 后台只剩「文字颜色」，避免自由布局做出白字压白图。
 export const HERO_TONES = [
   { key: 'light', name: '浅色字', hint: '深色图用' },
   { key: 'dark', name: '深色字', hint: '浅色图用' },
@@ -62,11 +57,6 @@ export function safeHeroLink(raw) {
     const url = new URL(s);
     return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : '';
   } catch { return ''; }
-}
-
-export function heroLayout(repo) {
-  const value = String(repo.getSetting(KEYS.heroLayout) ?? '').trim().toLowerCase();
-  return HERO_LAYOUTS.some((item) => item.key === value) ? value : 'bottom';
 }
 
 export function heroTone(repo) {

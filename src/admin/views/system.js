@@ -1,6 +1,6 @@
 import { csrfField, esc } from '../../util/text.js';
 import { adminLayout } from '../layout.js';
-import { PALETTES, HERO_MAX, HERO_LAYOUTS, HERO_TONES } from '../../settings.js';
+import { PALETTES, HERO_MAX, HERO_TONES } from '../../settings.js';
 import { TLS_MODES, TLS_LABEL } from '../../mail.js';
 import { pickerDialog } from './picker.js';
 
@@ -59,10 +59,6 @@ ${hero.images.length ? heroItems + '\n' : ''}${heroAdd}
         </select>
       </div>
       <div class="a-hero-mode">
-        <label for="heroLayout">文字版式</label>
-        <select class="a-select" id="heroLayout" name="layout">
-          ${HERO_LAYOUTS.map((item) => `<option value="${esc(item.key)}"${hero.layout === item.key ? ' selected' : ''}>${esc(item.name)}</option>`).join('')}
-        </select>
         <label for="heroTone">文字颜色</label>
         <select class="a-select" id="heroTone" name="tone">
           ${HERO_TONES.map((item) => `<option value="${esc(item.key)}"${hero.tone === item.key ? ' selected' : ''}>${esc(item.name)}</option>`).join('')}

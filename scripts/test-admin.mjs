@@ -481,16 +481,17 @@ let uploadedRawVideoUrl = '';
   });
   const homeText = await (await fetch(BASE + '/')).text();
   const sysText = await html('/admin/system');
-  check('T8j-4b 封面文字按版式/明暗渲染，标题被转义且按钮链接可用',
+  check('T8j-4b 封面文字固定左下版式、只切明暗；旧客户端的 layout 参数被忽略，标题被转义且按钮链接可用',
     textSaved.status === 303
-    && homeText.includes('hero-copy hero-copy-center hero-copy-dark is-active')
+    && homeText.includes('hero-copy hero-copy-bottom hero-copy-dark is-active')
+    && !homeText.includes('hero-copy-center')
     && homeText.includes('封面标题 &lt;测试&gt;')
     && homeText.includes('一行副标题')
     && homeText.includes('href="/about/"')
     && homeText.includes('关于我')
     && sysText.includes('id="heroTextDialog"')
-    && sysText.includes('id="heroLayout"')
-    && /<option value="center"[^>]*selected/.test(sysText)
+    && sysText.includes('id="heroTone"')
+    && !sysText.includes('id="heroLayout"')
     && /<option value="dark"[^>]*selected/.test(sysText),
     `status=${textSaved.status}`);
 

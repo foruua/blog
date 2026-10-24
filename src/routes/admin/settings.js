@@ -1,7 +1,7 @@
 import { previewSourceOf } from '../../media/variants.js';
 import { externalWrite, bodyOf, val, notice } from './shared.js';
 import { subscriberCount, clearSubscribers } from '../../comments/subscribers.js';
-import { settingsFormState, saveSettings, KEYS, HERO_MAX, HERO_LAYOUTS, HERO_TONES, HERO_LEGACY_KEYS, HERO_RETIRED_KEYS, heroImages, heroMode, heroLayout, heroTone, safeHeroLink } from '../../settings.js';
+import { settingsFormState, saveSettings, KEYS, HERO_MAX, HERO_TONES, HERO_LEGACY_KEYS, HERO_RETIRED_KEYS, heroImages, heroMode, heroTone, safeHeroLink } from '../../settings.js';
 import {
   KEYS as MAIL_KEYS, DEFAULTS as MAIL_DEFAULTS, TLS_MODES, TLS_LABEL, PRESETS,
   configSource, smtpConfig, ownerEmail, fromAddress,
@@ -176,7 +176,6 @@ export function registerSettingsRoutes(app, { repo, crypt, adminRepo, mutate = (
         return { ...im, thumbnail: previewSourceOf(item, 960) };
       }),
       mode: heroMode(repo),
-      layout: heroLayout(repo),
       tone: heroTone(repo),
     };
   }
@@ -226,15 +225,12 @@ export function registerSettingsRoutes(app, { repo, crypt, adminRepo, mutate = (
     }
 
     const mode = list.length > 1 && heroModeOk(val(b, 'mode')) ? val(b, 'mode').trim().toLowerCase() : '';
-    const rawLayout = val(b, 'layout').trim().toLowerCase();
     const rawTone = val(b, 'tone').trim().toLowerCase();
-    const layout = HERO_LAYOUTS.some((item) => item.key === rawLayout) ? rawLayout : 'bottom';
     const tone = HERO_TONES.some((item) => item.key === rawTone) ? rawTone : 'light';
     const first = list[0];
     repo.transaction(() => {
       repo.setSetting(KEYS.heroImages, list.length ? JSON.stringify(list) : '');
       repo.setSetting(KEYS.heroMode, mode);
-      repo.setSetting(KEYS.heroLayout, layout);
       repo.setSetting(KEYS.heroTone, tone);
       // 旧键镜像（单图时代的读者/脚本仍认这三个键）：存列表第一张。
       repo.setSetting(HERO_KEYS.url, first?.path ?? '');
@@ -268,14 +264,14 @@ export function registerSettingsRoutes(app, { repo, crypt, adminRepo, mutate = (
         return { ...im, thumbnail: previewSourceOf(item, 960) };
       }),
       mode: val(body, 'mode'),
-      layout: val(body, 'layout') || 'bottom', tone: val(body, 'tone') || 'light',
+      tone: val(body, 'tone') || 'light',
     };
     return systemHtml(c, { notice: `✗ ${err}`, hero });
   });
 
   app.post('/admin/hero/clear', (c) => {
     repo.transaction(() => {
-      for (const k of [KEYS.heroImages, KEYS.heroMode, KEYS.heroLayout, KEYS.heroTone, ...Object.values(HERO_LEGACY_KEYS), ...HERO_RETIRED_KEYS]) repo.setSetting(k, '');
+      for (const k of [KEYS.heroImages, KEYS.heroMode, KEYS.heroTone, ...Object.values(HERO_LEGACY_KEYS), ...HERO_RETIRED_KEYS]) repo.setSetting(k, '');
     });
     return notice(c, '/admin/system', '✓ 已移除首页展示，图片保留在媒体库');
   });
