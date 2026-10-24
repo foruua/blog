@@ -12,9 +12,12 @@ export function sniffImageType(buf) {
   return null;
 }
 
-// 像素上限：按 RGBA 解码，2000 万像素 ≈ 80MB 原始像素；上传并发默认 2，再高就会把进程推到几百 MB。
-// 展示尺寸远小于此（最宽变体 1600px 左右），16-20MP 足够覆盖手机直出与单反缩图，故取 20MP。
-export const MAX_INPUT_PIXELS = 20_000_000;
+// 像素上限：按元数据先拒，别等解码；动画的 pages 要乘进去（100 帧的 600×600 也是 3600 万像素）。
+// 默认 8000 万像素（RGBA 解码约 320MB，libvips 按需算区域，实际峰值低于此）——展示尺寸远小于此
+// （最宽变体 1600px 左右），80MP 覆盖手机直出到中画幅缩图。可用 MAX_INPUT_PIXELS 环境变量覆盖。
+export const MAX_INPUT_PIXELS = Number(process.env.MAX_INPUT_PIXELS) > 0
+  ? Number(process.env.MAX_INPUT_PIXELS)
+  : 80_000_000;
 
 // 上传管线与头像规范化共用同一组 sharp 约定：限制输入像素、把警告当错误。
 export const SHARP_INPUT_OPTIONS = { limitInputPixels: MAX_INPUT_PIXELS, failOn: 'warning' };

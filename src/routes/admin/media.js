@@ -6,6 +6,7 @@ import { variantFile, thumbnailFile, previewSrcsetOf, previewSourceOf, originalP
 import { deleteWithFiles } from '../../content/commit.js';
 import { mediaFile } from '../../media/paths.js';
 import { MAX_UPLOAD } from '../../util/http.js';
+import { MAX_INPUT_PIXELS } from '../../util/image.js';
 import { normalizeImage, probeImage, ALLOWED_MIME, extensionFor } from '../../media/image.js';
 import { bumpMediaRevision } from '../../media/revision.js';
 import { heroImages } from '../../settings.js';
@@ -112,7 +113,12 @@ export function registerMediaRoutes(app, { repo, adminRepo, mutate = (fn) => fn(
 
     let normalized;
     try { normalized = await normalizeImage(original); }
-    catch { return c.json({ ok: false, error: '图片损坏、格式不支持或像素过大' }, 415); }
+    catch (error) {
+      if (error?.code === 'PIXEL_LIMIT') {
+        return c.json({ ok: false, error: `图片像素超过上限（约 ${Math.round(MAX_INPUT_PIXELS / 10000)} 万，可用 MAX_INPUT_PIXELS 调整）` }, 415);
+      }
+      return c.json({ ok: false, error: '图片损坏或格式不支持' }, 415);
+    }
     const buf = normalized.buffer;
     if (buf.length > MAX_UPLOAD) {
       return c.json({ ok: false, error: `文件超过 ${Math.round(MAX_UPLOAD / 1048576)}MB` }, 413);
