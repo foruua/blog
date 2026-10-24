@@ -91,10 +91,19 @@ export function createStaticFiles({ repo, assetVer }) {
 
   async function realRootOf(root) {
     const cached = realRootCache.get(root);
-    if (cached) return cached;
+    if (cached) {
+      // 若部署用整目录替换（mv 换 inode），旧 realpath 会把请求判成「不在受管根内」而 404，直到重启。
+      // 每次顺手 stat 根目录校验 dev:ino（一次 stat 远比 realpath 便宜），换了就重算。
+      try {
+        const st = fs.statSync(root);
+        if (st.dev === cached.dev && st.ino === cached.ino) return cached.real;
+      } catch { return null; }
+      realRootCache.delete(root);
+    }
     try {
       const real = await fs.promises.realpath(root);
-      realRootCache.set(root, real);
+      const st = fs.statSync(root);
+      realRootCache.set(root, { real, dev: st.dev, ino: st.ino });
       return real;
     } catch { return null; }
   }

@@ -26,6 +26,8 @@ const safeIso = (value, fallback = new Date()) => {
   const d = value instanceof Date ? value : new Date(value);
   return (Number.isNaN(d.getTime()) ? fallback : d).toISOString();
 };
+// RSS <pubDate> 同样要兜底：畸形日期会让 rfc822 输出 "Invalid Date" 字符串直接进 XML。
+const safeRfc822 = (value) => rfc822(safeIso(value));
 // 三个 Feed 的 ETag 只差前缀：内容指纹 + 条目数 + 渲染修订号。304 必须回带 ETag，故把响应一并算好。
 // 渲染修订号单独算：全量重渲染保留 updated_at 后（见 db/repo.js 的 preserveUpdatedAt），正文 HTML
 // 仍可能因渲染器/媒体变体变化而变；只靠时间戳会让 Feed 一直 304。
@@ -130,7 +132,7 @@ export function feedRoutes(repo) {
       <title>${esc(p.title)}</title>
       <link>${esc(absUrl(urlOf(p)))}</link>
       <guid isPermaLink="true">${esc(absUrl(urlOf(p)))}</guid>
-      <pubDate>${rfc822(p.published_at)}</pubDate>
+      <pubDate>${safeRfc822(p.published_at)}</pubDate>
       <dc:creator>${esc(SITE.author || SITE.identity)}</dc:creator>
       <category>${p.kind === 'note' ? '笔记' : '文章'}</category>
       <description>${esc(p.description || cleanExcerpt(p.body_html, 280))}</description>
@@ -145,7 +147,7 @@ export function feedRoutes(repo) {
     <description>${esc(SITE.desc)}</description>
     <language>${esc(SITE.lang)}</language>
     <atom:link href="${esc(absUrl('/feed.xml'))}" rel="self" type="application/rss+xml"/>
-    <lastBuildDate>${posts.length ? rfc822(stampOf(posts)) : rfc822(new Date())}</lastBuildDate>
+    <lastBuildDate>${posts.length ? rfc822(stampOf(posts) || safeIso(new Date())) : rfc822(new Date())}</lastBuildDate>
 ${items}
   </channel>
 </rss>`;

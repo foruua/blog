@@ -42,11 +42,23 @@ export const sameOriginRequest = (c) => {
 
 // Accept-Encoding 里某个编码是否可用：不带 q=0，且不是只出现在 q 很小的位置。
 // 只做常见的精确/带 q 两种写法的排除；q=0.001 这类仍然算接受（浏览器不会这么发）。
+// 候选编码只有固定的几个名字：正则按 name 缓存，别每请求 new 两个 RegExp。
+const ENCODING_RE_CACHE = new Map();
+const encodingRes = (name) => {
+  let pair = ENCODING_RE_CACHE.get(name);
+  if (!pair) {
+    pair = [
+      new RegExp(`(?:^|,)\\s*${name}\\s*(?:;|,|$)`, 'i'),
+      new RegExp(`(?:^|,)\\s*${name}\\s*;\\s*q=0(?:\\.0*)?\\s*(?:,|$)`, 'i'),
+    ];
+    ENCODING_RE_CACHE.set(name, pair);
+  }
+  return pair;
+};
 export const acceptsEncoding = (header, name) => {
   const value = String(header ?? '');
-  const present = new RegExp(`(?:^|,)\\s*${name}\\s*(?:;|,|$)`, 'i').test(value);
-  const refused = new RegExp(`(?:^|,)\\s*${name}\\s*;\\s*q=0(?:\\.0*)?\\s*(?:,|$)`, 'i').test(value);
-  return present && !refused;
+  const [presentRe, refusedRe] = encodingRes(name);
+  return presentRe.test(value) && !refusedRe.test(value);
 };
 
 // 按候选顺序挑一个客户端接受的编码；空串表示不压缩。

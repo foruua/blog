@@ -120,7 +120,10 @@ export function createMailOutbox({
 
   /** 发送到点的邮件；force 会无视 next_attempt_at（后台「立即重试」用）。单飞，避免并发重复投递。 */
   function flush({ force = false } = {}) {
-    if (flushing) { pendingWake = true; return flushing; }
+    if (flushing) {
+      if (force) pendingWake = true;   // 在跑的这轮结束后，以 force 语义补跑一轮
+      return flushing;
+    }
     flushing = (async () => {
       let sent = 0;
       let attempted = 0;
@@ -142,10 +145,14 @@ export function createMailOutbox({
           }
           let result;
           const payload = payloadOf(row);
-          // 密钥换了/丢了就解不出收件人：重试再多次也没用，直接终态跳过，别让它卡在队列里每轮重试。
           if (!payload.to) {
-            q.markSkipped.run(nowIso(now()), 'unreadable-recipient', row.id);
-            log(JSON.stringify({ event: 'mail.unreadable-recipient', id: row.id }));
+            if (row.to_addr) {
+              // 密钥换了/丢了就解不出收件人：重试再多次也没用，直接终态跳过，别让它卡在队列里每轮重试。
+              q.markSkipped.run(nowIso(now()), 'unreadable-recipient', row.id);
+              log(JSON.stringify({ event: 'mail.unreadable-recipient', id: row.id }));
+              continue;
+            }
+            // 入队时站主还没配收件人（to 为空串）：留在 pending 等配置好后的下一轮补发，不计失败也不终态。
             continue;
           }
           try { result = await deliver(payload); }
@@ -177,8 +184,9 @@ export function createMailOutbox({
     })().finally(() => {
       flushing = null;
       if (pendingWake) {
+        const wake = pendingWake;
         pendingWake = false;
-        void flush().catch((error) => log(JSON.stringify({ event: 'mail.flush-failed', code: error?.code ?? 'INTERNAL' })));
+        void flush({ force: wake }).catch((error) => log(JSON.stringify({ event: 'mail.flush-failed', code: error?.code ?? 'INTERNAL' })));
       }
     });
     return flushing;

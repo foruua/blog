@@ -814,7 +814,13 @@ ${emptyPage('这一年还没有内容', `换一年看看，或者去 <a href="/a
   });
 
 
+  // 404 页与请求路径无关（固定标题/最近更新），整体渲染要两条 DB 查询 + 全模板；
+  // `app.get('*', notFound)` 意味着任意扫路径流量都会落到这里，60s 单条缓存把放大系数封死。
+  let notFoundCache = null;
+  const NOT_FOUND_TTL_MS = 60_000;
   function notFound(c) {
+    const hit = notFoundCache;
+    if (hit && Date.now() - hit.at < NOT_FOUND_TTL_MS) return c.body(hit.body, 404);
     // 404 不只是一个死胡同：给搜索框与最近更新，把误入的人接回内容里。
     const recentRows = repo.recentEntries(3);
     const recentCounts = recentRows.length ? comments.countsOf(recentRows.map((row) => row.id)) : new Map();
@@ -833,14 +839,16 @@ ${recent.length ? `    <section class="recent recent-404">
       <h2 class="recent-head">最近更新</h2>
 ${entriesBlock(recent, { relative: true })}
     </section>` : ''}`;
-    return c.html(layout({
+    const res = layout({
       title: '404', noindex: true, canonical: '/404',
       desc: '页面不存在。',
       page: '404',
       themeType: '404',
       themeData: { recent: recent.map(themePost), not_found_html: notFoundMain },
       main: notFoundMain,
-    }), 404);
+    });
+    notFoundCache = { at: Date.now(), body: res };
+    return c.html(res, 404);
   }
 
 
