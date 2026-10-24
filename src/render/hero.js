@@ -12,16 +12,23 @@ import { IMAGE_PLACEHOLDER, mediaFallback } from '../media/variants.js';
  * @param {Array} o.stats         publishedStats()：按 kind 汇总的 { kind, n, first, last, words }
  * @param {Array} o.imgs          封面图列表（{ path, w, h }）
  * @param {string} o.mode         轮播模式：'auto' | 'manual'
+ * @param {string} o.overlay      蒙版文案（压在封面下缘渐变上，留空不渲染整层）
  * @param {Function} o.mediaOf    路径 → 媒体变体信息（可为 null）
  * @param {string} o.recentHtml   「最近更新」区块（已渲染；空串则不占位）
  */
-export function heroBlock({ stats = [], imgs = [], mode = 'manual', mediaOf = () => null, recentHtml = '' }) {
+export function heroBlock({ stats = [], imgs = [], mode = 'manual', overlay = '', mediaOf = () => null, recentHtml = '' }) {
   const posts = stats.find((p) => p.kind === 'post')?.n ?? 0;
   const notes = stats.find((p) => p.kind === 'note')?.n ?? 0;
   const first = stats.map((p) => p.first).sort()[0];
   const since = first ? formatDay(first).slice(0, 4) : String(new Date().getFullYear());
 
   const heroAlt = SITE.identity;
+  // 蒙版文案：一条全局覆盖层（不分张），无 JS 也能看到。单图时在 <h1> 里，必须是 phrasing content：
+  // 用 span（CSS 给 flex 显示），别换成 div/p —— 浏览器虽能渲染，HTML 校验和读屏语义都会变。
+  const copy = String(overlay ?? '').trim()
+    ? `<span class="hero-copy"><span class="hero-copy-inner">${esc(String(overlay).trim())}</span></span>`
+    : '';
+  const copyAria = copy ? '' : ` aria-label="${esc(heroAlt)}"`;
   // 首页所有封面统一按 16:9 取景；图片用 CSS object-fit: cover 裁切，灯箱仍打开完整图。
   const heroRatio = '16/9';
   const heroArStyle = '--hero-ar: 16 / 9';
@@ -52,7 +59,7 @@ export function heroBlock({ stats = [], imgs = [], mode = 'manual', mediaOf = ()
     // 单图也要 --hero-ar：相框与图片的宽都按这套比例算死，不依赖文件有没有到（见 .hero-figure img）。
     const ar = ` style="${heroArStyle}"`;
     const { src, srcsetValue, dims, full } = slideAttrs(im);
-    title = `<h1 class="hero-title hero-figure"${ar}><img src="${src}"${srcsetValue ? ` srcset="${srcsetValue}" sizes="${HERO_IMAGE_SIZES}"` : ''} data-full="${full}" data-lightbox="hero" alt="${esc(heroAlt)}"${dims} fetchpriority="high" decoding="async"></h1>`;
+    title = `<h1 class="hero-title hero-figure"${ar}${copyAria}><img src="${src}"${srcsetValue ? ` srcset="${srcsetValue}" sizes="${HERO_IMAGE_SIZES}"` : ''} data-full="${full}" data-lightbox="hero" alt="${esc(heroAlt)}"${dims} fetchpriority="high" decoding="async">${copy}</h1>`;
   } else if (imgs.length > 1) {
     // 多图轮播：图叠在 .hero-track（CSS 只露第一张），控制条由 JS 揭开——没 JS 时只有一张安静封面，不会拿到按了没反应的按钮。
     const slides = imgs.map((im, i) => {
@@ -70,6 +77,7 @@ export function heroBlock({ stats = [], imgs = [], mode = 'manual', mediaOf = ()
     const ar = ` style="${heroArStyle}"`;
     title = `<div class="hero-carousel"${ar} data-hero-carousel data-hero-mode="${mode}" role="group" aria-roledescription="图片轮播">
         <h1 class="hero-title hero-figure" aria-label="${esc(heroAlt)}"><span class="hero-track">${slides}</span></h1>
+        ${copy}
         <div class="hero-ctrl" hidden><span class="hero-dots">${dots}</span></div>
       </div>`;
   } else {

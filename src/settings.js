@@ -9,6 +9,7 @@ export const KEYS = {
   paletteDefault: 'palette_default',
   heroImages: 'hero_images',
   heroMode: 'hero_mode',
+  heroOverlay: 'hero_overlay',
   themeActive: 'theme_active',
   themeOptionsPrefix: 'theme_options:',
 };
@@ -127,6 +128,12 @@ export function heroImages(repo) {
 
 export function heroMode(repo) {
   return String(repo.getSetting(KEYS.heroMode) ?? '').trim().toLowerCase() === 'auto' ? 'auto' : 'manual';
+}
+
+// 封面蒙版文案：压在封面下缘的渐变蒙版上，留空则整层不渲染。上限 200 字与后台输入框 maxlength 一致。
+export const HERO_OVERLAY_MAX = 200;
+export function heroOverlay(repo) {
+  return String(repo.getSetting(KEYS.heroOverlay) ?? '').trim().slice(0, HERO_OVERLAY_MAX);
 }
 
 export const settingsFormState = (repo) => ({

@@ -447,21 +447,22 @@ let uploadedRawUrl = '';
   fdY.append('file', new Blob([PNG_2x2], { type: 'image/png' }), 'y.png');
   const upY = await (await req('/admin/api/upload', { method: 'POST', headers: { 'x-csrf-token': csrf }, body: fdY })).json();
   const yUrl = upY.url;
-  const saveImages = (list, mode = '') => save({ images: JSON.stringify(list), ...(mode ? { mode } : {}) });
+  const saveImages = (list, mode = '', overlay = '') => save({ images: JSON.stringify(list), ...(mode ? { mode } : {}), overlay });
 
   const savedMulti = await saveImages(
-    [{ path: uploadedUrl, w: '1', h: '1' }, { path: yUrl, w: '2', h: '2' }], 'auto');
+    [{ path: uploadedUrl, w: '1', h: '1' }, { path: yUrl, w: '2', h: '2' }], 'auto', '沉沦的独立博客');
   check('T8j-7 两张图 + 自动轮播保存成功', savedMulti.status === 303
     && decodeURIComponent(savedMulti.headers.get('location') ?? '').includes('已保存'), '');
 
   const homeMulti = await (await fetch(BASE + '/')).text();
   const slideCount = (homeMulti.match(/class="hero-slide/g) ?? []).length;
-  check('T8j-8 首页渲染轮播：两张 slide、圆点两枚、控制条先隐藏且只剩圆点（无箭头无暂停钮）、自动模式挂在容器上',
+  check('T8j-8 首页渲染轮播：两张 slide、圆点两枚、控制条先隐藏且只剩圆点（无箭头无暂停钮）、蒙版文案压在轮播上、自动模式挂在容器上',
     homeMulti.includes('data-hero-carousel') && homeMulti.includes('data-hero-mode="auto"')
     && slideCount === 2 && homeMulti.includes('class="hero-slide is-active"')
     && (homeMulti.match(/class="hero-dot"/g) ?? []).length === 2
     && homeMulti.includes('hero-ctrl" hidden') && homeMulti.includes('data-lightbox="hero"')
     && !homeMulti.includes('hero-pause')
+    && homeMulti.includes('class="hero-copy"') && homeMulti.includes('沉沦的独立博客')
     && homeMulti.includes('style="--hero-ar: 16 / 9"') && homeMulti.includes('style="aspect-ratio:16/9"')
     && !homeMulti.includes('hero-nav'),
     `slides=${slideCount}`);

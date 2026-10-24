@@ -527,6 +527,8 @@ body.mnav-open .mnav-panel { transform: none; opacity: 1; }
 }
 /* 轮播那份铺满 .hero-carousel 即可（宽度已由那边的 --hero-ar 定死），别再叠一层公式。 */
 .hero-carousel .hero-figure { width: auto; margin: 0; }
+/* 单图时蒙版文案是 h1 的子元素，absolute 相对这层定位；轮播时相对 .hero-carousel（已有 relative）。 */
+.hero-title.hero-figure { position: relative; }
 /* 图跟着相框：宽取 100%（相框的宽已经算死 → 首帧就有盒子，不依赖图到没到），高仍 auto，比例由行内
    aspect-ratio 给。**不再写 max-height**：宽已经是确定的，再叠一条 max-height 就成了作者在 admin.css
    里记过的坑（「确定的宽 + 只有 max-height，浏览器只压高度不回算宽度，图被横向拉扁」）——
@@ -580,6 +582,26 @@ body.mnav-open .mnav-panel { transform: none; opacity: 1; }
   pointer-events: none;
 }
 .hero-ctrl[hidden] { display: none; }
+/* —— 首页封面蒙版文案 ——
+   真实 DOM 覆盖层，不烘焙进图片：可搜索、可访问、无 JS 也能看到。只有一套版式（下缘渐变垫底）；
+   整层 pointer-events:none，点击/灯箱落到图上不受影响。 */
+.hero-copy {
+  position: absolute; inset: 0; z-index: 2;
+  display: flex; flex-direction: column; justify-content: flex-end;
+  padding: 2.6rem .9rem .9rem;
+  background: linear-gradient(180deg, transparent 30%, rgba(0, 0, 0, .55));
+  border-radius: calc(var(--radius) - 1px);
+  color: #fff; pointer-events: none;
+}
+.hero-copy-inner {
+  max-width: 92%;
+  font-family: var(--display); font-weight: 700;
+  font-size: clamp(1.25rem, 4.6vw, 2rem);
+  line-height: 1.2; letter-spacing: .012em; text-wrap: balance;
+  text-shadow: 0 1px 12px rgba(0, 0, 0, .45);
+  overflow-wrap: anywhere;
+}
+@media (max-width: 620px) { .hero-copy { padding: 2rem .65rem .7rem; } }
 .hero-dots { display: flex; }
 /* 每粒点做成 1.5rem 按钮、里面画 6px 小圆：点按目标 24×24 达标，视觉仍是一粒安静的点。 */
 .hero-dot {

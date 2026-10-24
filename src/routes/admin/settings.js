@@ -1,7 +1,7 @@
 import { previewSourceOf } from '../../media/variants.js';
 import { externalWrite, bodyOf, val, notice } from './shared.js';
 import { subscriberCount, clearSubscribers } from '../../comments/subscribers.js';
-import { settingsFormState, saveSettings, KEYS, HERO_MAX, HERO_LEGACY_KEYS, HERO_RETIRED_KEYS, heroImages, heroMode } from '../../settings.js';
+import { settingsFormState, saveSettings, KEYS, HERO_MAX, HERO_OVERLAY_MAX, HERO_LEGACY_KEYS, HERO_RETIRED_KEYS, heroImages, heroMode, heroOverlay } from '../../settings.js';
 import {
   KEYS as MAIL_KEYS, DEFAULTS as MAIL_DEFAULTS, TLS_MODES, TLS_LABEL, PRESETS,
   configSource, smtpConfig, ownerEmail, fromAddress,
@@ -183,6 +183,7 @@ export function registerSettingsRoutes(app, { repo, crypt, adminRepo, mutate = (
         return { ...im, thumbnail: previewSourceOf(item, 960) };
       }),
       mode: heroMode(repo),
+      overlay: heroOverlay(repo),
     };
   }
 
@@ -223,10 +224,12 @@ export function registerSettingsRoutes(app, { repo, crypt, adminRepo, mutate = (
     }
 
     const mode = list.length > 1 && heroModeOk(val(b, 'mode')) ? val(b, 'mode').trim().toLowerCase() : '';
+    const overlay = val(b, 'overlay').trim().slice(0, HERO_OVERLAY_MAX);
     const first = list[0];
     repo.transaction(() => {
       repo.setSetting(KEYS.heroImages, list.length ? JSON.stringify(list) : '');
       repo.setSetting(KEYS.heroMode, mode);
+      repo.setSetting(KEYS.heroOverlay, overlay);
       // 旧键镜像（单图时代的读者/脚本仍认这三个键）：存列表第一张。
       repo.setSetting(HERO_KEYS.url, first?.path ?? '');
       repo.setSetting(HERO_KEYS.w, first?.w && first?.h ? first.w : '');
@@ -257,13 +260,14 @@ export function registerSettingsRoutes(app, { repo, crypt, adminRepo, mutate = (
         return { ...im, thumbnail: previewSourceOf(item, 960) };
       }),
       mode: val(body, 'mode'),
+      overlay: val(body, 'overlay').trim().slice(0, HERO_OVERLAY_MAX),
     };
     return systemHtml(c, { notice: `✗ ${err}`, hero });
   });
 
   app.post('/admin/hero/clear', (c) => {
     repo.transaction(() => {
-      for (const k of [KEYS.heroImages, KEYS.heroMode, ...Object.values(HERO_LEGACY_KEYS), ...HERO_RETIRED_KEYS]) repo.setSetting(k, '');
+      for (const k of [KEYS.heroImages, KEYS.heroMode, KEYS.heroOverlay, ...Object.values(HERO_LEGACY_KEYS), ...HERO_RETIRED_KEYS]) repo.setSetting(k, '');
     });
     return notice(c, '/admin/system', '✓ 已移除首页展示，图片保留在媒体库');
   });
