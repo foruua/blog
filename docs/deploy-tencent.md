@@ -26,7 +26,7 @@ sudo apt-get update
 sudo apt-get install -y nginx certbot python3-certbot-nginx rsync xz-utils
 ```
 
-Node 用官方二进制，版本和 `.node-version` 保持一致（当前 24.22.1）：
+Node 用官方二进制，版本和 `.node-version` 保持一致（当前 24.22.1）。**注意：下面命令里的版本号 `24.22.1` 共出现三处，升级 Node 时要与 `.node-version` 逐一对照改齐，漏改一处会导致下载与 SHASUMS 校验不匹配。**
 
 ```sh
 cd /tmp
