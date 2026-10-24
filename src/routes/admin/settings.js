@@ -1,7 +1,7 @@
 import { previewSourceOf } from '../../media/variants.js';
 import { externalWrite, bodyOf, val, notice } from './shared.js';
 import { subscriberCount, clearSubscribers } from '../../comments/subscribers.js';
-import { settingsFormState, saveSettings, KEYS, HERO_MAX, HERO_LAYOUTS, HERO_TONES, HERO_LEGACY_KEYS, heroImages, heroMode, heroVideoMode, heroLayout, heroTone, safeHeroLink } from '../../settings.js';
+import { settingsFormState, saveSettings, KEYS, HERO_MAX, HERO_LAYOUTS, HERO_TONES, HERO_LEGACY_KEYS, HERO_RETIRED_KEYS, heroImages, heroMode, heroLayout, heroTone, safeHeroLink } from '../../settings.js';
 import {
   KEYS as MAIL_KEYS, DEFAULTS as MAIL_DEFAULTS, TLS_MODES, TLS_LABEL, PRESETS,
   configSource, smtpConfig, ownerEmail, fromAddress,
@@ -10,6 +10,7 @@ import {
 import { systemPage } from '../../admin/views/system.js';
 import { EMAIL_LOOSE_RE } from '../../util/validation.js';
 import { isSafeUploadPath } from '../../util/url.js';
+import { isVideoSource } from '../../media/video.js';
 import { smtpTestLetter } from '../../email/letters.js';
 
 
@@ -167,20 +168,14 @@ export function registerSettingsRoutes(app, { repo, crypt, adminRepo, mutate = (
   }
 
   const heroModeOk = (v) => ['manual', 'auto'].includes(String(v ?? '').trim().toLowerCase());
-  const heroVideoModeOk = (v) => ['auto', 'click'].includes(String(v ?? '').trim().toLowerCase());
 
   function heroFormState() {
     return {
       images: heroImages(repo).map((im) => {
         const item = adminRepo.mediaByPath(im.path);
-        return {
-          ...im,
-          video: String(item?.mime ?? '').startsWith('video/'),
-          thumbnail: previewSourceOf(item, 960),
-        };
+        return { ...im, thumbnail: previewSourceOf(item, 960) };
       }),
       mode: heroMode(repo),
-      videoMode: heroVideoMode(repo),
       layout: heroLayout(repo),
       tone: heroTone(repo),
     };
@@ -197,6 +192,7 @@ export function registerSettingsRoutes(app, { repo, crypt, adminRepo, mutate = (
       const path = String(it?.path ?? '').trim();
       if (!path) return '首页封面列表里有空的地址';
       if (!heroUrlOk(path)) return `首页封面只能用站内上传的地址（/uploads/…）：${path}`;
+      if (isVideoSource(path)) return '首页封面只能是图片，视频请放在正文里';
       if (seen.has(path)) return `同一项重复出现：${path}`;
       seen.add(path);
       const dim = (v) => (/^\d{1,5}$/.test(String(v ?? '').trim()) ? String(v).trim() : '');
@@ -224,12 +220,12 @@ export function registerSettingsRoutes(app, { repo, crypt, adminRepo, mutate = (
     } else {
       const url = val(b, 'url').trim();
       if (url && !heroUrlOk(url)) return `首页封面只能用站内上传的地址（/uploads/…）：${url}`;
+      if (url && isVideoSource(url)) return '首页封面只能是图片，视频请放在正文里';
       const dim = (k) => (/^\d{1,5}$/.test(val(b, k).trim()) ? val(b, k).trim() : '');
       list = url ? [{ path: url, w: dim('w'), h: dim('h') }] : [];
     }
 
     const mode = list.length > 1 && heroModeOk(val(b, 'mode')) ? val(b, 'mode').trim().toLowerCase() : '';
-    const videoMode = heroVideoModeOk(val(b, 'videoMode')) ? val(b, 'videoMode').trim().toLowerCase() : 'auto';
     const rawLayout = val(b, 'layout').trim().toLowerCase();
     const rawTone = val(b, 'tone').trim().toLowerCase();
     const layout = HERO_LAYOUTS.some((item) => item.key === rawLayout) ? rawLayout : 'bottom';
@@ -238,7 +234,6 @@ export function registerSettingsRoutes(app, { repo, crypt, adminRepo, mutate = (
     repo.transaction(() => {
       repo.setSetting(KEYS.heroImages, list.length ? JSON.stringify(list) : '');
       repo.setSetting(KEYS.heroMode, mode);
-      repo.setSetting(KEYS.heroVideoMode, videoMode);
       repo.setSetting(KEYS.heroLayout, layout);
       repo.setSetting(KEYS.heroTone, tone);
       // 旧键镜像（单图时代的读者/脚本仍认这三个键）：存列表第一张。
@@ -261,18 +256,18 @@ export function registerSettingsRoutes(app, { repo, crypt, adminRepo, mutate = (
         path: String(it?.path ?? ''), w: String(it?.w ?? ''), h: String(it?.h ?? ''),
         title: String(it?.title ?? ''), subtitle: String(it?.subtitle ?? ''),
         link: String(it?.link ?? ''), linkText: String(it?.linkText ?? ''),
-      })).filter((it) => it.path);
+      })).filter((it) => it.path && !isVideoSource(it.path));
     } catch { /* 保留空列表，至少显示错误 */ }
     if (!images.length) {
       const url = val(body, 'url').trim();
-      if (url) images = [{ path: url, w: val(body, 'w'), h: val(body, 'h') }];
+      if (url && !isVideoSource(url)) images = [{ path: url, w: val(body, 'w'), h: val(body, 'h') }];
     }
     const hero = {
       images: images.map((im) => {
         const item = adminRepo.mediaByPath(im.path);
-        return { ...im, video: String(item?.mime ?? '').startsWith('video/'), thumbnail: previewSourceOf(item, 960) };
+        return { ...im, thumbnail: previewSourceOf(item, 960) };
       }),
-      mode: val(body, 'mode'), videoMode: val(body, 'videoMode') || 'auto',
+      mode: val(body, 'mode'),
       layout: val(body, 'layout') || 'bottom', tone: val(body, 'tone') || 'light',
     };
     return systemHtml(c, { notice: `✗ ${err}`, hero });
@@ -280,7 +275,7 @@ export function registerSettingsRoutes(app, { repo, crypt, adminRepo, mutate = (
 
   app.post('/admin/hero/clear', (c) => {
     repo.transaction(() => {
-      for (const k of [KEYS.heroImages, KEYS.heroMode, KEYS.heroVideoMode, KEYS.heroLayout, KEYS.heroTone, ...Object.values(HERO_KEYS)]) repo.setSetting(k, '');
+      for (const k of [KEYS.heroImages, KEYS.heroMode, KEYS.heroLayout, KEYS.heroTone, ...Object.values(HERO_LEGACY_KEYS), ...HERO_RETIRED_KEYS]) repo.setSetting(k, '');
     });
     return notice(c, '/admin/system', '✓ 已移除首页展示，图片保留在媒体库');
   });

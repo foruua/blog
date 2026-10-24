@@ -290,7 +290,7 @@
     sync();
   }
 
-  /* 正文插图的「点开大图」和封面的「点开视频」都是 JS 能力：role/tabindex 也由 JS 补，写死在 HTML 里会让禁 JS 的读者拿到假按钮。
+  /* 正文插图/视频的「点开」都是 JS 能力：role/tabindex 也由 JS 补，写死在 HTML 里会让禁 JS 的读者拿到假按钮。
      首页封面那张是 <h1> 唯一内容：只补 role/tabindex，不加 aria-label，否则会改掉标题可访问名。
      笔记流图集是真链接，不补 role。 */
   function decorateLightbox(root = document) {
@@ -304,172 +304,6 @@
       // 标题即图片/视频时只补 role/tabindex，补 aria-label 会改掉 <h1> 的可访问名。
       if (!node.closest('h1')) node.setAttribute('aria-label', label);
     }
-  }
-
-  /* 点击播放模式的封面视频：先补按钮语义，点一下才就地播放并露出控制条；灯箱入口是右上角那枚链接。
-     服务器在 click 模式下不给 <video> 挂 data-lightbox，避免「点播放」被灯箱接管。 */
-  function setupHeroVideoClick(root = document) {
-    for (const video of root.querySelectorAll('.hero-figure video[data-video-mode="click"]:not([data-play-ready])')) {
-      video.dataset.playReady = '1';
-      video.setAttribute('role', 'button');
-      video.setAttribute('tabindex', '0');
-      const play = (event) => {
-        if (event) event.preventDefault();
-        video.controls = true;
-        video.removeAttribute('role');
-        video.closest('.hero-media, .hero-slide')?.querySelector('.hero-play')?.remove();
-        video.removeEventListener('click', play);
-        video.removeEventListener('keydown', onKey);
-        video.play().catch(() => {});
-      };
-      const onKey = (e) => {
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); play(e); }
-      };
-      video.addEventListener('click', play);
-      video.addEventListener('keydown', onKey);
-    }
-  }
-
-  /* 封面视频的自动播放（auto 模式）。
-     只靠 HTML 的 autoplay/muted/loop 在部分移动内核（鸿蒙自带浏览器、X5/WebView）上会被静默忽略：
-     要么停在首帧不动，要么播一遍就停在最后一帧。PJAX 换页时 #app 整块重建，新 <video> 又要在异步
-     导航后重新走一遍自动播放策略，问题更明显。这里把属性落成 IDL 再显式 play()；被拦下时重新挂
-     一次性手势监听，循环再用 ended + 看门狗兜底。
-     注意：同一段时间只允许一个 play() 在飞。鸿蒙上连续调 play() 会把上一次尚未落定的起播请求顶掉，
-     结果就是永远起不来 —— 这也是一开始加「每秒补播」反而彻底不播的原因。click 模式一根手指都不碰。 */
-  let heroAutoplayVideos = [];
-  let heroGestureController = null;
-  let heroWatchdog = null;
-  let heroPageEventsBound = false;
-  const HERO_PLAY_TIMEOUT_MS = 5000;
-  const heroAutoplayAllowed = () => !document.hidden && !lightboxOpen();
-  const heroVideoActive = (video) => {
-    const slide = video.closest('.hero-slide');
-    return !slide || slide.classList.contains('is-active');
-  };
-  const settleHeroPlay = (video) => {
-    video.__heroPending = false;
-    clearTimeout(video.__heroPendingTimer);
-    video.__heroPendingTimer = 0;
-  };
-  const playHeroVideo = (video, { gesture = false } = {}) => {
-    if (!video?.isConnected || !heroAutoplayAllowed() || !heroVideoActive(video)) return;
-    // 属性在部分内核里不足以让自动播放生效；muted 必须在 play() 之前就是 true。
-    video.muted = true;
-    video.defaultMuted = true;
-    video.loop = true;
-    video.playsInline = true;
-    video.setAttribute('webkit-playsinline', 'webkit-playsinline');
-    // 只有用户手势能解除「策略拦截」；同一时间只允许一个 play() 在飞，但不要用 paused 做门槛：
-    // 有的内核在起播被拦时 paused 已经是 false，用 paused 判断会误以为「已经在播」而永远不再重试。
-    if (gesture) video.__heroBlocked = false;
-    if (video.__heroPending) return;
-    if (video.__heroBlocked) { armHeroGesture(); return; }
-    video.__heroPending = true;
-    let played;
-    try {
-      played = video.play();
-    } catch {
-      settleHeroPlay(video);
-      video.__heroBlocked = true;
-      armHeroGesture();
-      return;
-    }
-    if (!played || typeof played.then !== 'function') { settleHeroPlay(video); return; }
-    played.then(
-      () => { settleHeroPlay(video); video.__heroBlocked = false; video.__heroStarted = !video.paused; },
-      (error) => {
-        settleHeroPlay(video);
-        // 只有自动播放策略拦截需要等手势；其它错误（AbortError、解码失败）交给 canplay / 看门狗。
-        if (error && error.name === 'NotAllowedError') {
-          video.__heroBlocked = true;
-          armHeroGesture();
-        }
-      },
-    );
-    // 个别内核会返回一个永不落定的 Promise：留超时，别让 __heroPending 永久卡死。
-    video.__heroPendingTimer = setTimeout(() => settleHeroPlay(video), HERO_PLAY_TIMEOUT_MS);
-  };
-  const playHeroVideos = (gesture = false) => {
-    for (const video of heroAutoplayVideos) playHeroVideo(video, { gesture });
-  };
-  const armHeroGesture = () => {
-    if (heroGestureController || typeof AbortController !== 'function') return;
-    const controller = new AbortController();
-    heroGestureController = controller;
-    const retry = () => {
-      controller.abort();
-      if (heroGestureController === controller) heroGestureController = null;
-      // 手势到来：解除策略拦截标记再试；正在起播的那次仍然不打断。
-      playHeroVideos(true);
-    };
-    for (const type of ['pointerdown', 'touchstart', 'keydown']) {
-      document.addEventListener(type, retry, { capture: true, passive: true, signal: controller.signal });
-    }
-  };
-  const stopHeroWatchdog = () => { if (heroWatchdog) { clearInterval(heroWatchdog); heroWatchdog = null; } };
-  /* 看门狗只管 auto 封面，而且只在「已经能播却停住」时补一次 play()：加载中不碰，
-     被策略拦下也不碰（等手势），避免把尚未落定的起播请求顶掉。ended / 播到最后一帧停住时回到开头。 */
-  const ensureHeroPlayback = () => {
-    if (!heroAutoplayAllowed()) return;
-    for (const video of heroAutoplayVideos) {
-      if (!video.isConnected || !heroVideoActive(video)) continue;
-      if (!video.loop) video.loop = true;
-      const nearEnd = video.duration > 0 && video.currentTime >= video.duration - 0.2;
-      if (video.ended || (video.paused && nearEnd)) {
-        video.__heroStarted = false;
-        try { video.currentTime = 0; } catch { /* 有些内核此时禁止 seek，直接 play() 也会从头开始 */ }
-        if (!video.__heroPending && !video.__heroBlocked) playHeroVideo(video);
-        continue;
-      }
-      // 只恢复「确实起播过、后来被系统打断」的视频；首次起播交给 canplay / 手势，避免反复 play() 顶掉加载。
-      if (video.__heroStarted && video.paused && !video.__heroPending && !video.__heroBlocked && video.readyState >= 3) {
-        playHeroVideo(video);
-      }
-    }
-  };
-  function setupHeroAutoplay(root = document) {
-    if (!heroPageEventsBound) {
-      heroPageEventsBound = true;
-      document.addEventListener('visibilitychange', () => { if (!document.hidden) playHeroVideos(); });
-      // bfcache 回退不一定会发 visibilitychange，补一次 pageshow。
-      addEventListener('pageshow', () => playHeroVideos());
-    }
-    if (heroGestureController) { heroGestureController.abort(); heroGestureController = null; }
-    heroAutoplayVideos = [...root.querySelectorAll('.hero-figure video')]
-      .filter((video) => video.dataset.videoMode !== 'click');
-    if (!heroAutoplayVideos.length) { stopHeroWatchdog(); return; }
-    for (const video of heroAutoplayVideos) {
-      if (!video.dataset.autoplayReady) {
-        video.dataset.autoplayReady = '1';
-        // 这两个属性是旧内核认的「内联播放」开关，属性先写、脚本再补一遍，避免首帧被强制全屏。
-        video.setAttribute('webkit-playsinline', 'webkit-playsinline');
-        video.setAttribute('x5-playsinline', 'x5-playsinline');
-        // 被自动播放策略拦下时，等数据够了再试一次（此时 play() 多半能过）。
-        video.addEventListener('loadedmetadata', () => playHeroVideo(video));
-        video.addEventListener('canplay', () => playHeroVideo(video));
-        // 起播成功：落定这一次 play，内核若把 loop/muted 抹掉就在这里补回来。
-        video.addEventListener('playing', () => {
-          settleHeroPlay(video);
-          video.__heroBlocked = false;
-          video.__heroStarted = true;
-          if (!video.loop) video.loop = true;
-          if (!video.muted) video.muted = true;
-        });
-        // 暂停（灯箱/轮播/系统打断）后结束本次起播状态；started 保留，系统打断时看门狗才能恢复。
-        video.addEventListener('pause', () => settleHeroPlay(video));
-        // 内核不支持 loop 时播完会停在最后一帧：回到开头再播一次。
-        video.addEventListener('ended', () => {
-          settleHeroPlay(video);
-          video.__heroStarted = false;
-          try { video.currentTime = 0; } catch { /* 有些内核此时禁止 seek，直接 play() 也会从头开始 */ }
-          playHeroVideo(video);
-        });
-      }
-      playHeroVideo(video);
-    }
-    armHeroGesture();
-    if (!heroWatchdog) heroWatchdog = setInterval(ensureHeroPlayback, 1500);
   }
 
   /* 首页轮播（多于一张图才渲染）。自动模式 5 秒一张，悬停/聚焦/切走标签页/「减弱动态效果」暂停。 */
@@ -494,7 +328,6 @@
     let hovering = false;
     // 用户主动暂停后，hoverleave/灯箱关闭都不能把它偷偷重新启动（WCAG 2.2.2）。
     let userPaused = false;
-    const videoOf = (slide) => slide.tagName === 'VIDEO' ? slide : (slide.querySelector?.('video') ?? null);
     // 非当前张在服务端只发 240w 占位小图 + data-src/data-srcset：5 张封面叠在同一视口，
     // loading=lazy 不会真的延迟。轮到它之前再升级成正式候选集；占位图先显示，不会白一下。
     const hydrate = (slide) => {
@@ -519,18 +352,9 @@
       slides.forEach((s, k) => {
         const on = k === at;
         s.classList.toggle('is-active', on);
-        // 不可见的那几张必须同时移出 Tab 序与无障碍树：灯箱装饰会给每张图/视频补 role/tabindex，
+        // 不可见的那几张必须同时移出 Tab 序与无障碍树：灯箱装饰会给每张图补 role/tabindex，
         // 不在这里收掉的话键盘要连按 5 次、读屏会听到 5 个同名按钮。
-        const video = videoOf(s);
-        s.tabIndex = on && !video ? 0 : -1;
-        // click 模式的视频 slide 里还有「在灯箱中播放」链接；不一起收掉会把 Tab 带进 aria-hidden 的子树。
-        for (const el of s.querySelectorAll('a[href], button, video')) el.tabIndex = on ? 0 : -1;
-        if (video) video.tabIndex = on ? 0 : -1;
-        // 视频只在轮到它时播；click 模式一律不自动播，等读者点开灯箱。
-        if (video) {
-          if (on && video.dataset.videoMode !== 'click') video.play().catch(() => {});
-          else video.pause();
-        }
+        s.tabIndex = on ? 0 : -1;
       });
       if (refocus) slides[at].focus({ preventScroll: true });
       slides.forEach((s, k) => {
@@ -596,8 +420,6 @@
     lbItems = []; lbAt = 0; lbTrigger = null;
     fillWho();
     decorateLightbox();
-    setupHeroVideoClick();
-    setupHeroAutoplay();
     setupHeroCarousel();
     setupCodeCopy();
 
@@ -1057,8 +879,6 @@
       // __ui.open() 已 sync 过滚动锁；缺 ui.js 的原生兜底才需自己补一次。
       window.__openDialog(box);
       heroControl?.stop();
-      // 封面里的视频先停：模态后面继续播既费流量，也会和灯箱里的同一条音轨叠在一起。
-      document.querySelectorAll('.hero-figure video').forEach((v) => v.pause());
       return;
     }
     const box = lb();
@@ -1111,13 +931,6 @@
     if (e.target !== lb()) return;
     stopLbVideo();
     heroControl?.start();
-    // 回到页面时恢复封面视频：轮播里只恢复当前那一条，单视频直接续播。
-    document.querySelectorAll('.hero-figure video').forEach((v) => {
-      if (v.dataset.videoMode === 'click') return;
-      const slide = v.closest('.hero-slide');
-      if (slide && !slide.classList.contains('is-active')) return;
-      v.play().catch(() => {});
-    });
     const t = lbTrigger;
     if (!t?.isConnected) return;
     // 触发的那张若已被切走（落在 aria-hidden 子树里），别再把焦点还原上去：改交给当前可见的那张。

@@ -1,4 +1,3 @@
-import { isVideoSource, heroAspectOf } from '../../media/video.js';
 import { csrfField, esc } from '../../util/text.js';
 import { adminLayout } from '../layout.js';
 import { PALETTES, HERO_MAX, HERO_LAYOUTS, HERO_TONES } from '../../settings.js';
@@ -13,14 +12,10 @@ export function systemPage({ mail = {}, hero = {}, site = {}, history = {}, csrf
     .join('\n            ');
 
   // 首页轮播图列表：缩略图一行排开，图下编号、第一张标「封面」，末尾一枚虚线「添加」格；点保存才生效。首屏（JS 没跑时）类名与 data-* 要与 admin.js 的 tile() 逐字一致。
-  const hasVideo = hero.images.some((im) => im.video || isVideoSource(im.path));
-  const heroAspect = heroAspectOf(hero.images);
   const heroItems = hero.images.map((im, i) => {
     const dim = /^\d+$/.test(String(im.w ?? '')) && /^\d+$/.test(String(im.h ?? ''))
       ? ` width="${im.w}" height="${im.h}"` : '';
-    const shot = im.video || isVideoSource(im.path)
-      ? `<video class="a-hero-shot" muted playsinline preload="metadata" draggable="false" src="${esc(im.path)}#t=0.1"${dim}></video><span class="a-hero-play" aria-hidden="true">▶</span>`
-      : `<img class="a-hero-shot" decoding="async" draggable="false" src="${esc(im.thumbnail || im.path)}" alt=""${dim}>`;
+    const shot = `<img class="a-hero-shot" decoding="async" draggable="false" src="${esc(im.thumbnail || im.path)}" alt=""${dim}>`;
     return `        <figure class="a-hero-item" draggable="true" data-path="${esc(im.path)}" title="拖动排序">
           ${shot}
           <figcaption class="a-hero-cap">
@@ -42,7 +37,7 @@ export function systemPage({ mail = {}, hero = {}, site = {}, history = {}, csrf
   }).join('\n');
 
   const heroAdd = hero.images.length >= HERO_MAX ? '' : `        <button type="button" class="a-hero-add" id="heroPick"${hero.images.length ? '' : ' data-wide="1"'}>
-          <span class="a-hero-add-plus" aria-hidden="true">＋</span><span class="a-hero-add-txt">添加图片/视频</span>
+          <span class="a-hero-add-plus" aria-hidden="true">＋</span><span class="a-hero-add-txt">添加图片</span>
         </button>`;
   // data-thumbs 给 JS「路径 → 预览图」对照。整段 JSON 一次 esc：结构引号在属性值里也必须转义，否则属性会被截断。
   const heroThumbs = esc(JSON.stringify(Object.fromEntries(hero.images.map((im) => [im.path, im.thumbnail || '']))));
@@ -53,7 +48,7 @@ export function systemPage({ mail = {}, hero = {}, site = {}, history = {}, csrf
     <div class="a-card a-panel">
     <form method="post" action="/admin/hero" id="heroForm">
       ${csrfField(csrf)}
-      <div class="a-hero-list${hero.images.length ? '' : ' is-empty'}" id="heroList" style="--hero-ar: ${heroAspect.style}">
+      <div class="a-hero-list${hero.images.length ? '' : ' is-empty'}" id="heroList" style="--hero-ar: 16 / 9">
 ${hero.images.length ? heroItems + '\n' : ''}${heroAdd}
       </div>
       <div class="a-hero-mode" id="heroModeRow"${hero.images.length > 1 ? '' : ' hidden'}>
@@ -61,13 +56,6 @@ ${hero.images.length ? heroItems + '\n' : ''}${heroAdd}
         <select class="a-select" id="heroMode" name="mode">
           <option value="manual"${hero.mode !== 'auto' ? ' selected' : ''}>手动切换</option>
           <option value="auto"${hero.mode === 'auto' ? ' selected' : ''}>自动轮播</option>
-        </select>
-      </div>
-      <div class="a-hero-mode" id="heroVideoModeRow"${hasVideo ? '' : ' hidden'}>
-        <label for="heroVideoMode">视频播放</label>
-        <select class="a-select" id="heroVideoMode" name="videoMode">
-          <option value="auto"${(hero.videoMode ?? 'auto') !== 'click' ? ' selected' : ''}>自动播放（静音循环）</option>
-          <option value="click"${hero.videoMode === 'click' ? ' selected' : ''}>点击播放（进灯箱）</option>
         </select>
       </div>
       <div class="a-hero-mode">
@@ -92,7 +80,7 @@ ${hero.images.length ? heroItems + '\n' : ''}${heroAdd}
                 data-modal-ok="全部移除"
                 ${hero.images.length ? '' : 'hidden'}>全部移除</button>
       </div>
-      <input type="file" id="heroFile" accept="image/png,image/jpeg,image/gif,image/webp,video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov" multiple hidden>
+      <input type="file" id="heroFile" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden>
     </form>
     </div>
     <dialog class="a-modal a-hero-text-dialog" id="heroTextDialog" aria-labelledby="heroTextDialogTitle">

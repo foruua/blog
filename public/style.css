@@ -534,33 +534,12 @@ body.mnav-open .mnav-panel { transform: none; opacity: 1; }
 .hero-figure img {
   display: block; margin: 0 auto;
   width: 100%; height: auto; aspect-ratio: var(--hero-ar);
-  /* 首页所有图片/视频统一按当前视频比例；不同原始比例的图裁切，灯箱仍打开完整图。 */
+  /* 首页封面统一固定 16:9；不同原始比例的图裁切，灯箱仍打开完整图。 */
   object-fit: cover;
   /* 比外框小 1px：贴住那条细边，与「边框画在图上」时的观感一致。 */
   border-radius: calc(var(--radius) - 1px);
 }
-/* 封面视频与图同宽同圆角；auto 模式静音循环自动播，click 模式停在首帧、点击进灯箱。 */
-.hero-figure video {
-  display: block; margin: 0 auto;
-  width: 100%; height: auto; aspect-ratio: var(--hero-ar);
-  object-fit: cover;
-  background: #000;
-  border-radius: calc(var(--radius) - 1px);
-}
-/* 视频外面这层只负责给「点击播放」的标记定位；轮播里它同时是 .hero-slide（叠层与切换仍按原来那套）。 */
-.hero-media { position: relative; display: block; }
 .hero-slide { position: relative; }
-.hero-play {
-  position: absolute; inset: 0; margin: auto;
-  width: 3.4rem; height: 3.4rem; border-radius: 50%;
-  display: grid; place-items: center;
-  color: #fff; background: rgba(8, 7, 5, .42);
-  border: 1px solid rgba(250, 248, 244, .46);
-  box-shadow: 0 0 0 1px rgba(146, 105, 34, .28), 0 10px 30px -14px rgba(0, 0, 0, .8);
-  -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
-  pointer-events: none;
-}
-.hero-play svg { width: 1.25rem; height: 1.25rem; margin-left: .12rem; }
 
 /* —— 首页封面文字（方案 2+3） ——
    文字是真实 DOM 覆盖层，不烘焙进图片：可搜索、可访问、无 JS 也能看到第一张。
@@ -697,8 +676,6 @@ body.mnav-open .mnav-panel { transform: none; opacity: 1; }
 .hero-figure .hero-slide { width: 100%; }
 /* 封面图可点（开灯箱，data-lightbox="hero"）：光标得说出来。与正文插图同一规矩 —— 只在 .has-js 下给 zoom-in（没有 JS 时 data-lightbox 只是没人理的属性，光标不该骗人）。 多图轮播时只有当前那张接指针，所以也只有露出来的那张会变放大镜。 */
 .has-js .hero-figure img[data-lightbox] { cursor: zoom-in; }
-.has-js .hero-figure video[data-lightbox] { cursor: zoom-in; }
-.has-js .hero-figure video[data-video-mode="click"] { cursor: pointer; }
 
 /* 首页封面轮播（后台多张图才有）。slide 叠成一层，CSS 默认只露第一张 —— 无 JS 读者看到 一张安静封面；控制条本来 hidden，由 app.js 揭开，不会出现按了没反应的假按钮。
    切换走「先出后入」两段，不做交叉淡入 —— 交叉淡入的半途两张封面同时半透明（实测 0.494 / 0.506 并存），
@@ -720,7 +697,7 @@ body.mnav-open .mnav-panel { transform: none; opacity: 1; }
 .hero-carousel {
   position: relative;
   margin: 0 auto;
-  /* 轮播整层的宽高必须由样式先定出来，不能等图片固有尺寸 —— 首帧即终值。PJAX 换页那一帧叠图还没选好图源、内容盒 0×0，Chrome 的「懒加载图没有显式尺寸」检查据此报警，慢网络下封面会先小后大跳一下。三项 min() 与 .hero-figure img 的 max-width 收口出终值；--hero-ar 由服务端按当前视频（无视频则 16:9）写成 <w>/<h>。 */
+  /* 轮播整层的宽高必须由样式先定出来，不能等图片固有尺寸 —— 首帧即终值。PJAX 换页那一帧叠图还没选好图源、内容盒 0×0，Chrome 的「懒加载图没有显式尺寸」检查据此报警，慢网络下封面会先小后大跳一下。三项 min() 与 .hero-figure img 的 max-width 收口出终值；--hero-ar 固定为 16:9。 */
   width: min(100%, 30rem, calc(min(34vh, 15.5rem) * var(--hero-ar)));
 }
 .hero-ctrl {
@@ -1573,9 +1550,7 @@ html[data-theme="dark"] :is(.hero-figure, .prose, .gallery) img { filter: bright
   background: #000; border-radius: var(--radius-lg);
   border: 1px solid var(--rule); box-shadow: var(--shadow-md);
 }
-/* 正文视频的「灯箱播放」按钮：与首页封面视频右上角那枚完全同一套尺寸/颜色/位置；
-   不抢原生控制条的点击。hover 只保留光标，不换底色、不换字色。 */
-.hero-expand,
+/* 正文视频的「灯箱播放」按钮；不抢原生控制条的点击。hover 只保留光标，不换底色、不换字色。 */
 .prose-video-expand {
   position: absolute; top: .55rem; right: .55rem; z-index: 2;
   display: grid; place-items: center; width: 2.1rem; height: 2.1rem; padding: 0;
@@ -1584,12 +1559,9 @@ html[data-theme="dark"] :is(.hero-figure, .prose, .gallery) img { filter: bright
   cursor: pointer; text-decoration: none;
   -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
 }
-.hero-expand svg,
 .prose-video-expand svg { width: .95rem; height: .95rem; }
-/* 全局 a:hover 会把字色改成 --accent-read；这两枚按钮悬停时保持原样。 */
-a.hero-expand:hover,
+/* 全局 a:hover 会把字色改成 --accent-read；这枚按钮悬停时保持原样。 */
 a.prose-video-expand:hover { color: #f2f1ec; background: rgba(8, 7, 5, .46); border-color: rgba(250, 248, 244, .38); }
-.hero-expand:focus-visible,
 .prose-video-expand:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 /* 正文插图宽高比走行内 aspect-ratio（render 脚本写死）：只有 width/height 属性时浏览器算出的比例是 `auto W / H`，懒加载审计认不出；attr() 又并非各浏览器都支持。 */
 /* 正文插图挂了灯箱属性，只在真的会开灯箱时（.has-js）给可点的手型 —— 没有 JS 时它只是普通属性。 */
@@ -2905,7 +2877,6 @@ html[data-theme="dark"] .ncp-flash-bad, html[data-theme="dark"] .ncp-flash-limit
   /* 画廊高度交给 3:2 的 aspect-ratio，这里不再写死，只留灯箱导航的缩放。 */
   .lb-nav { width: 36px; height: 36px; }
   /* 正文视频的灯箱按钮抬到 44px 触控下限。 */
-  .hero-expand,
   .prose-video-expand { width: 2.75rem; height: 2.75rem; }
 }
 

@@ -1,5 +1,6 @@
 import { PAGE_SIZE, RECENT, COMMENTS_PER_PAGE, FEEDS_PER_PAGE } from './config.js';
 import { isSafeUploadPath } from './util/url.js';
+import { isVideoSource } from './media/video.js';
 
 export const KEYS = {
   pageSize: 'page_size',
@@ -9,7 +10,6 @@ export const KEYS = {
   paletteDefault: 'palette_default',
   heroImages: 'hero_images',
   heroMode: 'hero_mode',
-  heroVideoMode: 'hero_video_mode',
   heroLayout: 'hero_layout',
   heroTone: 'hero_text_tone',
   themeActive: 'theme_active',
@@ -22,6 +22,9 @@ export const themeOptionsKey = (id) => `${KEYS.themeOptionsPrefix}${String(id ??
 /* 首页封面旧键（单图时代）：写入仍镜像维护（脚本/备份对比还认），读取仅在多图键缺失/损坏时回落。 */
 export const HERO_LEGACY_KEYS = { url: 'hero_image', w: 'hero_image_w', h: 'hero_image_h' };
 
+/* 已下线的首页封面选项（封面视频的播放方式）：不再读取，只在「全部移除」时顺手清掉残值。 */
+export const HERO_RETIRED_KEYS = ['hero_video_mode'];
+
 /* 首页轮播上限，写死而非设置项：这是封面不是相册，八张还翻不到头就该换内容。 */
 export const HERO_MAX = 8;
 
@@ -33,7 +36,7 @@ export const HERO_LAYOUTS = [
   { key: 'minimal', name: '极简一行', hint: '只突出标题，底部一条细线' },
 ];
 export const HERO_TONES = [
-  { key: 'light', name: '浅色字', hint: '深色图/视频用' },
+  { key: 'light', name: '浅色字', hint: '深色图用' },
   { key: 'dark', name: '深色字', hint: '浅色图用' },
 ];
 
@@ -137,8 +140,9 @@ export function parsePaletteDefault(raw) {
   return PALETTE_KEYS.includes(v) ? v : null;
 }
 
-// 首页封面列表（图片或视频）的读取侧（前台渲染、媒体库守卫共用）。宽松解析：JSON 坏了或挑不出时回落旧单图键
+// 首页封面列表的读取侧（前台渲染、后台表单、媒体库守卫共用）。宽松解析：JSON 坏了或挑不出时回落旧单图键
 // （存量站点免迁移）；单条坏只丢那条。路径只认 /uploads/，越界直接扔。
+// 封面只收图片：历史数据里可能还留着视频路径（该能力已删除），这里统一滤掉，渲染与后台都当它不存在。
 export function heroImages(repo) {
   const raw = String(repo.getSetting(KEYS.heroImages) ?? '').trim();
   if (raw) {
@@ -146,7 +150,7 @@ export function heroImages(repo) {
       const data = JSON.parse(raw);
       if (Array.isArray(data)) {
         const list = data
-          .filter((it) => it && typeof it === 'object' && isSafeUploadPath(it.path))
+          .filter((it) => it && typeof it === 'object' && isSafeUploadPath(it.path) && !isVideoSource(it.path))
           .slice(0, HERO_MAX)
           .map((it) => ({
             path: it.path,
@@ -162,7 +166,7 @@ export function heroImages(repo) {
     } catch { /* 落到旧键 */ }
   }
   const legacy = String(repo.getSetting(HERO_LEGACY_KEYS.url) ?? '').trim();
-  if (!isSafeUploadPath(legacy)) return [];
+  if (!isSafeUploadPath(legacy) || isVideoSource(legacy)) return [];
   const w = String(repo.getSetting(HERO_LEGACY_KEYS.w) ?? '');
   const h = String(repo.getSetting(HERO_LEGACY_KEYS.h) ?? '');
   return [{
@@ -175,11 +179,6 @@ export function heroImages(repo) {
 
 export function heroMode(repo) {
   return String(repo.getSetting(KEYS.heroMode) ?? '').trim().toLowerCase() === 'auto' ? 'auto' : 'manual';
-}
-
-// 首页视频的播放方式：auto = 静音自动循环；click = 停在首帧，点击进灯箱播放（有声音）。
-export function heroVideoMode(repo) {
-  return String(repo.getSetting(KEYS.heroVideoMode) ?? '').trim().toLowerCase() === 'click' ? 'click' : 'auto';
 }
 
 export const settingsFormState = (repo) => ({

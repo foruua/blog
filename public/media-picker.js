@@ -6,7 +6,7 @@
   const request = window.__request;
   const PLACEHOLDER = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
 
-  window.__setupMediaPicker = ({ dialog, body, uploadButton, fileInput, onPick, onUpload } = {}) => {
+  window.__setupMediaPicker = ({ dialog, body, uploadButton, fileInput, onPick, onUpload, accept = 'all' } = {}) => {
     if (!dialog || !body) {
       return { open: () => fileInput?.click(), dispose: () => {} };
     }
@@ -36,6 +36,8 @@
       videoObserver?.disconnect(); videoObserver = null;
     };
     const isVideo = (it) => String(it.mime ?? '').startsWith('video/') || window.__isVideoPath(it.path);
+    // accept: 'image' 时（首页封面）不列视频格：选了也用不上，列表里少一半噪声。
+    const allowed = (it) => accept !== 'image' || !isVideo(it);
 
     const render = () => {
       // 重绘会把所有 <video> 从 DOM 里换掉；旧的 IntersectionObserver 仍持有这些节点，
@@ -43,7 +45,9 @@
       videoObserver?.disconnect();
       videoObserver = null;
       if (!items.length) {
-        body.innerHTML = '<p class="a-dim" role="status">媒体库还是空的 —— 点右上角「上传新文件」传一个。</p>';
+        body.innerHTML = accept === 'image'
+          ? '<p class="a-dim" role="status">媒体库里还没有图片 —— 点右上角「上传新文件」传一张。</p>'
+          : '<p class="a-dim" role="status">媒体库还是空的 —— 点右上角「上传新文件」传一个。</p>';
         return;
       }
       body.innerHTML = '';
@@ -98,7 +102,7 @@
       const out = await res.json();
       if (sessionId !== session || ctrl.signal.aborted || !dialog.open || !dialog.isConnected) return;
       if (!out.ok) throw new Error('无法读取媒体库');
-      items = append ? [...items, ...out.items] : out.items;
+      items = (append ? [...items, ...out.items] : out.items).filter(allowed);
       // 重绘会删掉正在聚焦的「加载更多」；记下来，重绘后把焦点还给新按钮。
       const moreHadFocus = document.activeElement?.dataset?.pickerMore === '1';
       render();

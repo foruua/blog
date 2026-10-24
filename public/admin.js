@@ -324,7 +324,6 @@
     const input = $('heroImages');
     const list = $('heroList');
     const modeRow = $('heroModeRow');
-    const videoModeRow = $('heroVideoModeRow');
     const x = $('heroX');
     const state = $('heroState');
     const textDialog = $('heroTextDialog');
@@ -341,10 +340,8 @@
 
     let dragged = null;         // 正在拖的格子
     let suppressClick = false;  // 拖完紧接着的那次 click 要吞掉，别误触移除叉
-    // 一枚缩略格：原比例图/视频 + 拖拽柄·序号·封面 + 移除叉。「封面」= 第一位。标记要与 views/system.js 首屏那份一致。
-    // 视频判断与封面比例都在 request.js 里（与前台、媒体库、服务端 heroAspectOf 同一口径）。
-    const isVideoPath = window.__isVideoPath;
-    const heroAr = () => window.__heroAspect(items);
+    // 一枚缩略格：原比例图 + 拖拽柄·序号·封面 + 移除叉。「封面」= 第一位。标记要与 views/system.js 首屏那份一致。
+    // 封面只收图片（首页封面视频的能力已删除），比例固定 16:9，与前台同一套。
     const tile = (it, i) => {
       const fig = document.createElement('figure');
       fig.className = 'a-hero-item';
@@ -352,26 +349,11 @@
       fig.dataset.path = it.path;
       fig.title = '拖动排序';
 
-      let shot;
-      if (isVideoPath(it.path)) {
-        shot = document.createElement('video');
-        shot.className = 'a-hero-shot';
-        shot.muted = true;
-        shot.playsInline = true;
-        shot.preload = 'metadata';
-        shot.src = `${it.path}#t=0.1`;
-        const play = document.createElement('span');
-        play.className = 'a-hero-play';
-        play.setAttribute('aria-hidden', 'true');
-        play.textContent = '▶';
-        fig.append(play);
-      } else {
-        shot = document.createElement('img');
-        shot.className = 'a-hero-shot';
-        shot.decoding = 'async';
-        shot.alt = '';
-        shot.src = thumbs[it.path] || it.path;
-      }
+      const shot = document.createElement('img');
+      shot.className = 'a-hero-shot';
+      shot.decoding = 'async';
+      shot.alt = '';
+      shot.src = thumbs[it.path] || it.path;
       shot.draggable = false;   // 让拖拽从整个格子开始
       // 宽高写死，不写图片加载完会把下面的表单顶动（CLS）
       if (/^\d+$/.test(String(it.w)) && /^\d+$/.test(String(it.h))) {
@@ -442,29 +424,30 @@
       plus.textContent = '＋';
       const txt = document.createElement('span');
       txt.className = 'a-hero-add-txt';
-      txt.textContent = '添加图片/视频';
+      txt.textContent = '添加图片';
       btn.append(plus, txt);
       return btn;
     };
 
     const render = () => {
       input.value = JSON.stringify(items);
-      list.style.setProperty('--hero-ar', heroAr());
+      list.style.setProperty('--hero-ar', '16 / 9');
       const add = addTile();
       list.replaceChildren(...items.map(tile), ...(add ? [add] : []));
       list.classList.toggle('is-empty', !items.length);
       x.hidden = !items.length;
       modeRow.hidden = items.length < 2;
-      if (videoModeRow) videoModeRow.hidden = !items.some((it) => isVideoPath(it.path));
     };
 
-    // 媒体库选择器（与编辑器同一份实现）：选中的图片/视频加进封面列表，点保存才生效。
+    // 媒体库选择器（与编辑器同一份实现）：选中的图片加进封面列表，点保存才生效。视频不入封面，选择器里也不列。
     heroPicker = window.__setupMediaPicker?.({
       dialog: $('a-picker'),
       body: $('a-picker-body'),
       uploadButton: $('a-picker-upload'),
       fileInput: file,
+      accept: 'image',
       onPick: (it) => {
+        if (window.__isVideoPath(it.path)) { state.textContent = '首页封面只能用图片'; return; }
         if (items.length >= MAX) { state.textContent = `最多 ${MAX} 项，先移掉几项再选`; return; }
         if (items.some((x) => x.path === it.path)) { state.textContent = '这个已经在列表里了'; return; }
         items.push({ path: it.path, w: String(it.width ?? ''), h: String(it.height ?? '') });
@@ -619,6 +602,8 @@
           // 原始文件直传（与编辑器插图同一份实现）：服务端流式落临时文件，大视频不整块进 Node 堆。
           const out = await window.__uploadRaw(f);
           if (!out.ok) { state.textContent = `上传失败：${out.error}`; failed++; continue; }
+          // 上传接口图片、视频都收；封面只要图片（也挡住把 .mp4 改名成 .png 混进来的情况）。
+          if (window.__isVideoPath(out.url)) { state.textContent = '首页封面只能用图片，视频请放在正文里'; continue; }
           if (items.some((it) => it.path === out.url)) { state.textContent = '这个已经在列表里了'; continue; }
           items.push({ path: out.url, w: String(out.width ?? ''), h: String(out.height ?? '') });
           thumbs[out.url] = out.thumbnail || '';

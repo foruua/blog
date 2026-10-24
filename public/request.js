@@ -24,19 +24,9 @@
   window.__csrf = () => document.querySelector('input[name="_csrf"]')?.value ?? '';
   window.__reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  // 视频判断：正文渲染（src/media/video.js）、后台封面、媒体库格子都按同一份扩展名认。
+  // 视频判断：正文渲染（src/media/video.js）、媒体库格子、选择器都按同一份扩展名认。
   const VIDEO_RE = /\.(?:mp4|webm|mov|m4v)(?:$|[?#])/i;
   window.__isVideoPath = (p) => VIDEO_RE.test(String(p ?? ''));
-
-  // 首页封面比例：与 src/media/video.js 的 heroAspectOf 同口径。后台改封面时要即时算，不能等服务端。
-  window.__heroAspect = (items = []) => {
-    const video = (items ?? []).find((it) => window.__isVideoPath(it?.path) && Number(it.w) > 0 && Number(it.h) > 0);
-    const a = Math.max(1, Math.round(Number(video?.w) || 16));
-    const b = Math.max(1, Math.round(Number(video?.h) || 9));
-    const gcd = (x, y) => (y ? gcd(y, x % y) : x);
-    const g = gcd(a, b);
-    return `${a / g} / ${b / g}`;
-  };
 
   // 原始文件直传（编辑器插图、首页封面共用）：服务端流式落临时文件，视频 128MB 走 600 秒窗口，
   // 别被 15 秒的默认超时先掐断。返回服务端 JSON，调用方自己判 out.ok。

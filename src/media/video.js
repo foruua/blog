@@ -8,16 +8,6 @@ export const videoExtension = (mime) => VIDEO_EXT[mime] ?? 'mp4';
 const VIDEO_SRC_RE = /\.(?:mp4|webm|mov|m4v)(?:$|[?#])/i;
 export const isVideoSource = (src) => typeof src === 'string' && VIDEO_SRC_RE.test(src);
 
-// 首页封面统一比例：优先用列表里的第一段视频，没有视频则 16:9。前后台共用，避免两边各算一套。
-export function heroAspectOf(items = []) {
-  const video = (items ?? []).find((im) => isVideoSource(im?.path) && Number(im.w) > 0 && Number(im.h) > 0);
-  const a = Math.max(1, Math.round(Number(video?.w) || 16));
-  const b = Math.max(1, Math.round(Number(video?.h) || 9));
-  const gcd = (x, y) => (y ? gcd(y, x % y) : x);
-  const g = gcd(a, b);
-  return { ratio: `${a / g}/${b / g}`, style: `${a / g} / ${b / g}` };
-}
-
 const MP4_AUDIO_IMAGE_BRANDS = new Set(['M4A ', 'M4B ', 'M4P ', 'heic', 'heix', 'mif1', 'msf1', 'avif']);
 
 function readEbmlVint(buf, offset, keepMarker) {

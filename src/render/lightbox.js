@@ -2,7 +2,7 @@ import { mediaFallback } from '../media/variants.js';
 import { esc, decodeHtmlAttribute, htmlAttr } from '../util/text.js';
 import { EXPAND_ICON } from './icons.js';
 
-/** 灯箱（点图看大图 / 点封面视频播放）。弹窗纯静态，交互全在 public/app.js（监听 [data-lightbox]、用 data-full 取展示图/视频、按 data-lightbox 串同组媒体翻页）；哪些媒体能点完全由标记决定。 */
+/** 灯箱（点图看大图 / 正文视频放大播放）。弹窗纯静态，交互全在 public/app.js（监听 [data-lightbox]、用 data-full 取展示图/视频、按 data-lightbox 串同组媒体翻页）；哪些媒体能点完全由标记决定。 */
 
 export const lightboxHtml = `  <dialog class="lightbox" id="lightbox" aria-label="图片查看">
     <button type="button" class="lb-close" data-lb-close aria-label="关闭图片查看"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M4.4 4.4 11.6 11.6M11.6 4.4 4.4 11.6"/></svg></button>

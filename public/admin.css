@@ -976,19 +976,6 @@ video.a-media-detail-preview { width: 100%; object-fit: contain; background: #00
   background: var(--bg-soft);
   border: 1px solid var(--card-bd); border-radius: var(--radius-sm);
 }
-.a-hero-item video {
-  display: block; width: 100%; height: auto; aspect-ratio: var(--hero-ar, 16 / 9);
-  object-fit: cover;
-  background: #000;
-  border: 1px solid var(--card-bd); border-radius: var(--radius-sm);
-}
-/* 视频格上的播放标记：缩略图本身就是视频首帧，给一枚小三角提示「这不是静态图」。与拖拽/移除错开。 */
-.a-hero-play {
-  position: absolute; top: .35rem; left: .35rem; z-index: 1;
-  display: grid; place-items: center; width: 1.35rem; height: 1.35rem;
-  font-size: .7rem; color: #fff; background: rgb(0 0 0 / .55);
-  border-radius: var(--radius-pill); pointer-events: none;
-}
 .a-hero-item.is-dragging { opacity: .45; }
 .a-hero-item.is-dragging img { cursor: grabbing; }
 /* 落点提示：在将要插到的那一格左缘竖一条金线（拖动时不动拖拽源，只给这个提示）。 */

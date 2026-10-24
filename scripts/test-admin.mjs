@@ -520,36 +520,24 @@ let uploadedRawVideoUrl = '';
     !rowGone && !xTrash && (await fetch(BASE + xUrl)).status === 200,
     `row=${rowGone} trash=${xTrash}`);
 
-  // 封面视频：单条时静音自动播、点击进灯箱；后台那一格用 <video> 预览，文件选择器收视频。
+  // 封面视频已下线：视频路径写进首页封面会被服务端拒收，页面上不再有任何封面视频的标记与开关。
   const savedVideoHero = await save({ images: JSON.stringify([{ path: uploadedVideoUrl, w: '1920', h: '1080' }]) });
+  // 拒收是把表单重渲染回来（不是 303），提示只在这一次响应里，所以要在 POST 的响应体里找。
+  const videoPostHtml = await savedVideoHero.text();
   const homeVideo = await (await fetch(BASE + '/')).text();
   const sysVideo = await html('/admin/system');
-  check('T8j-6v 视频可设为封面：首页 <video> 静音循环自动播并挂灯箱，后台格子也能预览',
-    savedVideoHero.status === 303
-    && homeVideo.includes(`<video class="hero-video" src="${uploadedVideoUrl}"`)
-    && homeVideo.includes('muted loop playsinline autoplay')
-    && homeVideo.includes('data-lightbox="hero" data-media="video"')
-    && homeVideo.includes('width="1920" height="1080"')
-    && homeVideo.includes('style="--hero-ar: 16 / 9"')
-    && !/<img[^>]*mp4/.test(homeVideo)
-    && !homeVideo.includes('<link rel="preload" as="image"')
-    && sysVideo.includes(`<video class="a-hero-shot"`)
-    && sysVideo.includes(`src="${uploadedVideoUrl}#t=0.1"`)
-    && sysVideo.includes('id="heroList" style="--hero-ar: 16 / 9"')
-    && sysVideo.includes('id="heroFile" accept="image/png,image/jpeg,image/gif,image/webp,video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov"'),
-    `status=${savedVideoHero.status}`);
-
-  const savedClickHero = await save({ images: JSON.stringify([{ path: uploadedVideoUrl, w: '1920', h: '1080' }]), videoMode: 'click' });
-  const homeClick = await (await fetch(BASE + '/')).text();
-  const sysClick = await html('/admin/system');
-  check('T8j-6w 首页视频可切换为「点击播放」：不 autoplay、挂播放标记，设置页记住选项',
-    savedClickHero.status === 303
-    && homeClick.includes('data-video-mode="click"')
-    && !homeClick.includes(' autoplay')
-    && homeClick.includes('class="hero-play"')
-    && sysClick.includes('id="heroVideoModeRow"') && !/id="heroVideoModeRow"[^>]*hidden/.test(sysClick)
-    && /<option value="click"[^>]*selected/.test(sysClick),
-    `status=${savedClickHero.status}`);
+  check('T8j-6v 视频不能再当封面：服务端拒收并给出提示，首页仍是站名，设置页没有视频格/播放开关/视频文件类型',
+    savedVideoHero.status === 200
+    && videoPostHtml.includes('首页封面只能是图片')
+    && !sysVideo.includes('id="heroVideoModeRow"')
+    && !sysVideo.includes('class="a-hero-shot" muted')
+    && !sysVideo.includes('video/mp4')
+    && sysVideo.includes('accept="image/png,image/jpeg,image/gif,image/webp"')
+    && /<h1 class="hero-title">[^<]+<\/h1>/.test(homeVideo)
+    && !homeVideo.includes('hero-video')
+    && !/class="hero-[^"]*"[^>]*\bvideo\b/.test(homeVideo)
+    && !/<img[^>]*mp4/.test(homeVideo),
+    `status=${savedVideoHero.status} err=${videoPostHtml.includes('首页封面只能是图片')}`);
 
   const PNG_2x2 = await sharp({ create: { width: 2, height: 2, channels: 4, background: '#0033ff' } }).png().toBuffer();
   const fdY = new FormData();

@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { SITE, FRIENDS_PER_PAGE, FRIENDS_PER_SOURCE, LINKS_PER_PAGE } from '../config.js';
-import { settings, heroImages, heroMode, heroVideoMode, heroLayout, heroTone } from '../settings.js';
+import { settings, heroImages, heroMode, heroLayout, heroTone } from '../settings.js';
 import { layout, listBlock, emptyPage, masthead, entriesBlock, moreLink, defaultOgImage } from '../render/layout.js';
 import { notesStream, splitImages } from '../render/notes.js';
 import { withLightbox } from '../render/lightbox.js';
@@ -199,7 +199,6 @@ export function publicRoutes(repo, { comments, crypt, media = null, feeds = null
   // 首页封面：hero() 与 heroPreload() 各要一份，heroMode() 又多一次 settings 查询——都收进请求缓存。
   const heroImgsOf = (c) => settingOf(c, 'heroImages', () => heroImages(repo));
   const heroModeOf = (c) => settingOf(c, 'heroMode', () => heroMode(repo));
-  const heroVideoModeOf = (c) => settingOf(c, 'heroVideoMode', () => heroVideoMode(repo));
   const heroLayoutOf = (c) => settingOf(c, 'heroLayout', () => heroLayout(repo));
   const heroToneOf = (c) => settingOf(c, 'heroTone', () => heroTone(repo));
 
@@ -209,7 +208,6 @@ export function publicRoutes(repo, { comments, crypt, media = null, feeds = null
       imgs: heroImgsOf(c),
       layoutKey: heroLayoutOf(c),
       tone: heroToneOf(c),
-      videoMode: heroVideoModeOf(c),
       mode: heroModeOf(c),
       mediaOf: (src) => mediaOf(c, src),
       recentHtml: recent(c),
