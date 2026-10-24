@@ -115,7 +115,10 @@ try {
   console.log('✓ 同表单提交互斥、动作值保留、HTTP/网络失败恢复且不重放、按钮图标恢复');
 
   await page.evaluate(() => {
+    // 复制有两条路（见 ui.js 的 copyText）：Clipboard API → execCommand 兜底。两条都失败才该弹「手动复制」。
+    // 只打桩 Clipboard 的话，headless 里 execCommand('copy') 会返回 true，弹窗根本不会出现。
     navigator.clipboard.writeText = async () => { throw new Error('clipboard unavailable'); };
+    document.execCommand = () => false;
     const button = document.createElement('button'); button.type = 'button'; button.dataset.copy = '/uploads/test.png'; button.textContent = '复制';
     document.body.append(button); button.click();
   });
