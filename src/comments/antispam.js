@@ -49,8 +49,6 @@ export function createAntispam({ windowMs = 10 * 60 * 1000, maxPerWindow = 5 } =
       hits.set(bucket, kept);
       return false;
     },
-
-    sweep,
   };
 }
 

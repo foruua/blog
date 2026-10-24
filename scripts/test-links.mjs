@@ -589,7 +589,7 @@ try {
   check('G5 换版式的端点在（已撤掉）', goneRes.status === 404, String(goneRes.status));
 
   // H. 「立即检查全部」的进度条：一轮要跑几秒到几十秒，页面是静态快照，不自己更新站主只会盯着「0 / 9」以为卡死（友圈批量订阅踩过同一个坑）。
-// POST 带 x-requested-with: fetch 换 204，客户端每 1s 拉片段换进度条，跑完 pjax 刷整页；这里测服务端那半，客户端见 output/links/verify-check-progress.mjs。
+// POST 带 x-requested-with: fetch 换 204，客户端每 1s 拉片段换进度条，跑完 pjax 刷整页；这里测服务端那半。
   const progressOf = (page) => progressFragment(page, 'a-links-progress');
   const fragment = () => req('/admin/links/check-progress').then((r) => r.text());
   const disabledCheckAll = (page) => /data-links-check-all[\s\S]*?<button[^>]*disabled/.test(page);

@@ -9,7 +9,7 @@
  * 强调色明度也只做 ±0.02 的微调，并且每次生成都用实际纸面再钳一遍对比度。语义色
  * （--danger / --warn）不在这里 —— 它们跟着色相转的话，删除按钮会变紫。
  *
- * 这是经典脚本（非 ESM）：ui.js 首次需要时按需注入，挂 window.PaletteLib，无依赖、无 DOM 访问。
+ * 这是经典脚本（非 ESM）：ui.js 首次需要时按需注入，挂 globalThis.PaletteLib，无依赖、无 DOM 访问。
  * Node 侧（scripts/test-palette.mjs）用 vm 执行同一份文件，不复制逻辑。
  */
 (function (root) {

@@ -185,8 +185,8 @@ export function createRefresher({ feeds, keep = DEFAULT_KEEP, log = () => {}, no
     inspectSource: (url) => schedule(() => load({ url }, { timeoutMs: TIMEOUT_MS })),
     refreshOne,
     refreshAll,
-    // 有没有「早就该刷新」的源：以前预留给前台访问时顺手催一次，但 /friends 明确不让匿名请求驱动对外抓取，
-    // 这个入口从未接线；需要时由后台定时器或站点定时任务调用 refreshAll 即可。
+    // 整轮刷新是否在跑：测试用它断言并发调用复用同一轮；关闭流程不看它（drain 负责）。
+    // 设计约束：/friends 不让匿名请求驱动对外抓取，需要刷新时由后台定时器调用 refreshAll。
     busy: () => Boolean(inFlight),
     // 关闭进程前等待所有在飞轮次/单源刷新落库，避免 close(db) 之后还有 markOk/markFail 写入。
     drain: () => Promise.allSettled([

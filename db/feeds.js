@@ -58,13 +58,6 @@ export function createFeedRepo(db) {
     markFail: db.prepare(`UPDATE feeds SET last_fetch_at = ?, fail_count = fail_count + 1, last_error = ?
       WHERE id = ?`),
     resetAllCaches: db.prepare('UPDATE feeds SET etag = NULL, last_modified = NULL'),
-    itemsBySource: db.prepare(rankedQuery('')),
-    // 分页条目裁剪：本页朋友的 (feed_ts, feed_id) 须落在 [until, before)——until=本页队尾（含），before=上一页队尾（不含，第 1 页没有）。条目层排序不变（ts DESC, id DESC）。
-    itemsBySourceUntil: db.prepare(rankedQuery(`
-       AND (feed_ts > ? OR (feed_ts = ? AND feed_id >= ?))`)),
-    itemsBySourceAfter: db.prepare(rankedQuery(`
-       AND (feed_ts < ? OR (feed_ts = ? AND feed_id < ?))
-       AND (feed_ts > ? OR (feed_ts = ? AND feed_id >= ?))`)),
     friendsQueueFirst: db.prepare(`SELECT feed_id, ts FROM (${FRIENDS_QUEUE})
        ORDER BY ts DESC, feed_id DESC LIMIT ?`),
     friendsQueueAfter: db.prepare(`SELECT feed_id, ts FROM (${FRIENDS_QUEUE})
@@ -145,16 +138,6 @@ export function createFeedRepo(db) {
     };
   }
 
-  function itemsBySource({ perSource = FRIENDS_PER_SOURCE, before = null, until = null } = {}) {
-    // 整页取数（没分页的调用方仍在用，行为不变）。
-    if (!before && !until) return q.itemsBySource.all(perSource);
-    if (!until) return [];
-    const bound = (c) => [c.ts, c.ts, c.feedId];
-    return before
-      ? q.itemsBySourceAfter.all(perSource, ...bound(before), ...bound(until))
-      : q.itemsBySourceUntil.all(perSource, ...bound(until));
-  }
-
   // 分页时只扫本页朋友的条目。旧实现用窗口函数给所有启用源排名，再丢掉不在本页的行；
   // 订阅多时每翻一页都要全表排名。这里把 feed_id 过滤下推到 CTE，只给本页 20 个源算 rn。
   const itemsForFeedsStmts = new Map();
@@ -216,7 +199,6 @@ export function createFeedRepo(db) {
     resetAllCaches: () => q.resetAllCaches.run().changes,
 
     saveItems,
-    itemsBySource,
     itemsForFeeds,
     friendsPageFeeds,
     countItemsOf: (feedId) => q.countItemsOf.get(Number(feedId)).n,

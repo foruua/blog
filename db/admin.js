@@ -88,7 +88,7 @@ export function createAdminRepo(db) {
   let usageSignature = '', usageIndex;
   const usage = (items) => {
     const signature = `${usageRevision.get()?.value ?? '0'}:${externalChanges.get().data_version}`;
-    // Node 22 的 DatabaseSync 没有 isTransaction 属性；之前写成 === false 会让缓存永远失效。
+    // 旧版 Node 22 的 DatabaseSync 没有 isTransaction 属性（undefined），所以用 !== 而非 ===：
     const canCache = db.isTransaction !== true;
     if (!canCache || signature !== usageSignature || !usageIndex) {
       usageIndex = indexUploads(q.mediaReferences.all(), references);

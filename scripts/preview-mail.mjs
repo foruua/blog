@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /* 邮件版式预览：把这四封信渲染成静态 HTML，用浏览器打开看效果。npm run preview:mail [目录]，默认写 data/mail-preview/。
-// 只走 src/email/ 的模板，不连数据库、不发信、不碰真实配置；改版式(layout.js)/文案(letters.js)时用它反复看最省事。邮件客户端的深色模式靠 prefers-color-scheme，浏览器里能一并验证。 */
+   只走 src/email/ 的模板，不连数据库、不发信、不碰真实配置；改版式(layout.js)/文案(letters.js)时用它反复看最省事。邮件客户端的深色模式靠 prefers-color-scheme，浏览器里能一并验证。 */
 
 import fs from 'node:fs';
 import path from 'node:path';

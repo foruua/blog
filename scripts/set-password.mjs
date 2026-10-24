@@ -8,7 +8,7 @@ import { hashPassword, verifyPassword, clearPassword } from '../src/admin/auth.j
 import { DB_FILE, CONTENT_DIR, UPLOADS_DIR } from '../src/config.js';
 
 /* 密码只从**终端交互输入**或**标准输入**来，不接受命令行参数：`npm run set-password -- '明文密码'` 会写进 shell 历史、还在 `ps` 里对本机任何用户可见 —— 密码进 argv 就等于进了共享日志。
-// 自动化就喂标准输入：printf '%s' "$NEW_PASSWORD" | npm run set-password。用法：npm run set-password（交互输入两次）/ printf '%s' "$PW" | npm run set-password / npm run set-password -- --clear（清除密码）。 */
+   自动化就喂标准输入：printf '%s' "$NEW_PASSWORD" | npm run set-password。用法：npm run set-password（交互输入两次）/ printf '%s' "$PW" | npm run set-password / npm run set-password -- --clear（清除密码）。 */
 const args = process.argv.slice(2);
 const extra = args.filter((a) => a !== '--clear');
 if (extra.length) {

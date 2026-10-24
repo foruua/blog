@@ -178,7 +178,7 @@ BLOG_DEPLOY_NODE=/opt/node24/bin/node \
 ./scripts/deploy-tencent.sh
 ```
 
-脚本会：准备独立发布目录 → 以 `blog` 用户 `npm ci` / `build:assets` / `npm prune --omit=dev` → 语法检查 → 停服并做 `pre-deploy` 备份 → 同步代码 → `backfill-media` → 启动 → 本机健康检查 → 恢复演练 → 通过域名直连新机做 HTTPS 健康检查 → 清理旧发布。`npm` 的 `PATH` 会优先使用 `BLOG_DEPLOY_NODE` 所在目录，保证安装依赖和运行时是同一个 Node。
+脚本会：准备独立发布目录 → 以 `blog` 用户 `npm ci` / `build:assets` / `npm prune --omit=dev` → 语法检查 → 停服并做 `pre-deploy` 备份 → 同步代码 → `backfill-media` → 启动 → 本机健康检查 → 恢复演练 → 通过域名直连新机做 HTTPS 健康检查 → 清理旧发布。`npm` 的 `PATH` 会优先使用 `BLOG_DEPLOY_NODE` 所在目录，保证安装依赖和运行时是同一个 Node。另有 `DEPLOY_PORT` / `DEPLOY_TARGET_HOST` / `BLOG_DEPLOY_HEALTH` 可覆盖（一般不用动）。
 
 失败会自动回滚到上一份完整源码。手动回滚：
 
@@ -212,7 +212,7 @@ BLOG_OFFSITE_DIR=$HOME/.local/share/blog-hosting/offsite-backups \
 ./scripts/pull-offsite.sh
 ```
 
-`BLOG_OFFSITE_SOURCE` 缺失时脚本直接以退出码 2 中止（不再有硬编码的兜底主机）；`BLOG_OFFSITE_KEY` 留空则走 ssh-agent / `~/.ssh/config`。脚本用 `rsync --delete` 镜像生产机的 `/srv/blog/state/data/backups`，内容哈希命名的资产包未变化时不会重传；传输有 `--timeout`/`--contimeout`，网络半死不会把下一轮锁死；最新备份超过 48 小时会以非零退出。macOS 上用 launchd 每 6 小时跑一次：
+`BLOG_OFFSITE_SOURCE` 缺失时脚本直接以退出码 2 中止（不再有硬编码的兜底主机）；`BLOG_OFFSITE_KEY` 留空则走 ssh-agent / `~/.ssh/config`。脚本用 `rsync --delete` 镜像生产机的备份目录（`BLOG_OFFSITE_REMOTE_PATH` 可覆盖，默认 `/srv/blog/state/data/backups/`），内容哈希命名的资产包未变化时不会重传；传输有 `--timeout`/`--contimeout`，网络半死不会把下一轮锁死；最新备份超过 `BLOG_OFFSITE_MAX_AGE_SEC`（默认 48 小时）会以非零退出。macOS 上用 launchd 每 6 小时跑一次：
 
 `~/Library/LaunchAgents/me.uua.offsite.plist`：
 

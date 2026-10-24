@@ -45,7 +45,6 @@ export function registerFeedRoutes(app, { feeds, links = null, refresher, repo, 
     } catch { return { url: '' }; }
   }
 
-  // 「前台显示几篇」：0 = 默认 3 篇；上限 100 与 FEED_KEEP 一致，填错退回原值。
   // 协议必须在落库前挡：抓取层也会拒，但那时源已写进表，站主会看到一条永远失败的记录。
   const schemeOk = (url) => /^https?:\/\//i.test(url);
 

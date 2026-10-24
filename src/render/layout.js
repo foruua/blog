@@ -358,7 +358,7 @@ function layoutContext({
 }
 
 /** 主题只覆盖页面模板时，复用 themeChrome 已经算好的导航/head，只替换正文相关字段。 */
-export function withMainContext(ctx, main) {
+function withMainContext(ctx, main) {
   return {
     ...ctx,
     main,

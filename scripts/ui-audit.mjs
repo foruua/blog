@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// UI 细节审计：对比度/横向溢出/点击目标/字号/图片尺寸。`npm run test:ui` 自建隔离实例（含后台），也是 `npm test` 最后一个套件。
+// UI 细节审计：对比度/横向溢出/点击目标/字号/图片尺寸。`npm run test:ui` 自建隔离实例（含后台），也是 `npm test` 最后一个功能阶段（其后是浏览器套件）。
 // 隔离模式不碰真实数据（VACUUM INTO 快照 → 临时目录 → 临时口令 → 独立端口 → 用完删除）；缺 playwright/浏览器必须明确跳过，绝不假装通过。
 import fs from 'node:fs';
 import os from 'node:os';

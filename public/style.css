@@ -93,7 +93,7 @@ header.site .row-solo { justify-content: center; }
   animation: sealStamp .55s var(--ease) both;
 }
 /* ① 整枚印框与字标齐平：vertical-align:middle 定基调（跟着字体 x 高走），再补 1px —— 那 1px 是**合成期整 CSS 像素吸附**的残差，不随字号缩放，故用 px。原先写死 -.18em 是把印面字母的对齐当成了整框对齐；用 transform 而非 top/vertical-align（合成层不受吸附影响）。 */
-/* ② 印面里那个字母要单独校两处 —— 都是「盒子居中 ≠ 看上去居中」： · 竖：盒子按**字体框**居中，Songti 这类中日韩衬线字体框高 1.4em、行盒只有 1.02em， 基线近底部；而「u」只有 x 高、没有上伸部，墨迹就掉进下半个印面。把字形单独上提 .11em 让墨迹上下等距；用 em 不用 px —— --brand-size 随视口在 18.8–21.3px 浮动。 这条照**首选字体**（Songti SC）校，换字体就会跑（Georgia / Times 偏 1.2 / 0.5px）—— 跨字体差是字形比例差，纯 CSS 无解；哪天真换衬线，重跑 seal-inner-transform.mjs 取值。 用 transform: translateY() 而非 top：相对位移在合成时会被**吸附到整 CSS 像素**， 一个只吃整数的旋钮没法把三档字号同时校进半像素；transform 走合成层、平滑可调。 代价：伪元素要 display:inline-block（transform 对非替换行内元素不生效）。 · 横：字距是继承来的，单个字形结尾那 0.055em 也算进行内宽度、会把「u」左推 0.8px， 印面里只有一个字母，不吃这条字距，故 letter-spacing: normal。 */
+/* ② 印面里那个字母要单独校两处 —— 都是「盒子居中 ≠ 看上去居中」： · 竖：盒子按**字体框**居中，Songti 这类中日韩衬线字体框高 1.4em、行盒只有 1.02em， 基线近底部；而「u」只有 x 高、没有上伸部，墨迹就掉进下半个印面。把字形单独上提 .11em 让墨迹上下等距；用 em 不用 px —— --brand-size 随视口在 18.8–21.3px 浮动。 这条照**首选字体**（Songti SC）校，换字体就会跑（Georgia / Times 偏 1.2 / 0.5px）—— 跨字体差是字形比例差，纯 CSS 无解；哪天真换衬线，这条要按新字体重新校。 用 transform: translateY() 而非 top：相对位移在合成时会被**吸附到整 CSS 像素**， 一个只吃整数的旋钮没法把三档字号同时校进半像素；transform 走合成层、平滑可调。 代价：伪元素要 display:inline-block（transform 对非替换行内元素不生效）。 · 横：字距是继承来的，单个字形结尾那 0.055em 也算进行内宽度、会把「u」左推 0.8px， 印面里只有一个字母，不吃这条字距，故 letter-spacing: normal。 */
 .brand .bseal::before {
   content: attr(data-seal);
   display: inline-block;

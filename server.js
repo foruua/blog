@@ -56,11 +56,11 @@ import { runWithThemeRequest, themeRequest, THEME_PREVIEW_COOKIE } from './src/t
 import { recordThemeError } from './src/themes/errors.js';
 import { getCookie } from 'hono/cookie';
 
-// 「可长期缓存」的静态资源；清单必须与 layout.js 加 ?v= 的那份同一数组，否则新增资源必漏。
+// 「可长期缓存」的静态资源；清单直接 import 自 layout.js（与加 ?v= 的是同一数组，别再复制一份）。
 const IMMUTABLE_ASSET_RE = new RegExp(`^/(${VERSIONED_ASSETS.map((f) => f.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})$`);
 const isImmutablePath = (p) => IMMUTABLE_ASSET_RE.test(p) || p.startsWith('/uploads/') || p.startsWith('/theme-assets/');
 
-// CSP：script-src 只放行自身脚本与两段内联引导的 sha256 —— 主题/配色必须在 <head>（外链会闪白）；style-src 需 unsafe-inline。
+// CSP：script-src 只放行自身脚本与内联引导的 sha256（前台/后台共用同一常量，Set 去重）——主题/配色必须在 <head>（外链会闪白）；style-src 需 unsafe-inline。
 const INLINE_SCRIPT_HASHES = [...new Set([PUBLIC_THEME_BOOT, ADMIN_THEME_BOOT])]
   .map((src) => `'sha256-${crypto.createHash('sha256').update(src, 'utf8').digest('base64')}'`);
 const CSP = [
@@ -415,7 +415,7 @@ function scheduleBackup(delayMs = 0) {
     }
     let released = false;
     const releaseWrites = () => { if (!released) { released = true; resumeBackgroundWrites(); } };
-    // 自检 + 异地 rsync 允许 10 分钟；给 worker 留足余量，别再 3 分钟就把上传中的异地备份杀掉。
+    // 自检 + 异地 rsync 允许 15 分钟；给 worker 留足余量，别再 3 分钟就把上传中的异地备份杀掉。
     const timer = setTimeout(() => {
       console.error(JSON.stringify({ event: 'backup.timeout' }));
       recordBackupFailure('备份超时（15 分钟）');

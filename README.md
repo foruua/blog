@@ -75,7 +75,7 @@ sudo env BLOG_DEPLOY_APP_ROOT=/srv/blog \
 | `src/feeds`、`src/media`、`src/avatar` | 订阅抓取解析、图片处理、头像缓存           |
 | `db`                                 | SQLite 数据访问、事务与 SQL 迁移     |
 | `public`                             | 浏览器脚本和样式                   |
-| `themes`                             | 全部主题（Liquid 模板包）           |
+| `themes`                             | 全部主题（Liquid 模板包；自带 classic 只有 layout 外壳） |
 | `scripts`                            | 测试、备份、恢复、维护及部署工具           |
 | `content`                            | Markdown 原始内容              |
 | `data`                               | 数据库、上传文件、备份与运行时数据          |
@@ -93,7 +93,7 @@ date: 2026-10-11 10:00
 
 文章放在 `content/posts`，笔记放在 `content/notes`，固定页放在 `content/pages`。未填写日期或 `draft: true` 的内容为草稿。默认站点时区为 UTC+8，可配置为 UTC 或 UTC+9。后台编辑也写回 Markdown，数据库保存索引、修订和评论。设置页的「内容维护」可一键清空全站（文章 / 笔记 / 固定页）的修订历史与旧链接（301 映射），只删历史表，不动当前正文与评论。
 
-后台「外观」页可以安装、启用、预览和配置主题。所有主题统一放在 `themes/<id>/`，没有「内置 / 用户安装」两套目录：上传的主题直接进 `themes/`，随完整备份一起归档。站点始终有一个主题在用；使用中的主题不能删除，必须先启用其它主题。主题是 Liquid 模板包，不执行服务端 JavaScript；按 `home`、`single-post`、`page`、`archive`、`search`、`404` 等模板层级覆盖页面，缺失的模板会回退，渲染失败也会自动兜底，不会白屏。结构、模板层级、上下文与安全边界见 [`docs/themes.md`](docs/themes.md)；`scripts/fixtures/fixture/` 是覆盖全部模板层级的可运行骨架，复制到 `themes/<id>/` 改名即可起步。
+后台「外观」页可以安装、启用、预览和配置主题。所有主题统一放在 `themes/<id>/`，没有「内置 / 用户安装」两套目录：上传的主题直接进 `themes/`，随完整备份一起归档。站点始终有一个主题在用；使用中的主题不能删除，必须先启用其它主题。主题是 Liquid 模板包，不执行服务端 JavaScript；按 `home`、`single-post`、`page`、`archive`、`search`、`404` 等模板层级覆盖页面，缺失的模板会回退，渲染失败也会自动兜底，不会白屏。仓库自带的 `classic` 主题只提供 layout 外壳，页面正文由内置渲染输出；结构、模板层级、上下文与安全边界见 [`docs/themes.md`](docs/themes.md)，`scripts/fixtures/fixture/` 是覆盖全部模板层级的可运行骨架，复制到 `themes/<id>/` 改名即可起步。
 
 首页封面是一组图片（可轮播，最多 8 张），只收站内上传的图片。
 
@@ -122,7 +122,7 @@ npm run drill
 
 完整备份由数据库压缩包、内容与附件压缩包、JSON 清单组成，三者一起保留。恢复前停止服务，再运行 `npm run restore`；交互确认后恢复，自动化需显式传入 `--yes`。维护锁用于阻止服务和离线维护脚本同时操作资源，不要手动删除正在使用的锁目录。
 
-附件包按**内容哈希**命名（`<sha>.assets.json.gz`），并被多份备份共享。它占了整份备份的 99%，内容没变时名字、大小、mtime 都不变，rsync 才会真的跳过；跟着备份名走的话每份备份都得重传三十多 MB。清单里的 `assetsName` 记录实际文件名，老备份（`<name>.assets.json.gz`）仍然可恢复。清理时按引用计数回收：只要还有保留的备份指着它，就不会删。
+附件包按**内容哈希**命名（`<sha256 前 32 位>.assets.json.gz`），并被多份备份共享。它占了整份备份的 99%，内容没变时名字、大小、mtime 都不变，rsync 才会真的跳过；跟着备份名走的话每份备份都得重传三十多 MB。清单里的 `assetsName` 记录实际文件名，老备份（`<name>.assets.json.gz`）仍然可恢复。清理时按引用计数回收：只要还有保留的备份指着它，就不会删。
 
 数据库与上传目录含私有数据，发布代码时排除 `data` 和 `.env`。邮件参数见 `src/mail.js`；设置 SMTP 后可在后台系统页测试邮件。评论通知、看门狗与备份告警先写入 `mail_outbox`，失败按 1 分钟 → 5 分钟 → 15 分钟 → 1 小时 → 6 小时 → 12 小时 → 24 小时退避重试（共 8 次后转 failed，`src/mail-outbox.js` 的 `RETRY_STEPS`）；全局默认每小时最多 30 封（`MAIL_MAX_PER_HOUR`），后台「设置」页能看到待发/失败数量与最近错误，并可手动重试失败邮件。
 

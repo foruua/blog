@@ -240,5 +240,5 @@ export function createStaticFiles({ repo, assetVer }) {
     }
   }
 
-  return { sendFile, realRootOf };
+  return { sendFile };
 }

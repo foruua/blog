@@ -79,13 +79,12 @@ export function createLinkRepo(db) {
     publicCount: db.prepare(`SELECT COUNT(*) AS n FROM (${LIVE_CTE}) AS live WHERE ${VISIBLE}`),
     publicStats: db.prepare(`SELECT COUNT(*) AS links, COALESCE(SUM(n), 0) AS comments, MAX(last_at) AS last_at
       FROM (${LIVE_CTE}) AS live WHERE ${VISIBLE}`),
-    // 刊头「最近 N 天几条留言」：起点由调用方算好（与友圈同口径），这里只比下界。必须用 datetime() 夹一层：
-    // recentStartIso 是 ISO（含 T），created_at 是空格形状，直接比字符串会在窗口边界那天比反。只数名单上看得见的站。
-    // 只数「名单上看得见」的站最近 N 天的留言。直接 JOIN link_sites 判断可见性即可：
-    // 当前这条评论本身就证明该 host 有公开评论，不必再跑一遍整条 LIVE_CTE（原先一页要算三次）。
+    // 刊头「最近 N 天几条留言」：起点由调用方算好（与友圈同口径），这里只比下界，只数名单上看得见的站。
     // 不要用 datetime(c.created_at) >= datetime(?)：包住列会让 idx_comments_status(status, created_at) 失效，
     // 评论量上来后每次打开友链页都要扫所有带网址的评论。调用方先把 ISO 转成 SQLite 的
     // YYYY-MM-DD HH:MM:SS，再直接比较列，索引才能用上。
+    // 直接 JOIN link_sites 判断可见性即可：当前这条评论本身就证明该 host 有公开评论，
+    // 不必再跑一遍整条 LIVE_CTE（原先一页要算三次）。
     publicRecent: db.prepare(`SELECT COUNT(*) AS n FROM comments c
       LEFT JOIN link_sites v ON v.host = c.website_host
       WHERE ${PUBLIC_WHERE} AND c.created_at >= ?

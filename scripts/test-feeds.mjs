@@ -1044,7 +1044,7 @@ async function addFeed(url, extra = {}) {
 }
 
 // I. 「刷新全部」的进度条：一轮几十个源要跑几秒到几十秒，页面是静态快照，不自己更新站主会以为卡死。
-// POST 带 x-requested-with: fetch 换 204，客户端每 1s 拉片段换进度条，跑完 pjax 刷整页；这里测服务端那半，客户端见 output/feeds/verify-refresh-progress.mjs。
+// POST 带 x-requested-with: fetch 换 204，客户端每 1s 拉片段换进度条，跑完 pjax 刷整页；这里测服务端那半。
 
 {
   const { feedsProgress } = await import('../src/admin/views/feeds.js');

@@ -98,7 +98,6 @@ export function createRenderer({ imageInfo } = {}) {
   const baseImage = md.renderer.rules.image;
   md.renderer.rules.image = (tokens, idx, opts, env, self) => {
     const token = tokens[idx];
-    const src = token.attrGet('src');
     if (!token.attrGet('loading')) token.attrSet('loading', token.meta?.priority ? 'eager' : 'lazy');
     if (token.meta?.priority) token.attrSet('fetchpriority', 'high');
     if (!token.attrGet('decoding')) token.attrSet('decoding', 'async');
