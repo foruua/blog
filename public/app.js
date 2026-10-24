@@ -322,8 +322,6 @@
     let at = Math.max(0, slides.findIndex((s) => s.classList.contains('is-active')));
     // 悬停时不自动播：手动点击会调 start()，它必须尊重这个状态位，否则悬停着点一下 5 秒后又自己动。
     let hovering = false;
-    // 用户主动暂停后，hoverleave/灯箱关闭都不能把它偷偷重新启动（WCAG 2.2.2）。
-    let userPaused = false;
     // 非当前张在服务端只发 240w 占位小图 + data-src/data-srcset：5 张封面叠在同一视口，
     // loading=lazy 不会真的延迟。轮到它之前再升级成正式候选集；占位图先显示，不会白一下。
     const hydrate = (slide) => {
@@ -364,7 +362,7 @@
     const stop = () => { if (heroTimer) { clearInterval(heroTimer); heroTimer = null; } };
     const start = () => {
       stop();
-      if (lightboxOpen() || userPaused) return;
+      if (lightboxOpen()) return;
       if (hovering) return;
       if (root.dataset.heroMode !== 'auto' || reduceMotion()) return;
       heroTimer = setInterval(() => {
@@ -376,19 +374,6 @@
       }, HERO_AUTO_MS);
     };
     dots.forEach((d, k) => d.addEventListener('click', () => { show(k); start(); }));
-    const pauseBtn = root.querySelector('[data-hero-pause]');
-    if (pauseBtn) {
-      const syncPause = () => {
-        pauseBtn.setAttribute('aria-pressed', String(userPaused));
-        pauseBtn.setAttribute('aria-label', userPaused ? '继续自动轮播' : '暂停自动轮播');
-      };
-      syncPause();
-      pauseBtn.addEventListener('click', () => {
-        userPaused = !userPaused;
-        if (userPaused) stop(); else start();
-        syncPause();
-      });
-    }
     root.addEventListener('pointerenter', () => { hovering = true; stop(); });
     root.addEventListener('pointerleave', () => { hovering = false; start(); });
     root.querySelector('.hero-ctrl')?.removeAttribute('hidden');

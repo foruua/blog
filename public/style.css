@@ -581,33 +581,6 @@ body.mnav-open .mnav-panel { transform: none; opacity: 1; }
 }
 .hero-ctrl[hidden] { display: none; }
 .hero-dots { display: flex; }
-/* 暂停/继续只留图标：文字胶囊压在封面上太抢眼。深色玻璃圆钮保证浅图/深图上都看得清，
-   2rem 视觉尺寸外再用 ::after 扩到 44px 命中区。 */
-.hero-pause {
-  position: relative;
-  width: 1.5rem; height: 1.5rem; margin-left: .4rem; padding: 0;
-  display: grid; place-items: center;
-  color: rgba(23, 22, 15, .78);
-  background: rgba(255, 254, 251, .66);
-  border: 1px solid rgba(23, 22, 15, .2);
-  border-radius: 50%;
-  box-shadow: 0 1px 4px -2px rgba(0, 0, 0, .28);
-  cursor: pointer; pointer-events: auto;
-  opacity: .72;
-  -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
-  transition: opacity var(--dur-1), background-color var(--dur-1), border-color var(--dur-1), transform var(--dur-1);
-}
-.hero-pause::after { content: ""; position: absolute; inset: -.7rem; }
-.hero-pause:hover { opacity: 1; background: rgba(255, 254, 251, .94); border-color: rgba(23, 22, 15, .4); }
-.hero-pause:active { transform: scale(.94); }
-.hero-pause:focus-visible { opacity: 1; outline: none; box-shadow: var(--ring); }
-.hero-pause-ico { width: .52rem; height: .52rem; display: block; }
-.hero-pause-ico path { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
-.hero-pause-ico-play { display: none; }
-.hero-pause-ico-play path { fill: currentColor; stroke: none; }
-.hero-pause[aria-pressed="true"] .hero-pause-ico-pause { display: none; }
-.hero-pause[aria-pressed="true"] .hero-pause-ico-play { display: block; }
-@media (hover: none) { .hero-pause { opacity: .9; } }
 /* 每粒点做成 1.5rem 按钮、里面画 6px 小圆：点按目标 24×24 达标，视觉仍是一粒安静的点。 */
 .hero-dot {
   width: 1.5rem; height: 1.5rem; padding: 0;

@@ -456,13 +456,12 @@ let uploadedRawUrl = '';
 
   const homeMulti = await (await fetch(BASE + '/')).text();
   const slideCount = (homeMulti.match(/class="hero-slide/g) ?? []).length;
-  check('T8j-8 首页渲染轮播：两张 slide、圆点两枚、控制条先隐藏且只剩圆点（无箭头）、自动模式挂在容器上',
+  check('T8j-8 首页渲染轮播：两张 slide、圆点两枚、控制条先隐藏且只剩圆点（无箭头无暂停钮）、自动模式挂在容器上',
     homeMulti.includes('data-hero-carousel') && homeMulti.includes('data-hero-mode="auto"')
     && slideCount === 2 && homeMulti.includes('class="hero-slide is-active"')
     && (homeMulti.match(/class="hero-dot"/g) ?? []).length === 2
     && homeMulti.includes('hero-ctrl" hidden') && homeMulti.includes('data-lightbox="hero"')
-    && homeMulti.includes('class="hero-pause" data-hero-pause') && homeMulti.includes('hero-pause-ico')
-    && !homeMulti.includes('>暂停<')
+    && !homeMulti.includes('hero-pause')
     && homeMulti.includes('style="--hero-ar: 16 / 9"') && homeMulti.includes('style="aspect-ratio:16/9"')
     && !homeMulti.includes('hero-nav'),
     `slides=${slideCount}`);

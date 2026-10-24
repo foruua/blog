@@ -70,8 +70,7 @@ export function heroBlock({ stats = [], imgs = [], mode = 'manual', mediaOf = ()
     const ar = ` style="${heroArStyle}"`;
     title = `<div class="hero-carousel"${ar} data-hero-carousel data-hero-mode="${mode}" role="group" aria-roledescription="图片轮播">
         <h1 class="hero-title hero-figure" aria-label="${esc(heroAlt)}"><span class="hero-track">${slides}</span></h1>
-        <div class="hero-ctrl" hidden><span class="hero-dots">${dots}</span>${mode === 'auto'
-          ? '<button type="button" class="hero-pause" data-hero-pause aria-label="暂停自动轮播" aria-pressed="false"><svg class="hero-pause-ico hero-pause-ico-pause" viewBox="0 0 12 12" aria-hidden="true"><path d="M4 2.3v7.4M8 2.3v7.4"/></svg><svg class="hero-pause-ico hero-pause-ico-play" viewBox="0 0 12 12" aria-hidden="true"><path d="M3.4 2.1 9.5 6l-6.1 3.9Z"/></svg></button>' : ''}</div>
+        <div class="hero-ctrl" hidden><span class="hero-dots">${dots}</span></div>
       </div>`;
   } else {
     title = `<h1 class="hero-title">${esc(SITE.identity)}</h1>`;
