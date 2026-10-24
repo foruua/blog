@@ -40,7 +40,7 @@ BLOG_DEPLOY_NODE=/opt/node24/bin/node \
 
 默认服务名 `blog`、应用目录 `/srv/blog`、发布目录 `/srv/blog-releases`、Node 路径 `/usr/bin/node`，可分别用 `BLOG_DEPLOY_SERVICE`、`BLOG_DEPLOY_APP_ROOT`、`BLOG_DEPLOY_RELEASE_ROOT`、`BLOG_DEPLOY_NODE` 覆盖；服务运行用户默认 `blog`，用 `BLOG_DEPLOY_USER` 改；保留最近 N 个发布版本用 `BLOG_DEPLOY_KEEP_RELEASES`（默认 5，0 = 不清理）。当前生产用官方 Node 24.22.1，装在 `/opt/node24`，所以发布时传 `BLOG_DEPLOY_NODE`，让 `npm ci`、语法检查、备份和恢复演练都用同一个 Node。发布前会做 Node 语法检查（`.js` 与 `.mjs`）、依赖安装（以服务用户执行，不用 root 跑 postinstall）、静态资源预构建（`npm run build:assets`，随后裁掉 devDependencies）、健康检查，失败自动回滚。
 
-生产机的 Nginx 上传上限要覆盖图片上限：`client_max_body_size` 至少 40m（默认单文件 8MB、最多 32MB），`proxy_read_timeout` / `proxy_send_timeout` 放到 300s。完整装机步骤、DNS/ICP 与异地备份见 [`docs/deploy-tencent.md`](docs/deploy-tencent.md)。
+生产机的 Nginx 上传上限要覆盖图片上限：服务端默认不限单文件体积，`client_max_body_size`（当前 40m）就是实际上限，要传更大的图就同步调大它；`proxy_read_timeout` / `proxy_send_timeout` 放到 300s。完整装机步骤、DNS/ICP 与异地备份见 [`docs/deploy-tencent.md`](docs/deploy-tencent.md)。
 
 ### 发布回滚
 
@@ -99,7 +99,7 @@ date: 2026-10-11 10:00
 
 图片灯箱支持点击图片或按钮放大、拖动查看、滚轮缩放，键盘 `+` / `-` 缩放、`0` 还原。手机支持双指缩放；还原状态下左右滑动切换同组照片，放大状态下单指拖动查看。切图或关闭会重置缩放，后台原图查看也支持放大。
 
-后台「插入图片」支持 PNG / JPEG / GIF / WebP（不接受 SVG：它可携带脚本），按内容哈希原样存进 `data/uploads`，正文里写成 `![说明](地址)`；`/uploads/*` 支持 Range 分片。体积上限由 `MAX_UPLOAD_BYTES` 控制，默认 8MB、最多 32MB；后台新上传路径会把原始请求体流式落到临时文件再处理，避免大文件整块占满 Node 堆。
+后台「插入图片」支持 PNG / JPEG / GIF / WebP（不接受 SVG：它可携带脚本），按内容哈希原样存进 `data/uploads`，正文里写成 `![说明](地址)`；`/uploads/*` 支持 Range 分片。体积默认不限（`MAX_UPLOAD_BYTES` 设正数可恢复上限）；解码仍有 2000 万像素的保护上限（`MAX_INPUT_PIXELS`，防解码撑爆内存）。后台新上传路径会把原始请求体流式落到临时文件再处理，避免大文件整块占满 Node 堆。
 
 ## 验证
 

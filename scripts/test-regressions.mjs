@@ -17,6 +17,8 @@ process.env.TZ = 'Asia/Shanghai';
 process.env.FEED_REFRESH_MS = '0';
 process.env.LINK_CHECK_MS = '0';
 process.env.AVATAR_UPSTREAMS = '';
+// 上传 413 用例需要显式上限：服务端默认已不限体积。
+process.env.MAX_UPLOAD_BYTES = '8388608';
 for (const dir of ['posts', 'notes']) fs.mkdirSync(path.join(process.env.CONTENT_DIR, dir), { recursive: true });
 fs.mkdirSync(process.env.THEMES_DIR, { recursive: true });
 const { open, close, migrate, createRepo, createAdminRepo, createCommentRepo, createCrypto } = await import('./_db-stack.mjs');

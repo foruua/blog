@@ -122,7 +122,7 @@ journalctl -u blog -f      # 日志由 journald 轮转，不需要再看文件�
 ```nginx
 server {
     server_name example.com;
-    # 覆盖单文件上限（默认 8MB、最多 32MB）；同时给大文件上传留足超时
+    # 服务端默认不限单文件体积，这里就是实际上限；要传更大的图就同步调大
     client_max_body_size 40m;
     client_body_timeout 300s;
 

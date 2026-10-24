@@ -600,8 +600,9 @@ app.use('*', async (c, next) => {
 const htmlCache = createHtmlCache({ repo, themes, crypt, isImmutableAsset: isImmutablePath });
 app.use('*', htmlCache.middleware);
 
-// 后台写请求在鉴权守卫之前整块读入请求体：先挡掉未登录请求，避免匿名客户端用 1MB/128MB
-// 请求体打内存。登录 POST 例外（上限 4KB，必须能到达登录校验）。
+// 后台写请求在鉴权守卫之前整块读入请求体：先挡掉未登录请求，避免匿名客户端用大请求体
+// 打内存（普通表单 1MB、主题包 10MB；图片上传不限体积但走流式落盘）。登录 POST 例外
+// （上限 4KB，必须能到达登录校验）。
 app.use('*', async (c, next) => {
   const p = c.req.path.replace(/\/+$/, '');
   const write = !['GET', 'HEAD', 'OPTIONS'].includes(c.req.method);

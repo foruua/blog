@@ -52,7 +52,11 @@ export const acceptsEncoding = (header, name) => {
 // 按候选顺序挑一个客户端接受的编码；空串表示不压缩。
 export const pickEncoding = (header, candidates) => candidates.find((name) => acceptsEncoding(header, name)) ?? '';
 
-export const MAX_UPLOAD = Math.min(32 * 1024 * 1024, Math.max(1024, Number(process.env.MAX_UPLOAD_BYTES) || 8 * 1024 * 1024));
+// 单文件上传上限：默认不限制（MAX_UPLOAD_BYTES 设为正数可恢复上限）。Infinity 参与
+// `size > MAX_UPLOAD`、`limit + 65536` 这类比较时恒为 false，各检查点自动放行。
+export const MAX_UPLOAD = Number(process.env.MAX_UPLOAD_BYTES) > 0
+  ? Math.max(1024, Number(process.env.MAX_UPLOAD_BYTES))
+  : Infinity;
 const WRITE = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 // 上传是少数会把整个请求体读进内存的路径。除了单请求上限，还要限制同时在飞的数量：
@@ -101,12 +105,15 @@ async function spoolRawUpload(c, { limit, timeoutMs }) {
     handle = await fs.promises.open(file, 'wx', 0o600);
     reader = c.req.raw.body.getReader();
     let bytes = 0;
-    const timeout = new Promise((_, reject) => {
+    // 空闲超时而非总时长上限：默认不限体积后，大文件传输可能远超单个 timeoutMs，
+    // 只要读流不卡死就继续；每个分片必须在 timeoutMs 内到达，半死连接才会被掐断。
+    const idleTimeout = () => new Promise((_, reject) => {
+      clearTimeout(timer);
       timer = setTimeout(() => reject(Object.assign(new Error('timeout'), { code: 'TIMEOUT' })), timeoutMs);
       timer.unref?.();
     });
     while (true) {
-      const { done, value } = await Promise.race([reader.read(), timeout]);
+      const { done, value } = await Promise.race([reader.read(), idleTimeout()]);
       if (done) break;
       bytes += value.byteLength;
       if (bytes > limit) throw Object.assign(new Error('too-large'), { code: 'TOO_LARGE' });
