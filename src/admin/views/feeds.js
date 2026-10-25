@@ -1,20 +1,22 @@
 import { csrfField, esc, initialMark as markOf, relWhen as when, relExact as exact } from '../../util/text.js';
 import { safeHttpUrl } from '../../util/url.js';
 import { failureLabel } from '../../util/failure.js';
+import { feedState, FEED_STATES } from '../../feeds/state.js';
 import { adminLayout } from '../layout.js';
 import { progressMarkup } from '../progress.js';
 import { ICON_CLOSE } from '../../render/icons.js';
 
 /** 后台「友圈」页：登记地址、看每个源的抓取状态。失败原因直接摊在行里，编辑字段收进 popover（声明式、零 JS）。「编辑」用 popover 而非 <details>：四个动作要并排；<summary> 要么嵌站名链接（Chrome 无障碍报「Interactive element inside of a <summary>」）、要么与表单绑死。 */
 
+// 徽章文案与配色按状态排。顺序跟着 FEED_STATES 走，筛选条直接照它铺——文案只有这一份，改词不用找两处。
 const STATE = {
-  ok: ['a-pill a-pill-live', '正常'],
   failed: ['a-pill a-pill-err', '抓取失败'],
+  ok: ['a-pill a-pill-live', '正常'],
   never: ['a-pill a-pill-draft', '还没抓过'],
   off: ['a-pill a-pill-draft', '已停用'],
 };
 
-const stateOf = (f) => (!f.enabled ? 'off' : f.fail_count > 0 ? 'failed' : f.last_ok_at ? 'ok' : 'never');
+const stateOf = feedState;
 
 const hostOf = (f) => {
   try { return new URL(f.url).host; } catch { return f.url; }
@@ -22,7 +24,7 @@ const hostOf = (f) => {
 
 
 
-function feedRow(f, csrf, { page }) {
+function feedRow(f, csrf, { page, state = '' }) {
   const [pill, label] = STATE[stateOf(f)];
   const name = f.title || hostOf(f);
   const home = safeHttpUrl(f.site_url) ?? safeHttpUrl(f.url) ?? '';
@@ -38,8 +40,9 @@ function feedRow(f, csrf, { page }) {
   const error = f.last_error
     ? `          <p class="a-warn a-feed-err" title="${esc(f.last_error)}">${esc(failureLabel(f.last_error))}${f.fail_count > 1 ? ` · 已连续 ${f.fail_count} 次` : ''}</p>\n`
     : '';
-  // 翻到第 N 页后，行内每个动作都要能把人送回第 N 页，否则删一个源就被弹回第一页。
-  const back = page > 1 ? `          <input type="hidden" name="page" value="${page}">\n` : '';
+  // 翻到第 N 页后，行内每个动作都要能把人送回第 N 页，否则删一个源就被弹回第一页。筛选态同理：
+  // 在「抓取失败」里刷一个源，回来必须还站在「抓取失败」上，否则又要重新点一遍筛选。
+  const back = `${page > 1 ? `          <input type="hidden" name="page" value="${page}">\n` : ''}${state ? `          <input type="hidden" name="state" value="${esc(state)}">\n` : ''}`;
   const editId = `feed-editor-${f.id}`;
 
   const tip = ['点这里编辑这个订阅源', address, exactBits].filter(Boolean).join(' · ');
@@ -100,16 +103,37 @@ ${back}          <header class="a-media-dialog-head"><h2 id="${editId}-title">�
 }
 
 
-function pager({ page, lastPage, perPage, total, csrf }) {
+// 筛选条：把「抓取失败」从翻页里捞出来——几十个源里散着三五个坏源，一页页翻着找是最费劲的那件事。
+// 走 ?state= 的普通链接：无 JS 可用、URL 能收藏能分享，计数是全量口径（feedStateCounts），不是本页数。
+function filterBar({ counts, state }) {
+  const chip = (key, label, extra = '') => {
+    const href = key ? `/admin/feeds?state=${key}` : '/admin/feeds';
+    const on = state === key ? ' aria-current="page"' : '';
+    return `<a class="a-feeds-chip${extra}" href="${href}"${on}>${label}<b>${counts[key || 'all'] ?? 0}</b></a>`;
+  };
+  const chips = FEED_STATES
+    .map((key) => chip(key, STATE[key][1], key === 'failed' && counts.failed ? ' is-err' : ''))
+    .join('\n        ');
+
+  return `      <nav class="a-feeds-chips" aria-label="按抓取状态筛选">
+        ${chip('', '全部')}
+        ${chips}
+      </nav>
+`;
+}
+
+function pager({ page, lastPage, perPage, total, shown = total, csrf, state = '' }) {
+  // 页码链接带着筛选态走：在第 2 页点「下一页」不能把人送回「全部」。
+  const href = (n) => `/admin/feeds?page=${n}${state ? `&state=${encodeURIComponent(state)}` : ''}`;
   const step = (n, text, on) => (on
-    ? `<a class="a-pager-btn" href="/admin/feeds?page=${n}">${text}</a>`
+    ? `<a class="a-pager-btn" href="${href(n)}">${text}</a>`
     : `<span class="a-pager-btn is-off">${text}</span>`);
 
   return `      <div class="a-feeds-pager">
-        <span class="a-feeds-total">共 ${total} 个源</span>
+        <span class="a-feeds-total">共 ${total} 个源${state ? ` · 筛出 ${shown} 个` : ''}</span>
         <form method="post" action="/admin/feeds/per" class="a-feeds-per">
           ${csrfField(csrf)}
-          <label for="f-per">每页</label>
+${state ? `          <input type="hidden" name="state" value="${esc(state)}">\n` : ''}          <label for="f-per">每页</label>
           <input class="a-input" id="f-per" name="per" type="number" min="5" max="100" value="${perPage}">
           <span class="a-dim">个源</span>
           <button type="submit" class="a-btn-ghost">应用</button>
@@ -223,14 +247,19 @@ export function feedsProgress(progress) {
 export function feedsPage({
   rows = [], totals = {}, importReport = null, pendingLinks = null, csrf, badges, notice = '',
   page = 1, perPage = 20, lastPage = 1, addUrl = '', addTitle = '',
-  progress = null,
+  progress = null, state = '', counts = null, shown = 0,
 }) {
-  const list = rows.map((feed) => feedRow(feed, csrf, { page })).join('\n');
+  const list = rows.map((feed) => feedRow(feed, csrf, { page, state })).join('\n');
   const total = totals.sources ?? 0;
   const head = `已订阅 ${total} 个源`;
   const pageInput = page > 1 ? `          <input type="hidden" name="page" value="${page}">\n` : '';
   // 一轮跑着时按钮得禁用：后端会把并发的整轮刷新排队，点第二次只会白等；客户端照片段里的 data-running 同步它。
   const running = Boolean(progress?.running);
+  // 筛完一个不剩时不能退回「还没有添加地址」那句话——地址都在，只是这一档是空的。筛选条照旧留着，好让人切回去。
+  const emptyRow = `        <li class="a-empty">这个筛选下没有源。<a class="a-link" href="/admin/feeds">看全部 ${total} 个</a></li>\n`;
+  const noFeeds = `      <ul class="a-feeds">
+        <li class="a-empty">还没有添加任何地址。上面填一个博客的 RSS/Atom 地址试试。</li>
+      </ul>`;
 
   const body = `    <h2 class="a-h2 a-h2-first">添加订阅源</h2>
     <div class="a-card a-panel a-feed-add">
@@ -253,7 +282,7 @@ export function feedsPage({
     <h2 class="a-h2">${esc(head)}</h2>
     ${pendingLinks !== null ? importEntry({ csrf, importReport, pendingLinks }) : ''}
     <div class="a-card a-panel">
-      ${rows.length ? `<div class="a-feeds-bar">
+${total ? `${filterBar({ counts: counts ?? { all: total }, state })}      <div class="a-feeds-bar">
         <div class="a-feeds-bar-ops">
           <form method="post" action="/admin/feeds/refresh" data-feeds-refresh>
             ${csrfField(csrf)}
@@ -271,11 +300,8 @@ ${pageInput}            <button type="submit" class="a-btn-ghost"
       </div>
 ${feedsProgress(progress)}
       <ul class="a-feeds">
-${list}
-      </ul>
-${pager({ page, lastPage, perPage, total, csrf })}` : `      <ul class="a-feeds">
-        <li class="a-empty">还没有添加任何地址。上面填一个博客的 RSS/Atom 地址试试。</li>
-      </ul>`}
+${rows.length ? `${list}\n` : emptyRow}      </ul>
+${pager({ page, lastPage, perPage, total, shown, csrf, state })}` : noFeeds}
     </div>
 ${pendingLinks !== null ? importDialog({ importReport, pendingLinks }) : ''}`;
 

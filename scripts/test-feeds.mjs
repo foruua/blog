@@ -766,6 +766,44 @@ async function addFeed(url, extra = {}) {
 
 
 {
+  // 抓取失败散在几十个源里时，一页页翻着找最费劲：?state= 只留坏的那几个，筛选条上的计数是全量口径（不是本页数）。
+  const stateOfRow = (r) => (!r.enabled ? 'off' : r.fail_count > 0 ? 'failed' : r.last_ok_at ? 'ok' : 'never');
+  const all = db.prepare('SELECT id, enabled, fail_count, last_ok_at FROM feeds').all();
+  const expect = all.reduce((acc, r) => { const k = stateOfRow(r); acc[k] = (acc[k] ?? 0) + 1; return acc; }, {});
+  const rowsOf = (page) => [...page.matchAll(/<li class="a-feed" data-state="([^"]+)"/g)].map((m) => m[1]);
+  const chipOf = (page, key) => Number(new RegExp(`href="/admin/feeds\\?state=${key}"[^>]*>[^<]*<b>(\\d+)</b>`).exec(page)?.[1]);
+
+  const page = await html('/admin/feeds?state=failed');
+  const states = rowsOf(page);
+  check('D1 ?state=failed 只列抓取失败的源',
+    expect.failed >= 1 && states.length === expect.failed && states.every((s) => s === 'failed'),
+    `期望 ${expect.failed} 行，实际 ${states.length} 行（${states.join(',')}）`);
+  check('D2 筛选条写的是全量计数，不是当前页数',
+    ['failed', 'ok', 'never', 'off'].every((k) => chipOf(page, k) === (expect[k] ?? 0)),
+    ['failed', 'ok', 'never', 'off'].map((k) => `${k}=${chipOf(page, k)}/${expect[k] ?? 0}`).join(' '));
+  check('D3 行内动作与翻页都把 state 带回去（刷一个源不会把人弹回全部）',
+    page.includes('<input type="hidden" name="state" value="failed">'), '');
+
+  const bogus = await html('/admin/feeds?state=bogus');
+  check('D4 不认识的 state 退回全部，不会给一页空白',
+    rowsOf(bogus).length > 0 && bogus.includes('<a class="a-feeds-chip" href="/admin/feeds" aria-current="page">全部'), '');
+
+  // 停用优先：停用的源不再抓，也就从「抓取失败」里退出——两个筛选互斥，计数才不会重复。
+  const target = all.find((r) => stateOfRow(r) === 'failed');
+  const csrf = csrfOf(await html('/admin/feeds'));
+  await req(`/admin/feeds/${target.id}/toggle`, form({ _csrf: csrf, state: 'failed' }));
+  const offPage = await html('/admin/feeds?state=off');
+  check('D5 停用一个失败源后，它从「抓取失败」移到「已停用」',
+    rowsOf(offPage).every((s) => s === 'off') && Boolean(feedRowOf(offPage, target.id))
+    && !feedRowOf(await html('/admin/feeds?state=failed'), target.id), '');
+  await req(`/admin/feeds/${target.id}/toggle`, form({ _csrf: csrf, state: 'failed' }));
+
+  const res = await req(`/admin/feeds/${target.id}/refresh`, form({ _csrf: csrf, state: 'failed' }));
+  check('D6 动作之后的跳转保留筛选态', (res.headers.get('location') ?? '').includes('state=failed'),
+    res.headers.get('location') ?? '');
+}
+
+{
   const csrf = csrfOf(await html('/admin/feeds'));
   await req('/admin/feeds/clear-items', form({ _csrf: csrf }));
 

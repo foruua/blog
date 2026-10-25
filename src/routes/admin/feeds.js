@@ -4,6 +4,7 @@ import { cleanText } from '../../feeds/parse.js';
 import { TIMEOUT_MS } from '../../feeds/fetch.js';
 import { feedsPage, importBlock, feedsProgress } from '../../admin/views/feeds.js';
 import { settings, KEYS, parseFeedsPerPage } from '../../settings.js';
+import { feedState, feedStateCounts, FEED_STATES } from '../../feeds/state.js';
 import { logError } from '../../util/errors.js';
 
 /** 后台「友圈」路由：登记地址、增删改、手动刷新。添加与单条刷新等网络结果，只把配置写入放队列；刷新全部在后台。列表分页走 ?page=N，行内每个动作带 page 隐藏域，否则在第 3 页删一个源会被弹回第 1 页。 */
@@ -12,16 +13,24 @@ const MAX_FEEDS = 200;
 // 等抓取结果的上限：比常规超时短，免得站主对着转圈按钮发呆。
 const WAIT_MS = Math.min(TIMEOUT_MS, 6000);
 
+// 状态筛选参数：只认 feedState 产出的那几个值，别的一律当「全部」——手改 URL 不该得到一个空列表。
+const stateParam = (raw) => {
+  const v = String(raw ?? '');
+  return FEED_STATES.includes(v) ? v : '';
+};
+
 export function registerFeedRoutes(app, { feeds, links = null, refresher, repo, keep = 20, mutate = (fn) => fn() }, { ctx }) {
   const subscriber = links ? createLinkSubscriber({ feeds, links, refresher, mutate, repo, keep, maxFeeds: MAX_FEEDS }) : null;
 
-  // 跳回列表带上页码与结果文案；body 已被 CSRF 守卫读过一次，这里白拿。
+  // 跳回列表带上页码、筛选态与结果文案；body 已被 CSRF 守卫读过一次，这里白拿。
   const back = async (c, message, { url = '', title = '' } = {}) => {
     const b = await bodyOf(c).catch(() => null);
     const raw = b instanceof FormData ? b.get('page') : b?.page;
     const page = Math.max(1, Number.parseInt(String(raw ?? ''), 10) || 1);
+    const state = stateParam(b instanceof FormData ? b.get('state') : b?.state);
     const qs = new URLSearchParams({ w: message });
     if (page > 1) qs.set('page', String(page));
+    if (state) qs.set('state', state);
     // 添加失败时把刚填的地址/站名带回表单，别让用户重新敲一遍。
     if (url) qs.set('url', url);
     if (title) qs.set('title', title);
@@ -54,12 +63,15 @@ export function registerFeedRoutes(app, { feeds, links = null, refresher, repo, 
 
   app.get('/admin/feeds', (c) => {
     const all = feeds.list();
+    const state = stateParam(c.req.query('state'));
+    // 先筛再分页：页码与「第 N / M 页」都按筛选后的条数算，否则点「抓取失败」会看到一页空列表。
+    const shown = state ? all.filter((f) => feedState(f) === state) : all;
     const perPage = settings.feedsPerPage(repo);
 
-    const lastPage = Math.max(1, Math.ceil(all.length / perPage));
+    const lastPage = Math.max(1, Math.ceil(shown.length / perPage));
     const page = Math.min(pageNumber(c), lastPage);
     const start = (page - 1) * perPage;
-    const rows = all.slice(start, start + perPage);
+    const rows = shown.slice(start, start + perPage);
     return c.html(feedsPage(ctx(c, {
       rows,
       importReport: subscriber?.report(), pendingLinks: subscriber?.pendingCount() ?? null,
@@ -67,6 +79,8 @@ export function registerFeedRoutes(app, { feeds, links = null, refresher, repo, 
       addTitle: c.req.query('title') ? String(c.req.query('title')).slice(0, 60) : '',
 
       totals: { sources: all.length },
+      // 计数按全量算（不是本页），筛选条上写的就是「一共几个失败」。
+      counts: feedStateCounts(all), state, shown: shown.length,
       notice: c.req.query('w') ? String(c.req.query('w')) : '',
       page,
       perPage,
