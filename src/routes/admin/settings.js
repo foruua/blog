@@ -145,6 +145,7 @@ export function registerSettingsRoutes(app, { repo, crypt, adminRepo, mutate = (
       homeRecent: val(b, 'homeRecent'),
       commentsPerPage: val(b, 'commentsPerPage'),
       palette: val(b, 'palette'),
+      layout: val(b, 'layoutDefault'),
     }, (k, v) => repo.setSetting(k, v)));
     return notice(c, '/admin/system', err ? `✗ ${err}` : '✓ 设置已保存');
   });

@@ -7,6 +7,7 @@ export const KEYS = {
   commentsPerPage: 'comments_per_page',
   feedsPerPage: 'feeds_per_page',
   paletteDefault: 'palette_default',
+  layoutDefault: 'layout_default',
   heroImages: 'hero_images',
   heroOverlay: 'hero_overlay',
   themeActive: 'theme_active',
@@ -45,6 +46,15 @@ const PALETTE_KEYS = PALETTES.map((p) => p.key);
 // localStorage 里，服务端渲染不出首帧，只会退化成素笺。
 export const CUSTOM_PALETTE = 'custom';
 
+// 访客可选版式的唯一真相源：后台下拉、面板按钮、THEME_BOOT 白名单都取自这里。
+// 'paper' 是现行版式（内容直接铺在纸上）；'box' 是「素匣」（除首页外的页面收进一只圆角纸匣）。
+// 与配色同理：站主设的是**默认**，访客选过的存在自己的 localStorage 里，首帧由 THEME_BOOT 覆盖。
+export const LAYOUTS = [
+  { key: 'paper', name: '纸面', hint: '内容直接铺在纸上（现行版式）' },
+  { key: 'box',   name: '素匣', hint: '内页收进一只纸匣，与首页同款' },
+];
+const LAYOUT_KEYS = LAYOUTS.map((l) => l.key);
+
 const FEEDS_PER_PAGE_RANGE = { min: 5, max: 100, fallback: FEEDS_PER_PAGE };
 
 function intOr(raw, { min, max, fallback }) {
@@ -75,6 +85,12 @@ export const settings = {
     return PALETTE_KEYS.includes(raw) ? raw : '';
   },
 
+  // 访客默认版式：'paper' 纸面 / 'box' 素匣。脏值一律回落纸面（等于没设过）。
+  layoutDefault: (repo) => {
+    const raw = String(repo.getSetting(KEYS.layoutDefault) ?? '').trim().toLowerCase();
+    return LAYOUT_KEYS.includes(raw) ? raw : 'paper';
+  },
+
   // 主题 id；不存在时由启动逻辑/渲染前兜底自动切到 themes/ 里的第一个可用主题。
   themeActive: (repo) => String(repo.getSetting(KEYS.themeActive) ?? '').trim().slice(0, 64),
 };
@@ -90,6 +106,14 @@ export function parseFeedsPerPage(raw) {
 export function parsePaletteDefault(raw) {
   const v = String(raw ?? '').trim().toLowerCase();
   return PALETTE_KEYS.includes(v) ? v : null;
+}
+
+// 「访客默认版式」：只认 LAYOUTS 的 key，否则 null。空值按纸面处理 —— 旧版后台表单里没有这个
+// 下拉，不能让它们一提交就报「版式不合法」（新表单恒提交 paper / box）。
+export function parseLayoutDefault(raw) {
+  const v = String(raw ?? '').trim().toLowerCase();
+  if (!v) return 'paper';
+  return LAYOUT_KEYS.includes(v) ? v : null;
 }
 
 // 首页封面列表的读取侧（前台渲染、后台表单、媒体库守卫共用）。宽松解析：JSON 坏了或挑不出时回落旧单图键
@@ -137,6 +161,7 @@ export const settingsFormState = (repo) => ({
   homeRecent: settings.homeRecent(repo),
   commentsPerPage: settings.commentsPerPage(repo),
   palette: settings.paletteDefault(repo),
+  layout: settings.layoutDefault(repo),
 });
 
 export function saveSettings(b, set) {
@@ -151,9 +176,13 @@ export function saveSettings(b, set) {
   const palette = parsePaletteDefault(b.palette);
   if (palette === null) return '默认配色不合法';
 
+  const layout = parseLayoutDefault(b.layout);
+  if (layout === null) return '默认版式不合法';
+
   set(KEYS.pageSize, String(pageSize));
   set(KEYS.homeRecent, String(homeRecent));
   set(KEYS.commentsPerPage, String(commentsPerPage));
   set(KEYS.paletteDefault, palette);
+  set(KEYS.layoutDefault, layout);
   return null;
 }

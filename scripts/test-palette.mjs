@@ -4,9 +4,10 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { JSDOM } from 'jsdom';
-import { THEME_BOOT, PALETTES, layout, setPaletteDefault, heroToolsHtml, PALETTE_CSS_GUARD, PALETTE_CSS_BANNED } from '../src/render/layout.js';
+import { THEME_BOOT, PALETTES, LAYOUTS, layout, setPaletteDefault, setLayoutDefault, layoutAttr, themeChrome, heroToolsHtml, PALETTE_CSS_GUARD, PALETTE_CSS_BANNED } from '../src/render/layout.js';
 import { adminLayout } from '../src/admin/layout.js';
-import { parsePaletteDefault, settings, saveSettings, KEYS } from '../src/settings.js';
+import { systemPage } from '../src/admin/views/system.js';
+import { parsePaletteDefault, parseLayoutDefault, settings, saveSettings, KEYS } from '../src/settings.js';
 import { createChecker } from './_check.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -380,6 +381,121 @@ await test('boot 与站点默认的优先级：访客选择 > 素笺明选 > 站
     assert.equal(w.document.documentElement.dataset.palette, 'qingci', '脏值回落站点默认');
     dom.window.close();
   } finally { setPaletteDefault(() => ''); }
+});
+
+// ———— 版式（纸面 / 素匣）——————————————
+// 与配色同构：站主设默认、访客可覆盖，首帧由 THEME_BOOT 落位。区别是版式只有两态，
+// 且「纸面」= 不挂属性（CSS 里用 html[data-layout="box"] 起头，少一层 :not）。
+
+await test('版式清单与 CSS 对得上：素匣的每条规则都挂在 html[data-layout="box"] 下，且都排除首页', () => {
+  assert.deepEqual(LAYOUTS.map((l) => l.key), ['paper', 'box'], '清单应恰好是纸面 + 素匣');
+  // 两处主规则：匣子本体与列宽。少了任一条，要么没框、要么行长被压窄。
+  assert.match(css, /html\[data-layout="box"\] body:not\(\[data-page="home"\]\) main#main \{/);
+  assert.match(css, /html\[data-layout="box"\] body:not\(\[data-page="home"\]\) \.wrap \{/);
+  // 不变量：所有素匣规则都必须排除首页 —— 首页本来就是「标题 + 一只匣子」，再套一层就是匣中匣。
+  const sels = [...css.matchAll(/html\[data-layout="box"\][^{]*\{/g)].map((m) => m[0]);
+  assert.ok(sels.length >= 6, `素匣规则只有 ${sels.length} 条，像是被删过`);
+  for (const sel of sels) {
+    assert.ok(sel.includes('body:not([data-page="home"])'), `这条没排除首页：${sel.replace(/\s+/g, ' ')}`);
+  }
+  // CSS 里只认 box 这一个值；纸面是「不挂属性」，不该再出现 data-layout="paper"。
+  const inCss = new Set([...css.matchAll(/data-layout="([a-z]+)"/g)].map((m) => m[1]));
+  for (const key of inCss) assert.equal(key, 'box', `CSS 里出现了清单之外的版式：${key}`);
+});
+
+await test('站点默认版式：<html data-layout="box"> 直接挂在首帧；纸面不挂属性', () => {
+  setLayoutDefault(() => 'box');
+  try {
+    assert.equal(layoutAttr(), ' data-layout="box"');
+    assert.match(layout({ title: '测试', main: '<p>x</p>', canonical: '/posts/' }), /<html lang="[^"]+" data-layout="box">/);
+    // 主题外壳走的是另一份（无引号写法，避免 Liquid 转义），两者必须同时挂上。
+    assert.match(themeChrome({ page: 'posts' }).chrome.htmlAttrs, /data-layout=box/);
+  } finally { setLayoutDefault(() => 'paper'); }
+  assert.equal(layoutAttr(), '');
+  assert.doesNotMatch(layout({ title: 't', main: '', canonical: '/' }), /<html[^>]*data-layout=/, '纸面时 <html> 不挂属性');
+});
+
+await test('THEME_BOOT 恢复版式：访客选过 > 站主默认；脏值不认', () => {
+  assert.ok(THEME_BOOT.includes("localStorage.getItem('layout')"), 'THEME_BOOT 没读版式');
+  setLayoutDefault(() => 'box');
+  try {
+    let { dom, w } = mount();
+    assert.equal(w.document.documentElement.dataset.layout, 'box', '没选过 → 站主默认（素匣）');
+    dom.window.close();
+    ({ dom, w } = mount({ seed: { layout: 'paper' } }));
+    assert.equal(w.document.documentElement.dataset.layout, undefined, '选过纸面 → 摘掉站主默认的素匣');
+    dom.window.close();
+    ({ dom, w } = mount({ seed: { layout: 'weird' } }));
+    assert.equal(w.document.documentElement.dataset.layout, 'box', '脏值回落站主默认');
+    dom.window.close();
+  } finally { setLayoutDefault(() => 'paper'); }
+  const { dom, w } = mount({ seed: { layout: 'box' } });
+  try {
+    assert.equal(w.document.documentElement.dataset.layout, 'box', '访客选的素匣要盖过默认纸面');
+  } finally { dom.window.close(); }
+});
+
+await test('面板版式两格：首帧对齐、点素匣挂 data-layout 并落盘、点纸面摘属性但存下 paper', async () => {
+  const { dom, w } = mount();
+  try {
+    const btn = (k) => pickerOf(w).querySelector(`.pal-ly[data-layout-opt="${k}"]`);
+    assert.ok(btn('paper') && btn('box'), '面板里应有纸面 / 素匣两格');
+    assert.equal(btn('paper').getAttribute('aria-pressed'), 'true', '默认选中纸面');
+    assert.equal(btn('box').getAttribute('aria-pressed'), 'false');
+    openPicker(w);
+    btn('box').click();
+    await sleep(0);
+    assert.equal(w.document.documentElement.dataset.layout, 'box');
+    assert.equal(w.localStorage.getItem('layout'), 'box', '要落盘，换页才不丢');
+    assert.equal(btn('box').getAttribute('aria-pressed'), 'true');
+    assert.equal(btn('paper').getAttribute('aria-pressed'), 'false');
+    assert.equal(pickerOf(w).open, true, '换版式后面板不该自动收起');
+    btn('paper').click();
+    await sleep(0);
+    assert.equal(w.document.documentElement.dataset.layout, undefined);
+    assert.equal(w.localStorage.getItem('layout'), 'paper', '存 paper 而不是删 key —— 站主默认改成素匣后仍能选回纸面');
+  } finally { dom.window.close(); }
+});
+
+await test('settings：默认版式只认 paper / box，脏值回落纸面，空值按纸面', () => {
+  const repo = { store: new Map(), getSetting(k) { return this.store.get(k) ?? null; } };
+  assert.equal(settings.layoutDefault(repo), 'paper', '没设过 → 纸面');
+  assert.equal(parseLayoutDefault('box'), 'box');
+  assert.equal(parseLayoutDefault(' BOX '), 'box', '大小写与首尾空白应归一');
+  assert.equal(parseLayoutDefault(''), 'paper', '旧表单没这字段 → 纸面，不是篡改');
+  assert.equal(parseLayoutDefault(undefined), 'paper');
+  assert.equal(parseLayoutDefault('wide'), null, '白名单外一律 null');
+  repo.store.set(KEYS.layoutDefault, 'wide');
+  assert.equal(settings.layoutDefault(repo), 'paper', '库里脏值回落纸面');
+});
+
+await test('saveSettings：默认版式随站点设置一起存，脏值整单拒绝', () => {
+  const saved = new Map();
+  const err = saveSettings(
+    { pageSize: '20', homeRecent: '10', commentsPerPage: '20', palette: '', layout: 'box' },
+    (k, v) => saved.set(k, v),
+  );
+  assert.equal(err, null);
+  assert.equal(saved.get(KEYS.layoutDefault), 'box');
+  const bad = new Map();
+  const err2 = saveSettings(
+    { pageSize: '20', homeRecent: '10', commentsPerPage: '20', palette: '', layout: 'wide' },
+    (k, v) => bad.set(k, v),
+  );
+  assert.ok(err2 && err2.includes('版式'), '脏 layout 要给出人话报错');
+  assert.equal(bad.size, 0, '整单拒绝，一个字都不落库');
+});
+
+await test('后台「站点与阅读」有默认版式下拉，选项与清单一致且回填当前值', () => {
+  const html = systemPage({
+    site: { pageSize: 20, homeRecent: 10, commentsPerPage: 20, palette: '', layout: 'box' },
+    hero: { images: [] }, mail: {}, history: {}, csrf: 'c',
+  });
+  const sel = /<select class="a-select" id="s-layout" name="layoutDefault">([\s\S]*?)<\/select>/.exec(html)?.[1] ?? '';
+  assert.ok(sel, '后台没有默认版式下拉');
+  assert.equal([...sel.matchAll(/value="(paper|box)"/g)].map((m) => m[1]).join(','), 'paper,box');
+  assert.match(sel, /value="box" selected/, '当前值没回填');
+  assert.match(html, /只影响首页之外的页面/, '缺「只影响首页之外」的说明');
 });
 
 // ———— 自定义配色（色相滑块）——————————————

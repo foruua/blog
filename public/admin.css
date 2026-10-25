@@ -493,6 +493,8 @@ a.a-pager-btn:hover { border-color: var(--accent); color: var(--accent-read); ba
   letter-spacing: .1em; text-transform: uppercase;
   color: var(--muted);
 }
+/* 字段下方的一行说明（目前只有「默认版式」用）：比标签浅一档，不参与 label 的 uppercase。 */
+.a-field-note { margin: .4rem 0 0; font: var(--a-fs-sm)/1.5 var(--sans); color: var(--muted); }
 .a-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 1.1rem; }
 
 .a-input, .a-select, .a-textarea {

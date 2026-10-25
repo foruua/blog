@@ -3106,6 +3106,25 @@ html:not(.has-js) .pal { display: none; }
   background: var(--accent-soft); color: var(--accent-read);
   box-shadow: inset 0 0 0 1px var(--accent-line);
 }
+/* —— 版式两格（纸面 / 素匣）—— 与明暗三格同一套「选中即软金底」的行规，但这两格带文字，故是二等分的条。
+   图标只描「有框 / 没框」：左边几行字 = 铺在纸上，右边一个圆角框 = 收进匣子。 */
+.pal-lyt { display: flex; gap: .35rem; }
+.pal-panel .pal-ly {
+  display: flex; align-items: center; justify-content: center; gap: .38rem;
+  flex: 1 1 0; min-width: 0;
+  margin: 0; padding: .5rem .3rem;
+  border: 0; border-radius: var(--radius-sm);
+  background: var(--bg-soft); color: var(--muted);
+  font: inherit; font-size: .82rem; letter-spacing: .02em;
+  cursor: pointer;
+  transition: background var(--dur-1) var(--ease), color var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease);
+}
+.pal-panel .pal-ly svg { width: 15px; height: 15px; flex: none; display: block; }
+.pal-panel .pal-ly:hover { background: var(--row-hover); color: var(--fg); }
+.pal-panel .pal-ly[aria-pressed="true"] {
+  background: var(--accent-soft); color: var(--accent-read);
+  box-shadow: inset 0 0 0 1px var(--accent-line);
+}
 /* 分隔线通栏：面板左右各有 .55rem 内距，用等量负外边距拉平，才不会被读成某一组的边框。 */
 .pal-rule { height: 1px; margin: .5rem -.55rem; background: var(--rule); }
 .pal-panel .pal-opt {
@@ -3224,4 +3243,53 @@ html:not(.has-js) .pal { display: none; }
 .preview-bar-exit:hover { background: color-mix(in srgb, var(--bg) 14%, transparent); }
 @media (max-width: 520px) {
   .preview-bar { font-size: 11px; gap: .6rem; }
+}
+
+/* —— 版式：素匣（html[data-layout="box"]）——
+   首页之外的所有页面收进一只纸匣：底色 / 细边 / 圆角 / 投影全部取自首页「最近更新」那块铭牌
+   （--card-bg / --card-bd / --radius-lg / --card-sh），翻页时视觉不断层。
+   三条硬约束：
+   ① 匣子比正文栏宽出两侧内衬（52rem + 5.2rem）—— 内衬是白送的，不能从正文里扣，否则行长被压窄。
+   ② 首页不受影响：首页本来就是「大标题 + 一只匣子」的两段式，再套一层就成了匣中匣。
+   ③ 不写 backdrop-filter：整页高的元素挂一层模糊，滚动时每帧都要重算，而匣子后面是纯纸色，
+      糊了也看不出差别（首页那块铭牌只有几百像素高，才留得住那层 blur）。
+   纸面（默认）不挂任何属性，所以下面全部以 html[data-layout="box"] 起头。 */
+html[data-layout="box"] body:not([data-page="home"]) .wrap {
+  max-width: calc(var(--measure-wide) + 5.2rem + 48px);
+}
+html[data-layout="box"] body:not([data-page="home"]) main#main {
+  --sheet-pad: clamp(1.35rem, 2.6vw, 2.6rem);
+  width: 100%;
+  max-width: calc(var(--measure-wide) + 5.2rem);
+  margin: clamp(1.3rem, 2.8vw, 2.2rem) auto clamp(2rem, 4vw, 3rem);
+  padding: var(--sheet-pad);
+  background: var(--card-bg);
+  border: 1px solid var(--card-bd);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--card-sh);
+}
+/* 刊头原本吃 --page-top 的上内距，匣子里由内衬接管，否则标题离上沿会空出两段。 */
+html[data-layout="box"] body:not([data-page="home"]) main#main > .mast { padding-top: 0; }
+/* 正文末尾的预留内距（article.post / .page 的 padding-bottom）在匣子里会变成一块空白。 */
+html[data-layout="box"] body:not([data-page="home"]) main#main > :last-child { margin-bottom: 0; }
+html[data-layout="box"] body:not([data-page="home"]) article.post,
+html[data-layout="box"] body:not([data-page="home"]) .page { padding-bottom: 0; }
+
+@media (max-width: 620px) {
+  html[data-layout="box"] body:not([data-page="home"]) .wrap { max-width: none; }
+  html[data-layout="box"] body:not([data-page="home"]) main#main {
+    --sheet-pad: 1.15rem;
+    margin: .9rem 0 1.6rem;
+    border-radius: var(--radius);
+  }
+  html[data-layout="box"] body:not([data-page="home"]) main#main > .mast { padding-top: .35rem; }
+}
+
+/* 打印：匣子只是屏幕上的分层手段，纸上的底色、圆角与投影都不该印出来。 */
+@media print {
+  html[data-layout="box"] body:not([data-page="home"]) .wrap { max-width: none; }
+  html[data-layout="box"] body:not([data-page="home"]) main#main {
+    max-width: none; margin: 0; padding: 0;
+    background: none; border: 0; box-shadow: none;
+  }
 }

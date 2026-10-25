@@ -1,7 +1,7 @@
 import { createAssetVersions } from './assets.js';
 import { SITE, PUBLIC_DIR } from '../config.js';
 import { esc, monthCn, cleanExcerpt, relativeDate, contentUrl, pageUrl, absUrl } from '../util/text.js';
-import { PALETTES, CUSTOM_PALETTE } from '../settings.js';
+import { PALETTES, CUSTOM_PALETTE, LAYOUTS } from '../settings.js';
 import { lightboxHtml } from './lightbox.js';
 import { emojiPanelTemplate } from '../comments/view.js';
 import { themeRequest } from '../themes/request.js';
@@ -23,7 +23,7 @@ export const setThemeErrorLogger = (fn) => { themeErrorLogger = typeof fn === 'f
 
 // —— 访客可选配色（html[data-palette]）——
 // 清单（唯一真相源）在 src/settings.js 的 PALETTES，这里 re-export；白名单两层：THEME_BOOT 挡访客 localStorage 非法值，settings.paletteDefault 挡站主默认值。
-export { PALETTES };
+export { PALETTES, LAYOUTS };
 const PALETTE_WHITELIST = JSON.stringify(PALETTES.filter((p) => p.key).map((p) => p.key));
 
 // 自定义配色存在 localStorage 里的是**整段算好的 CSS**（见 public/palette.js），不是种子：
@@ -84,6 +84,12 @@ export const THEME_BOOT = "document.documentElement.classList.add('has-js');"
   + "document.documentElement.dataset.palette='custom';}}"
   + `else if(${PALETTE_WHITELIST}.indexOf(pal)>-1){document.documentElement.dataset.palette=pal;}`
   + "}catch(e){}"
+  // 版式三态：无 key = 跟随服务端默认；'paper' = 明确选纸面（把服务端挂的 data-layout 摘掉）；
+  // 'box' = 素匣。白名单外脏值不认 —— 与配色同一道闸，localStorage 是访客可写的。
+  + "try{var ly=localStorage.getItem('layout');"
+  + "if(ly==='paper'){document.documentElement.removeAttribute('data-layout');}"
+  + "else if(ly==='box'){document.documentElement.dataset.layout='box';}"
+  + "}catch(e){}"
   // 首帧就把浏览器界面色改成实际纸色：服务端只能写死两条按系统偏好兜底的 hex，访客切了配色/明暗后
   // 手机状态栏要等到 ui.js 才跟着变，部分 WebView 会一直停在首帧的值。这里在 <head> 里同步算一次
   // （样式表已阻塞解析，自定义 style 也刚注入），后面主题/配色再变由 ui.js 的 syncThemeColor 接管。
@@ -137,6 +143,13 @@ const themePaletteAttr = () => {
   return key ? ` data-palette=${key}` : '';
 };
 
+// 站主选的「访客默认版式」：与配色同一条路 —— 服务端直接挂 <html data-layout="box">，
+// 访客自己选过的由 THEME_BOOT 覆盖。纸面是默认，不挂属性（少一个属性，样式里也好写 :not）。
+let layoutDefaultOf = () => '';
+export const setLayoutDefault = (fn) => { layoutDefaultOf = typeof fn === 'function' ? fn : () => ''; };
+export const layoutAttr = () => (layoutDefaultOf() === 'box' ? ' data-layout="box"' : '');
+const themeLayoutAttr = () => (layoutDefaultOf() === 'box' ? ' data-layout=box' : '');
+
 // —— 检索入口 ——
 // 桌面：导航里一枚放大镜图标，点它**就地展开**搜索框；提交走 /search 结果页。手机：抽屉里一枚常驻搜索框。
 // 无 JS 时展开那套用不了，另给一枚真链接兜底（has-js 由 <head> 的引导脚本挂上，见 style.css 的两条 html.* 规则）。
@@ -157,8 +170,9 @@ const searchDrawerForm = () => `<form class="s-drawer-form" action="/search" met
 
 // 配色选择器：宽屏在首页 hero-meta 那一行、窄屏在抽屉底部工具条，各一份（同一个模板，id 不同）。访客存了选择时由 ui.js 首帧对齐。
 // 页头导航里没有它 —— 配色是低频偏好，不占导航（test-search 的 M8f 钉着这条）。
-// 面板里「明暗」与「配色」并列：前者管纸的明暗，后者管纸墨的色调 —— 都是"选一个生效的状态"，故同一套
-// aria-pressed 按钮，不再用早先页脚那枚写着"下一个动作"（显示「暗色」其实是点了会变暗）的开关。
+// 面板里「明暗 / 版式 / 配色」三段并列：明暗管纸的明暗，版式管内容装不装进匣子，配色管纸墨的色调 ——
+// 都是"选一个生效的状态"，故同一套 aria-pressed 按钮，不再用早先页脚那枚写着"下一个动作"（显示「暗色」
+// 其实是点了会变暗）的开关。版式只有两格，用图标 + 名称并排；配色是五行带色样的长条，故单独分段。
 // 「自定义」区只预置当前预设的种子（色相 / 浓度 / 纸色），真正的令牌由 ui.js 按需调 PaletteLib 现算，
 // 服务端不生成那段 CSS。初始值取当前生效预设 —— 从「青瓷」滑进自定义时观感要接得上，不能一拖就跳色。
 // 入口图标是「调色盘」：盘身 + 右下拇指孔 + 四枚色点，15px 下也读得出是"配色"，不再和明暗图标撞形。
@@ -179,11 +193,26 @@ const TM_ICON = {
   dark: TM_ICO('<path d="M15.6 12.1A6.2 6.2 0 0 1 7.9 4.4a6.2 6.2 0 1 0 7.7 7.7z"/>'),
 };
 
+// 版式两格的图标（20 格画布、1.6 描边，与明暗三态同一套规格）：左边只有几行字 = 内容直接铺在纸上；
+// 右边一个圆角框 + 框内两行字 = 内容收进匣子。15px 下也读得出「有框 / 没框」这一件事。
+const LY_ICO = (inner) => `<svg class="ly-ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
+const LY_ICON = {
+  paper: LY_ICO('<path d="M4 5.4h12M4 9.4h12M4 13.4h7.4"/>'),
+  box: LY_ICO('<rect x="3" y="3.8" width="14" height="12.4" rx="2.2"/><path d="M6.6 8.2h6.8M6.6 11.2h6.8"/>'),
+};
+// 名称与悬停提示取自 settings.js 的 LAYOUTS（后台下拉用的是同一份），这里只建索引。
+const LAYOUT_LABEL = Object.fromEntries(LAYOUTS.map((l) => [l.key, l]));
+
 const palettePanelHtml = (cur) => `<div class="pal-panel">
         <div class="pal-theme" role="group" aria-label="明暗">
           <button type="button" class="pal-tm" data-theme-opt="auto" aria-pressed="false" aria-label="跟随系统" title="跟随系统">${TM_ICON.auto}</button>
           <button type="button" class="pal-tm" data-theme-opt="light" aria-pressed="false" aria-label="亮色" title="亮色">${TM_ICON.light}</button>
           <button type="button" class="pal-tm" data-theme-opt="dark" aria-pressed="false" aria-label="暗色" title="暗色">${TM_ICON.dark}</button>
+        </div>
+        <div class="pal-rule" role="separator"></div>
+        <div class="pal-lyt" role="group" aria-label="版式">
+          <button type="button" class="pal-ly" data-layout-opt="paper" aria-pressed="false" title="${esc(LAYOUT_LABEL.paper.hint)}">${LY_ICON.paper}<span class="pal-ly-name">${esc(LAYOUT_LABEL.paper.name)}</span></button>
+          <button type="button" class="pal-ly" data-layout-opt="box" aria-pressed="false" title="${esc(LAYOUT_LABEL.box.hint)}">${LY_ICON.box}<span class="pal-ly-name">${esc(LAYOUT_LABEL.box.name)}</span></button>
         </div>
         <div class="pal-rule" role="separator"></div>
         ${PALETTES.map((p) => `<button type="button" class="pal-opt" data-palette="${p.key}" data-hue="${p.hue}" data-chroma="${p.chroma}" aria-pressed="false"><i class="pal-sw" style="--sw-paper:${p.paper};--sw-ink:${p.ink}" aria-hidden="true"></i><span class="pal-name">${p.name}</span></button>`).join('\n        ')}
@@ -456,7 +485,7 @@ function chromeOf(ctx) {
 function builtinLayout(opts, ctx = layoutContext(opts)) {
   const chrome = chromeOf(ctx);
   return `<!DOCTYPE html>
-<html lang="${SITE.lang}"${paletteAttr()}>
+<html lang="${SITE.lang}"${paletteAttr()}${layoutAttr()}>
 ${chrome.head}
 <body data-page="${esc(ctx.page)}">
 ${chrome.top}
@@ -536,7 +565,7 @@ export const themeChrome = (opts) => {
   const ctx = layoutContext(opts);
   return {
     // chrome 只放 HTML 片段（供模板 | raw），导航数据单独给，避免把数组混进外壳。
-    chrome: { ...chromeOf(ctx), htmlAttrs: themePaletteAttr(), lang: SITE.lang },
+    chrome: { ...chromeOf(ctx), htmlAttrs: themePaletteAttr() + themeLayoutAttr(), lang: SITE.lang },
     // 导航与内置页头同源：主题上下文不必再由每条路由各拼一份 data.nav。
     nav: ctx.items.map(([href, label, key]) => ({ href, label, key, active: key === ctx.active })),
     // 自行写 <head> 的主题也需要这些；内置 layoutContext 已经算好，别让主题再猜一遍。

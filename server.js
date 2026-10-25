@@ -49,7 +49,7 @@ import { createBackupScheduler } from './src/backup-scheduler.js';
 import { createHealthMonitor } from './src/health.js';
 import { createWatchdog } from './src/monitor.js';
 import { rotateLogsAsync, resolveLogDir } from './src/log-rotate.js';
-import { THEME_BOOT as PUBLIC_THEME_BOOT, VERSIONED_ASSETS, assetVer, setThemeResolver, setThemeRenderer, setThemeErrorLogger } from './src/render/layout.js';
+import { THEME_BOOT as PUBLIC_THEME_BOOT, VERSIONED_ASSETS, assetVer, setThemeResolver, setThemeRenderer, setThemeErrorLogger, setLayoutDefault } from './src/render/layout.js';
 import { THEME_BOOT as ADMIN_THEME_BOOT } from './src/admin/layout.js';
 import { createThemeRegistry, isSafeRelative } from './src/themes/registry.js';
 import { createThemeEngine } from './src/themes/engine.js';
@@ -155,6 +155,7 @@ setThemeErrorLogger((error) => {
 
 setNavPages(() => repo.pages());
 setPaletteDefault(() => settings.paletteDefault(repo));
+setLayoutDefault(() => settings.layoutDefault(repo));
 const comments = createCommentRepo(db);
 const adminRepo = createAdminRepo(db);
 const feeds = createFeedRepo(db);

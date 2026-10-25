@@ -1,6 +1,6 @@
 import { csrfField, esc } from '../../util/text.js';
 import { adminLayout } from '../layout.js';
-import { PALETTES, HERO_MAX } from '../../settings.js';
+import { PALETTES, LAYOUTS, HERO_MAX } from '../../settings.js';
 import { TLS_MODES, TLS_LABEL } from '../../mail.js';
 import { pickerDialog } from './picker.js';
 
@@ -9,6 +9,13 @@ export function systemPage({ mail = {}, hero = {}, site = {}, history = {}, csrf
 
   const paletteOptions = PALETTES
     .map((p) => `<option value="${esc(p.key)}"${p.key === (site.palette ?? '') ? ' selected' : ''}>${esc(p.name)}</option>`)
+    .join('\n            ');
+
+  // 版式与配色成对：都是「访客默认值」，访客自己选过的存在各自浏览器里、会盖过这里。
+  // 字段名用 layoutDefault 而不是 layout —— 下线的「首页封面文字版式」当年就叫 layout，
+  // test-admin 的 T8j-4b 还钉着「设置页不许再出现 name="layout"」这条。
+  const layoutOptions = LAYOUTS
+    .map((l) => `<option value="${esc(l.key)}"${l.key === (site.layout ?? 'paper') ? ' selected' : ''}>${esc(l.name)}</option>`)
     .join('\n            ');
 
   // 首页轮播图列表：缩略图一行排开，图下编号、第一张标「封面」，末尾一枚虚线「添加」格；点保存才生效。首屏（JS 没跑时）类名与 data-* 要与 admin.js 的 tile() 逐字一致。
@@ -126,6 +133,13 @@ ${hero.images.length ? heroItems + '\n' : ''}${heroAdd}
           <select class="a-select" id="s-palette" name="palette">
             ${paletteOptions}
           </select>
+        </div>
+        <div class="a-field">
+          <label for="s-layout">访客默认版式</label>
+          <select class="a-select" id="s-layout" name="layoutDefault">
+            ${layoutOptions}
+          </select>
+          <p class="a-field-note">只影响首页之外的页面；访客可在首页「配色」面板里自己换。</p>
         </div>
       </div>
       <div class="a-actions">

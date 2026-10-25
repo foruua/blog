@@ -669,6 +669,22 @@ let uploadedRawUrl = '';
   const fallback = await (await fetch(BASE + '/')).text();
   check('T8l-10 首页 meta 一直是 config 的说明，与设置项无关',
     fallback.includes('<meta name="description" content="写代码，也写字。'), '');
+
+  // 默认版式：存进 settings、立刻挂到 <html>，且后台下拉回填当前值。
+  await save({ pageSize: '20', homeRecent: '12', commentsPerPage: '20', layoutDefault: 'box' });
+  const boxedPosts = await (await fetch(BASE + '/posts/')).text();
+  const boxedHome = await (await fetch(BASE + '/')).text();
+  check('T8l-11 默认版式设为素匣：内页 <html data-layout="box">，首页不受影响（只由 CSS 排除）',
+    /<html lang="[^"]+" data-layout="box">/.test(boxedPosts)
+    && /<html lang="[^"]+" data-layout="box">/.test(boxedHome), '');
+  const sysBoxed = await html('/admin/system');
+  check('T8l-12 后台下拉回填素匣，且选项只有纸面 / 素匣',
+    /<select class="a-select" id="s-layout" name="layoutDefault">[\s\S]*?value="box" selected[\s\S]*?<\/select>/.test(sysBoxed)
+    && !/id="s-layout"[\s\S]*?value="wide"/.test(sysBoxed), '');
+  await save({ pageSize: '20', homeRecent: '12', commentsPerPage: '20', layoutDefault: 'paper' });
+  const paperPosts = await (await fetch(BASE + '/posts/')).text();
+  check('T8l-13 改回纸面：<html> 不再挂 data-layout',
+    !/<html[^>]*data-layout=/.test(paperPosts), '');
 }
 
 {

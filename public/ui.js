@@ -55,8 +55,10 @@
      清单以 src/settings.js 的 PALETTES 为准（白名单外的值在 THEME_BOOT 就被挡掉）。
      localStorage 四态：无 key = 跟随站点默认；'' = 明确选素笺；预设 key = 选定配色；'custom' = 用本地算好的那段 CSS。
      自定义的令牌由 public/palette.js 现算（OKLCH：一个色相能罩住 360 度，HSL 罩不住，黄色会掉到 4.3:1）。
-     算完整段 CSS 存进 localStorage 而不是存种子：首帧 THEME_BOOT 只做注入、不做计算，否则配色会拖慢首屏。 */
+     算完整段 CSS 存进 localStorage 而不是存种子：首帧 THEME_BOOT 只做注入、不做计算，否则配色会拖慢首屏。
+     版式（data-layout）走同一条路：无 key = 跟随站点默认，'paper' / 'box' = 访客自己选过。 */
   const PAL_CUSTOM_KEY = 'palCustom';
+  const LAYOUT_KEY = 'layout';
   // 旧版自定义 CSS 只有 --seed-lv（三档名）：回读时用它换算成连续浓度。新面板不再展示三档。
   const LEVEL_CHROMA = { soft: 0.72, mid: 1, bold: 1.3 };
   const pickers = () => [...document.querySelectorAll('.pal')];
@@ -66,6 +68,8 @@
     const t = document.documentElement.dataset.theme;
     return t === 'light' || t === 'dark' ? t : 'auto';
   };
+  // 版式两态：data-layout="box" 才是素匣，其余（含没挂属性）都是纸面。
+  const layoutNow = () => (document.documentElement.dataset.layout === 'box' ? 'box' : 'paper');
   const num = (v, fallback) => {
     const n = Number(v);
     return Number.isFinite(n) ? n : fallback;
@@ -222,6 +226,11 @@
     for (const btn of document.querySelectorAll('.pal-tm')) {
       btn.setAttribute('aria-pressed', String(btn.dataset.themeOpt === mode));
     }
+    // 版式两格：'paper' / 'box' 与 dataset 对齐。纸面不挂属性（少一个属性，CSS 里用 :not 更好写）。
+    const ly = layoutNow();
+    for (const btn of document.querySelectorAll('.pal-ly')) {
+      btn.setAttribute('aria-pressed', String((btn.dataset.layoutOpt || 'paper') === ly));
+    }
     for (const picker of pickers()) {
       const box = picker.querySelector('.pal-custom');
       box?.toggleAttribute('data-active', isCustom);
@@ -264,6 +273,15 @@
     try { localStorage.setItem('palette', key); } catch {  }
     syncThemeColor();
   };
+  // 版式：'box' 挂 data-layout，'paper' 摘掉。存的是「访客选了什么」，不是「当前生效值」——
+  // 站主以后把默认改成素匣，选过纸面的人仍然停在纸面（与配色的 '' 同一条语义）。
+  const setLayout = (key) => {
+    const box = key === 'box';
+    const root = document.documentElement;
+    if (box) root.dataset.layout = 'box';
+    else root.removeAttribute('data-layout');
+    try { localStorage.setItem(LAYOUT_KEY, box ? 'box' : 'paper'); } catch {  }
+  };
   // 首帧对齐 + pjax 换页（首页 ↔ 其他页，入口会来会走）后再对齐。
   syncPaletteUI();
   (window.__pjaxHooks = window.__pjaxHooks || []).push(syncPaletteUI);
@@ -302,6 +320,13 @@
       setPalette(opt.dataset.palette || '');
       syncPaletteUI(true);
       // 点预设不收起：面板留开，方便连着试五种；收起交给 Esc / 点面板外 / 鼠标移开（桌面悬停）。
+      return;
+    }
+    // 版式两格：同样不收起 —— 换版式后正文会整体重排，面板留在原地才看得出「换了」。
+    const ly = e.target.closest?.('.pal-ly');
+    if (ly) {
+      setLayout(ly.dataset.layoutOpt || 'paper');
+      syncPaletteUI(true);
       return;
     }
     // 点面板外就收面板。
