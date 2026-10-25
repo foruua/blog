@@ -1,7 +1,7 @@
 import { csrfField, esc, initialMark as markOf, relWhen as when, relExact as exact } from '../../util/text.js';
 import { safeHttpUrl } from '../../util/url.js';
 import { failureLabel } from '../../util/failure.js';
-import { feedState, FEED_STATES } from '../../feeds/state.js';
+import { feedState } from '../../feeds/state.js';
 import { adminLayout } from '../layout.js';
 import { progressMarkup } from '../progress.js';
 import { ICON_CLOSE } from '../../render/icons.js';
@@ -103,26 +103,22 @@ ${back}          <header class="a-media-dialog-head"><h2 id="${editId}-title">�
 }
 
 
-// 筛选条：把「抓取失败」从翻页里捞出来——几十个源里散着三五个坏源，一页页翻着找是最费劲的那件事。
-// 走 ?state= 的普通链接：无 JS 可用、URL 能收藏能分享，计数是全量口径（feedStateCounts），不是本页数。
-function filterBar({ counts, state }) {
-  const chip = (key, label, extra = '') => {
-    const href = key ? `/admin/feeds?state=${key}` : '/admin/feeds';
-    const on = state === key ? ' aria-current="page"' : '';
-    return `<a class="a-feeds-chip${extra}" href="${href}"${on}>${label}<b>${counts[key || 'all'] ?? 0}</b></a>`;
-  };
-  const chips = FEED_STATES
-    .map((key) => chip(key, STATE[key][1], key === 'failed' && counts.failed ? ' is-err' : ''))
-    .join('\n        ');
-
-  return `      <nav class="a-feeds-chips" aria-label="按抓取状态筛选">
-        ${chip('', '全部')}
-        ${chips}
-      </nav>
-`;
+// 工具行右端那句状态：不做「一排筛选按钮」，只写一句人话。
+// 全部正常时是一句陈述（不占视觉重量、也不挂五个 0）；有坏源时那几个字变成可点的红字，点进去换成「只看…· 看全部」。
+// 仍然走 ?state= 的普通链接：无 JS 可用、URL 能收藏，路由那边本来就能筛任何一档，只是界面只把「失败」摆出来。
+function statusLine({ counts, state }) {
+  const total = counts.all ?? 0;
+  if (state) {
+    const label = STATE[state]?.[1] ?? state;
+    return `        <p class="a-feeds-status is-filtered"><i${state === 'failed' ? ' class="is-err"' : ''} aria-hidden="true"></i>只看${esc(label)}（${counts[state] ?? 0} 个）<span class="a-feeds-status-dot" aria-hidden="true">·</span><a class="a-feeds-status-back" href="/admin/feeds">看全部 ${total} 个</a></p>\n`;
+  }
+  if (counts.failed) {
+    return `        <p class="a-feeds-status"><i class="is-err" aria-hidden="true"></i>${total} 个源<span class="a-feeds-status-dot" aria-hidden="true">·</span><a class="a-feeds-status-link" href="/admin/feeds?state=failed">${counts.failed} 个抓取失败</a></p>\n`;
+  }
+  return `        <p class="a-feeds-status"><i aria-hidden="true"></i>${total} 个源<span class="a-feeds-status-dot" aria-hidden="true">·</span>全部正常</p>\n`;
 }
 
-function pager({ page, lastPage, perPage, total, shown = total, csrf, state = '' }) {
+function pager({ page, lastPage, perPage, total, csrf, state = '' }) {
   // 页码链接带着筛选态走：在第 2 页点「下一页」不能把人送回「全部」。
   const href = (n) => `/admin/feeds?page=${n}${state ? `&state=${encodeURIComponent(state)}` : ''}`;
   const step = (n, text, on) => (on
@@ -130,7 +126,7 @@ function pager({ page, lastPage, perPage, total, shown = total, csrf, state = ''
     : `<span class="a-pager-btn is-off">${text}</span>`);
 
   return `      <div class="a-feeds-pager">
-        <span class="a-feeds-total">共 ${total} 个源${state ? ` · 筛出 ${shown} 个` : ''}</span>
+        <span class="a-feeds-total">共 ${total} 个源</span>
         <form method="post" action="/admin/feeds/per" class="a-feeds-per">
           ${csrfField(csrf)}
 ${state ? `          <input type="hidden" name="state" value="${esc(state)}">\n` : ''}          <label for="f-per">每页</label>
@@ -247,7 +243,7 @@ export function feedsProgress(progress) {
 export function feedsPage({
   rows = [], totals = {}, importReport = null, pendingLinks = null, csrf, badges, notice = '',
   page = 1, perPage = 20, lastPage = 1, addUrl = '', addTitle = '',
-  progress = null, state = '', counts = null, shown = 0,
+  progress = null, state = '', counts = null,
 }) {
   const list = rows.map((feed) => feedRow(feed, csrf, { page, state })).join('\n');
   const total = totals.sources ?? 0;
@@ -282,7 +278,7 @@ export function feedsPage({
     <h2 class="a-h2">${esc(head)}</h2>
     ${pendingLinks !== null ? importEntry({ csrf, importReport, pendingLinks }) : ''}
     <div class="a-card a-panel">
-${total ? `${filterBar({ counts: counts ?? { all: total }, state })}      <div class="a-feeds-bar">
+${total ? `      <div class="a-feeds-bar">
         <div class="a-feeds-bar-ops">
           <form method="post" action="/admin/feeds/refresh" data-feeds-refresh>
             ${csrfField(csrf)}
@@ -297,11 +293,11 @@ ${pageInput}            <button type="submit" class="a-btn-ghost"
                     data-modal-note="下次刷新（或点「刷新全部」）会重新抓回来。">清空抓取结果</button>
           </form>
         </div>
-      </div>
+${statusLine({ counts: counts ?? { all: total }, state })}      </div>
 ${feedsProgress(progress)}
       <ul class="a-feeds">
 ${rows.length ? `${list}\n` : emptyRow}      </ul>
-${pager({ page, lastPage, perPage, total, shown, csrf, state })}` : noFeeds}
+${pager({ page, lastPage, perPage, total, csrf, state })}` : noFeeds}
     </div>
 ${pendingLinks !== null ? importDialog({ importReport, pendingLinks }) : ''}`;
 

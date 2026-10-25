@@ -766,27 +766,31 @@ async function addFeed(url, extra = {}) {
 
 
 {
-  // 抓取失败散在几十个源里时，一页页翻着找最费劲：?state= 只留坏的那几个，筛选条上的计数是全量口径（不是本页数）。
+  // 抓取失败散在几十个源里时，一页页翻着找最费劲：?state= 只留坏的那几个。界面不做一排筛选按钮，
+  // 只在工具行右端写一句状态（全部正常是陈述，有坏源时那几个字可点），所以断言都对着这句话。
   const stateOfRow = (r) => (!r.enabled ? 'off' : r.fail_count > 0 ? 'failed' : r.last_ok_at ? 'ok' : 'never');
   const all = db.prepare('SELECT id, enabled, fail_count, last_ok_at FROM feeds').all();
   const expect = all.reduce((acc, r) => { const k = stateOfRow(r); acc[k] = (acc[k] ?? 0) + 1; return acc; }, {});
   const rowsOf = (page) => [...page.matchAll(/<li class="a-feed" data-state="([^"]+)"/g)].map((m) => m[1]);
-  const chipOf = (page, key) => Number(new RegExp(`href="/admin/feeds\\?state=${key}"[^>]*>[^<]*<b>(\\d+)</b>`).exec(page)?.[1]);
+  // 那句状态是 flex 排的，分隔点靠 gap 而不是空格——取文本时先把点换成「 · 」，断言的字符串才读得懂。
+  const statusOf = (page) => (/<p class="a-feeds-status[^"]*"[^>]*>([\s\S]*?)<\/p>/.exec(page)?.[1] ?? '')
+    .replace(/<span class="a-feeds-status-dot"[^>]*>·<\/span>/g, ' · ')
+    .replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
 
   const page = await html('/admin/feeds?state=failed');
   const states = rowsOf(page);
   check('D1 ?state=failed 只列抓取失败的源',
     expect.failed >= 1 && states.length === expect.failed && states.every((s) => s === 'failed'),
     `期望 ${expect.failed} 行，实际 ${states.length} 行（${states.join(',')}）`);
-  check('D2 筛选条写的是全量计数，不是当前页数',
-    ['failed', 'ok', 'never', 'off'].every((k) => chipOf(page, k) === (expect[k] ?? 0)),
-    ['failed', 'ok', 'never', 'off'].map((k) => `${k}=${chipOf(page, k)}/${expect[k] ?? 0}`).join(' '));
+  check('D2 筛选时状态行写「只看抓取失败（N 个） · 看全部 M 个」，N 是全量不是本页数',
+    statusOf(page) === `只看抓取失败（${expect.failed} 个） · 看全部 ${all.length} 个`, statusOf(page));
   check('D3 行内动作与翻页都把 state 带回去（刷一个源不会把人弹回全部）',
     page.includes('<input type="hidden" name="state" value="failed">'), '');
 
   const bogus = await html('/admin/feeds?state=bogus');
   check('D4 不认识的 state 退回全部，不会给一页空白',
-    rowsOf(bogus).length > 0 && bogus.includes('<a class="a-feeds-chip" href="/admin/feeds" aria-current="page">全部'), '');
+    rowsOf(bogus).length > 0 && !statusOf(bogus).startsWith('只看') && bogus.includes('href="/admin/feeds?state=failed"'),
+    statusOf(bogus));
 
   // 停用优先：停用的源不再抓，也就从「抓取失败」里退出——两个筛选互斥，计数才不会重复。
   const target = all.find((r) => stateOfRow(r) === 'failed');
@@ -801,6 +805,15 @@ async function addFeed(url, extra = {}) {
   const res = await req(`/admin/feeds/${target.id}/refresh`, form({ _csrf: csrf, state: 'failed' }));
   check('D6 动作之后的跳转保留筛选态', (res.headers.get('location') ?? '').includes('state=failed'),
     res.headers.get('location') ?? '');
+
+  // 一个坏源都没有时，这句话退成陈述句：不挂一排 0，也不给筛选入口（没东西可筛）。
+  const snapshot = db.prepare('SELECT id, enabled, fail_count, last_ok_at FROM feeds').all();
+  db.prepare("UPDATE feeds SET fail_count = 0, last_ok_at = COALESCE(last_ok_at, '2026-01-01T00:00:00Z')").run();
+  const calm = await html('/admin/feeds');
+  check('D7 全部正常时只写「N 个源 · 全部正常」，不挂 0 也不给筛选入口',
+    statusOf(calm) === `${all.length} 个源 · 全部正常` && !calm.includes('state=failed'), statusOf(calm));
+  const restore = db.prepare('UPDATE feeds SET enabled = ?, fail_count = ?, last_ok_at = ? WHERE id = ?');
+  for (const r of snapshot) restore.run(r.enabled, r.fail_count, r.last_ok_at, r.id);
 }
 
 {

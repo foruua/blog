@@ -1040,24 +1040,28 @@ html[data-theme="dark"] .a-select {
 .a-feed-add-form .a-field { margin: 0; }
 .a-feed-add-go .a-btn { width: 100%; }
 
-/* —— 筛选条：一排状态芯片 —— 抓取失败散在几十个源里时，一页页翻着找是最费劲的事；点一下只剩坏的那几个。
-   计数是全量口径（不是本页数），链接走 ?state=，无 JS 也能用。失败那一档有坏源时先转红，扫一眼就知道有没有事。
-   名字带 feeds 前缀：`.a-chip` 已被设置页那些状态芯片占用（它自带圆点）。 */
-.a-feeds-chips { display: flex; flex-wrap: wrap; gap: .4rem; margin: 0 0 1rem; }
-.a-feeds-chip {
-  display: inline-flex; align-items: center; gap: .4em;
-  height: 1.9rem; padding: 0 .7rem;
-  font-size: var(--a-fs-sm); color: var(--fg-soft);
-  border: 1px solid var(--rule-strong); border-radius: var(--radius-pill);
-  transition: border-color var(--dur-2) var(--ease, ease), color var(--dur-2) var(--ease, ease), background var(--dur-2) var(--ease, ease);
+/* —— 工具行右端那句状态 —— 不做一排筛选按钮：全部正常时是一句陈述（不挂五个 0，也不跟左边的按钮抢「我是按钮」），
+   有坏源时那几个字变成可点的红字。点进去之后换成「只看… · 看全部」，筛选态照样能从那儿退出来。 */
+.a-feeds-status {
+  display: flex; align-items: center; flex-wrap: wrap; gap: .45rem;
+  margin: 0;
+  font-size: var(--a-fs-sm); color: var(--muted);
 }
-.a-feeds-chip b { font: var(--a-fs-micro)/1 var(--mono); font-weight: 400; color: var(--muted); font-variant-numeric: tabular-nums; }
-.a-feeds-chip:hover { border-color: var(--accent); color: var(--accent-read); }
-.a-feeds-chip[aria-current="page"] { color: var(--fg); border-color: var(--accent); background: var(--accent-soft); }
-.a-feeds-chip[aria-current="page"] b { color: var(--fg); }
-.a-feeds-chip.is-err { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 34%, transparent); }
-.a-feeds-chip.is-err b { color: var(--danger); }
-.a-feeds-chip.is-err[aria-current="page"] { border-color: var(--danger); background: var(--danger-soft); }
+/* 小圆点：正常是强调色（与 .a-pill-live 同一支笔），有失败转红。 */
+.a-feeds-status > i { width: .42rem; height: .42rem; border-radius: 50%; background: var(--accent); flex: 0 0 auto; }
+.a-feeds-status > i.is-err { background: var(--danger); }
+.a-feeds-status-dot { color: var(--rule-strong); }
+.a-feeds-status-link {
+  color: var(--danger);
+  border-bottom: 1px solid color-mix(in srgb, var(--danger) 45%, transparent);
+}
+.a-feeds-status-link:hover { border-bottom-color: var(--danger); }
+.a-feeds-status.is-filtered { color: var(--fg-soft); }
+.a-feeds-status-back {
+  color: var(--accent-read);
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.a-feeds-status-back:hover { border-bottom-color: var(--accent); }
 
 /* —— 工具行：刷新/清空居左 —— 底下压一条发丝线分开工具与名单；**左右各出血 .8rem**，否则比下面每行分割线短 25.6px。 */
 .a-feeds-bar {
@@ -2118,9 +2122,8 @@ article.a-preview-sheet > h1 { margin: 0; padding-bottom: 1.5rem; border-bottom:
 
   /* 友圈工具行：刷新/清空、统一设置/应用都收成 30px；数字框同步到 30px，整行才不打架。 */
   .a-feeds-bar { gap: .5rem .8rem; }
-  /* 筛选芯片跟着收一档，五个挤在一行也放得下（放不下就换行，不横向滚）。 */
-  .a-feeds-chips { gap: .3rem; margin-bottom: .8rem; }
-  .a-feeds-chip { height: 28px; padding: 0 .55rem; font-size: 12px; }
+  /* 状态行跟着收一档；窄屏上它会换到按钮下面一行（.a-feeds-bar 本来就允许换行）。 */
+  .a-feeds-status { font-size: 12px; gap: .35rem; }
   .a-feeds-bar-ops { gap: .35rem; }
   .a-feeds-bar-ops button,
   .a-feeds-per button {

@@ -79,8 +79,8 @@ export function registerFeedRoutes(app, { feeds, links = null, refresher, repo, 
       addTitle: c.req.query('title') ? String(c.req.query('title')).slice(0, 60) : '',
 
       totals: { sources: all.length },
-      // 计数按全量算（不是本页），筛选条上写的就是「一共几个失败」。
-      counts: feedStateCounts(all), state, shown: shown.length,
+      // 计数按全量算（不是本页）：工具行那句「3 个抓取失败」写的是总数。
+      counts: feedStateCounts(all), state,
       notice: c.req.query('w') ? String(c.req.query('w')) : '',
       page,
       perPage,
