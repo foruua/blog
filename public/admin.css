@@ -2484,33 +2484,70 @@ article.a-preview-sheet > h1 { margin: 0; padding-bottom: 1.5rem; border-bottom:
 .a-iconbtn-x:hover { color: var(--danger); border-color: var(--danger); }
 
 /* 新增外链：名称 / 地址 / 位置一行填完，点表单底部的保存才提交（不额外做一个「立刻新增」按钮，
-   那样会出现「新增了但还没保存」的半截状态）。 */
+   那样会出现「新增了但还没保存」的半截状态）。三个字段各带一行小标题，不用 placeholder——
+   占位符一输入就消失，且低对比度，做字段名不合格。 */
 .a-navadd {
   margin: 0 0 1.2rem; padding: .8rem .9rem;
   border: 1px dashed var(--rule-strong); border-radius: var(--radius-sm);
 }
 .a-navadd-title { margin: 0 0 .55rem; font-size: .86rem; color: var(--fg-soft); }
 .a-navadd-row { display: grid; grid-template-columns: minmax(7rem, 1fr) minmax(10rem, 1.6fr) 8.5rem; gap: .5rem; }
-.a-navadd .a-dim { margin: .5rem 0 0; }
 
-/* 页脚社交：名称 + 地址两列，留空的行会被忽略。 */
+/* 字段小标题：用于一组输入（外链三格、页脚社交两列）与「没有单个 input 可 for」的场合。
+   label 元素必须有 for，这里的组标题不能用 label —— 否则就是一个没有控件的孤立标签。 */
+.a-field-label {
+  margin: 0 0 .45rem;
+  font-size: var(--a-fs-sm);
+  color: var(--fg-soft);
+  letter-spacing: .02em;
+}
+.a-mini { display: flex; flex-direction: column; gap: .3rem; min-width: 0; }
+.a-mini > label { font-size: .76rem; color: var(--muted); letter-spacing: .02em; }
+.a-mini .a-input, .a-mini .a-select { height: 2.1rem; }
+
+/* 页脚社交：名称 + 地址两列，留空的行会被忽略。列头只做视觉对齐，可访问名在每格的 aria-label 上。 */
 .a-linkrow { display: grid; grid-template-columns: minmax(6rem, .6fr) minmax(10rem, 1.4fr); gap: .5rem; }
 .a-linkrow + .a-linkrow { margin-top: .45rem; }
+.a-linkhead {
+  display: grid; grid-template-columns: minmax(6rem, .6fr) minmax(10rem, 1.4fr); gap: .5rem;
+  margin: 0 0 .35rem;
+  font-size: .76rem; color: var(--muted); letter-spacing: .02em;
+}
 
-/* 站点图标预览：三个方块并排，说明文字跟在后面。 */
-.a-icrow { display: flex; align-items: center; gap: 1.1rem; flex-wrap: wrap; margin: 0 0 1.2rem; }
-.a-icprev { margin: 0; display: flex; flex-direction: column; align-items: center; gap: .35rem; }
-.a-icprev img {
-  width: 64px; height: 64px; object-fit: cover;
+/* 站点图标：左边当前图，右边字段 + 文件选择。
+   原生「选择文件」按钮跟着系统走、和全站按钮不同款，这里用 ::file-selector-button 把它改成同一套样式。 */
+.a-filefield { display: flex; align-items: flex-start; gap: 1rem; margin: 0 0 .2rem; }
+.a-fileprev {
+  flex: none; width: 56px; height: 56px; object-fit: cover;
   border: 1px solid var(--rule); border-radius: var(--radius-sm);
   background: var(--bg-soft);
 }
-.a-icprev figcaption { font: .7rem/1.3 var(--mono); color: var(--muted); letter-spacing: .04em; }
-.a-icog { display: flex; align-items: center; gap: .9rem; flex-wrap: wrap; margin-top: 1.4rem; }
-.a-ogshot {
-  width: 240px; height: auto; aspect-ratio: 1200 / 630; object-fit: cover;
-  border: 1px solid var(--rule); border-radius: var(--radius-sm);
-  background: var(--bg-soft);
+.a-filewrap { display: flex; flex-direction: column; gap: .4rem; min-width: 0; flex: 1; }
+.a-filewrap > label { font-size: var(--a-fs-sm); color: var(--fg-soft); }
+.a-file {
+  width: 100%; max-width: 26rem;
+  font: inherit; font-size: var(--a-fs-sm); color: var(--muted);
+}
+/* 原生「选择文件」按钮跟着系统走，和全站按钮不同款。用 ::file-selector-button 把它做成
+   与 .a-btn-ghost 同一套（同样的高、字号、圆角、发丝边），下面的「上传」才是实底主操作。
+   不额外包一层隐藏 input + label 假按钮：那样要么丢键盘可达性，要么得写 JS 回填文件名。 */
+.a-file::file-selector-button {
+  margin-right: .75rem;
+  height: var(--ctl-h);
+  padding: 0 1.05rem;
+  font: 500 .93rem/1.35 var(--sans);
+  color: var(--fg-soft);
+  background: color-mix(in srgb, var(--bg-elev) 55%, transparent);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--a-button-radius);
+  cursor: pointer;
+  transition: color var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease);
+}
+.a-file::file-selector-button:hover { color: var(--accent-read); border-color: var(--accent); }
+.a-file:focus-visible { outline: none; }
+.a-file:focus-visible::file-selector-button {
+  border-color: var(--accent);
+  box-shadow: var(--ring);
 }
 
 @media (max-width: 720px) {
@@ -2522,5 +2559,6 @@ article.a-preview-sheet > h1 { margin: 0; padding-bottom: 1.5rem; border-bottom:
   .a-navrow-show { grid-column: 3; }
   .a-navrow-move { grid-column: 4; }
   .a-navrow-kind { display: none; }
-  .a-navadd-row, .a-linkrow { grid-template-columns: 1fr; }
+  .a-navadd-row, .a-linkrow, .a-linkhead { grid-template-columns: 1fr; }
+  .a-linkhead { display: none; }
 }

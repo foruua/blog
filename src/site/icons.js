@@ -4,13 +4,12 @@ import sharp from 'sharp';
 import { DATA_DIR } from '../config.js';
 import { createAssetVersions } from '../render/assets.js';
 
-// —— 站点图标与分享图 ——
-// 原本是 public/ 下的五个静态文件：换 logo 要替换文件、跑 build:assets 重算指纹、再部署一次。
+// —— 站点图标 ——
+// 原本是 public/ 下的几个静态文件：换 logo 要替换文件、跑 build:assets 重算指纹、再部署一次。
 // 这里把「站主上传的图」放进 DATA_DIR/site/，与 uploads/ 同一条原则：可变内容不进源码目录，
 // 备份跟着 data/ 走，部署覆盖 public/ 也不会把站主的图冲掉。
 //
-// 只收两张源图：一张方形（生全套图标）、一张 1200×630（分享图）。
-// 之所以不让人逐个传五个尺寸：手工切出来的 maskable 很容易留白边，iPhone 上就是一个缩在中间的方块。
+// 只收一张方形源图，其余尺寸由它生成——手工切出来的 maskable 很容易留白边，iPhone 上就是缩在中间的方块。
 
 export const SITE_DIR = path.join(DATA_DIR, 'site');
 
@@ -20,7 +19,6 @@ export const ICON_FILES = {
   icon512: 'icon-512.png',
   maskable: 'icon-maskable-512.png',
   apple: 'apple-touch-icon.png',
-  og: 'og-image.jpg',
 };
 
 /** 按内容算指纹：同一张图重复上传，地址不变、浏览器不会白刷一遍缓存。 */
@@ -94,19 +92,7 @@ export async function installIconSet(buffer) {
     .extend({ top: pad, bottom: MASK_SIZE - MASK_INNER - pad, left: pad, right: MASK_SIZE - MASK_INNER - pad, background: PAPER })
     .png({ compressionLevel: 9 }).toBuffer());
 
-  return Object.keys(ICON_FILES).filter((key) => key !== 'og').length;
-}
-
-/** 分享图：1200×630 是 og:image / twitter:card 的通用尺寸，非这个比例的图居中裁切。 */
-export async function installOgImage(buffer) {
-  await decode(buffer, { min: 600 });
-  const jpg = await sharp(buffer, SHARP_INPUT).rotate()
-    .resize(1200, 630, { fit: 'cover', position: 'centre' })
-    .flatten({ background: PAPER })
-    .jpeg({ quality: 84, mozjpeg: true })
-    .toBuffer();
-  writeAtomic(ICON_FILES.og, jpg);
-  return true;
+  return Object.keys(ICON_FILES).length;
 }
 
 /** 全部清掉回到出厂图标。文件不存在也算成功——这个按钮要能反复点。 */

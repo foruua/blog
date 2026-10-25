@@ -85,9 +85,3 @@ export function saveSiteIdentity(body, set, val) {
   }
   return null;
 }
-
-/** 环境变量里配了哪些项：后台用来在输入框下方提示「留空则用环境变量」。 */
-export const envIdentityHint = () => ({
-  title: ENV_SITE.title, desc: ENV_SITE.desc, author: ENV_SITE.author,
-  email: ENV_SITE.email, mark: ENV_SITE.mark, icp: ENV_SITE.icp, lang: ENV_SITE.lang,
-});

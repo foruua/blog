@@ -2,7 +2,7 @@ import { previewSourceOf } from '../../media/variants.js';
 import { externalWrite, bodyOf, val, notice } from './shared.js';
 import { subscriberCount, clearSubscribers } from '../../comments/subscribers.js';
 import { settingsFormState, saveSettings, KEYS, HERO_MAX, HERO_OVERLAY_MAX, HERO_LEGACY_KEYS, HERO_RETIRED_KEYS, heroImages, heroOverlay, commentsFormState } from '../../settings.js';
-import { siteIdentityOf, envIdentityHint } from '../../site/identity.js';
+import { siteIdentityOf } from '../../site/identity.js';
 import { navFormState } from '../../site/nav.js';
 import { footerOf, copyOf } from '../../site/copy.js';
 import { siteIconsState } from '../../site/icons.js';
@@ -166,8 +166,6 @@ export function registerSettingsRoutes(app, { repo, crypt, adminRepo, mutate = (
       anyCustom: Object.values(iconState.custom).some(Boolean),
       preview: {
         icon: iconState.icon192 || `/icon-192.png?v=${assetVer('icon-192.png')}`,
-        apple: iconState.apple || `/apple-touch-icon.png?v=${assetVer('apple-touch-icon.png')}`,
-        og: iconState.og || `/og-default.jpg?v=${assetVer('og-default.jpg')}`,
       },
     };
     return c.html(systemPage(ctx(c, {
@@ -178,7 +176,6 @@ export function registerSettingsRoutes(app, { repo, crypt, adminRepo, mutate = (
       history: adminRepo.historyCounts(),
       unsub: unsubCount(),
       identity: siteIdentityOf(read),
-      env: envIdentityHint(),
       nav: navFormState(read, repo.pages()),
       footer: footerOf(read),
       copy: copyOf(read),

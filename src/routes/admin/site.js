@@ -4,7 +4,7 @@ import { applySiteIdentity, saveSiteIdentity } from '../../site/identity.js';
 import { saveNav } from '../../site/nav.js';
 import { saveFooter, saveCopy } from '../../site/copy.js';
 import { saveCommentSettings } from '../../settings.js';
-import { installIconSet, installOgImage, clearSiteIcons } from '../../site/icons.js';
+import { installIconSet, clearSiteIcons } from '../../site/icons.js';
 
 // 站点配置的写入路由。全部落在已有的 settings 表里，保存后 redirect 回 /admin/system 带一行提示。
 // 每个表单一个端点：改站名不该把导航顺序、图标、密码一起提交（那样一处校验失败就全都不生效）。
@@ -109,19 +109,7 @@ export function registerSiteRoutes(app, { repo, auth, crypt }) {
     }
     // 图标写在 DATA_DIR，不经过 settings 表，页面缓存不会自己失效；这里戳一下让带新指纹的 <head> 重新渲染。
     repo.setSetting('site_icons_rev', String(Date.now()));
-    return notice(c, '/admin/system', '✓ 图标已更新（五档尺寸都已重生成）');
-  });
-
-  externalWrite(app, '/admin/site/og', async (c) => {
-    const { buffer, error } = await readUpload(c, 'og');
-    if (error) return notice(c, '/admin/system', `✗ ${error}`);
-    try {
-      await installOgImage(buffer);
-    } catch (e) {
-      return notice(c, '/admin/system', `✗ ${e?.message ?? '分享图生成失败'}`);
-    }
-    repo.setSetting('site_icons_rev', String(Date.now()));
-    return notice(c, '/admin/system', '✓ 分享图已更新');
+    return notice(c, '/admin/system', '✓ 图标已更新');
   });
 
   app.post('/admin/site/icons/clear', (c) => {

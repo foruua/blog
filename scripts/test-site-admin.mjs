@@ -40,6 +40,43 @@ for (const heading of ['站点身份', '导航菜单', '页面文案', '页脚�
 }
 check('S1b 设置页把「站点与阅读」改成了「阅读与外观」', page.includes('>阅读与外观</h2>'));
 
+// —— 表单可访问性与文案密度（曾出过的问题，钉住）——
+// 1) 一条 <label> 必须有关联控件：带 for，或自己把 input/select/textarea 包在里面。
+//    曾经「社交链接」那格是个光秃秃的 <label>，DevTools 直接报 “A <label> isn't associated with a form field”。
+// 2) 本次新增的表单里不许出现 placeholder（一输入就消失、对比度也不合格），也不许有解释性小字（a-dim）。
+{
+  const { identitySection, navSection, footerSection, copySection, iconsSection, commentsSection, accountSection } =
+    await import('../src/admin/views/site.js');
+  const html = [
+    identitySection({ identity: { title: 't', desc: 'd', author: 'a', email: 'e@x.io', mark: 'm', icp: '', lang: 'zh-CN' }, csrf: 'c' }),
+    navSection({ nav: { items: [{ key: 'home', label: '首页', href: '/', group: 'main', show: 1 }], moreLabel: '页面' }, csrf: 'c' }),
+    copySection({ copy: { heroPosts: '篇文章', heroNotes: '篇笔记', recent: '最近更新', postsTitle: '文章', postsDesc: '', notesTitle: '笔记', notesDesc: '' }, csrf: 'c' }),
+    footerSection({ footer: { text: '', links: [] }, csrf: 'c' }),
+    iconsSection({ icons: {}, csrf: 'c' }),
+    commentsSection({ comments: { open: true, moderateAll: false, rate: 5 }, csrf: 'c' }),
+    accountSection({ csrf: 'c', configured: true }),
+  ].join('\n');
+
+  const orphan = [...html.matchAll(/<label\b([^>]*)>([\s\S]*?)<\/label>/g)]
+    .filter(([, attrs, body]) => !/\bfor="/.test(attrs) && !/<(?:input|select|textarea)\b/.test(body));
+  check('S1c 新增表单里没有孤立 <label>', orphan.length === 0, orphan.map((m) => m[0].slice(0, 60)).join(' | '));
+
+  // 把「嵌套 label」整块去掉（里面的控件已由 S1c 保证有关联名），剩下的控件必须自带 for 指向或 aria-label。
+  const flat = html.replace(/<label\b([^>]*)>[\s\S]*?<\/label>/g, (m, attrs) => (/\bfor="/.test(attrs) ? m : ''));
+  const forIds = new Set([...flat.matchAll(/\bfor="([^"]+)"/g)].map((m) => m[1]));
+  const unlabeled = [...flat.matchAll(/<(input|select|textarea)\b([^>]*)>/g)]
+    .filter(([, tag, attrs]) => !(tag === 'input' && /type="hidden"/.test(attrs)))
+    .filter(([, , attrs]) => {
+      const id = /\bid="([^"]+)"/.exec(attrs)?.[1];
+      if (id && forIds.has(id)) return false;
+      return !/\baria-label(?:ledby)?="/.test(attrs);
+    });
+  check('S1d 新增表单里每个字段都有可访问名', unlabeled.length === 0, unlabeled.map((m) => m[0].slice(0, 60)).join(' | '));
+
+  check('S1e 新增表单里没有 placeholder', !html.includes('placeholder='));
+  check('S1f 新增表单里没有解释性小字（a-dim）', !html.includes('a-dim'));
+}
+
 // —— 站点身份 ——
 {
   const r = await client('/admin/site/identity', form({

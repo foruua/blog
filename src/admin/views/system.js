@@ -7,7 +7,7 @@ import { identitySection, navSection, footerSection, copySection, iconsSection, 
 
 export function systemPage({
   mail = {}, hero = {}, site = {}, history = {}, csrf, notice = '', badges, unsub = 0,
-  identity = {}, env = {}, nav = { items: [], moreLabel: '页面' }, footer = { text: '', links: [] },
+  identity = {}, nav = { items: [], moreLabel: '页面' }, footer = { text: '', links: [] },
   copy = {}, icons = {}, comments = {}, configured = true,
 }) {
 
@@ -118,7 +118,7 @@ ${hero.images.length ? heroItems + '\n' : ''}${heroAdd}
 
   // 分组顺序按「改得最勤的放最前」：站点身份 → 导航 → 文案 → 封面 → 阅读 → 图标 → 评论 → 账号 → 邮件 → 维护。
   // 每块都是独立表单，一处填错不会连累别处。
-  const body = `${identitySection({ identity, env, csrf })}
+  const body = `${identitySection({ identity, csrf })}
 
 ${navSection({ nav, csrf })}
 

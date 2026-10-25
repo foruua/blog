@@ -158,8 +158,8 @@ async function spoolRawUpload(c, { limit, timeoutMs }) {
 // 请求体上限规则集中一处：上传的两条路径上限不同——raw 走流式落盘，沿用 MAX_UPLOAD（默认不限）；
 // multipart 整块进内存，用独立的保守上限兜底，避免旧表单一次误用就吃掉整个堆。
 const MEDIA_WRITE_RE = /\/comment$|^\/moderate\//;
-// 后台上传站点图标 / 分享图：表单是 multipart，两张源图各几 MB，不能落进普通表单的 1MB 上限。
-const SITE_UPLOAD_RE = /^\/admin\/site\/(?:icons|og)$/;
+// 后台上传站点图标：表单是 multipart，源图几 MB，不能落进普通表单的 1MB 上限。
+const SITE_UPLOAD_RE = /^\/admin\/site\/icons$/;
 export function bodyLimitFor({ path: p, contentType, isUpload = false, isThemeUpload = false }) {
   const isMultipart = contentType.includes('multipart/form-data');
   if (isUpload) return (isMultipart ? MAX_MULTIPART_UPLOAD : MAX_UPLOAD) + 65536;

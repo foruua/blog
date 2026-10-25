@@ -122,10 +122,10 @@ export const setNavPages = (fn) => { pagesOf = typeof fn === 'function' ? fn : (
 
 let navSourceOf = () => null;   // () => { items, moreLabel } | null
 let footerSourceOf = () => ({ text: '', links: [] });
-let iconsOf = () => ({ favicon: '', apple: '', og: '', custom: {} });
+let iconsOf = () => ({ favicon: '', apple: '', custom: {} });
 export const setNavSource = (fn) => { navSourceOf = typeof fn === 'function' ? fn : () => null; };
 export const setFooterSource = (fn) => { footerSourceOf = typeof fn === 'function' ? fn : () => ({ text: '', links: [] }); };
-export const setSiteIcons = (fn) => { iconsOf = typeof fn === 'function' ? fn : () => ({ favicon: '', apple: '', og: '', custom: {} }); };
+export const setSiteIcons = (fn) => { iconsOf = typeof fn === 'function' ? fn : () => ({ favicon: '', apple: '', custom: {} }); };
 
 /**
  * 菜单：有注入的读取函数就用它（含后台改过的顺序/名称/显隐），否则按出厂清单 + 固定页现算。
@@ -318,9 +318,8 @@ const navDrawerHtml = (active, items) => items.map(([href, label, key], i) =>
 
 // 站点默认分享图：文章没有首图时用它。layout() 内部兜底与 public.js 的 OG/JSON-LD 共用这一份
 // （以前 public.js 又抄了一份常量，改默认图要记得改两处）。
-// 站主在后台上传过分享图就用那张，没传才回落到 public/og-default.jpg。
 export const defaultOgImage = () => ({
-  url: absUrl(iconsOf()?.og || `/og-default.jpg?v=${assetVer('og-default.jpg')}`),
+  url: absUrl(`/og-default.jpg?v=${assetVer('og-default.jpg')}`),
   width: 1200,
   height: 630,
   alt: SITE.identity,
