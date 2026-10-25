@@ -622,9 +622,14 @@ let uploadedRawUrl = '';
   const page = await html('/admin/system');
   check('T8l-1 菜单与页面标题都叫「设置」，不再是「系统」',
     page.includes('>设置<') && page.includes('<title>设置 · ') && !page.includes('>系统<'), '');
-  check('T8l-2 站点信息卡片墙已删除（设置页第一个区块就是"站点与阅读"）',
-    !page.includes('a-facts') && !page.includes('站点信息')
-    && page.includes('站点与阅读'), '');
+  // 原先这里钉的是「站点信息只读卡片墙已删除，第一个区块是站点与阅读」。
+  // 后来站点身份改成**可编辑表单**（后台「站点身份」块），卡片墙那套只读展示仍然不许回来，
+  // 所以断言改成：不再有 a-facts 卡片墙，第一块是站点身份表单，且它的字段名确实能提交。
+  check('T8l-2 只读卡片墙仍是删除状态，第一块是「站点身份」表单',
+    !page.includes('a-facts')
+    && page.indexOf('>站点身份</h2>') > 0
+    && page.indexOf('>站点身份</h2>') < page.indexOf('>阅读与外观</h2>')
+    && page.includes('name="title"'), '');
   check('T8l-3 设置页仍是那几项可改的（每页条数 / 最近更新 / 每页评论串数）',
     ['id="s-page"', 'id="s-recent"', 'id="s-cpage"'].every((k) => page.includes(k))
     && !page.includes('站点描述')
