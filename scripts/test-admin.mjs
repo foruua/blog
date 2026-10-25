@@ -678,36 +678,13 @@ let uploadedRawUrl = '';
     /<html lang="[^"]+" data-layout="box">/.test(boxedPosts)
     && /<html lang="[^"]+" data-layout="box">/.test(boxedHome), '');
   const sysBoxed = await html('/admin/system');
-  check('T8l-12 后台默认样式块回填素匣（两格单选，没有第三个选项）',
-    /name="layoutDefault" value="box" checked/.test(sysBoxed)
-    && /name="layoutDefault" value="paper"/.test(sysBoxed)
-    && !/name="layoutDefault" value="wide"/.test(sysBoxed), '');
+  check('T8l-12 后台下拉回填素匣，且选项只有纸面 / 素匣',
+    /<select class="a-select" id="s-layout" name="layoutDefault">[\s\S]*?value="box" selected[\s\S]*?<\/select>/.test(sysBoxed)
+    && !/id="s-layout"[\s\S]*?value="wide"/.test(sysBoxed), '');
   await save({ pageSize: '20', homeRecent: '12', commentsPerPage: '20', layoutDefault: 'paper' });
   const paperPosts = await (await fetch(BASE + '/posts/')).text();
   check('T8l-13 改回纸面：<html> 不再挂 data-layout',
     !/<html[^>]*data-layout=/.test(paperPosts), '');
-
-  // 默认明暗与「自定义」配色：一个挂属性，一个连首帧 CSS 一起出。
-  await save({
-    pageSize: '20', homeRecent: '12', commentsPerPage: '20',
-    themeDefault: 'dark', palette: 'custom', layoutDefault: 'paper',
-    hue: '210', chroma: '1', paper: '1',
-  });
-  const styled = await (await fetch(BASE + '/posts/')).text();
-  check('T8l-14 默认明暗设为暗色：<html data-theme="dark">',
-    /<html lang="[^"]+" data-theme="dark"[^>]*>/.test(styled), '');
-  check('T8l-15 默认配色设为自定义：data-palette="custom" 且 <head> 里有服务端算好的首帧 CSS',
-    /data-palette="custom"/.test(styled)
-    && /<style id="palDefault">html\[data-palette="custom"\]\{--bg:#/.test(styled), '');
-
-  await save({
-    pageSize: '20', homeRecent: '12', commentsPerPage: '20',
-    themeDefault: 'auto', palette: '', layoutDefault: 'paper',
-    hue: '210', chroma: '1', paper: '1',
-  });
-  const plain = await (await fetch(BASE + '/posts/')).text();
-  check('T8l-16 改回跟随系统 + 素笺：属性与内联 style 都撤掉',
-    !/<html[^>]*data-theme=/.test(plain) && !/id="palDefault"/.test(plain), '');
 }
 
 {

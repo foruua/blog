@@ -2,7 +2,6 @@ import { createAssetVersions } from './assets.js';
 import { SITE, PUBLIC_DIR } from '../config.js';
 import { esc, monthCn, cleanExcerpt, relativeDate, contentUrl, pageUrl, absUrl } from '../util/text.js';
 import { PALETTES, CUSTOM_PALETTE, LAYOUTS } from '../settings.js';
-import { defaultPaletteCss } from '../palette.js';
 import { lightboxHtml } from './lightbox.js';
 import { emojiPanelTemplate } from '../comments/view.js';
 import { themeRequest } from '../themes/request.js';
@@ -65,11 +64,7 @@ const websiteLd = () => ({
 });
 
 export const THEME_BOOT = "document.documentElement.classList.add('has-js');"
-  // 明暗三态：无 key = 跟随站点默认；'auto' = 明确选「跟随系统」（把服务端挂的 data-theme 摘掉）；
-  // 'light' / 'dark' = 访客自己定。白名单外脏值不认。
-  + "try{var theme=localStorage.getItem('theme');"
-  + "if(theme==='light'||theme==='dark')document.documentElement.dataset.theme=theme;"
-  + "else if(theme==='auto')document.documentElement.removeAttribute('data-theme');"
+  + "try{var theme=localStorage.getItem('theme');if(theme==='light'||theme==='dark')document.documentElement.dataset.theme=theme;"
   // 配色四态：无 key = 跟随服务端默认；'' = 明确选素笺；预设 key = 覆盖；'custom' = 用本地算好的那段 CSS。
   // 白名单外脏值不认——localStorage 访客可写，别让它把任意值塞进 data-palette。
   + "var pal=localStorage.getItem('palette');"
@@ -133,22 +128,12 @@ let pagesOf = () => [];
 export const setNavPages = (fn) => { pagesOf = typeof fn === 'function' ? fn : () => []; };
 
 // 站主选的「访客默认配色」：直接挂 <html>；访客没选过（localStorage 无合法值）时首帧即此，选过的由 THEME_BOOT 覆盖。
-// 选了「自定义」时，那段 CSS 由服务端现算（src/palette.js）内联进 <head> —— 访客的 localStorage 里没有，
-// 不能指望前端补；挂 id="palDefault" 便于与访客那份（palCustom）区分。
 let paletteDefaultOf = () => '';
 export const setPaletteDefault = (fn) => { paletteDefaultOf = typeof fn === 'function' ? fn : () => ''; };
-let paletteCustomOf = () => null;
-export const setPaletteCustom = (fn) => { paletteCustomOf = typeof fn === 'function' ? fn : () => null; };
 const sitePaletteDefault = () => paletteDefaultOf();
 export const paletteAttr = () => {
   const key = paletteDefaultOf();
   return key ? ` data-palette="${esc(key)}"` : '';
-};
-/** 站点默认「自定义配色」的 <style>：只有默认真的是自定义时才输出，其余配色一律空串。 */
-export const paletteDefaultStyle = () => {
-  if (paletteDefaultOf() !== CUSTOM_PALETTE) return '';
-  const css = defaultPaletteCss(paletteCustomOf());
-  return css ? `<style id="palDefault">${css}</style>` : '';
 };
 
 // 主题模板的自动转义会把属性值两侧的引号变成 &#34;（浏览器读成值的一部分，选择器就匹配不上）。
@@ -156,19 +141,6 @@ export const paletteDefaultStyle = () => {
 const themePaletteAttr = () => {
   const key = paletteDefaultOf();
   return key ? ` data-palette=${key}` : '';
-};
-
-// 站主选的「访客默认明暗」：light / dark 直接挂 <html>，auto 不挂（跟随系统）。
-// 与配色、版式同一条路：访客选过的由 THEME_BOOT 覆盖，明确选「跟随系统」时它会把这个属性摘掉。
-let themeDefaultOf = () => 'auto';
-export const setThemeDefault = (fn) => { themeDefaultOf = typeof fn === 'function' ? fn : () => 'auto'; };
-export const themeAttr = () => {
-  const key = themeDefaultOf();
-  return key === 'light' || key === 'dark' ? ` data-theme="${key}"` : '';
-};
-const themeThemeAttr = () => {
-  const key = themeDefaultOf();
-  return key === 'light' || key === 'dark' ? ` data-theme=${key}` : '';
 };
 
 // 站主选的「访客默认版式」：与配色同一条路 —— 服务端直接挂 <html data-layout="box">，
@@ -196,17 +168,18 @@ const searchDrawerForm = () => `<form class="s-drawer-form" action="/search" met
       <button class="s-drawer-go" type="submit">搜索</button>
     </form>`;
 
-// 「样式」入口：宽屏在首页 hero-meta 那一行、窄屏在抽屉底部工具条，各一份（同一个模板，id 不同）。访客存了选择时由 ui.js 首帧对齐。
-// 页头导航里没有它 —— 样式是低频偏好，不占导航（test-search 的 M8f 钉着这条）。
+// 配色选择器：宽屏在首页 hero-meta 那一行、窄屏在抽屉底部工具条，各一份（同一个模板，id 不同）。访客存了选择时由 ui.js 首帧对齐。
+// 页头导航里没有它 —— 配色是低频偏好，不占导航（test-search 的 M8f 钉着这条）。
 // 面板里「明暗 / 版式 / 配色」三段并列：明暗管纸的明暗，版式管内容装不装进匣子，配色管纸墨的色调 ——
 // 都是"选一个生效的状态"，故同一套 aria-pressed 按钮，不再用早先页脚那枚写着"下一个动作"（显示「暗色」
 // 其实是点了会变暗）的开关。版式只有两格，用图标 + 名称并排；配色是五行带色样的长条，故单独分段。
 // 「自定义」区只预置当前预设的种子（色相 / 浓度 / 纸色），真正的令牌由 ui.js 按需调 PaletteLib 现算，
 // 服务端不生成那段 CSS。初始值取当前生效预设 —— 从「青瓷」滑进自定义时观感要接得上，不能一拖就跳色。
-// 入口图标是「四格色卡」：四个小方块、右上填实。面板里明暗 / 版式 / 配色三组都是在"选一块的样子"，
-// 四格既说得出"样式"，又不像调色盘只指配色；14px 下轮廓也最稳（推子那两枚滑块在这个尺寸会糊成点）。
-// 20 格画布、1.6 描边，与检索、明暗三态同一套规格。
-const PAL_ICO = '<svg class="pal-ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.4" y="3.4" width="5.8" height="5.8" rx="1.3"/><rect x="10.8" y="3.4" width="5.8" height="5.8" rx="1.3" fill="currentColor" stroke="none"/><rect x="3.4" y="10.8" width="5.8" height="5.8" rx="1.3"/><rect x="10.8" y="10.8" width="5.8" height="5.8" rx="1.3"/></svg>';
+// 入口图标是「调色盘」：盘身 + 右下拇指孔 + 四枚色点，15px 下也读得出是"配色"，不再和明暗图标撞形。
+// 原图是 24 格画布、1.9 描边；这里把 viewBox 收到 25 格，让盘身正好 12px 见方、线宽 1.2px ——
+// 与旁边 RSS 同尺寸、同线宽，也正好等于这行 13px 小字的字面高度，两枚并排才齐。
+// 半实心圆仍留给面板里的「跟随系统」：入口与状态同形会读错。
+const PAL_ICO = '<svg class="pal-ico" viewBox="-0.5 -0.5 25 25" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/><circle cx="13.5" cy="6.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="17.5" cy="10.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="8.5" cy="7.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="6.5" cy="12.5" r="1.1" fill="currentColor" stroke="none"/></svg>';
 // 订阅入口：点 + 两道弧。viewBox 收到 3.25 3.6 12.05 12.05，把图形撑到上面那枚同样的 12px，
 // 描边跟着收到 0.97（≈1.2px）；两枚图标的图形框、线宽、上下留白由此一致。
 const RSS_ICO = '<svg class="ico-rss" viewBox="3.25 3.6 12.05 12.05" fill="none" stroke="currentColor" stroke-width="0.97" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5.6" cy="13.3" r="1.15" fill="currentColor" stroke="none"/><path d="M4.5 9.3a5.1 5.1 0 0 1 5.1 5.1"/><path d="M4.5 4.8a9.6 9.6 0 0 1 9.6 9.6"/></svg>';
@@ -267,14 +240,14 @@ const palettePanelHtml = (cur) => `<div class="pal-panel">
 const palettePickerHtml = (palDefault = '') => {
   const cur = PALETTES.find((p) => p.key === palDefault) ?? PALETTES[0];
   return `<details class="pal pal-hero" id="palettePickerH">
-      <summary aria-label="样式（${esc(cur.name)}）" title="样式">${PAL_ICO}</summary>
+      <summary aria-label="配色（${esc(cur.name)}）" title="配色">${PAL_ICO}</summary>
       ${palettePanelHtml(cur)}
     </details>`;
 };
 
-/** 首页 hero-meta 那一行的两枚工具：RSS 与样式。图标式入口 —— 与两侧「N 篇文章」同一层小字，不抢视线。
+/** 首页 hero-meta 那一行的两枚工具：RSS 与配色。图标式入口 —— 与两侧「N 篇文章」同一层小字，不抢视线。
  *  两枚之间也是同一枚「·」（与行内其它分隔符同形同色），间距与行内其它分隔对齐 —— 图形和文字一视同仁。
- *  样式面板锚在整行中间（见 style.css 的 .pal-hero）：锚在 24px 的图标上，窄屏会顶出视口。 */
+ *  配色面板锚在整行中间（见 style.css 的 .pal-hero）：锚在 24px 的图标上，窄屏会顶出视口。 */
 export const heroToolsHtml = (palDefault = sitePaletteDefault()) => `<span class="hero-tools">
         <a class="hero-tool" href="/feed.xml" aria-label="RSS 订阅" title="RSS 订阅">${RSS_ICO}</a>
         <span class="sep" aria-hidden="true">·</span>
@@ -289,7 +262,7 @@ const pageMenuItems = () => [
 ];
 
 
-// —— 导航图标 —— 20 格画布、1.6 描边、圆头圆角，与「检索」「样式」同一套规格，缩到 14px 仍是一块读得出的轮廓。
+// —— 导航图标 —— 20 格画布、1.6 描边、圆头圆角，与「检索」「配色」同一套规格，缩到 14px 仍是一块读得出的轮廓。
 // 按 key 取（导航项用它自己的 key，固定页用 slug）；认不出的落回「折角纸页」—— 站主新加一页不必改代码。
 // 全部 aria-hidden：链接的可访问名仍只有那两个字，读屏不会念出图形。
 const NAV_ICO_SVG = (inner) => `<svg class="n-ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
@@ -390,7 +363,7 @@ function layoutContext({
   const emojiTpl = emojiTplOf(main);
 
   // 窄屏导航抽屉放在 #app 里：换页时随内容重建，不留第二份；初始 inert 让它关闭时不接受点击与焦点。
-  // 抽屉只做目录 + 检索：底部那排 RSS / 样式 / 后台早已撤掉（样式入口只在首页 hero-meta，RSS 也在那行）。
+  // 抽屉只做目录 + 检索：底部那排 RSS / 配色 / 后台早已撤掉（配色入口只在首页 hero-meta，RSS 也在那行）。
   const drawer = `<div class="mnav" id="mnav" inert>
   <div class="mnav-scrim" data-mnav-close></div>
   <nav class="mnav-panel" aria-label="主导航">
@@ -458,7 +431,6 @@ ${ctx.ogH ? `<meta property="og:image:height" content="${ctx.ogH}">` : ''}
 <meta name="palette-lib" content="/palette.js?v=${assetVer('palette.js')}">
 ${ctx.extraHead}
 ${jsonLdHtml(ctx.structuredData)}
-${paletteDefaultStyle()}
 <script>${THEME_BOOT}</script>`;
 }
 
@@ -489,7 +461,7 @@ function chromeOf(ctx) {
   </div>
 </header>`,
     drawer: ctx.drawer,
-    // 页脚只剩一法务行（© / 备案号），宽屏居中落在正中；RSS 与样式搬进了首页 hero-meta 那一行。
+    // 页脚只剩一法务行（© / 备案号），宽屏居中落在正中；RSS 与配色搬进了首页 hero-meta 那一行。
     // 后台入口与「回到顶部」早先已从页脚撤掉 —— 手机端不再需要第二枚回到顶部（悬浮钮仍按原断点隐藏）。
     footer: `<footer class="site">
     <div class="foot-inner">
@@ -513,7 +485,7 @@ function chromeOf(ctx) {
 function builtinLayout(opts, ctx = layoutContext(opts)) {
   const chrome = chromeOf(ctx);
   return `<!DOCTYPE html>
-<html lang="${SITE.lang}"${themeAttr()}${paletteAttr()}${layoutAttr()}>
+<html lang="${SITE.lang}"${paletteAttr()}${layoutAttr()}>
 ${chrome.head}
 <body data-page="${esc(ctx.page)}">
 ${chrome.top}
@@ -593,7 +565,7 @@ export const themeChrome = (opts) => {
   const ctx = layoutContext(opts);
   return {
     // chrome 只放 HTML 片段（供模板 | raw），导航数据单独给，避免把数组混进外壳。
-    chrome: { ...chromeOf(ctx), htmlAttrs: themeThemeAttr() + themePaletteAttr() + themeLayoutAttr(), lang: SITE.lang },
+    chrome: { ...chromeOf(ctx), htmlAttrs: themePaletteAttr() + themeLayoutAttr(), lang: SITE.lang },
     // 导航与内置页头同源：主题上下文不必再由每条路由各拼一份 data.nav。
     nav: ctx.items.map(([href, label, key]) => ({ href, label, key, active: key === ctx.active })),
     // 自行写 <head> 的主题也需要这些；内置 layoutContext 已经算好，别让主题再猜一遍。

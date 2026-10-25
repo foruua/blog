@@ -188,23 +188,6 @@
     }
   }
 
-  // 访客默认样式：三根种子滑块（色相 / 浓淡 / 纸色）。
-  // ① 拖动时更新右侧读数；② 顺手把配色切到「自定义」—— 否则拖了半天、配色还停在某个预设上，
-  // 保存后什么都没变，看起来像滑块坏了。改选预设时不动滑块：种子留着，下次点「自定义」正好接上。
-  function setupStyleForm() {
-    for (const range of document.querySelectorAll('.a-seed-row input[type="range"]')) {
-      if (range.dataset.bound) continue;
-      range.dataset.bound = '1';
-      const out = range.parentElement?.querySelector('output');
-      range.addEventListener('input', () => {
-        const value = Number(range.value);
-        if (out) out.textContent = range.name === 'hue' ? `${Math.round(value)}°` : `${Math.round(value * 100)}%`;
-        const custom = document.querySelector('.a-pal-i input[value="custom"]');
-        if (custom) custom.checked = true;
-      });
-    }
-  }
-
   // 主题设置的 image 项：文本框 + 「媒体库」按钮，共用页面底部那个 dialog。
   // onPick 是创建时固定的闭包，用 target 记住这次是哪个字段点的。
   let themeImagePicker = null;
@@ -952,7 +935,6 @@ document.addEventListener('submit', (e) => {
   setupPage();
   setupThemeUpload();
   setupThemeColors();
-  setupStyleForm();
   setupThemeImages();
   setupMailForm();
   setupHeroForm();
@@ -965,6 +947,6 @@ document.addEventListener('submit', (e) => {
     // #a-modal 在 #app 外，pjax 不替换它；不关掉会停在新页面上，确认按钮还指向旧页面。
     const confirmDialog = document.getElementById('a-modal');
     if (confirmDialog?.open) confirmDialog.close();
-    cancelMediaRequest(); setupPage(); setupThemeUpload(); setupThemeColors(); setupStyleForm(); setupThemeImages(); setupMailForm(); setupHeroForm(); setupRailScroll(); setupImportDialog(); setupProgress();
+    cancelMediaRequest(); setupPage(); setupThemeUpload(); setupThemeColors(); setupThemeImages(); setupMailForm(); setupHeroForm(); setupRailScroll(); setupImportDialog(); setupProgress();
   });
 })();

@@ -4,10 +4,10 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { JSDOM } from 'jsdom';
-import { THEME_BOOT, PALETTES, LAYOUTS, layout, setPaletteDefault, setPaletteCustom, setLayoutDefault, setThemeDefault, layoutAttr, paletteDefaultStyle, themeChrome, heroToolsHtml, PALETTE_CSS_GUARD, PALETTE_CSS_BANNED } from '../src/render/layout.js';
+import { THEME_BOOT, PALETTES, LAYOUTS, layout, setPaletteDefault, setLayoutDefault, layoutAttr, themeChrome, heroToolsHtml, PALETTE_CSS_GUARD, PALETTE_CSS_BANNED } from '../src/render/layout.js';
 import { adminLayout } from '../src/admin/layout.js';
 import { systemPage } from '../src/admin/views/system.js';
-import { parsePaletteDefault, parsePaletteCustom, parseLayoutDefault, settings, saveSettings, KEYS } from '../src/settings.js';
+import { parsePaletteDefault, parseLayoutDefault, settings, saveSettings, KEYS } from '../src/settings.js';
 import { createChecker } from './_check.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -82,7 +82,7 @@ const pickerOf = (w) => w.document.getElementById('palettePickerH');
 // 入口只留图标，当前是哪套写在 aria-label 的括号里（「配色（青瓷）」）—— 圆钮不随色名伸缩。
 const pickedName = (w) => {
   const label = pickerOf(w)?.querySelector('summary')?.getAttribute('aria-label') || '';
-  const m = /^样式（(.+)）$/.exec(label);
+  const m = /^配色（(.+)）$/.exec(label);
   return m ? m[1] : '';
 };
 const openPicker = (w) => {
@@ -155,7 +155,7 @@ await test('「配色」入口只在首页 hero-meta 一份（页脚/抽屉/导�
   assert.doesNotMatch(nav, /class="pal/, '配色入口不该回到页头导航里');
   assert.doesNotMatch(html, /id="themeToggle"/, '页脚那枚明暗按钮应该已经退休（明暗进了配色面板）');
   // 入口只剩图标（当前是哪套仍进 aria-label）。
-  assert.match(tools, /<details class="pal pal-hero" id="palettePickerH">\s*<summary aria-label="样式（素笺）" title="样式"><svg class="pal-ico"/);
+  assert.match(tools, /<details class="pal pal-hero" id="palettePickerH">\s*<summary aria-label="配色（素笺）" title="配色"><svg class="pal-ico"/);
   assert.doesNotMatch(page, /pal-txt/, '配色入口不该再带文字');
   // 抽屉只剩目录 + 检索：RSS / 配色 / 后台都不在。
   const drawer = /<div class="mnav"[\s\S]*?<\/nav>\s*<\/div>/.exec(html)?.[0] ?? '';
@@ -193,7 +193,7 @@ await test('「配色」入口只在首页 hero-meta 一份（页脚/抽屉/导�
 await test('入口的色名进 aria-label；后台不做选色入口，只跟随前台（<html> 挂站点默认）', () => {
   setPaletteDefault(() => 'dailan');
   try {
-    assert.match(heroToolsHtml(), /<summary aria-label="样式（黛蓝）"/);
+    assert.match(heroToolsHtml(), /<summary aria-label="配色（黛蓝）"/);
   } finally { setPaletteDefault(() => ''); }
   // 后台：不渲染选择器，但站点默认照样挂 <html> —— 前台选什么，后台跟着变
   const adminHtml = adminLayout({ title: '设置', body: '<p>x</p>', active: 'system', csrf: 'c' });
@@ -255,7 +255,7 @@ await test('点素笺：撤掉 data-palette、localStorage 记下空串（不是
   } finally { dom.window.close(); }
 });
 
-await test('明暗三态：点暗色写 data-theme 并落盘；点「跟随」摘掉属性、存下 auto（站主默认 dark 时也能选回跟随系统）', async () => {
+await test('明暗三态：点暗色写 data-theme 并落盘；点「跟随」摘掉属性与 key（首帧引导只认 light/dark）', async () => {
   const { dom, w } = mount();
   try {
     openPicker(w);
@@ -269,7 +269,7 @@ await test('明暗三态：点暗色写 data-theme 并落盘；点「跟随」�
     seg('auto').click();
     await sleep(0);
     assert.equal(w.document.documentElement.dataset.theme, undefined, '跟随系统＝不写 data-theme');
-    assert.equal(w.localStorage.getItem('theme'), 'auto', '跟随系统要存 auto：删 key 会退化成「跟随站主默认」，站主默认 dark 时就回不去了');
+    assert.equal(w.localStorage.getItem('theme'), null, '跟随系统要连 key 一起清掉，否则首帧仍被旧值锁住');
     assert.equal(seg('auto').getAttribute('aria-pressed'), 'true');
   } finally { dom.window.close(); }
 });
@@ -360,7 +360,7 @@ await test('服务端渲染站点默认：<html data-palette> 直接挂在首帧
   try {
     const html = layout({ title: '测试', main: '<p>x</p>', canonical: '/' });
     assert.match(html, /<html lang="[^"]+" data-palette="dailan">/);
-    assert.match(heroToolsHtml(), /<summary aria-label="样式（黛蓝）"/, '入口的 aria-label 该是站点默认的色名');
+    assert.match(heroToolsHtml(), /<summary aria-label="配色（黛蓝）"/, '入口的 aria-label 该是站点默认的色名');
   } finally { setPaletteDefault(() => ''); }
   assert.doesNotMatch(layout({ title: 't', main: '', canonical: '/' }), /<html[^>]*data-palette=/, '没设默认时 <html> 不挂属性');
 });
@@ -469,116 +469,33 @@ await test('settings：默认版式只认 paper / box，脏值回落纸面，空
   assert.equal(settings.layoutDefault(repo), 'paper', '库里脏值回落纸面');
 });
 
-await test('saveSettings：默认版式 / 明暗 / 配色一起存，脏值整单拒绝', () => {
+await test('saveSettings：默认版式随站点设置一起存，脏值整单拒绝', () => {
   const saved = new Map();
   const err = saveSettings(
-    {
-      pageSize: '20', homeRecent: '10', commentsPerPage: '20',
-      themeDefault: 'dark', palette: 'custom', layoutDefault: 'box',
-      hue: '210', chroma: '1.1', paper: '1.2',
-    },
+    { pageSize: '20', homeRecent: '10', commentsPerPage: '20', palette: '', layout: 'box' },
     (k, v) => saved.set(k, v),
   );
   assert.equal(err, null);
   assert.equal(saved.get(KEYS.layoutDefault), 'box');
-  assert.equal(saved.get(KEYS.themeDefault), 'dark');
-  assert.equal(saved.get(KEYS.paletteDefault), 'custom');
-  assert.deepEqual(JSON.parse(saved.get(KEYS.paletteCustom)), { hue: 210, chroma: 1.1, paper: 1.2, ink: 0 });
-
   const bad = new Map();
   const err2 = saveSettings(
-    { pageSize: '20', homeRecent: '10', commentsPerPage: '20', themeDefault: 'auto', palette: '', layoutDefault: 'wide' },
+    { pageSize: '20', homeRecent: '10', commentsPerPage: '20', palette: '', layout: 'wide' },
     (k, v) => bad.set(k, v),
   );
   assert.ok(err2 && err2.includes('版式'), '脏 layout 要给出人话报错');
   assert.equal(bad.size, 0, '整单拒绝，一个字都不落库');
-
-  const badTheme = new Map();
-  const err3 = saveSettings(
-    { pageSize: '20', homeRecent: '10', commentsPerPage: '20', themeDefault: 'dusk', palette: '', layoutDefault: 'paper' },
-    (k, v) => badTheme.set(k, v),
-  );
-  assert.ok(err3 && err3.includes('明暗'), '脏明暗要给出人话报错');
-  assert.equal(badTheme.size, 0);
 });
 
-await test('没存过种子时回落预设值（不能把 undefined 当 0 钳到最小值）', () => {
-  const repo = { store: new Map(), getSetting(k) { return this.store.get(k) ?? null; } };
-  assert.deepEqual(settings.paletteCustom(repo), { hue: 80, chroma: 1, paper: 1, ink: 0 });
-  // 空串（表单没这字段）同样走 fallback，而不是被 Number('') = 0 钳成 0.55 / 0
-  assert.deepEqual(parsePaletteCustom({ hue: '', chroma: '', paper: '' }), { hue: 80, chroma: 1, paper: 1, ink: 0 });
-  // 显式的 0 仍是真的 0（纸色滑块最左端是合法值）
-  assert.equal(parsePaletteCustom({ hue: 0, chroma: 0.55, paper: 0 }).paper, 0);
-});
-
-await test('后台「站点与阅读」的默认样式是一块三段控件（明暗 / 版式 / 配色 + 自定义滑块），没有多余说明', () => {
+await test('后台「站点与阅读」有默认版式下拉，选项与清单一致且回填当前值', () => {
   const html = systemPage({
-    site: {
-      pageSize: 20, homeRecent: 10, commentsPerPage: 20,
-      theme: 'dark', palette: 'custom', layout: 'box',
-      paletteCustom: { hue: 210, chroma: 1.1, paper: 1.2, ink: 0 },
-    },
+    site: { pageSize: 20, homeRecent: 10, commentsPerPage: 20, palette: '', layout: 'box' },
     hero: { images: [] }, mail: {}, history: {}, csrf: 'c',
   });
-  // 三段都在同一块里
-  assert.match(html, /<span class="a-style-lb" id="s-style-lb">访客默认样式<\/span>/);
-  for (const [name, values] of [['themeDefault', 'auto,light,dark'], ['layoutDefault', 'paper,box']]) {
-    const got = [...html.matchAll(new RegExp(`name="${name}" value="([a-z]+)"`, 'g'))].map((m) => m[1]).join(',');
-    assert.equal(got, values, `${name} 的选项不对`);
-  }
-  // 配色：五套预设 + 自定义
-  const pals = [...html.matchAll(/name="palette" value="([a-z]*)"/g)].map((m) => m[1]);
-  assert.equal(pals.length, PALETTES.length + 1);
-  assert.equal(pals.at(-1), 'custom');
-  // 当前值回填
-  assert.match(html, /name="themeDefault" value="dark" checked/);
-  assert.match(html, /name="layoutDefault" value="box" checked/);
-  assert.match(html, /name="palette" value="custom" checked/);
-  // 种子回填到三根滑块
-  assert.match(html, /id="s-hue" name="hue" min="0" max="359" step="1" value="210"/);
-  assert.match(html, /id="s-chroma" name="chroma" min="0.55" max="1.45" step="0.01" value="1.1"/);
-  assert.match(html, /id="s-paper" name="paper" min="0" max="1.8" step="0.05" value="1.2"/);
-  // 那段说明已按站主要求删掉
-  assert.doesNotMatch(html, /只影响首页之外的页面/);
-  // 改的是 <html> 上的站点级外观：必须走整页跳转，否则无刷新提交只换 #app、颜色不变
-  assert.match(html, /<form method="post" action="\/admin\/settings" data-no-pjax>/);
-});
-
-await test('站点默认明暗：dark / light 直接挂 <html>，auto 不挂；访客选「跟随系统」能摘掉站主那个属性', () => {
-  setThemeDefault(() => 'dark');
-  try {
-    assert.match(layout({ title: '测试', main: '', canonical: '/' }), /<html lang="[^"]+" data-theme="dark">/);
-    assert.match(themeChrome({ page: 'home' }).chrome.htmlAttrs, /data-theme=dark/);
-    const { dom, w } = mount({ seed: { theme: 'auto' } });
-    try {
-      assert.equal(w.document.documentElement.dataset.theme, undefined, '明确选跟随系统 → 摘掉站主默认的 dark');
-    } finally { dom.window.close(); }
-    const { dom: d2, w: w2 } = mount({ seed: { theme: 'light' } });
-    try {
-      assert.equal(w2.document.documentElement.dataset.theme, 'light', '访客选择优先于站主默认');
-    } finally { d2.window.close(); }
-  } finally { setThemeDefault(() => 'auto'); }
-  assert.doesNotMatch(layout({ title: 't', main: '', canonical: '/' }), /<html[^>]*data-theme=/, 'auto 时 <html> 不挂 data-theme');
-});
-
-await test('站点默认「自定义」配色：服务端算好首帧 CSS 内联进 <head>，预设时一个字都不注入', () => {
-  setPaletteDefault(() => 'custom');
-  setPaletteCustom(() => ({ hue: 210, chroma: 1, paper: 1, ink: 0 }));
-  try {
-    const html = layout({ title: '测试', main: '', canonical: '/' });
-    assert.match(html, /<html lang="[^"]+" data-palette="custom">/);
-    assert.match(html, /<style id="palDefault">html\[data-palette="custom"\]\{--bg:#/);
-    // 深色两段也要在（显式深色 + 系统深色），否则暗色访客看到的是浅色纸配深色字
-    assert.match(html, /html\[data-theme="dark"\]\[data-palette="custom"\]\{/);
-    assert.match(html, /@media \(prefers-color-scheme:dark\)\{html:not\(\[data-theme="light"\]\):not\(\[data-theme="dark"\]\)\[data-palette="custom"\]\{/);
-    assert.ok(paletteDefaultStyle().length > 100, 'paletteDefaultStyle 没产出 CSS');
-  } finally {
-    setPaletteDefault(() => '');
-    setPaletteCustom(() => null);
-  }
-  const plain = layout({ title: '测试', main: '', canonical: '/' });
-  assert.doesNotMatch(plain, /id="palDefault"/, '非自定义配色时不该注入 style');
-  assert.equal(paletteDefaultStyle(), '');
+  const sel = /<select class="a-select" id="s-layout" name="layoutDefault">([\s\S]*?)<\/select>/.exec(html)?.[1] ?? '';
+  assert.ok(sel, '后台没有默认版式下拉');
+  assert.equal([...sel.matchAll(/value="(paper|box)"/g)].map((m) => m[1]).join(','), 'paper,box');
+  assert.match(sel, /value="box" selected/, '当前值没回填');
+  assert.match(html, /只影响首页之外的页面/, '缺「只影响首页之外」的说明');
 });
 
 // ———— 自定义配色（色相滑块）——————————————
@@ -863,10 +780,9 @@ await test('自定义与站点默认的优先级：没选过 → 站点默认；
   } finally { setPaletteDefault(() => ''); }
 });
 
-await test('站主可以把「自定义」设成默认配色：服务端出首帧 CSS，访客那套照旧只在自己浏览器里', () => {
-  assert.equal(parsePaletteDefault('custom'), 'custom', 'custom 现在进站主白名单');
+await test('站主不能把「自定义」设成站点默认（那份 CSS 只在每个访客自己的浏览器里）', () => {
+  assert.equal(parsePaletteDefault('custom'), null, 'custom 不该进站主白名单');
   assert.equal(parsePaletteDefault(''), '', '空串仍是合法的素笺');
-  assert.equal(parsePaletteDefault('nope'), null, '白名单外仍是 null');
 });
 
 await test('打印：配色回退压得住注入的自定义（同权重靠源码顺序，必须 !important）', () => {

@@ -7,9 +7,7 @@ export const KEYS = {
   commentsPerPage: 'comments_per_page',
   feedsPerPage: 'feeds_per_page',
   paletteDefault: 'palette_default',
-  paletteCustom: 'palette_custom',
   layoutDefault: 'layout_default',
-  themeDefault: 'theme_default',
   heroImages: 'hero_images',
   heroOverlay: 'hero_overlay',
   themeActive: 'theme_active',
@@ -57,39 +55,6 @@ export const LAYOUTS = [
 ];
 const LAYOUT_KEYS = LAYOUTS.map((l) => l.key);
 
-// 访客可选明暗的唯一真相源（后台「访客默认样式」里的三格）。
-// 'auto' 不是第三个 data-theme 值，而是「不写 data-theme」—— 与前台面板同一套语义：
-// 站主设 light/dark 时服务端直接挂 data-theme，访客选过（含明确选「跟随系统」）就由 THEME_BOOT 覆盖。
-export const THEMES = [
-  { key: 'auto',  name: '跟随系统' },
-  { key: 'light', name: '亮色' },
-  { key: 'dark',  name: '暗色' },
-];
-const THEME_KEYS = THEMES.map((t) => t.key);
-
-// 站主可以把「自定义」设成默认配色 —— 与访客那份不同：访客的 CSS 存在他自己浏览器里，
-// 站主这份由服务端用 public/palette.js 现算（见 src/palette.js），首帧就注入 <head>。
-const PALETTE_DEFAULT_KEYS = [...PALETTE_KEYS, CUSTOM_PALETTE];
-
-// 自定义配色的种子范围（与 public/palette.js 的滑块一致）。越界一律钳住，不报错 ——
-// 这三个数是观感旋钮，不是安全边界；钳到边界比让整张表单存不进去合理。
-const SEED_RANGE = {
-  // 色相兜底取素笺那套的角度：没存过种子时，滑块停在站里默认的那支金色上，
-  // 而不是一个谁也没见过的 210°。
-  hue: { min: 0, max: 359, fallback: PALETTES[0].hue },
-  chroma: { min: 0.55, max: 1.45, fallback: 1 },
-  paper: { min: 0, max: 1.8, fallback: 1 },
-};
-const clampNum = (raw, { min, max, fallback }) => {
-  // 空值（没存过 / 表单没这字段）必须走 fallback：Number('') 是 0，直接钳会把「没设过」
-  // 变成「拖到最左」—— 首次打开后台会看到浓淡 55%、纸色 0 的种子。
-  const text = String(raw ?? '').trim();
-  if (!text) return fallback;
-  const n = Number(text);
-  if (!Number.isFinite(n)) return fallback;
-  return Math.min(max, Math.max(min, n));
-};
-
 const FEEDS_PER_PAGE_RANGE = { min: 5, max: 100, fallback: FEEDS_PER_PAGE };
 
 function intOr(raw, { min, max, fallback }) {
@@ -117,29 +82,7 @@ export const settings = {
 
   paletteDefault: (repo) => {
     const raw = String(repo.getSetting(KEYS.paletteDefault) ?? '').trim().toLowerCase();
-    return PALETTE_DEFAULT_KEYS.includes(raw) ? raw : '';
-  },
-
-  // 默认配色选了「自定义」时用的种子。没存过/坏了 → 素笺那套的角度与浓度（滑块位置有着落）。
-  paletteCustom: (repo) => {
-    const raw = String(repo.getSetting(KEYS.paletteCustom) ?? '').trim();
-    let data = null;
-    if (raw) {
-      try { data = JSON.parse(raw); } catch { data = null; }
-    }
-    const base = PALETTES[0];
-    return {
-      hue: Math.round(clampNum(data?.hue, { ...SEED_RANGE.hue, fallback: base.hue })),
-      chroma: clampNum(data?.chroma, { ...SEED_RANGE.chroma, fallback: base.chroma }),
-      paper: clampNum(data?.paper, SEED_RANGE.paper),
-      ink: 0,
-    };
-  },
-
-  // 访客默认明暗：auto / light / dark。脏值回落 auto（等于没设过，跟随系统）。
-  themeDefault: (repo) => {
-    const raw = String(repo.getSetting(KEYS.themeDefault) ?? '').trim().toLowerCase();
-    return THEME_KEYS.includes(raw) ? raw : 'auto';
+    return PALETTE_KEYS.includes(raw) ? raw : '';
   },
 
   // 访客默认版式：'paper' 纸面 / 'box' 素匣。脏值一律回落纸面（等于没设过）。
@@ -159,27 +102,10 @@ export function parseFeedsPerPage(raw) {
 }
 
 
-// 「访客默认配色」：只认 PALETTES 的 key（含 '' 素笺）或 'custom'，否则 null；旧客户端缺字段回 ''（等于素笺，非篡改）。
+// 「访客默认配色」：只认 PALETTES 的 key（含 '' 素笺），否则 null；旧客户端缺字段回 ''（等于素笺，非篡改）。
 export function parsePaletteDefault(raw) {
   const v = String(raw ?? '').trim().toLowerCase();
-  return PALETTE_DEFAULT_KEYS.includes(v) ? v : null;
-}
-
-// 「访客默认明暗」：只认 THEMES 的 key，否则 null。空值按跟随系统 —— 与版式同一条理由（旧表单没这字段）。
-export function parseThemeDefault(raw) {
-  const v = String(raw ?? '').trim().toLowerCase();
-  if (!v) return 'auto';
-  return THEME_KEYS.includes(v) ? v : null;
-}
-
-// 自定义配色的种子：只钳不拒（观感旋钮，不是安全边界）。返回可直接 JSON 化的四元组。
-export function parsePaletteCustom(body = {}) {
-  return {
-    hue: Math.round(clampNum(body.hue, SEED_RANGE.hue)),
-    chroma: Number(clampNum(body.chroma, SEED_RANGE.chroma).toFixed(2)),
-    paper: Number(clampNum(body.paper, SEED_RANGE.paper).toFixed(2)),
-    ink: 0,
-  };
+  return PALETTE_KEYS.includes(v) ? v : null;
 }
 
 // 「访客默认版式」：只认 LAYOUTS 的 key，否则 null。空值按纸面处理 —— 旧版后台表单里没有这个
@@ -234,9 +160,7 @@ export const settingsFormState = (repo) => ({
   pageSize: settings.pageSize(repo),
   homeRecent: settings.homeRecent(repo),
   commentsPerPage: settings.commentsPerPage(repo),
-  theme: settings.themeDefault(repo),
   palette: settings.paletteDefault(repo),
-  paletteCustom: settings.paletteCustom(repo),
   layout: settings.layoutDefault(repo),
 });
 
@@ -249,25 +173,16 @@ export function saveSettings(b, set) {
   const commentsPerPage = parseSettingInteger(b.commentsPerPage, { min: 5, max: 100 });
   if (commentsPerPage === null) return '每页评论串数请填 5—100 之间的整数';
 
-  const theme = parseThemeDefault(b.themeDefault);
-  if (theme === null) return '默认明暗不合法';
-
   const palette = parsePaletteDefault(b.palette);
   if (palette === null) return '默认配色不合法';
 
-  const layout = parseLayoutDefault(b.layoutDefault);
+  const layout = parseLayoutDefault(b.layout);
   if (layout === null) return '默认版式不合法';
-
-  // 种子三个字段总是收下：站主在预设上拖滑块（还没点「自定义」）时也不该丢参数 ——
-  // 下次点「自定义」正好从他拖到的位置接上。
-  const seed = parsePaletteCustom({ hue: b.hue, chroma: b.chroma, paper: b.paper });
 
   set(KEYS.pageSize, String(pageSize));
   set(KEYS.homeRecent, String(homeRecent));
   set(KEYS.commentsPerPage, String(commentsPerPage));
-  set(KEYS.themeDefault, theme);
   set(KEYS.paletteDefault, palette);
-  set(KEYS.paletteCustom, JSON.stringify(seed));
   set(KEYS.layoutDefault, layout);
   return null;
 }

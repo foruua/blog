@@ -251,7 +251,7 @@
         const name = isCustom
           ? `${seed.hue}°·${chromaText(seed.chroma)}`
           : picker.querySelector(`.pal-opt[data-palette="${cur}"] .pal-name`)?.textContent ?? '';
-        summary.setAttribute('aria-label', `样式（${name || '素笺'}）`);
+        summary.setAttribute('aria-label', `配色（${name || '素笺'}）`);
       }
     }
   };
@@ -586,16 +586,14 @@
   // 没手动选过主题时纸色跟着系统偏好走，系统那头变了也要跟上。
   try { matchMedia('(prefers-color-scheme:dark)').addEventListener('change', syncThemeColor); } catch {  }
 
-  /* —— 明暗主题：唯一一份状态机，「样式」浮层里那三格与它一一对应 ——
-     'auto' 不是第三个 data-theme 值，而是「不写 data-theme」：<head> 的引导只认 light/dark/auto，
-     摘掉属性即跟随系统，系统变了 CSS 自己会跟，这里不需要监听。
-     注意存的是 'auto' 而不是删 key：站主可以把默认明暗设成 dark，访客明确选「跟随系统」时
-     必须能在下一次进站时把服务端那个 data-theme 摘掉 —— 删 key 就退化成「跟随站点默认」了。 */
+  /* —— 明暗主题：唯一一份状态机，「配色」浮层里那三格与它一一对应 ——
+     'auto' 不是第三个 data-theme 值，而是「不写 data-theme」：<head> 的引导只认 light/dark，
+     摘掉属性即跟随系统，系统变了 CSS 自己会跟，这里不需要监听。 */
   const theme = {
     apply: (mode) => {
       if (mode === 'auto') {
         delete document.documentElement.dataset.theme;
-        try { localStorage.setItem('theme', 'auto'); } catch {  }
+        try { localStorage.removeItem('theme'); } catch {  }
       } else {
         document.documentElement.dataset.theme = mode;
         try { localStorage.setItem('theme', mode); } catch {  }

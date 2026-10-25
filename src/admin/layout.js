@@ -1,6 +1,6 @@
 import { SITE } from '../config.js';
 import { esc, csrfField, toLocalInput } from '../util/text.js';
-import { assetVer, THEME_BOOT, themeAttr, paletteAttr, paletteDefaultStyle } from '../render/layout.js';
+import { assetVer, THEME_BOOT, paletteAttr } from '../render/layout.js';
 
 // 主题/配色引导与前台共用一份内联（外链会闪白）；server.js 对它算 sha256 放进 CSP 白名单。后台不做选色入口，配色跟随前台。
 export { THEME_BOOT };
@@ -92,7 +92,6 @@ const headOf = (title) => `<head>
 <link rel="icon" href="/favicon.svg?v=${assetVer('favicon.svg')}" type="image/svg+xml">
 <link rel="stylesheet" href="/base.css?v=${assetVer('base.css')}">
 <link rel="stylesheet" href="/admin.css?v=${assetVer('admin.css')}">
-${paletteDefaultStyle()}
 <script>${THEME_BOOT}</script>
 </head>`;
 
@@ -101,7 +100,7 @@ export function adminLayout({
   page = '', kicker = '',
 }) {
   return `<!DOCTYPE html>
-<html lang="${SITE.lang}"${themeAttr()}${paletteAttr()}>
+<html lang="${SITE.lang}"${paletteAttr()}>
 ${headOf(`${title} · ${SITE.identity} 后台`)}
 <body class="admin${page ? ` page-${esc(page)}` : ''}">
 <div id="progress" aria-hidden="true"></div>
@@ -169,7 +168,7 @@ ${tabbar(active, badges)}
 
 export function loginPage({ notice = '', to = '/admin', configured = true } = {}) {
   return `<!DOCTYPE html>
-<html lang="${SITE.lang}"${themeAttr()}${paletteAttr()}>
+<html lang="${SITE.lang}"${paletteAttr()}>
 ${headOf(`登录 · ${SITE.identity} 后台`)}
 <body class="admin a-login-body">
 <div class="a-login-wrap">

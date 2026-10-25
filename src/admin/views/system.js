@@ -1,62 +1,22 @@
 import { csrfField, esc } from '../../util/text.js';
 import { adminLayout } from '../layout.js';
-import { PALETTES, LAYOUTS, THEMES, HERO_MAX } from '../../settings.js';
+import { PALETTES, LAYOUTS, HERO_MAX } from '../../settings.js';
 import { TLS_MODES, TLS_LABEL } from '../../mail.js';
 import { pickerDialog } from './picker.js';
 
 export function systemPage({ mail = {}, hero = {}, site = {}, history = {}, csrf, notice = '', badges, unsub = 0 }) {
 
 
-  // —— 访客默认样式：明暗 / 版式 / 配色三段，与首页「样式」面板一一对应 ——
-  // 三段都是原生 radio（不用 JS 也能存）：字段名 themeDefault / layoutDefault / palette。
-  // 配色选「自定义」时用下面三根滑块的值，服务端拿 public/palette.js 现算首帧 CSS。
-  const curTheme = site.theme ?? 'auto';
-  const curLayout = site.layout ?? 'paper';
-  const curPalette = site.palette ?? '';
-  const seed = site.paletteCustom ?? { hue: PALETTES[0].hue, chroma: PALETTES[0].chroma, paper: 1 };
-  const segItem = (name, value, label, checked) =>
-    `<label class="a-opt"><input type="radio" name="${name}" value="${esc(value)}"${checked ? ' checked' : ''}><span>${esc(label)}</span></label>`;
-
-  const themeSeg = THEMES.map((t) => segItem('themeDefault', t.key, t.name, t.key === curTheme)).join('\n            ');
-  const layoutSeg = LAYOUTS.map((l) => segItem('layoutDefault', l.key, l.name, l.key === curLayout)).join('\n            ');
-  const paletteRadios = PALETTES.map((p) => `<label class="a-pal-i"><input type="radio" name="palette" value="${esc(p.key)}"${p.key === curPalette ? ' checked' : ''}><span class="a-pal-box"><i class="a-pal-sw" style="--sw-paper:${p.paper};--sw-ink:${p.ink}" aria-hidden="true"></i><span>${esc(p.name)}</span></span></label>`)
-    .concat([`<label class="a-pal-i"><input type="radio" name="palette" value="custom"${curPalette === 'custom' ? ' checked' : ''}><span class="a-pal-box"><i class="a-pal-sw a-pal-sw-rainbow" aria-hidden="true"></i><span>自定义</span></span></label>`])
+  const paletteOptions = PALETTES
+    .map((p) => `<option value="${esc(p.key)}"${p.key === (site.palette ?? '') ? ' selected' : ''}>${esc(p.name)}</option>`)
     .join('\n            ');
 
-  // 滑块值跟着种子走：站主在预设上拖过滑块也不丢，下次点「自定义」正好从他拖到的位置接上。
-  const seedRow = (id, name, label, min, max, step, value, text) => `        <div class="a-seed-row">
-          <label for="${id}">${esc(label)}</label>
-          <input type="range" id="${id}" name="${name}" min="${min}" max="${max}" step="${step}" value="${value}">
-          <output for="${id}">${text}</output>
-        </div>`;
-  const styleBlock = `    <div class="a-field a-style-field">
-      <span class="a-style-lb" id="s-style-lb">访客默认样式</span>
-      <div class="a-style" role="group" aria-labelledby="s-style-lb">
-        <div class="a-style-row">
-          <span class="a-style-name">明暗</span>
-          <div class="a-opts" role="group" aria-label="默认明暗">
-            ${themeSeg}
-          </div>
-        </div>
-        <div class="a-style-row">
-          <span class="a-style-name">版式</span>
-          <div class="a-opts" role="group" aria-label="默认版式">
-            ${layoutSeg}
-          </div>
-        </div>
-        <div class="a-style-row a-style-row-wrap">
-          <span class="a-style-name">配色</span>
-          <div class="a-pal-row" role="radiogroup" aria-label="默认配色">
-            ${paletteRadios}
-          </div>
-        </div>
-        <div class="a-seed" data-seed>
-${seedRow('s-hue', 'hue', '色相', 0, 359, 1, Math.round(seed.hue), `${Math.round(seed.hue)}°`)}
-${seedRow('s-chroma', 'chroma', '浓淡', 0.55, 1.45, 0.01, seed.chroma, `${Math.round(seed.chroma * 100)}%`)}
-${seedRow('s-paper', 'paper', '纸色', 0, 1.8, 0.05, seed.paper, `${Math.round(seed.paper * 100)}%`)}
-        </div>
-      </div>
-    </div>`;
+  // 版式与配色成对：都是「访客默认值」，访客自己选过的存在各自浏览器里、会盖过这里。
+  // 字段名用 layoutDefault 而不是 layout —— 下线的「首页封面文字版式」当年就叫 layout，
+  // test-admin 的 T8j-4b 还钉着「设置页不许再出现 name="layout"」这条。
+  const layoutOptions = LAYOUTS
+    .map((l) => `<option value="${esc(l.key)}"${l.key === (site.layout ?? 'paper') ? ' selected' : ''}>${esc(l.name)}</option>`)
+    .join('\n            ');
 
   // 首页轮播图列表：缩略图一行排开，图下编号、第一张标「封面」，末尾一枚虚线「添加」格；点保存才生效。首屏（JS 没跑时）类名与 data-* 要与 admin.js 的 tile() 逐字一致。
   const heroItems = hero.images.map((im, i) => {
@@ -151,12 +111,9 @@ ${hero.images.length ? heroItems + '\n' : ''}${heroAdd}
   const tlsOptions = TLS_MODES
     .map((v) => `<option value="${v}"${tls === v ? ' selected' : ''}>${TLS_LABEL[v] ?? v}</option>`).join('\n            ');
 
-  // 这张表单改的是站点级外观（明暗 / 版式 / 配色都写在 <html> 的 data-* 上，自定义配色还带一段
-  // <head> 里的 CSS），无刷新提交只换 #app —— 页面会「保存成功但颜色没变」，站主以为没生效。
-  // 故标 data-no-pjax 走整页跳转：新文档的 <html> 属性与 <head> 一起换掉，保存后立刻看到效果。
   const body = `    <h2 class="a-h2 a-h2-first">站点与阅读</h2>
     <div class="a-card a-panel">
-    <form method="post" action="/admin/settings" data-no-pjax>
+    <form method="post" action="/admin/settings">
       ${csrfField(csrf)}
       <div class="a-grid2">
         <div class="a-field">
@@ -171,8 +128,20 @@ ${hero.images.length ? heroItems + '\n' : ''}${heroAdd}
           <label for="s-cpage">评论每页讨论串数</label>
           <input class="a-input" id="s-cpage" name="commentsPerPage" type="number" min="5" max="100" value="${esc(site.commentsPerPage ?? 20)}">
         </div>
+        <div class="a-field">
+          <label for="s-palette">访客默认配色</label>
+          <select class="a-select" id="s-palette" name="palette">
+            ${paletteOptions}
+          </select>
+        </div>
+        <div class="a-field">
+          <label for="s-layout">访客默认版式</label>
+          <select class="a-select" id="s-layout" name="layoutDefault">
+            ${layoutOptions}
+          </select>
+          <p class="a-field-note">只影响首页之外的页面；访客可在首页「配色」面板里自己换。</p>
+        </div>
       </div>
-${styleBlock}
       <div class="a-actions">
         <button type="submit" class="a-btn">保存</button>
       </div>
