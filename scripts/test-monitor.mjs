@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createChecker } from './_check.mjs';
-import { createWatchdog, offsiteBackupAge, stateFingerprint } from '../src/monitor.js';
+import { createWatchdog, offsiteBackupAge, stateFingerprint, pullInProgress } from '../src/monitor.js';
 
 const { check, report } = createChecker();
 
@@ -118,6 +118,16 @@ const BAD = { ok: false, reason: '隧道断开' };
     fs.utimesSync(path.join(dir, 'blog-newer.json'), new Date(now - 60_000), new Date(now - 60_000));
     const fresh = offsiteBackupAge(dir, { now: () => now });
     check('T14 多个清单取最新的一份', fresh.ok && fresh.ageSec === 60, JSON.stringify(fresh));
+    // 拉取窗口：rsync --delete 换清单的瞬间目录可能是空的。锁还新时这一拍不判，
+    // 锁超过 2 小时按残留处理（照常判，坏锁不能长期遮住告警）。
+    const lock = path.join(dir, '.pull-lock');
+    check('T14b 没有锁时不在拉取中', pullInProgress(dir) === false);
+    fs.mkdirSync(lock);
+    fs.utimesSync(lock, new Date(now - 60_000), new Date(now - 60_000));
+    check('T14c 新锁视为拉取进行中', pullInProgress(dir, () => now) === true);
+    fs.utimesSync(lock, new Date(now - 3 * 3600_000), new Date(now - 3 * 3600_000));
+    check('T14d 超过 2 小时的锁按残留处理，不再遮住告警', pullInProgress(dir, () => now) === false);
+    fs.rmSync(lock, { recursive: true, force: true });
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

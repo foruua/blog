@@ -43,6 +43,17 @@ export function stateFingerprint(url, result) {
   });
 }
 
+// 拉取进行中：pull-offsite.sh 在目标目录里用 .pull-lock 目录锁。rsync --delete 会先删掉旧清单、
+// 再落新清单，中间那几秒目录里可能一个 *.json 都没有 —— 这时判「异地备份目录为空」是假警报。
+// 锁超过 2 小时按残留处理（脚本下一轮会自己清掉），照常判新鲜度，不让坏锁把告警永久遮住。
+export const OFFSITE_PULL_LOCK = '.pull-lock';
+export function pullInProgress(dir, now = Date.now()) {
+  try {
+    const stat = fs.statSync(path.join(dir, OFFSITE_PULL_LOCK));
+    return now() - stat.mtimeMs < 2 * 3600e3;
+  } catch { return false; }
+}
+
 // 异地备份新鲜度判定（唯一口径）：server.js 的 localHealth 与下面的 probe 共用，
 // 避免同一段校验写两份后各自漂移。elapsed < -60 容忍轻微时钟偏移。
 export function offsiteStale(offsite, maxAgeSec, now = Date.now()) {

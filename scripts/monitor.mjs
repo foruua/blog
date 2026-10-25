@@ -3,7 +3,7 @@ import path from 'node:path';
 import { atomicWrite } from '../src/util/files.js';
 import { DATA_DIR } from '../src/config.js';
 import { pathToFileURL } from 'node:url';
-import { probe, offsiteBackupAge, stateFingerprint } from '../src/monitor.js';
+import { probe, offsiteBackupAge, stateFingerprint, pullInProgress } from '../src/monitor.js';
 
 // 外部定时探针（launchd / cron / 另一台机器都能跑）：单次探测，失败非零，
 // 状态变化时才通知。进程内那份看门狗见 src/monitor.js，两者共用 probe()。
@@ -44,7 +44,8 @@ async function main() {
   const offsiteDir = process.env.MONITOR_OFFSITE_DIR;
   let result = await probe({ url, maxAgeSec, requireOffsite: !offsiteDir && process.env.MONITOR_REQUIRE_OFFSITE === 'true' });
   // 异地副本在另一台机器上时，生产机的 offsiteBackup 状态没有意义；改为检查本地拉取目录。
-  if (result.ok && offsiteDir) {
+  // 正在拉取（目录锁还新）的这一拍不判：rsync --delete 换清单的瞬间目录可能是空的，那是假警报。
+  if (result.ok && offsiteDir && !pullInProgress(path.resolve(offsiteDir))) {
     const offsite = offsiteBackupAge(path.resolve(offsiteDir));
     if (!offsite.ok) result = { ok: false, reason: offsite.reason };
     else if (offsite.ageSec > maxAgeSec)
