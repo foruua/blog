@@ -161,13 +161,14 @@ const searchDrawerForm = () => `<form class="s-drawer-form" action="/search" met
 // aria-pressed 按钮，不再用早先页脚那枚写着"下一个动作"（显示「暗色」其实是点了会变暗）的开关。
 // 「自定义」区只预置当前预设的种子（色相 / 浓度 / 纸色），真正的令牌由 ui.js 按需调 PaletteLib 现算，
 // 服务端不生成那段 CSS。初始值取当前生效预设 —— 从「青瓷」滑进自定义时观感要接得上，不能一拖就跳色。
-// 入口图标是「一滴墨」：与旁边 RSS 的圆点/弧线同属圆头细线，缩到 15px 轮廓仍然干净。
-// （半实心圆交给面板里的「跟随系统」：入口和状态用同一个形，会读成"点了就跟随系统"。）
-const PAL_ICO = '<svg class="pal-ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3.5c2.9 3.2 4.6 5.4 4.6 7.5a4.6 4.6 0 0 1-9.2 0c0-2.1 1.7-4.3 4.6-7.5Z"/></svg>';
-// 订阅入口：同一块 20 格画布、1.6 描边。点 + 两道弧，缩到 15px 也读得出是 RSS；图形略上移，与墨滴同高。
+// 入口图标是「调色盘」：盘身 + 右下拇指孔 + 四枚色点，15px 下也读得出是"配色"，不再和明暗图标撞形。
+// 原图是 24 格画布、1.9 描边；这里把 viewBox 外扩到 28 格，让盘身缩到和 RSS 同一视觉尺寸（约 10px），
+// 描边补到 2.2 保持 1.2px 的实线粗细。半实心圆仍留给面板里的「跟随系统」——入口和状态同形会读错。
+const PAL_ICO = '<svg class="pal-ico" viewBox="-2 -2 28 28" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/><circle cx="13.5" cy="6.5" r=".95" fill="currentColor" stroke="none"/><circle cx="17.5" cy="10.5" r=".95" fill="currentColor" stroke="none"/><circle cx="8.5" cy="7.5" r=".95" fill="currentColor" stroke="none"/><circle cx="6.5" cy="12.5" r=".95" fill="currentColor" stroke="none"/></svg>';
+// 订阅入口：同一块 20 格画布、1.6 描边。点 + 两道弧，缩到 15px 也读得出是 RSS；图形略上移，与调色盘同高。
 const RSS_ICO = '<svg class="ico-rss" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5.6" cy="13.3" r="1.15" fill="currentColor" stroke="none"/><path d="M4.5 9.3a5.1 5.1 0 0 1 5.1 5.1"/><path d="M4.5 4.8a9.6 9.6 0 0 1 9.6 9.6"/></svg>';
 
-// 明暗三态的三枚图标：与 PAL_ICO 同一格画布、同一描边，缩到 16px 仍是实心/空心的对比。
+// 明暗三态的三枚图标：与 RSS 同一格画布、同一描边，缩到 16px 仍是实心/空心的对比。
 // 名称不写进按钮里 —— 图标就是那一格的全部内容，名称只留给读屏（aria-label）与悬停（title）。
 const TM_ICO = (inner) => `<svg class="tm-ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
 const TM_ICON = {
