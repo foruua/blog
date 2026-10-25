@@ -3306,3 +3306,32 @@ html[data-layout="box"] body:not([data-page="home"]) .page { padding-bottom: 0; 
     background: none; border: 0; box-shadow: none;
   }
 }
+
+/* 页脚追加的两行（后台「页脚与社交」可填）：自述一句话 + 站外链接。
+   默认都为空、不输出任何标记，故未填写的站点页脚与改造前逐字相同。
+   .foot-inner 原本是 nowrap 的单行居中：不放开换行时 flex-basis:100% 会被压回去，
+   三样东西挤在一行里（实测把备案号挤成了两行）。 */
+footer.site .foot-inner { flex-wrap: wrap; }
+footer.site .foot-note,
+footer.site .foot-links {
+  flex: 1 1 100%;
+  margin: 0;
+  text-align: center;
+  font-family: var(--mono);
+  font-size: .72rem; line-height: 1.7;
+  letter-spacing: .09em;
+  color: var(--muted-soft);
+}
+/* 与上一行的间距：.foot-inner 的 row-gap 是 1rem（为两个块级块留的），这里的字号只有 11.5px，
+   按视觉重量回吞一半，否则两行小字之间会空出一条能塞进一行字的缝。 */
+footer.site .foot-inner > .foot-note { margin-top: -.45rem; }
+footer.site .foot-inner > .foot-links { margin-top: -.45rem; }
+footer.site .foot-links a {
+  color: var(--muted);
+  text-decoration: none;
+  padding-block: .45rem; margin-block: -.45rem;
+  border-bottom: 1px solid transparent;
+  transition: color var(--dur-2) var(--ease), border-color var(--dur-2) var(--ease);
+}
+footer.site .foot-links a:hover { color: var(--accent); border-bottom-color: currentColor; }
+footer.site .foot-links .sep { margin-inline: .55em; opacity: .55; }

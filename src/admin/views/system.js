@@ -3,8 +3,13 @@ import { adminLayout } from '../layout.js';
 import { PALETTES, LAYOUTS, HERO_MAX } from '../../settings.js';
 import { TLS_MODES, TLS_LABEL } from '../../mail.js';
 import { pickerDialog } from './picker.js';
+import { identitySection, navSection, footerSection, copySection, iconsSection, commentsSection, accountSection } from './site.js';
 
-export function systemPage({ mail = {}, hero = {}, site = {}, history = {}, csrf, notice = '', badges, unsub = 0 }) {
+export function systemPage({
+  mail = {}, hero = {}, site = {}, history = {}, csrf, notice = '', badges, unsub = 0,
+  identity = {}, env = {}, nav = { items: [], moreLabel: '页面' }, footer = { text: '', links: [] },
+  copy = {}, icons = {}, comments = {}, configured = true,
+}) {
 
 
   const paletteOptions = PALETTES
@@ -111,7 +116,19 @@ ${hero.images.length ? heroItems + '\n' : ''}${heroAdd}
   const tlsOptions = TLS_MODES
     .map((v) => `<option value="${v}"${tls === v ? ' selected' : ''}>${TLS_LABEL[v] ?? v}</option>`).join('\n            ');
 
-  const body = `    <h2 class="a-h2 a-h2-first">站点与阅读</h2>
+  // 分组顺序按「改得最勤的放最前」：站点身份 → 导航 → 文案 → 封面 → 阅读 → 图标 → 评论 → 账号 → 邮件 → 维护。
+  // 每块都是独立表单，一处填错不会连累别处。
+  const body = `${identitySection({ identity, env, csrf })}
+
+${navSection({ nav, csrf })}
+
+${copySection({ copy, csrf })}
+
+${footerSection({ footer, csrf })}
+
+${heroSection}
+
+    <h2 class="a-h2">阅读与外观</h2>
     <div class="a-card a-panel">
     <form method="post" action="/admin/settings">
       ${csrfField(csrf)}
@@ -147,7 +164,11 @@ ${hero.images.length ? heroItems + '\n' : ''}${heroAdd}
     </form>
     </div>
 
-${heroSection}
+${iconsSection({ icons, csrf })}
+
+${commentsSection({ comments, csrf })}
+
+${accountSection({ csrf, configured })}
 
     <h2 class="a-h2">邮件通知</h2>
     <div class="a-card a-panel">

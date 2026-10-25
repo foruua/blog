@@ -9,6 +9,7 @@ import { renderComment } from '../comments/render.js';
 import { createCommentNotifier } from '../comments/notify.js';
 import { setMuted } from '../comments/subscribers.js';
 import { signModeration } from '../comments/moderation.js';
+import { commentsOpen, commentsModerateAll, commentsRateLimit } from '../settings.js';
 import { externalWrite } from '../util/external-writes.js';
 // 邮箱形状校验：除了控制字符，还要挡掉 URI 分隔符（?, &, =, #, / 等）——后台会把地址放进 mailto: 链接。
 import { EMAIL_RE, hasControlChar } from '../util/validation.js';
@@ -28,7 +29,8 @@ const countLinks = (html, src) => {
 
 export function commentRoutes({ repo, comments, crypt, auth = null, notifier = createCommentNotifier({ repo, comments, crypt }), rateLimited = true }) {
   const app = new Hono({ strict: false });
-  const antispam = createAntispam();
+  // 阈值走设置读取函数：后台把「每 10 分钟几条」改完之后立刻生效，不用重启进程。
+  const antispam = createAntispam({ maxPerWindow: () => commentsRateLimit(repo) });
   // 「回头客自动填充」只凭邮箱查最近一条已通过评论的昵称/网址——这些本就是评论区公开的信息，
   // 不再要求浏览器持有绑定同一邮箱的读者凭证。仍保留同源校验与按 IP 限流，挡住跨站调用和批量探测。
   // Hono 的 app.route() 会把子应用 use('*') 中间件提升成父应用全局（任意路径 POST 都会跑到它），故必须逐个端点声明，否则评论限流会顺带限住后台保存等 POST。
@@ -73,6 +75,9 @@ export function commentRoutes({ repo, comments, crypt, auth = null, notifier = c
       ? repo.getAnyLive(slug)
       : (repo.getPost(slug, 'post') ?? repo.getPost(slug, 'note') ?? repo.getPost(slug, 'page'));
     if (!post || post.draft) return { code: 404, result: 'notfound' };
+    // 两种关闭：全站暂停（后台开关）与单篇关闭（作者在编辑器里决定）。分开回不同的 flash，
+    // 否则读者在一篇本来开着的文章下会看到「本文已关闭评论」，以为是自己那篇出了问题。
+    if (!commentsOpen(repo)) return { code: 403, result: 'pause' };
     if (!post.comments_on) return { code: 403, result: 'off' };
 
     const ipHash = crypt.ipHash(clientIp(c));
@@ -147,7 +152,8 @@ export function commentRoutes({ repo, comments, crypt, auth = null, notifier = c
 
     const trusted = comments.isKnown(author, emailHash) && !comments.hasSpam(emailHash)
       && countLinks(renderComment(bodyMd), bodyMd) < LINK_LIMIT;
-    const status = trusted ? 'approved' : 'pending';
+    // 「全部先审」开着时连回头客也过一遍——防的是有人用长期账号攒信誉后一次性投放。
+    const status = trusted && !commentsModerateAll(repo) ? 'approved' : 'pending';
 
     const id = comments.add({
       postId: post.id, parentId, author,

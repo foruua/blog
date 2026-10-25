@@ -34,7 +34,7 @@ ${kids.map((r) => panelItem(r, { replyBase, depth: depth + 1, replyTo: c.author 
 
 export function notePanel({
   post, thread = [], flash = '', tsToken = '',
-  replyBase = '', idSuffix = '', more = null, asAuthor = false, csrf = '', submissionId = '',
+  replyBase = '', idSuffix = '', more = null, asAuthor = false, csrf = '', submissionId = '', formOff = false,
 }) {
   const slug = esc(post.slug);
   const closed = post.comments_on === 0 || post.comments_on === false;
@@ -63,9 +63,10 @@ ${thread.map((c) => panelItem(c, { replyBase })).join('\n')}
     : '';
 
   // 撰写区：一行落款 + 不划线正文 + 收进纸里的发丝线 + 署名行。落款行默认空（不回复谁时整行由 CSS 收掉），故补一句 placeholder 接住（打字即消失、不进无障碍名）。
-  return `        <section class="ncp" id="comments${idSuffix}" data-comments-section data-slug="${slug}" aria-label="评论">
-${bar}
-${notice}${body}          <form class="ncp-form${asAuthor ? ' is-author' : ''}" action="${commentAction(post)}" method="post" data-comment-form data-slug="${slug}">
+  // 全站关评论时只收掉撰写区，已有讨论照常显示 —— 那是读者写下的内容，不是开关的附属品。
+  const form = formOff
+    ? '          <p class="ncp-empty">评论暂时关闭，已有讨论仍可阅读。</p>\n'
+    : `          <form class="ncp-form${asAuthor ? ' is-author' : ''}" action="${commentAction(post)}" method="post" data-comment-form data-slug="${slug}">
             <p class="ncp-rt">
               <span class="ncp-rt-t" data-reply-title></span>
               <a class="ncp-cancel" href="${esc(`${replyBase}#comments`)}" data-cancel-reply data-no-pjax hidden>取消</a>
@@ -82,5 +83,8 @@ ${asAuthor ? '' : identityFields({ blockClass: 'ncp-id', fieldClass: 'ncp-f', id
               <p class="ncp-go"><button type="submit">发布评论</button></p>
             </div>
           </form>
-${more ? `          <p class="ncp-more"><a href="${esc(more.href)}">还有 ${more.n} 个讨论串，去这篇笔记看 →</a></p>\n` : ''}        </section>`;
+`;
+  return `        <section class="ncp" id="comments${idSuffix}" data-comments-section data-slug="${slug}" aria-label="评论">
+${bar}
+${notice}${body}${form}${more ? `          <p class="ncp-more"><a href="${esc(more.href)}">还有 ${more.n} 个讨论串，去这篇笔记看 →</a></p>\n` : ''}        </section>`;
 }

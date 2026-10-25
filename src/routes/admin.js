@@ -12,6 +12,7 @@ import { commitPost, deleteWithFile } from '../content/commit.js';
 import { boundedBody, publicWriteRateLimit, clientIp, sameOriginRequest } from '../util/http.js';
 import { externalWrite, bodyOf, val, formBody, checked, pageNumber, pagination, makeShared, notice, notFoundPage } from './admin/shared.js';
 import { registerSettingsRoutes } from './admin/settings.js';
+import { registerSiteRoutes } from './admin/site.js';
 import { registerMediaRoutes } from './admin/media.js';
 import { registerCommentRoutes } from './admin/comments.js';
 import { registerFeedRoutes } from './admin/feeds.js';
@@ -43,7 +44,8 @@ export function adminRoutes({ repo, comments, adminRepo, crypt, auth, renderer, 
     return guard(c, next);
   });
 
-  registerSettingsRoutes(app, { repo, crypt, adminRepo, mutate, outbox }, { ctx });
+  registerSettingsRoutes(app, { repo, crypt, adminRepo, mutate, outbox, auth }, { ctx });
+  registerSiteRoutes(app, { repo, auth, crypt });
 
   app.get('/admin/login', (c) => c.html(loginPage({
     configured: auth.configured(),

@@ -1,7 +1,9 @@
 import { createAssetVersions } from './assets.js';
 import { SITE, PUBLIC_DIR } from '../config.js';
-import { esc, monthCn, cleanExcerpt, relativeDate, contentUrl, pageUrl, absUrl } from '../util/text.js';
+import { esc, monthCn, cleanExcerpt, relativeDate, contentUrl, absUrl } from '../util/text.js';
 import { PALETTES, CUSTOM_PALETTE, LAYOUTS } from '../settings.js';
+import { navItemsOf, visibleNavOf } from '../site/nav.js';
+import { footerLinksHtml } from '../site/copy.js';
 import { lightboxHtml } from './lightbox.js';
 import { emojiPanelTemplate } from '../comments/view.js';
 import { themeRequest } from '../themes/request.js';
@@ -111,21 +113,31 @@ export const assetVer = createAssetVersions(PUBLIC_DIR, {
 });
 
 
-const NAV = [
-  ['/', '首页', 'home'],
-  ['/posts/', '文章', 'posts'],
-  ['/notes/', '笔记', 'notes'],
-];
-
-const NAV_PAGES = [
-  ['/friends/', '友圈', 'friends'],
-  ['/links/', '友链', 'links'],
-  ['/archive/', '归档', 'archive'],
-];
-
-
+// —— 导航与页脚的数据源 ——
+// 两者都在后台可改（设置 → 导航菜单 / 页脚与社交），由 server.js 在启动时注入读取函数。
+// 不在这里直接 import 站点配置模块：那会把 sharp（图标生成）拖进每一次纯渲染调用，
+// 包括所有不碰图标的渲染测试。
 let pagesOf = () => [];
 export const setNavPages = (fn) => { pagesOf = typeof fn === 'function' ? fn : () => []; };
+
+let navSourceOf = () => null;   // () => { items, moreLabel } | null
+let footerSourceOf = () => ({ text: '', links: [] });
+let iconsOf = () => ({ favicon: '', apple: '', og: '', custom: {} });
+export const setNavSource = (fn) => { navSourceOf = typeof fn === 'function' ? fn : () => null; };
+export const setFooterSource = (fn) => { footerSourceOf = typeof fn === 'function' ? fn : () => ({ text: '', links: [] }); };
+export const setSiteIcons = (fn) => { iconsOf = typeof fn === 'function' ? fn : () => ({ favicon: '', apple: '', og: '', custom: {} }); };
+
+/**
+ * 菜单：有注入的读取函数就用它（含后台改过的顺序/名称/显隐），否则按出厂清单 + 固定页现算。
+ * 出厂那条路是测试与「未接入 server.js 的独立挂载」的兜底，保证任何情况下导航都不空。
+ */
+function navFacts() {
+  const injected = navSourceOf();
+  if (injected && Array.isArray(injected.items)) {
+    return { items: injected.items, moreLabel: injected.moreLabel || '页面' };
+  }
+  return { items: navItemsOf(null, pagesOf() ?? []), moreLabel: '页面' };
+}
 
 // 站主选的「访客默认配色」：直接挂 <html>；访客没选过（localStorage 无合法值）时首帧即此，选过的由 THEME_BOOT 覆盖。
 let paletteDefaultOf = () => '';
@@ -256,13 +268,6 @@ export const heroToolsHtml = (palDefault = sitePaletteDefault()) => `<span class
       </span>`;
 
 
-const pageMenuItems = () => [
-  ...NAV_PAGES,
-  // 固定页地址用 pageUrl()（/<slug>）——与 canonical、sitemap、评论锚点同形；上面三项是目录式地址才带尾斜杠，固定页不是目录。
-  ...(pagesOf() ?? []).map((p) => [pageUrl(p.slug), p.title || p.slug, p.slug]),
-];
-
-
 // —— 导航图标 —— 20 格画布、1.6 描边、圆头圆角，与「检索」「配色」同一套规格，缩到 14px 仍是一块读得出的轮廓。
 // 按 key 取（导航项用它自己的 key，固定页用 slug）；认不出的落回「折角纸页」—— 站主新加一页不必改代码。
 // 全部 aria-hidden：链接的可访问名仍只有那两个字，读屏不会念出图形。
@@ -295,13 +300,14 @@ const navIco = (key) => NAV_ICO[key] ?? NAV_ICO.page;
 const navLink = (active) => ([href, label, key]) =>
   `<a href="${esc(href)}"${key === active ? ' aria-current="page"' : ''}>${navIco(key)}<span class="n-txt">${esc(label)}</span></a>`;
 // 二级里若是当前页，触发器自己也高亮（data-current）——否则会「人在某页、导航却看不出」，不必再扫一眼才认出。
-const navHtml = (active, more) => {
+// main/more 的划分与顺序都来自后台（site/nav.js），这里只负责标记；more 为空时整块下拉不出现。
+const navHtml = (active, { main = [], more = [], moreLabel = '页面' } = {}) => {
   const moreCurrent = more.some(([, , key]) => key === active);
-  return [
-    ...NAV.map(navLink(active)),
-    `<details class="nsub"><summary${moreCurrent ? ' data-current="true"' : ''}>${navIco('pages')}<span class="n-txt">页面</span></summary>` +
-      `<div class="nsub-panel">${more.map(navLink(active)).join('')}</div></details>`,
-  ].join('');
+  const dropdown = more.length
+    ? `<details class="nsub"><summary${moreCurrent ? ' data-current="true"' : ''}>${navIco('pages')}<span class="n-txt">${esc(moreLabel)}</span></summary>` +
+      `<div class="nsub-panel">${more.map(navLink(active)).join('')}</div></details>`
+    : '';
+  return [...main.map(navLink(active)), dropdown].filter(Boolean).join('');
 };
 
 // 窄屏抽屉是一页满屏目录：图标 + 衬线标题 + 右端等宽序号（序号给眼睛认位置，对辅助技术隐藏）。
@@ -312,8 +318,9 @@ const navDrawerHtml = (active, items) => items.map(([href, label, key], i) =>
 
 // 站点默认分享图：文章没有首图时用它。layout() 内部兜底与 public.js 的 OG/JSON-LD 共用这一份
 // （以前 public.js 又抄了一份常量，改默认图要记得改两处）。
+// 站主在后台上传过分享图就用那张，没传才回落到 public/og-default.jpg。
 export const defaultOgImage = () => ({
-  url: absUrl(`/og-default.jpg?v=${assetVer('og-default.jpg')}`),
+  url: absUrl(iconsOf()?.og || `/og-default.jpg?v=${assetVer('og-default.jpg')}`),
   width: 1200,
   height: 630,
   alt: SITE.identity,
@@ -342,8 +349,13 @@ function layoutContext({
   // WebSite 每页都有；调用方传进来的文章/面包屑等叠在后面。
   const structuredData = [websiteLd(), ...(Array.isArray(jsonLd) ? jsonLd : (jsonLd ? [jsonLd] : []))];
 
-  const more = pageMenuItems();
-  const items = [...NAV, ...more];
+  // 导航三份视图：顶栏（main）、「页面」下拉（more）、抽屉（两者拼起来，保持顶栏在前）。
+  // 三元组 [href, label, key] 是与主题上下文共用的老口径，别在这里改成对象——themeChrome 与模板都按它解构。
+  const menu = navFacts();
+  const groups = visibleNavOf(menu.items);
+  const triple = ({ href, label, key }) => [href, label, key];
+  const navGroups = { main: groups.main.map(triple), more: groups.more.map(triple), moreLabel: menu.moreLabel };
+  const items = groups.all.map(triple);
 
   // 站名：域名里的点换成五角星（.bmark）。点被换掉会丢语义，故补一个只给读屏器的「.」，五角星对辅助技术隐藏；只拆第一处。
   const brandHtml = (() => {
@@ -384,7 +396,7 @@ function layoutContext({
   return {
     title, main, desc, canonical, active, ogType, noindex, extraHead, jsonLd, page, ogImage, lang,
     themeType: themeType || page || '', themeData: themeData ?? {},
-    fullTitle, og, ogW, ogH, ogLocale, structuredData, more, items, brandHtml, mainHtml, emojiTpl, drawer,
+    fullTitle, og, ogW, ogH, ogLocale, structuredData, navGroups, items, brandHtml, mainHtml, emojiTpl, drawer,
   };
 }
 
@@ -400,6 +412,9 @@ function withMainContext(ctx, main) {
 
 /** <head> 内容（不含 head 标签本身）。主题布局必须原样输出它，SEO/分享/主题引导才不会丢。 */
 function headHtmlOf(ctx) {
+  // 图标：后台上传过就用 DATA_DIR 里那份（地址已带内容指纹），没传回落到 public/ 的出厂图标。
+  // 两条 link 同时给 PNG 与 SVG 会浪费一次请求，故二选一：传了方形图就只发 PNG。
+  const icons = iconsOf() ?? {};
   return `<meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#faf8f4" media="(prefers-color-scheme:light)">
@@ -424,8 +439,8 @@ ${ctx.ogH ? `<meta property="og:image:height" content="${ctx.ogH}">` : ''}
 <link rel="alternate" type="application/rss+xml" title="${esc(SITE.identity)}" href="/feed.xml">
 <link rel="alternate" type="application/atom+xml" title="${esc(SITE.identity)}" href="/atom.xml">
 <link rel="alternate" type="application/feed+json" title="${esc(SITE.identity)}" href="/feed.json">
-<link rel="icon" href="/favicon.svg?v=${assetVer('favicon.svg')}" type="image/svg+xml">
-<link rel="apple-touch-icon" href="/apple-touch-icon.png?v=${assetVer('apple-touch-icon.png')}">
+<link rel="icon"${icons.favicon ? ` href="${esc(icons.favicon)}" sizes="32x32" type="image/png"` : ` href="/favicon.svg?v=${assetVer('favicon.svg')}" type="image/svg+xml"`}>
+<link rel="apple-touch-icon" href="${esc(icons.apple || `/apple-touch-icon.png?v=${assetVer('apple-touch-icon.png')}`)}">
 <link rel="manifest" href="/site.webmanifest">
 <link rel="stylesheet" href="/base.css?v=${assetVer('base.css')}">
 <link rel="stylesheet" href="/style.css?v=${assetVer('style.css')}">
@@ -437,6 +452,9 @@ ${jsonLdHtml(ctx.structuredData)}
 
 /** 页面公共外壳：页头、抽屉、页脚、灯箱、表情模板与脚本。主题布局可按需拼装。 */
 function chromeOf(ctx) {
+  const footer = footerSourceOf() ?? {};
+  const footerNote = String(footer.text ?? '').trim();
+  const footerLinks = Array.isArray(footer.links) ? footer.links : [];
   return {
     head: `<head>\n${headHtmlOf(ctx)}\n</head>`,
     skip: '<a class="skip" href="#main">跳到正文</a>',
@@ -449,7 +467,7 @@ function chromeOf(ctx) {
     <div class="row${SITE.title ? '' : ' row-solo'}">
       ${ctx.brandHtml}
       <nav class="nav" aria-label="主导航">
-        ${navHtml(ctx.active, ctx.more)}
+        ${navHtml(ctx.active, ctx.navGroups)}
         <span class="nav-tools">
           ${searchNavForm()}
         </span>
@@ -463,6 +481,7 @@ function chromeOf(ctx) {
 </header>`,
     drawer: ctx.drawer,
     // 页脚只剩一法务行（© / 备案号），宽屏居中落在正中；RSS 与配色搬进了首页 hero-meta 那一行。
+    // 后台加了「页脚文案」与「社交链接」两格：默认都为空，输出与原来逐字相同。
     // 后台入口与「回到顶部」早先已从页脚撤掉 —— 手机端不再需要第二枚回到顶部（悬浮钮仍按原断点隐藏）。
     footer: `<footer class="site">
     <div class="foot-inner">
@@ -470,6 +489,7 @@ function chromeOf(ctx) {
         <span>© ${new Date().getFullYear()}${SITE.author ? ` ${esc(SITE.author)}` : ''}</span>
         ${SITE.icp ? `<a class="foot-icp" href="https://beian.miit.gov.cn/" rel="nofollow noopener">${esc(SITE.icp)}</a>` : ''}
       </div>
+${footerNote ? `      <p class="foot-note">${esc(footerNote)}</p>\n` : ''}${footerLinksHtml(footerLinks)}
     </div>
   </footer>`,
     emoji: ctx.emojiTpl,

@@ -205,11 +205,43 @@ export function createAdminAuth({ db, crypt }) {
     return { ok: true };
   }
 
-  function csrfOf(c) {
-    return session(c)?.csrf ?? '';
+  /**
+   * 改密码：验旧密码走与登录完全同一条路径（限流 + scrypt 槽 + 失败记账），
+   * 通过后换 hash、把 epoch +1（其它设备上的会话立即失效），再用新 epoch 重签当前会话——
+   * 否则改完密码第一件事就是被自己踢下线。
+   */
+  async function changePassword(c, currentPw, nextPw, ipHash) {
+    const stored = getSetting(PW_KEY);
+    if (!stored) return { ok: false, reason: 'not-configured' };
+    if (loginBlocked(ipHash)) return { ok: false, reason: 'rate-limited' };
+    if (!enterIp(ipHash)) return { ok: false, reason: 'rate-limited' };
+    let valid;
+    try {
+      const release = await takeSlot();
+      if (!release) return { ok: false, reason: 'rate-limited' };
+      try { valid = await verifyPasswordAsync(currentPw, stored); } finally { release(); }
+    } finally { leaveIp(ipHash); }
+    if (!valid || stored !== getSetting(PW_KEY)) {
+      recordFailure(ipHash);
+      return { ok: false, reason: 'bad-password' };
+    }
+    const blob = hashPassword(nextPw);
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      db.prepare(`INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`).run(PW_KEY, blob);
+      db.prepare(`INSERT INTO settings(key,value) VALUES(?, '1') ON CONFLICT(key) DO UPDATE SET value=CAST(value AS INTEGER)+1`).run(EP_KEY);
+      db.exec('COMMIT');
+    } catch (error) {
+      db.exec('ROLLBACK');
+      throw error;
+    }
+    issue(c, ipHash);
+    return { ok: true };
   }
 
-  function csrfOk(c, provided) {
+  function csrfOf(c) {
+    return session(c)?.csrf ?? '';
+  }  function csrfOk(c, provided) {
     const expect = csrfOf(c);
     if (!expect) return false;
     const got = String(provided ?? '');
@@ -245,6 +277,7 @@ export function createAdminAuth({ db, crypt }) {
     configured: () => Boolean(getSetting(PW_KEY)),
     issue, session, logout,
     attemptLogin,
+    changePassword,
     csrfOf,
     csrfOk,
     requireOwner,

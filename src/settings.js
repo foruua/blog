@@ -14,6 +14,50 @@ export const KEYS = {
   themeOptionsPrefix: 'theme_options:',
 };
 
+// —— 评论的三个开关 ——
+// 原先要用它们得去改环境变量或源码常量：关评论、全部先审、放宽限流都要重启进程。
+// 这里只做「站主最常用的三档」，不把 antispam 的每个参数都摊到界面上——
+// 最短填写时间这类反机器人参数调松了就是关防护，不该出现在一个点一下就生效的表单里。
+export const COMMENT_KEYS = {
+  open: 'comments_open',
+  moderateAll: 'comments_moderate_all',
+  rate: 'comments_rate',
+};
+
+// 每 10 分钟、每个来源地址能发几条：1 太容易误伤（读者改一遍错字就没了），20 以上基本等于不限。
+export const COMMENT_RATE_RANGE = { min: 1, max: 20, fallback: 5 };
+
+const flagOn = (raw, fallback) => {
+  const text = String(raw ?? '').trim();
+  if (!text) return fallback;
+  return text === '1' || text === 'true';
+};
+
+export const commentsOpen = (repo) => flagOn(repo.getSetting(COMMENT_KEYS.open), true);
+
+/** 全部先审：开着时连「老读者」也要过一遍（默认关，保持既有行为：回头客直接发布）。 */
+export const commentsModerateAll = (repo) => flagOn(repo.getSetting(COMMENT_KEYS.moderateAll), false);
+
+export const commentsRateLimit = (repo) => intOr(
+  repo.getSetting(COMMENT_KEYS.rate), COMMENT_RATE_RANGE,
+);
+
+export const commentsFormState = (repo) => ({
+  open: commentsOpen(repo),
+  moderateAll: commentsModerateAll(repo),
+  rate: commentsRateLimit(repo),
+});
+
+/** 校验并写入。返回错误文案，null 表示成功。 */
+export function saveCommentSettings(form, set) {
+  const rate = parseSettingInteger(form.rate, COMMENT_RATE_RANGE);
+  if (rate === null) return `评论限流请填 ${COMMENT_RATE_RANGE.min}—${COMMENT_RATE_RANGE.max} 之间的整数`;
+  set(COMMENT_KEYS.open, form.open ? '1' : '0');
+  set(COMMENT_KEYS.moderateAll, form.moderateAll ? '1' : '0');
+  set(COMMENT_KEYS.rate, String(rate));
+  return null;
+}
+
 /** 主题选项按主题 id 分键存；值是一段 JSON 对象，由主题仓库负责校验与补默认值。 */
 export const themeOptionsKey = (id) => `${KEYS.themeOptionsPrefix}${String(id ?? '')}`;
 

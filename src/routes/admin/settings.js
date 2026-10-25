@@ -1,7 +1,12 @@
 import { previewSourceOf } from '../../media/variants.js';
 import { externalWrite, bodyOf, val, notice } from './shared.js';
 import { subscriberCount, clearSubscribers } from '../../comments/subscribers.js';
-import { settingsFormState, saveSettings, KEYS, HERO_MAX, HERO_OVERLAY_MAX, HERO_LEGACY_KEYS, HERO_RETIRED_KEYS, heroImages, heroOverlay } from '../../settings.js';
+import { settingsFormState, saveSettings, KEYS, HERO_MAX, HERO_OVERLAY_MAX, HERO_LEGACY_KEYS, HERO_RETIRED_KEYS, heroImages, heroOverlay, commentsFormState } from '../../settings.js';
+import { siteIdentityOf, envIdentityHint } from '../../site/identity.js';
+import { navFormState } from '../../site/nav.js';
+import { footerOf, copyOf } from '../../site/copy.js';
+import { siteIconsState } from '../../site/icons.js';
+import { assetVer } from '../../render/layout.js';
 import {
   KEYS as MAIL_KEYS, DEFAULTS as MAIL_DEFAULTS, TLS_MODES, TLS_LABEL, PRESETS,
   configSource, smtpConfig, ownerEmail, fromAddress,
@@ -13,7 +18,7 @@ import { isSafeUploadPath } from '../../util/url.js';
 import { smtpTestLetter } from '../../email/letters.js';
 
 
-export function registerSettingsRoutes(app, { repo, crypt, adminRepo, mutate = (fn) => fn(), outbox = null }, { ctx }) {
+export function registerSettingsRoutes(app, { repo, crypt, adminRepo, mutate = (fn) => fn(), outbox = null, auth = null }, { ctx }) {
   function mailFormState() {
     const source = configSource();
     const eff = smtpConfig();
@@ -153,6 +158,18 @@ export function registerSettingsRoutes(app, { repo, crypt, adminRepo, mutate = (
   const HERO_KEYS = HERO_LEGACY_KEYS;
 
   function systemHtml(c, { notice = '', mail = null, hero = null } = {}) {
+    const read = (key) => repo.getSetting(key);
+    // 图标预览：上传过就用 DATA_DIR 里那份，没传过回落到 public/ 的出厂文件（带指纹避免后台看到旧图）。
+    const iconState = siteIconsState();
+    const icons = {
+      ...iconState,
+      anyCustom: Object.values(iconState.custom).some(Boolean),
+      preview: {
+        icon: iconState.icon192 || `/icon-192.png?v=${assetVer('icon-192.png')}`,
+        apple: iconState.apple || `/apple-touch-icon.png?v=${assetVer('apple-touch-icon.png')}`,
+        og: iconState.og || `/og-default.jpg?v=${assetVer('og-default.jpg')}`,
+      },
+    };
     return c.html(systemPage(ctx(c, {
       notice,
       mail: mail ?? mailFormState(),
@@ -160,6 +177,14 @@ export function registerSettingsRoutes(app, { repo, crypt, adminRepo, mutate = (
       site: settingsFormState(repo),
       history: adminRepo.historyCounts(),
       unsub: unsubCount(),
+      identity: siteIdentityOf(read),
+      env: envIdentityHint(),
+      nav: navFormState(read, repo.pages()),
+      footer: footerOf(read),
+      copy: copyOf(read),
+      icons,
+      comments: commentsFormState(repo),
+      configured: auth ? auth.configured() : true,
     })));
   }
 

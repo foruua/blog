@@ -58,6 +58,7 @@ export const FLASH = {
   limited: '提交过于频繁，请稍后再试。',
   forbidden: '请求来源无效，请刷新页面后重试。',
   off: '本文已关闭评论。',
+  pause: '全站评论暂时关闭，过些时候再来。',
 };
 
 function commentBody(c, { replyBase = '', canReply = false, depth = 1, replyToAuthor = '' } = {}) {
@@ -83,7 +84,7 @@ function commentBody(c, { replyBase = '', canReply = false, depth = 1, replyToAu
 </li>`;
 }
 
-export function commentSection({ post, thread, count, flash, tsToken, replyTo = null, idSuffix = '', replyBase = '', page = 1, pages = 1, asAuthor = false, csrf = '', submissionId = '' }) {
+export function commentSection({ post, thread, count, flash, tsToken, replyTo = null, idSuffix = '', replyBase = '', page = 1, pages = 1, asAuthor = false, csrf = '', submissionId = '', formOff = false }) {
   // flash 来自查询串：用 hasOwn 挡住 constructor/__proto__ 这类原型链键（否则会把函数源码当提示渲染出来）。
   const notice = flash && Object.hasOwn(FLASH, flash)
     ? `<p class="c-flash c-flash-${esc(flash)}">${esc(FLASH[flash])}</p>` : '';
@@ -115,14 +116,11 @@ export function commentSection({ post, thread, count, flash, tsToken, replyTo = 
   // 评论表单的 autocomplete：邮箱 email、网址 url，昵称写 name 而非更贴切的 nickname——nickname 虽是 WHATWG
   // 标准 token，但 Chrome 自动填充不认它（DevTools 报 FormInputHasWrongButWellIntendedAutocompleteValueError
   // 且该栏真的不会被填充）。规范也建议优先用更宽的字段，故用 name。
-  return `<section class="comments" id="comments${idSuffix}" data-comments-section>
-      <header class="c-top">
-        <h2><span class="c-label">评论</span><b class="c-count">${count}</b></h2>
-${pager}
-      </header>
-      ${notice}
-      ${list}
-      <form class="c-form${asAuthor ? ' is-author' : ''}" action="${commentAction(post)}" method="post" data-comment-form data-slug="${esc(post.slug)}" data-cpage="${page}">
+  // 全站关评论：只收掉撰写区，已有讨论照常列出——读者写下的内容不该被一个开关一起藏起来。
+  // 与「本文的评论已关闭」（per-post）区分：那是作者对单篇的决定，整块都收；这是全站临时暂停。
+  const form = formOff
+    ? '<p class="c-closed">评论暂时关闭，已有讨论仍可阅读。</p>'
+    : `      <form class="c-form${asAuthor ? ' is-author' : ''}" action="${commentAction(post)}" method="post" data-comment-form data-slug="${esc(post.slug)}" data-cpage="${page}">
         <h3 id="reply${idSuffix}">
           <span data-reply-title>${replyTo ? `回复 ${esc(replyTo.author)}` : ''}</span>
           <a class="c-cancel-reply" href="${esc(cancelHref)}" data-cancel-reply data-no-pjax${replyTo ? '' : ' hidden'}>取消回复</a>
@@ -142,6 +140,15 @@ ${honeypot('        ')}${asAuthor ? '' : identityFields({ idSuffix, indent: '   
           ${emojiPicker()}
           <button type="submit">发布评论</button>
         </div>
-      </form>
+      </form>`;
+
+  return `<section class="comments" id="comments${idSuffix}" data-comments-section>
+      <header class="c-top">
+        <h2><span class="c-label">评论</span><b class="c-count">${count}</b></h2>
+${pager}
+      </header>
+      ${notice}
+      ${list}
+${form}
     </section>`;
 }

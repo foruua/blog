@@ -20,8 +20,9 @@ const PLACEHOLDER_DOMAIN = 'example.invalid';
 const DOMAIN = process.env.SITE_DOMAIN ?? PLACEHOLDER_DOMAIN;
 const SITE_URL_ENV = process.env.SITE_URL;
 
-export const SITE = {
-
+// 站点身份的**出厂值**来自环境变量。后台「设置 → 站点身份」写进 settings 表后会覆盖它们，
+// 故这里单独留一份快照：DB 里存的是空串时逐项回落到 ENV_SITE（老站点不改一行代码行为不变）。
+export const ENV_SITE = {
   title: process.env.SITE_TITLE ?? '',
 
   author: process.env.SITE_AUTHOR ?? '',
@@ -30,15 +31,21 @@ export const SITE = {
   // 博主邮箱：只用于给作者回复（is_author）算 Gravatar md5，不进评论行也不参与邮件收发；留空=用字母头像。
   email: process.env.SITE_EMAIL ?? '',
 
-  url: (SITE_URL_ENV ?? (IS_PROD
-    ? `https://${DOMAIN}`
-    : `http://${HOST}:${PORT}`)).replace(/\/$/, ''),
-  domain: DOMAIN,
   lang: process.env.SITE_LANG ?? 'zh-CN',
 
   mark: process.env.SITE_MARK ?? DOMAIN,
 
   icp: process.env.SITE_ICP ?? '',
+};
+
+// 可变对象：地址（url/domain）只能来自环境变量——它决定 cookie 域、canonical、sitemap 与邮件里的绝对链接，
+// 后台填错一处就会让整站链接和登录态一起坏掉，所以不开放编辑。其余字段由 applySiteIdentity() 原地改写。
+export const SITE = {
+  ...ENV_SITE,
+  url: (SITE_URL_ENV ?? (IS_PROD
+    ? `https://${DOMAIN}`
+    : `http://${HOST}:${PORT}`)).replace(/\/$/, ''),
+  domain: DOMAIN,
 };
 
 SITE.identity = SITE.title || SITE.domain;

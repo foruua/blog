@@ -7,6 +7,9 @@ const SWEEP_MS = 60 * 1000;
 const MAX_KEYS = 20000;
 
 export function createAntispam({ windowMs = 10 * 60 * 1000, maxPerWindow = 5 } = {}) {
+  // 阈值可以是函数：评论限流条数改成后台可调之后，每次判定都要读当时的设置，
+  // 否则改完设置得重启进程才生效（而重启正是这个功能要消灭的东西）。
+  const limitOf = typeof maxPerWindow === 'function' ? maxPerWindow : () => maxPerWindow;
 
   const hits = new Map();
   let lastSweep = Date.now();
@@ -43,7 +46,7 @@ export function createAntispam({ windowMs = 10 * 60 * 1000, maxPerWindow = 5 } =
       if (now - lastSweep >= SWEEP_MS || hits.size > MAX_KEYS) sweep(now);
       if (hits.size >= MAX_KEYS && !hits.has(bucket)) evictOldest();
       const kept = (hits.get(bucket) ?? []).filter((t) => now - t < windowMs);
-      if (kept.length >= maxPerWindow) { hits.set(bucket, kept); return true; }
+      if (kept.length >= limitOf()) { hits.set(bucket, kept); return true; }
       kept.push(now);
       // 删掉重插把桶挪到 Map 末尾：插入序即「最近一次被接受命中」升序，evictOldest 才能直接淘汰最前面。
       hits.delete(bucket);
@@ -54,7 +57,7 @@ export function createAntispam({ windowMs = 10 * 60 * 1000, maxPerWindow = 5 } =
     // 只查不记：供「先判定、验证通过才算失败」的场景（如登录限流）。
     blocked(key, now = Date.now()) {
       const kept = (hits.get(key || 'unknown') ?? []).filter((t) => now - t < windowMs);
-      return kept.length >= maxPerWindow;
+      return kept.length >= limitOf();
     },
 
     // 清掉某个 key 的历史（如登录成功后重置失败计数）。

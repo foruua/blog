@@ -15,10 +15,14 @@ import { IMAGE_PLACEHOLDER, mediaFallback } from '../media/variants.js';
  * @param {Function} o.mediaOf    路径 → 媒体变体信息（可为 null）
  * @param {string} o.recentHtml   「最近更新」区块（已渲染；空串则不占位）
  * @param {string} o.toolsHtml    hero-meta 行尾的两枚工具（RSS / 配色，已渲染；空串则只剩统计）
+ * @param {object} o.words        统计行的两个量词（后台「页面文案」可改，默认「篇文章 / 篇笔记」）
  */
-export function heroBlock({ stats = [], imgs = [], overlay = '', mediaOf = () => null, recentHtml = '', toolsHtml = '' }) {
+export function heroBlock({ stats = [], imgs = [], overlay = '', mediaOf = () => null, recentHtml = '', toolsHtml = '', words = {} }) {
   const posts = stats.find((p) => p.kind === 'post')?.n ?? 0;
   const notes = stats.find((p) => p.kind === 'note')?.n ?? 0;
+  // 量词由调用方给（站主可改），兜底与改造前逐字相同。esc：这是站主输入，不是代码里的常量。
+  const postsWord = esc(String(words.posts ?? '篇文章'));
+  const notesWord = esc(String(words.notes ?? '篇笔记'));
 
   const heroAlt = SITE.identity;
   // 蒙版文案：一条全局覆盖层（不分张），无 JS 也能看到。单图时在 <h1> 里，必须是 phrasing content：
@@ -86,9 +90,9 @@ export function heroBlock({ stats = [], imgs = [], overlay = '', mediaOf = () =>
       ${mark}
       ${title}
       <div class="hero-meta">
-        <a href="/posts/">${posts} 篇文章</a>
+        <a href="/posts/">${posts} ${postsWord}</a>
         <span class="sep">·</span>
-        <a href="/notes/">${notes} 篇笔记</a>
+        <a href="/notes/">${notes} ${notesWord}</a>
         <span class="sep">·</span>
         ${toolsHtml}
       </div>

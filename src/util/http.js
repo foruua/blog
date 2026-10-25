@@ -158,10 +158,13 @@ async function spoolRawUpload(c, { limit, timeoutMs }) {
 // 请求体上限规则集中一处：上传的两条路径上限不同——raw 走流式落盘，沿用 MAX_UPLOAD（默认不限）；
 // multipart 整块进内存，用独立的保守上限兜底，避免旧表单一次误用就吃掉整个堆。
 const MEDIA_WRITE_RE = /\/comment$|^\/moderate\//;
+// 后台上传站点图标 / 分享图：表单是 multipart，两张源图各几 MB，不能落进普通表单的 1MB 上限。
+const SITE_UPLOAD_RE = /^\/admin\/site\/(?:icons|og)$/;
 export function bodyLimitFor({ path: p, contentType, isUpload = false, isThemeUpload = false }) {
   const isMultipart = contentType.includes('multipart/form-data');
   if (isUpload) return (isMultipart ? MAX_MULTIPART_UPLOAD : MAX_UPLOAD) + 65536;
   if (isThemeUpload) return MAX_THEME_ZIP + 65536;
+  if (SITE_UPLOAD_RE.test(p)) return MAX_MULTIPART_UPLOAD + 65536;
   if (p === '/admin/login') return 4096;
   if (p.startsWith('/api/comments') || MEDIA_WRITE_RE.test(p)) return 32768;
   return 1024 * 1024;
@@ -178,8 +181,10 @@ export function boundedBody() {
     const isUpload = p === '/admin/api/upload';
     // 主题 ZIP 也是文件上传：不能落进普通表单的 1MB 上限（截图稍大一点就传不上去）。
     const isThemeUpload = p === '/admin/themes/upload';
+    // 站点图标同样是「整块进内存」的上传，一起进并发闸门。
+    const isSiteUpload = SITE_UPLOAD_RE.test(p);
     // 两者都在鉴权之前整块读请求体，必须共用并发闸门：否则未登录请求也能用 10MB 主题包打内存。
-    const needsUploadSlot = isUpload || isThemeUpload;
+    const needsUploadSlot = isUpload || isThemeUpload || isSiteUpload;
     const releaseUpload = needsUploadSlot ? enterUploadSlot() : null;
     if (needsUploadSlot && !releaseUpload) {
       c.header('Retry-After', '5');
