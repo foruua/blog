@@ -151,9 +151,12 @@ ${hero.images.length ? heroItems + '\n' : ''}${heroAdd}
   const tlsOptions = TLS_MODES
     .map((v) => `<option value="${v}"${tls === v ? ' selected' : ''}>${TLS_LABEL[v] ?? v}</option>`).join('\n            ');
 
+  // 这张表单改的是站点级外观（明暗 / 版式 / 配色都写在 <html> 的 data-* 上，自定义配色还带一段
+  // <head> 里的 CSS），无刷新提交只换 #app —— 页面会「保存成功但颜色没变」，站主以为没生效。
+  // 故标 data-no-pjax 走整页跳转：新文档的 <html> 属性与 <head> 一起换掉，保存后立刻看到效果。
   const body = `    <h2 class="a-h2 a-h2-first">站点与阅读</h2>
     <div class="a-card a-panel">
-    <form method="post" action="/admin/settings">
+    <form method="post" action="/admin/settings" data-no-pjax>
       ${csrfField(csrf)}
       <div class="a-grid2">
         <div class="a-field">

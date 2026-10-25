@@ -493,9 +493,13 @@ try {
 
     w.__marker = 'alive';
     const historyBefore = w.history.length;
-    const settings = [...w.document.querySelectorAll('form')].find((f) => f.getAttribute('action') === '/admin/settings');
-    settings.querySelector('#s-page').value = '20';
-    submit(w, settings, settings.querySelector('button[type=submit]'));
+    // 用「首页封面」那张表单做 pjax POST 的样本：它照常无刷新提交、服务端 303 回设置页。
+    // 「站点与阅读」那张带 data-no-pjax（它改的是 <html> 上的站点级外观，只换 #app 的话颜色不会变），
+    // 在这里提交会走整页跳转，jsdom 里根本到不了下面这些断言 —— T74f 单独钉住这条。
+    const hero = [...w.document.querySelectorAll('form')].find((f) => f.getAttribute('action') === '/admin/hero');
+    hero.querySelector('#heroImages').value = '[]';
+    hero.querySelector('#heroOverlay').value = '';
+    submit(w, hero, hero.querySelector('button[type=submit]'));
     await waitFor(() => w.document.querySelector('.a-notice'), { timeoutMs: 5000 });
 
     check('T74 后台表单提交后窗口标记还在（没有整页刷新）', w.__marker === 'alive', String(w.__marker));
@@ -505,6 +509,9 @@ try {
       `${w.history.length} vs ${historyBefore}`);
     check('T74d 页面里出现服务端提示', Boolean(w.document.querySelector('.a-notice')), '');
     check('T74e 提交结果弹出轻提示', w.document.getElementById('toast')?.classList.contains('on') === true, '');
+    const settingsForm = [...w.document.querySelectorAll('form')].find((f) => f.getAttribute('action') === '/admin/settings');
+    check('T74f 改站点级外观的那张表单标了 data-no-pjax（必须整页跳转，<html> 上的明暗/配色才会换）',
+      Boolean(settingsForm) && settingsForm.hasAttribute('data-no-pjax'), '');
   }
 
   {
@@ -528,9 +535,10 @@ try {
     const page = await mount(`${BASE}/admin/system`, cookie);
     const { w } = page;
     w.__marker = 'alive';
-    const settings = [...w.document.querySelectorAll('form')].find((f) => f.getAttribute('action') === '/admin/settings');
-    settings.querySelector('[name=_csrf]').value = 'forged-token';
-    submit(w, settings, settings.querySelector('button[type=submit]'));
+    // 同样用「首页封面」那张表单：它走无刷新提交，才测得到「令牌失效只弹提示、不换页」。
+    const hero = [...w.document.querySelectorAll('form')].find((f) => f.getAttribute('action') === '/admin/hero');
+    hero.querySelector('[name=_csrf]').value = 'forged-token';
+    submit(w, hero, hero.querySelector('button[type=submit]'));
     await waitFor(() => /(安全令牌|提交失败)/.test(w.document.getElementById('toast')?.textContent ?? ''), { timeoutMs: 5000 });
     check('T76 令牌失效时不换页，只把失败原因提示出来',
       w.__marker === 'alive' && /(安全令牌|提交失败)/.test(w.document.getElementById('toast')?.textContent ?? ''),

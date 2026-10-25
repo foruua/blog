@@ -74,12 +74,18 @@ const PALETTE_DEFAULT_KEYS = [...PALETTE_KEYS, CUSTOM_PALETTE];
 // 自定义配色的种子范围（与 public/palette.js 的滑块一致）。越界一律钳住，不报错 ——
 // 这三个数是观感旋钮，不是安全边界；钳到边界比让整张表单存不进去合理。
 const SEED_RANGE = {
-  hue: { min: 0, max: 359, fallback: 210 },
+  // 色相兜底取素笺那套的角度：没存过种子时，滑块停在站里默认的那支金色上，
+  // 而不是一个谁也没见过的 210°。
+  hue: { min: 0, max: 359, fallback: PALETTES[0].hue },
   chroma: { min: 0.55, max: 1.45, fallback: 1 },
   paper: { min: 0, max: 1.8, fallback: 1 },
 };
 const clampNum = (raw, { min, max, fallback }) => {
-  const n = Number(String(raw ?? '').trim());
+  // 空值（没存过 / 表单没这字段）必须走 fallback：Number('') 是 0，直接钳会把「没设过」
+  // 变成「拖到最左」—— 首次打开后台会看到浓淡 55%、纸色 0 的种子。
+  const text = String(raw ?? '').trim();
+  if (!text) return fallback;
+  const n = Number(text);
   if (!Number.isFinite(n)) return fallback;
   return Math.min(max, Math.max(min, n));
 };

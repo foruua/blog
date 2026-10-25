@@ -203,10 +203,10 @@ const searchDrawerForm = () => `<form class="s-drawer-form" action="/search" met
 // 其实是点了会变暗）的开关。版式只有两格，用图标 + 名称并排；配色是五行带色样的长条，故单独分段。
 // 「自定义」区只预置当前预设的种子（色相 / 浓度 / 纸色），真正的令牌由 ui.js 按需调 PaletteLib 现算，
 // 服务端不生成那段 CSS。初始值取当前生效预设 —— 从「青瓷」滑进自定义时观感要接得上，不能一拖就跳色。
-// 入口图标是「两根推子」（调节）：一条轨道 + 一枚滑块，两行错开 —— 面板里三组都是"调一个旋钮"，
-// 比调色盘更贴合「样式」这个总名；调色盘只说了三段里的最后一段。
-// 20 格画布、1.6 描边，与明暗三态同一套规格；缩到 14px 仍读得出是两排可拖的刻度。
-const PAL_ICO = '<svg class="pal-ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.4 6.4h13.2M3.4 13.6h13.2"/><circle cx="7.4" cy="6.4" r="2.1"/><circle cx="12.7" cy="13.6" r="2.1"/></svg>';
+// 入口图标是「四格色卡」：四个小方块、右上填实。面板里明暗 / 版式 / 配色三组都是在"选一块的样子"，
+// 四格既说得出"样式"，又不像调色盘只指配色；14px 下轮廓也最稳（推子那两枚滑块在这个尺寸会糊成点）。
+// 20 格画布、1.6 描边，与检索、明暗三态同一套规格。
+const PAL_ICO = '<svg class="pal-ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.4" y="3.4" width="5.8" height="5.8" rx="1.3"/><rect x="10.8" y="3.4" width="5.8" height="5.8" rx="1.3" fill="currentColor" stroke="none"/><rect x="3.4" y="10.8" width="5.8" height="5.8" rx="1.3"/><rect x="10.8" y="10.8" width="5.8" height="5.8" rx="1.3"/></svg>';
 // 订阅入口：点 + 两道弧。viewBox 收到 3.25 3.6 12.05 12.05，把图形撑到上面那枚同样的 12px，
 // 描边跟着收到 0.97（≈1.2px）；两枚图标的图形框、线宽、上下留白由此一致。
 const RSS_ICO = '<svg class="ico-rss" viewBox="3.25 3.6 12.05 12.05" fill="none" stroke="currentColor" stroke-width="0.97" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5.6" cy="13.3" r="1.15" fill="currentColor" stroke="none"/><path d="M4.5 9.3a5.1 5.1 0 0 1 5.1 5.1"/><path d="M4.5 4.8a9.6 9.6 0 0 1 9.6 9.6"/></svg>';

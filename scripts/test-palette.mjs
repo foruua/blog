@@ -7,7 +7,7 @@ import { JSDOM } from 'jsdom';
 import { THEME_BOOT, PALETTES, LAYOUTS, layout, setPaletteDefault, setPaletteCustom, setLayoutDefault, setThemeDefault, layoutAttr, paletteDefaultStyle, themeChrome, heroToolsHtml, PALETTE_CSS_GUARD, PALETTE_CSS_BANNED } from '../src/render/layout.js';
 import { adminLayout } from '../src/admin/layout.js';
 import { systemPage } from '../src/admin/views/system.js';
-import { parsePaletteDefault, parseLayoutDefault, settings, saveSettings, KEYS } from '../src/settings.js';
+import { parsePaletteDefault, parsePaletteCustom, parseLayoutDefault, settings, saveSettings, KEYS } from '../src/settings.js';
 import { createChecker } from './_check.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -502,6 +502,15 @@ await test('saveSettings：默认版式 / 明暗 / 配色一起存，脏值整�
   assert.equal(badTheme.size, 0);
 });
 
+await test('没存过种子时回落预设值（不能把 undefined 当 0 钳到最小值）', () => {
+  const repo = { store: new Map(), getSetting(k) { return this.store.get(k) ?? null; } };
+  assert.deepEqual(settings.paletteCustom(repo), { hue: 80, chroma: 1, paper: 1, ink: 0 });
+  // 空串（表单没这字段）同样走 fallback，而不是被 Number('') = 0 钳成 0.55 / 0
+  assert.deepEqual(parsePaletteCustom({ hue: '', chroma: '', paper: '' }), { hue: 80, chroma: 1, paper: 1, ink: 0 });
+  // 显式的 0 仍是真的 0（纸色滑块最左端是合法值）
+  assert.equal(parsePaletteCustom({ hue: 0, chroma: 0.55, paper: 0 }).paper, 0);
+});
+
 await test('后台「站点与阅读」的默认样式是一块三段控件（明暗 / 版式 / 配色 + 自定义滑块），没有多余说明', () => {
   const html = systemPage({
     site: {
@@ -531,6 +540,8 @@ await test('后台「站点与阅读」的默认样式是一块三段控件（�
   assert.match(html, /id="s-paper" name="paper" min="0" max="1.8" step="0.05" value="1.2"/);
   // 那段说明已按站主要求删掉
   assert.doesNotMatch(html, /只影响首页之外的页面/);
+  // 改的是 <html> 上的站点级外观：必须走整页跳转，否则无刷新提交只换 #app、颜色不变
+  assert.match(html, /<form method="post" action="\/admin\/settings" data-no-pjax>/);
 });
 
 await test('站点默认明暗：dark / light 直接挂 <html>，auto 不挂；访客选「跟随系统」能摘掉站主那个属性', () => {
