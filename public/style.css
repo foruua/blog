@@ -607,18 +607,21 @@ body.mnav-open .mnav-panel { transform: none; opacity: 1; }
 }
 @media (max-width: 620px) { .hero-copy { padding: 2rem .65rem .9rem; } }
 
+/* 这一行用行内流，不用 flex：行尾两枚工具要按 vertical-align 对到「基线 + 半个 x-height」，
+   这是唯一不依赖半行距、也不依赖各引擎合成基线的对法（flex 基线对齐在 Safari/Chrome 上差好几像素）。
+   字号归零消掉 HTML 换行产生的空格，间距统一交给子元素的 margin（左右各 .55rem = 中间 1.1rem）。 */
 .hero-meta {
   position: relative;
   margin: 1.2rem 0 0;
   padding-top: 0;
-  display: flex; gap: .55rem 1.1rem; flex-wrap: wrap; justify-content: center;
-  /* 基线对齐：<a> 为点按区加了 padding-bottom（下划线用），盒子比旁边 <span> 高一点，用 center 会偏高。 */
-  align-items: baseline;
   font: var(--info-size)/1.9 var(--mono);
+  font-size: 0;
   letter-spacing: var(--info-track);
   text-transform: uppercase;
+  text-align: center;
   color: var(--muted);
 }
+.hero-meta > * { font-size: var(--info-size); margin-inline: .55rem; }
 .hero-meta a { color: var(--muted); border-bottom: 1px solid transparent; padding-bottom: .15em; padding-block-start: .25rem; margin-block-start: -.25rem; }
 .hero-meta a:hover { color: var(--accent); border-bottom-color: var(--accent-line); }
 /* 分隔符是装饰，可以用更浅的 --muted-soft；「N 篇文章」是正文，必须用 --muted（4.9:1） */
@@ -629,10 +632,9 @@ body.mnav-open .mnav-panel { transform: none; opacity: 1; }
 /* —— hero-meta 行尾的两枚工具（RSS / 配色）——
    它们原先在页脚是 34px 细线圆钮；搬进这行 13px 小字后收成 24px 的圆形命中区（WCAG 2.5.8 下限）：
    不带边框，常态与旁边文字同为 --muted，悬停/展开才亮成 --accent + 软金底 —— 工具不该比统计更抢眼。
-   垂直对齐：这行按基线对齐，整组 align-self:center 只是对齐行盒（line-height 1.9 撑出来的 24.7px），
-   而 13px 字面（数字与「篇文章」）的中心比行盒中心高约 5.6px（= .43em）。所以整组再上移 .43em，
-   让两枚图标的图形中心和「14 篇文章」的字面中心重合 —— 只量行盒会看着图标往下坠。 */
-.hero-tools { display: inline-flex; align-items: center; gap: .3rem; align-self: center; position: relative; top: -.43em; }
+   垂直对齐：vertical-align:middle 把整组中点对到父级基线（父级 font-size:0，x-height 也是 0），
+   再上移 .36em —— 数字字面中心就在基线上方约半个大写高，图标中心由此落到「14」的中线上。 */
+.hero-tools { display: inline-flex; align-items: center; gap: .3rem; vertical-align: middle; position: relative; top: -.36em; }
 .hero-meta .hero-tool,
 .hero-meta .pal-hero > summary {
   box-sizing: border-box;
