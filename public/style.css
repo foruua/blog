@@ -636,9 +636,15 @@ body.mnav-open .mnav-panel { transform: none; opacity: 1; }
    再上移 .36em —— 数字字面中心就在基线上方约半个大写高，图标中心由此落到「14」的中线上。
    两枚之间也是同一枚「·」，且间距与行内其它分隔取同一个「看得见的空白」（约 21.5px）：
    24px 圆钮自带 6px 内缩、字形左右各约 3px，所以分隔符两侧留 .8rem、图标组自身的外边距收到 .25rem。
-   图形和文字一视同仁 —— 不靠肉眼调，下面有实测数字。 */
-.hero-tools { display: inline-flex; align-items: center; vertical-align: middle; position: relative; top: -.36em; margin-inline: .25rem; }
+   图形和文字一视同仁 —— 不靠肉眼调，下面有实测数字。
+   那 .36em 落在两枚图标和组内分隔符各自身上，**不能挂在这一层**：它是配色面板到 .hero-meta 之间
+   唯一的一层，一旦这里有了 position，面板的包含块就从整行缩成这 53px 的工具组，left:50% 变成
+   「以图标为轴」，整块右偏一百多像素（见 .pal-hero 那条）。 */
+.hero-tools { display: inline-flex; align-items: center; vertical-align: middle; margin-inline: .25rem; }
 .hero-tools .sep { margin-inline: .8rem; }
+.hero-tools .hero-tool,
+.hero-tools .sep,
+.hero-tools .pal-hero > summary { position: relative; top: -.36em; }
 .hero-meta .hero-tool,
 .hero-meta .pal-hero > summary {
   box-sizing: border-box;
@@ -3065,7 +3071,10 @@ html:not(.has-js) .pal { display: none; }
     var(--shadow-lg);
 }
 /* 首页 hero-meta 那枚：入口样式在 .hero-meta 那一节（图标 + 24px 圆点命中区）。
-   面板锚在整行中间向下展开 —— 锚在 24px 的图标上会贴到屏幕边缘，窄屏直接顶出去。 */
+   面板锚在整行中间向下展开 —— 锚在 24px 的图标上会贴到屏幕边缘，窄屏直接顶出去。
+   居中分两段：① 整行在页面里居中（.hero 的 align-items: center）② 面板在整行里居中（下面的 50%）。
+   所以包含块必须恰好是 .hero-meta：.pal-hero 与 .hero-tools 都得是 static（见各自那条），
+   中间任何一层拿到 position，包含块就换成那一层，① 立刻失效、整块面板偏到右边去。 */
 .pal-hero { display: flex; position: static; }
 .pal-hero > summary::-webkit-details-marker { display: none; }
 .pal-hero .pal-panel {

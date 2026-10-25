@@ -19,6 +19,21 @@ try {
   await page.goto(srv.base);
   assert.equal(await page.locator('.recent .entries li').count(), 10);
   assert.ok((await page.locator('.recent').boundingBox()).y < 500);
+  // 配色面板以整行为轴居中：包含块必须恰好是 .hero-meta（.pal-hero / .hero-tools 都得是 static）。
+  // 中间任一层拿到 position，包含块就缩成那一层（行尾的工具组只有 53px），面板整块右偏一百多像素。
+  // 这里只量中线：面板宽度、色名长短都会变，中线才是「居中」这件事本身。
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.locator('#palettePickerH > summary').click();
+    await page.locator('#palettePickerH .pal-panel').waitFor();
+    const drift = await page.evaluate(() => {
+      const box = document.querySelector('#palettePickerH .pal-panel').getBoundingClientRect();
+      return +(box.left + box.width / 2 - document.documentElement.clientWidth / 2).toFixed(2);
+    });
+    assert.ok(Math.abs(drift) <= 1, `${width}px 下配色面板应居中，实测中线偏 ${drift}px`);
+    await page.keyboard.press('Escape');
+  }
+  await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto(srv.base + '/posts/');
   // 每行底部有元信息行（.e-meta），li 不再等于 .e-main 的盒子 —— 改为核「主体顶端贴 li 顶、左右撑满、元信息行贴 li 底」。
   const listGaps = await page.locator('.list li').evaluateAll((es) => es.map((e) => {
