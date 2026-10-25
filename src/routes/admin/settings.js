@@ -144,8 +144,13 @@ export function registerSettingsRoutes(app, { repo, crypt, adminRepo, mutate = (
       pageSize: val(b, 'pageSize'),
       homeRecent: val(b, 'homeRecent'),
       commentsPerPage: val(b, 'commentsPerPage'),
+      // 访客默认样式三段 + 自定义配色的种子（三段都来自「站点与阅读」那张表单）
+      themeDefault: val(b, 'themeDefault'),
       palette: val(b, 'palette'),
-      layout: val(b, 'layoutDefault'),
+      layoutDefault: val(b, 'layoutDefault'),
+      hue: val(b, 'hue'),
+      chroma: val(b, 'chroma'),
+      paper: val(b, 'paper'),
     }, (k, v) => repo.setSetting(k, v)));
     return notice(c, '/admin/system', err ? `✗ ${err}` : '✓ 设置已保存');
   });

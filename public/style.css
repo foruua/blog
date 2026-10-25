@@ -3279,7 +3279,13 @@ html[data-layout="box"] body:not([data-page="home"]) .page { padding-bottom: 0; 
   html[data-layout="box"] body:not([data-page="home"]) .wrap { max-width: none; }
   html[data-layout="box"] body:not([data-page="home"]) main#main {
     --sheet-pad: 1.15rem;
-    margin: .9rem 0 1.6rem;
+    /* 窄屏把匣子再放宽一档：整页左右各 24px 的纸边在手机上太厚，匣子只有 342px 宽。
+       负外边距吃掉 12px，两侧各留 12px —— 既不贴边，又能多出一行字的位置。
+       width 必须回到 auto：基础规则那条 width:100% 会让盒子保持 342 宽、只往左挪 12px，
+       右边就多出 36px（左 12 / 右 36 的偏心）。auto + stretch 才是「吃掉外边距、两侧各 12」。 */
+    width: auto;
+    align-self: stretch;
+    margin: .9rem -12px 1.6rem;
     border-radius: var(--radius);
   }
   html[data-layout="box"] body:not([data-page="home"]) main#main > .mast { padding-top: .35rem; }
