@@ -633,9 +633,11 @@ body.mnav-open .mnav-panel { transform: none; opacity: 1; }
 .hero-meta .sep { color: var(--muted-soft); }
 .hero-meta b { color: var(--fg); font-weight: 500; }
 
-/* —— hero-meta 行尾的两枚工具（RSS / 配色）——
-   它们原先在页脚是 34px 细线圆钮；搬进这行 13px 小字后收成 24px 的圆形命中区（WCAG 2.5.8 下限）：
-   不带边框，常态与旁边文字同为 --muted，悬停/展开才亮成 --accent + 软金底 —— 工具不该比统计更抢眼。
+/* —— hero-meta 行尾的两枚工具（RSS / 样式）——
+   它们原先在页脚是 34px 细线圆钮；搬进这行 13px 小字后收成 24px 的圆形命中区（WCAG 2.5.8 下限）。
+   常态就铺一层软金底（--accent-soft）：两枚图标是这行里唯一的可点图形，不铺底时它们和旁边的
+   统计文字一样淡，读者看不出「这里能点」；底色只到 10% 浓度，不会比统计更抢眼。
+   悬停 / 展开再把底色加重一档、图标转金 —— 有反馈，但不再是「从无到有」那一跳。
    垂直对齐：vertical-align:middle 把整组中点对到父级基线（父级 font-size:0，x-height 也是 0），
    再上移 .36em —— 数字字面中心就在基线上方约半个大写高，图标中心由此落到「14」的中线上。
    两枚之间也是同一枚「·」，且间距与行内其它分隔取同一个「看得见的空白」（约 21.5px）：
@@ -656,13 +658,18 @@ body.mnav-open .mnav-panel { transform: none; opacity: 1; }
   width: 1.5rem; height: 1.5rem;
   padding: 0; margin: 0;
   border: 0; border-radius: var(--radius-pill);
-  background: none; color: var(--muted);
+  background: var(--accent-soft); color: var(--muted);
   cursor: pointer; list-style: none;
   transition: color var(--dur-2) var(--ease), background var(--dur-1) var(--ease);
 }
 .hero-meta .hero-tool:hover,
 .hero-meta .pal-hero > summary:hover,
-.hero-meta .pal-hero[open] > summary { color: var(--accent); background: var(--accent-soft); border-bottom-color: transparent; }
+.hero-meta .pal-hero[open] > summary {
+  color: var(--accent);
+  /* 比常驻底色重一档（10% → 17%）：仍是同一支金，只加深，不换色 */
+  background: color-mix(in srgb, var(--accent) 17%, transparent);
+  border-bottom-color: transparent;
+}
 .hero-meta .hero-tool:focus-visible,
 .hero-meta .pal-hero > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .hero-meta .hero-tool svg,
