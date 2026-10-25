@@ -35,7 +35,8 @@
     "cleanup:media": "node --env-file-if-exists=.env scripts/cleanup-media.mjs",
     "cleanup:trash": "node --env-file-if-exists=.env scripts/cleanup-trash.mjs",
     "cleanup:output": "node scripts/cleanup-output.mjs",
-    "sync:content": "node --env-file-if-exists=.env scripts/sync-content.mjs"
+    "sync:content": "node --env-file-if-exists=.env scripts/sync-content.mjs",
+    "make:og": "node scripts/make-og-default.mjs"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.3",
