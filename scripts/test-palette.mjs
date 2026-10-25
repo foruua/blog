@@ -392,6 +392,12 @@ await test('版式清单与 CSS 对得上：素匣的每条规则都挂在 html[
   // 两处主规则：匣子本体与列宽。少了任一条，要么没框、要么行长被压窄。
   assert.match(css, /html\[data-layout="box"\] body:not\(\[data-page="home"\]\) main#main \{/);
   assert.match(css, /html\[data-layout="box"\] body:not\(\[data-page="home"\]\) \.wrap \{/);
+  // 刊头归零要覆盖三种 DOM 深度：列表页（main 的直接子级）、固定页（包在 .page 里）、
+  // 文章页（article.post 里的 .post-mast）。只写第一种时，/about 比 /posts/ 低 54px、
+  // 文章页低 40px —— 同一个匣子里三张卡片的第一行文字不在同一条水平线上。
+  for (const sel of ['main#main > .mast', 'main#main > .page > .mast', 'main#main > article.post > .post-mast']) {
+    assert.ok(css.includes(sel), `素匣缺少刊头归零选择器：${sel}`);
+  }
   // 不变量：所有素匣规则都必须排除首页 —— 首页本来就是「标题 + 一只匣子」，再套一层就是匣中匣。
   const sels = [...css.matchAll(/html\[data-layout="box"\][^{]*\{/g)].map((m) => m[0]);
   assert.ok(sels.length >= 6, `素匣规则只有 ${sels.length} 条，像是被删过`);

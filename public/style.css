@@ -3275,8 +3275,13 @@ html[data-layout="box"] body:not([data-page="home"]) main#main {
   border-radius: var(--radius-lg);
   box-shadow: var(--card-sh);
 }
-/* 刊头原本吃 --page-top 的上内距，匣子里由内衬接管，否则标题离上沿会空出两段。 */
-html[data-layout="box"] body:not([data-page="home"]) main#main > .mast { padding-top: 0; }
+/* 刊头原本吃 --page-top 的上内距，匣子里由内衬接管，否则标题离上沿会空出两段。
+   但刊头的 DOM 深度并不统一：列表页是 main 的直接子级，固定页包在 .page 里，
+   文章页是 article.post 里的 .post-mast。早先只覆盖了第一种，于是同一套匣子里
+   /about 比 /posts/ 低 54px、文章页低 40px —— 三张卡片的第一行文字不在同一条线上。 */
+html[data-layout="box"] body:not([data-page="home"]) main#main > .mast,
+html[data-layout="box"] body:not([data-page="home"]) main#main > .page > .mast,
+html[data-layout="box"] body:not([data-page="home"]) main#main > article.post > .post-mast { padding-top: 0; }
 /* 正文末尾的预留内距（article.post / .page 的 padding-bottom）在匣子里会变成一块空白。 */
 html[data-layout="box"] body:not([data-page="home"]) main#main > :last-child { margin-bottom: 0; }
 html[data-layout="box"] body:not([data-page="home"]) article.post,
@@ -3295,7 +3300,9 @@ html[data-layout="box"] body:not([data-page="home"]) .page { padding-bottom: 0; 
     margin: .9rem -12px 1.6rem;
     border-radius: var(--radius);
   }
-  html[data-layout="box"] body:not([data-page="home"]) main#main > .mast { padding-top: .35rem; }
+  html[data-layout="box"] body:not([data-page="home"]) main#main > .mast,
+  html[data-layout="box"] body:not([data-page="home"]) main#main > .page > .mast,
+  html[data-layout="box"] body:not([data-page="home"]) main#main > article.post > .post-mast { padding-top: .35rem; }
 }
 
 /* 打印：匣子只是屏幕上的分层手段，纸上的底色、圆角与投影都不该印出来。 */
