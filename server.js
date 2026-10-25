@@ -20,7 +20,7 @@ import { setNavPages, setPaletteDefault, setNavSource, setFooterSource, setSiteI
 import { applySiteIdentity } from './src/site/identity.js';
 import { navFormState } from './src/site/nav.js';
 import { footerOf } from './src/site/copy.js';
-import { siteIconsState, ICON_FILES, siteIconPath, hasSiteIcon } from './src/site/icons.js';
+import { siteIconsState, ICON_FILES, SHARE_FILE, siteIconPath, hasSiteIcon } from './src/site/icons.js';
 import { createSearch } from './src/search/index.js';
 import { settings, KEYS } from './src/settings.js';
 import { createCommentRepo } from './db/comments.js';
@@ -586,7 +586,7 @@ app.get('/favicon.ico', (c) => c.body(null, 204));
 
 // 站主在后台上传的图标与分享图（DATA_DIR/site）。只按白名单取文件——文件名不进路径拼接，
 // 目录外的东西读不到。地址里带内容指纹（见 site/icons.js），故可以按 immutable 长缓存；换图会换 URL。
-const SITE_ICON_FILES = new Set(Object.values(ICON_FILES));
+const SITE_ICON_FILES = new Set([...Object.values(ICON_FILES), SHARE_FILE]);
 app.get('/site/:file', (c) => {
   const file = String(c.req.param('file') ?? '');
   if (!SITE_ICON_FILES.has(file) || !hasSiteIcon(file)) return c.notFound();

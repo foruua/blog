@@ -35,7 +35,7 @@ let page = await html('/admin/system');
 let csrf = csrfOf(page);
 
 // —— 渲染 ——
-for (const heading of ['站点身份', '导航菜单', '页面文案', '页脚与社交', '站点图标', '评论', '账号安全']) {
+for (const heading of ['站点身份', '导航菜单', '页面文案', '页脚与社交', '站点图标', '分享封面', '评论', '账号安全']) {
   check(`S1 设置页有「${heading}」一块`, page.includes(`>${heading}</h2>`), heading);
 }
 check('S1b 设置页把「站点与阅读」改成了「阅读与外观」', page.includes('>阅读与外观</h2>'));
@@ -45,7 +45,7 @@ check('S1b 设置页把「站点与阅读」改成了「阅读与外观」', pag
 //    曾经「社交链接」那格是个光秃秃的 <label>，DevTools 直接报 “A <label> isn't associated with a form field”。
 // 2) 本次新增的表单里不许出现 placeholder（一输入就消失、对比度也不合格），也不许有解释性小字（a-dim）。
 {
-  const { identitySection, navSection, footerSection, copySection, iconsSection, commentsSection, accountSection } =
+  const { identitySection, navSection, footerSection, copySection, iconsSection, shareSection, commentsSection, accountSection } =
     await import('../src/admin/views/site.js');
   const html = [
     identitySection({ identity: { title: 't', desc: 'd', author: 'a', email: 'e@x.io', mark: 'm', icp: '', lang: 'zh-CN' }, csrf: 'c' }),
@@ -53,6 +53,7 @@ check('S1b 设置页把「站点与阅读」改成了「阅读与外观」', pag
     copySection({ copy: { heroPosts: '篇文章', heroNotes: '篇笔记', recent: '最近更新', postsTitle: '文章', postsDesc: '', notesTitle: '笔记', notesDesc: '' }, csrf: 'c' }),
     footerSection({ footer: { text: '', links: [] }, csrf: 'c' }),
     iconsSection({ icons: {}, csrf: 'c' }),
+    shareSection({ icons: {}, csrf: 'c' }),
     commentsSection({ comments: { open: true, moderateAll: false, rate: 5 }, csrf: 'c' }),
     accountSection({ csrf: 'c', configured: true }),
   ].join('\n');
@@ -301,6 +302,47 @@ check('S1b 设置页把「站点与阅读」改成了「阅读与外观」', pag
   check('S8h 恢复后 /site/* 变 404', (await client('/site/icon-192.png')).status === 404);
   const back = await html('/');
   check('S8i 前台回落到出厂 SVG 图标', back.includes('favicon.svg'), '没回落到 svg');
+}
+
+// —— 分享封面（og:image）——
+{
+  const sharp = (await import('sharp')).default;
+  // 源图最短边要 ≥ 600（见 installShareImage 的 decode），故用 1200×800 而不是 800×400。
+  const cover = await sharp({ create: { width: 1200, height: 800, channels: 3, background: '#7f77dd' } }).png().toBuffer();
+  const upload = async (buffer, type = 'image/png') => {
+    const fd = new FormData();
+    fd.set('_csrf', csrf);
+    fd.set('og', new Blob([buffer], { type }), 'cover.png');
+    return client('/admin/site/og', { method: 'POST', body: fd });
+  };
+
+  const r = await upload(cover);
+  check('S11a 分享封面上传成功', decodeURIComponent(r.headers.get('location') ?? '').includes('分享封面已更新'), r.headers.get('location'));
+
+  const got = await client('/site/og-image.jpg');
+  const gotOk = got.status === 200 && got.headers.get('content-type') === 'image/jpeg';
+  check('S11b /site/og-image.jpg 可访问且是 jpeg', gotOk, `status=${got.status}`);
+
+  const meta = gotOk ? await sharp(Buffer.from(await got.arrayBuffer())).metadata() : null;
+  check('S11c 非 1200×630 的源图被裁成 1200×630',
+    meta?.width === 1200 && meta?.height === 630, meta ? `${meta.width}×${meta.height}` : '取不到图');
+
+  const home = await html('/');
+  check('S11d 首页 og:image 指向上传的封面（带内容指纹）',
+    /<meta property="og:image" content="https?:\/\/[^"]*\/site\/og-image\.jpg\?v=[0-9a-f]+">/.test(home));
+
+  // 没有首图的文章也应该用它
+  const article = await html('/p/why-single-column/');
+  check('S11e 无首图的文章沿用站点分享封面', /og:image" content="[^"]*\/site\/og-image\.jpg/.test(article));
+
+  const clear = await client('/admin/site/og/clear', form({ _csrf: csrf }));
+  check('S11f 恢复默认封面成功', decodeURIComponent(clear.headers.get('location') ?? '').includes('已恢复默认封面'), clear.headers.get('location'));
+  check('S11g 恢复后 /site/og-image.jpg 变 404', (await client('/site/og-image.jpg')).status === 404);
+  check('S11h 恢复后 og:image 回到出厂图', (await html('/')).includes('og-default.jpg'));
+
+  const tiny = await sharp({ create: { width: 400, height: 200, channels: 3, background: '#000000' } }).png().toBuffer();
+  const bad = await upload(tiny);
+  check('S11i 尺寸太小的源图被拒', decodeURIComponent(bad.headers.get('location') ?? '').includes('最短边至少要 600'), bad.headers.get('location'));
 }
 
 // —— 改密码 ——

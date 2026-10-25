@@ -21,6 +21,10 @@ export const ICON_FILES = {
   apple: 'apple-touch-icon.png',
 };
 
+// 分享封面和图标是两件事：图标由一张方图派生五档，封面是一张定尺（1200×630）的独立图。
+// 放在同一张表里会让「恢复出厂」一剑双雕，站主只想换回旧图标时封面也没了。
+export const SHARE_FILE = 'og-image.jpg';
+
 /** 按内容算指纹：同一张图重复上传，地址不变、浏览器不会白刷一遍缓存。 */
 const iconVer = createAssetVersions(SITE_DIR, { salt: 'site', ttlMs: 1000 });
 
@@ -41,7 +45,10 @@ export function siteIconsState() {
   return {
     ...urls,
     urls,
-    custom: Object.fromEntries(Object.entries(urls).map(([key, url]) => [key, Boolean(url)])),
+    // og 是分享封面，单独一档：它不参与「一张方图派生五档」，所以不并进 urls.custom 的判断里。
+    og: siteIconUrl(SHARE_FILE),
+    custom: Object.fromEntries([...Object.entries(urls), ['og', siteIconUrl(SHARE_FILE)]]
+      .map(([key, url]) => [key, Boolean(url)])),
   };
 }
 
@@ -95,6 +102,18 @@ export async function installIconSet(buffer) {
   return Object.keys(ICON_FILES).length;
 }
 
+/** 分享封面：1200×630 是 og:image / twitter:card 的通用尺寸，非这个比例的图居中裁切。 */
+export async function installShareImage(buffer) {
+  await decode(buffer, { min: 600 });
+  const jpg = await sharp(buffer, SHARP_INPUT).rotate()
+    .resize(1200, 630, { fit: 'cover', position: 'centre' })
+    .flatten({ background: PAPER })
+    .jpeg({ quality: 84, mozjpeg: true })
+    .toBuffer();
+  writeAtomic(SHARE_FILE, jpg);
+  return true;
+}
+
 /** 全部清掉回到出厂图标。文件不存在也算成功——这个按钮要能反复点。 */
 export function clearSiteIcons() {
   let removed = 0;
@@ -102,4 +121,9 @@ export function clearSiteIcons() {
     try { fs.unlinkSync(siteIconPath(file)); removed += 1; } catch { /* 已经不在了 */ }
   }
   return removed;
+}
+
+/** 只清分享封面，不碰图标。 */
+export function clearShareImage() {
+  try { fs.unlinkSync(siteIconPath(SHARE_FILE)); return 1; } catch { return 0; }
 }

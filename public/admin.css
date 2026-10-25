@@ -2517,11 +2517,15 @@ article.a-preview-sheet > h1 { margin: 0; padding-bottom: 1.5rem; border-bottom:
 /* 站点图标：左边当前图，右边字段 + 文件选择。
    原生「选择文件」按钮跟着系统走、和全站按钮不同款，这里用 ::file-selector-button 把它改成同一套样式。 */
 .a-filefield { display: flex; align-items: flex-start; gap: 1rem; margin: 0 0 .2rem; }
+/* 分享封面那一行只有「图 + 文件选择」，没有上下叠的标签，故与图垂直居中。 */
+.a-filefield-center { align-items: center; }
 .a-fileprev {
   flex: none; width: 56px; height: 56px; object-fit: cover;
   border: 1px solid var(--rule); border-radius: var(--radius-sm);
   background: var(--bg-soft);
 }
+/* 分享封面按 1200×630 显示：比例的本身就是说明，不必再写一行字。 */
+.a-fileprev-wide { width: 168px; height: 88px; }
 .a-filewrap { display: flex; flex-direction: column; gap: .4rem; min-width: 0; flex: 1; }
 .a-filewrap > label { font-size: var(--a-fs-sm); color: var(--fg-soft); }
 .a-file {
@@ -2561,4 +2565,13 @@ article.a-preview-sheet > h1 { margin: 0; padding-bottom: 1.5rem; border-bottom:
   .a-navrow-kind { display: none; }
   .a-navadd-row, .a-linkrow, .a-linkhead { grid-template-columns: 1fr; }
   .a-linkhead { display: none; }
+}
+
+/* 窄屏放不下「预览图 + 原生文件控件」并排：168px 的封面 + 「选择文件 · 未选择文件」实测在 390px 上
+   会把末尾那截切掉。这里让预览独占一行、控件换到下一行，封面也不再按固定像素撑。 */
+@media (max-width: 560px) {
+  .a-filefield { flex-wrap: wrap; gap: .65rem; }
+  .a-filefield-center { align-items: flex-start; }
+  .a-fileprev-wide { width: 100%; max-width: 260px; height: auto; aspect-ratio: 1200 / 630; }
+  .a-file { max-width: 100%; }
 }

@@ -204,6 +204,36 @@ export function iconsSection({ icons = {}, csrf }) {
     </div>`;
 }
 
+/** 分享封面：链接被分享出去时卡片上的那张图（og:image）。左边就是实图，缩略图自己说明用途，不再加文字。 */
+export function shareSection({ icons = {}, csrf }) {
+  const preview = icons.preview ?? {};
+  const ogSrc = esc(preview.og || '/og-default.jpg');
+  return `    <h2 class="a-h2">分享封面</h2>
+    <div class="a-card a-panel">
+    <form method="post" action="/admin/site/og" enctype="multipart/form-data">
+      ${csrfField(csrf)}
+      <div class="a-filefield a-filefield-center">
+        <img class="a-fileprev a-fileprev-wide" src="${ogSrc}" alt="" width="168" height="88" loading="lazy" decoding="async">
+        <input class="a-file" id="og-file" name="og" type="file" accept="image/png,image/jpeg,image/webp"
+               aria-label="分享封面" required>
+      </div>
+      <div class="a-actions"><button type="submit" class="a-btn">上传</button></div>
+    </form>
+
+    <form method="post" action="/admin/site/og/clear">
+      ${csrfField(csrf)}
+      <div class="a-actions">
+        <button type="submit" class="a-btn-danger"
+                data-modal-title="恢复默认封面？"
+                data-modal-body="上传的分享封面会被删除，回到仓库里自带的那张。"
+                data-modal-note="删除后原始图片不可恢复，需要重新上传。"
+                data-modal-ok="恢复默认"
+                ${icons.ogCustom ? '' : 'hidden'}>恢复默认封面</button>
+      </div>
+    </form>
+    </div>`;
+}
+
 /** 评论：三个开关。反机器人参数（最短填写时间、蜜罐）不放在这里——调松了就是关防护。 */
 export function commentsSection({ comments = {}, csrf }) {
   // 直接调用本函数（测试）时可能没传 state：限流格用默认值兜底，别把 undefined 写进 value。

@@ -161,11 +161,14 @@ export function registerSettingsRoutes(app, { repo, crypt, adminRepo, mutate = (
     const read = (key) => repo.getSetting(key);
     // 图标预览：上传过就用 DATA_DIR 里那份，没传过回落到 public/ 的出厂文件（带指纹避免后台看到旧图）。
     const iconState = siteIconsState();
+    // 两个「恢复」按钮各管各的：anyCustom 只数五档图标，分享封面由 ogCustom 单独判断。
     const icons = {
       ...iconState,
-      anyCustom: Object.values(iconState.custom).some(Boolean),
+      anyCustom: ['favicon', 'icon192', 'icon512', 'maskable', 'apple'].some((key) => iconState.custom[key]),
+      ogCustom: Boolean(iconState.custom.og),
       preview: {
         icon: iconState.icon192 || `/icon-192.png?v=${assetVer('icon-192.png')}`,
+        og: iconState.og || `/og-default.jpg?v=${assetVer('og-default.jpg')}`,
       },
     };
     return c.html(systemPage(ctx(c, {

@@ -4,7 +4,7 @@ import { applySiteIdentity, saveSiteIdentity } from '../../site/identity.js';
 import { saveNav } from '../../site/nav.js';
 import { saveFooter, saveCopy } from '../../site/copy.js';
 import { saveCommentSettings } from '../../settings.js';
-import { installIconSet, clearSiteIcons } from '../../site/icons.js';
+import { installIconSet, installShareImage, clearSiteIcons, clearShareImage } from '../../site/icons.js';
 
 // 站点配置的写入路由。全部落在已有的 settings 表里，保存后 redirect 回 /admin/system 带一行提示。
 // 每个表单一个端点：改站名不该把导航顺序、图标、密码一起提交（那样一处校验失败就全都不生效）。
@@ -116,6 +116,24 @@ export function registerSiteRoutes(app, { repo, auth, crypt }) {
     const removed = clearSiteIcons();
     if (removed) repo.setSetting('site_icons_rev', String(Date.now()));
     return notice(c, '/admin/system', removed ? `✓ 已删除 ${removed} 个文件，回到出厂图标` : '✓ 本来就没有自定义图标');
+  });
+
+  externalWrite(app, '/admin/site/og', async (c) => {
+    const { buffer, error } = await readUpload(c, 'og');
+    if (error) return notice(c, '/admin/system', `✗ ${error}`);
+    try {
+      await installShareImage(buffer);
+    } catch (e) {
+      return notice(c, '/admin/system', `✗ ${e?.message ?? '分享封面生成失败'}`);
+    }
+    repo.setSetting('site_icons_rev', String(Date.now()));
+    return notice(c, '/admin/system', '✓ 分享封面已更新');
+  });
+
+  app.post('/admin/site/og/clear', (c) => {
+    const removed = clearShareImage();
+    if (removed) repo.setSetting('site_icons_rev', String(Date.now()));
+    return notice(c, '/admin/system', removed ? '✓ 已恢复默认封面' : '✓ 本来就用的是默认封面');
   });
 
   // 改密码：scrypt 约 32MB/次，与登录同理登记为 external write，不进全局写队列。
