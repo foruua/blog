@@ -629,9 +629,10 @@ body.mnav-open .mnav-panel { transform: none; opacity: 1; }
 /* —— hero-meta 行尾的两枚工具（RSS / 配色）——
    它们原先在页脚是 34px 细线圆钮；搬进这行 13px 小字后收成 24px 的圆形命中区（WCAG 2.5.8 下限）：
    不带边框，常态与旁边文字同为 --muted，悬停/展开才亮成 --accent + 软金底 —— 工具不该比统计更抢眼。
-   整组 align-self:center：这一行按基线对齐（文字链接为下划线预留了 padding），图标没有文字基线，
-   交给 center 才不会比文字矮半头。 */
-.hero-tools { display: inline-flex; align-items: center; gap: .3rem; align-self: center; }
+   垂直对齐：这行按基线对齐，整组 align-self:center 只是对齐行盒（line-height 1.9 撑出来的 24.7px），
+   而 13px 字面（数字与「篇文章」）的中心比行盒中心高约 5.6px（= .43em）。所以整组再上移 .43em，
+   让两枚图标的图形中心和「14 篇文章」的字面中心重合 —— 只量行盒会看着图标往下坠。 */
+.hero-tools { display: inline-flex; align-items: center; gap: .3rem; align-self: center; position: relative; top: -.43em; }
 .hero-meta .hero-tool,
 .hero-meta .pal-hero > summary {
   box-sizing: border-box;
