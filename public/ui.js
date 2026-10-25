@@ -251,7 +251,7 @@
         const name = isCustom
           ? `${seed.hue}°·${chromaText(seed.chroma)}`
           : picker.querySelector(`.pal-opt[data-palette="${cur}"] .pal-name`)?.textContent ?? '';
-        summary.setAttribute('aria-label', `配色（${name || '素笺'}）`);
+        summary.setAttribute('aria-label', `样式（${name || '素笺'}）`);
       }
     }
   };

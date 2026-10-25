@@ -139,7 +139,6 @@ ${hero.images.length ? heroItems + '\n' : ''}${heroAdd}
           <select class="a-select" id="s-layout" name="layoutDefault">
             ${layoutOptions}
           </select>
-          <p class="a-field-note">只影响首页之外的页面；访客可在首页「配色」面板里自己换。</p>
         </div>
       </div>
       <div class="a-actions">

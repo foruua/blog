@@ -169,17 +169,18 @@ const searchDrawerForm = () => `<form class="s-drawer-form" action="/search" met
     </form>`;
 
 // 配色选择器：宽屏在首页 hero-meta 那一行、窄屏在抽屉底部工具条，各一份（同一个模板，id 不同）。访客存了选择时由 ui.js 首帧对齐。
-// 页头导航里没有它 —— 配色是低频偏好，不占导航（test-search 的 M8f 钉着这条）。
+// 页头导航里没有它 —— 样式是低频偏好，不占导航（test-search 的 M8f 钉着这条）。
 // 面板里「明暗 / 版式 / 配色」三段并列：明暗管纸的明暗，版式管内容装不装进匣子，配色管纸墨的色调 ——
 // 都是"选一个生效的状态"，故同一套 aria-pressed 按钮，不再用早先页脚那枚写着"下一个动作"（显示「暗色」
 // 其实是点了会变暗）的开关。版式只有两格，用图标 + 名称并排；配色是五行带色样的长条，故单独分段。
 // 「自定义」区只预置当前预设的种子（色相 / 浓度 / 纸色），真正的令牌由 ui.js 按需调 PaletteLib 现算，
 // 服务端不生成那段 CSS。初始值取当前生效预设 —— 从「青瓷」滑进自定义时观感要接得上，不能一拖就跳色。
-// 入口图标是「调色盘」：盘身 + 右下拇指孔 + 四枚色点，15px 下也读得出是"配色"，不再和明暗图标撞形。
-// 原图是 24 格画布、1.9 描边；这里把 viewBox 收到 25 格，让盘身正好 12px 见方、线宽 1.2px ——
-// 与旁边 RSS 同尺寸、同线宽，也正好等于这行 13px 小字的字面高度，两枚并排才齐。
-// 半实心圆仍留给面板里的「跟随系统」：入口与状态同形会读错。
-const PAL_ICO = '<svg class="pal-ico" viewBox="-0.5 -0.5 25 25" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/><circle cx="13.5" cy="6.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="17.5" cy="10.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="8.5" cy="7.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="6.5" cy="12.5" r="1.1" fill="currentColor" stroke="none"/></svg>';
+// 入口图标是「三推子」：三条轨道各带一枚滑块 —— 面板里明暗 / 版式 / 配色正好三组，图形与组数对得上，
+// 也读得出是"一组可调的值"（调色盘只说了最后那一组）。
+// 滑块画成实心点而不是空心圈：20 格缩到 14px 时，1.85 半径的描边圆内孔只剩 0.7px，会和轨道糊成一团
+// （实测过，见 docs/design/style-icon/）。实心点 + 轨道，14px 下仍是三根"串着珠子"的线。
+// 20 格画布、1.6 描边，与检索、明暗三态同一套规格。
+const PAL_ICO = '<svg class="pal-ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.4 5.2h13.2M3.4 10h13.2M3.4 14.8h13.2"/><circle cx="8" cy="5.2" r="2" fill="currentColor" stroke="none"/><circle cx="12.4" cy="10" r="2" fill="currentColor" stroke="none"/><circle cx="6.8" cy="14.8" r="2" fill="currentColor" stroke="none"/></svg>';
 // 订阅入口：点 + 两道弧。viewBox 收到 3.25 3.6 12.05 12.05，把图形撑到上面那枚同样的 12px，
 // 描边跟着收到 0.97（≈1.2px）；两枚图标的图形框、线宽、上下留白由此一致。
 const RSS_ICO = '<svg class="ico-rss" viewBox="3.25 3.6 12.05 12.05" fill="none" stroke="currentColor" stroke-width="0.97" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5.6" cy="13.3" r="1.15" fill="currentColor" stroke="none"/><path d="M4.5 9.3a5.1 5.1 0 0 1 5.1 5.1"/><path d="M4.5 4.8a9.6 9.6 0 0 1 9.6 9.6"/></svg>';
@@ -240,7 +241,7 @@ const palettePanelHtml = (cur) => `<div class="pal-panel">
 const palettePickerHtml = (palDefault = '') => {
   const cur = PALETTES.find((p) => p.key === palDefault) ?? PALETTES[0];
   return `<details class="pal pal-hero" id="palettePickerH">
-      <summary aria-label="配色（${esc(cur.name)}）" title="配色">${PAL_ICO}</summary>
+      <summary aria-label="样式（${esc(cur.name)}）" title="样式">${PAL_ICO}</summary>
       ${palettePanelHtml(cur)}
     </details>`;
 };

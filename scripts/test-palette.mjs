@@ -82,7 +82,7 @@ const pickerOf = (w) => w.document.getElementById('palettePickerH');
 // 入口只留图标，当前是哪套写在 aria-label 的括号里（「配色（青瓷）」）—— 圆钮不随色名伸缩。
 const pickedName = (w) => {
   const label = pickerOf(w)?.querySelector('summary')?.getAttribute('aria-label') || '';
-  const m = /^配色（(.+)）$/.exec(label);
+  const m = /^样式（(.+)）$/.exec(label);
   return m ? m[1] : '';
 };
 const openPicker = (w) => {
@@ -155,7 +155,7 @@ await test('「配色」入口只在首页 hero-meta 一份（页脚/抽屉/导�
   assert.doesNotMatch(nav, /class="pal/, '配色入口不该回到页头导航里');
   assert.doesNotMatch(html, /id="themeToggle"/, '页脚那枚明暗按钮应该已经退休（明暗进了配色面板）');
   // 入口只剩图标（当前是哪套仍进 aria-label）。
-  assert.match(tools, /<details class="pal pal-hero" id="palettePickerH">\s*<summary aria-label="配色（素笺）" title="配色"><svg class="pal-ico"/);
+  assert.match(tools, /<details class="pal pal-hero" id="palettePickerH">\s*<summary aria-label="样式（素笺）" title="样式"><svg class="pal-ico"/);
   assert.doesNotMatch(page, /pal-txt/, '配色入口不该再带文字');
   // 抽屉只剩目录 + 检索：RSS / 配色 / 后台都不在。
   const drawer = /<div class="mnav"[\s\S]*?<\/nav>\s*<\/div>/.exec(html)?.[0] ?? '';
@@ -193,7 +193,7 @@ await test('「配色」入口只在首页 hero-meta 一份（页脚/抽屉/导�
 await test('入口的色名进 aria-label；后台不做选色入口，只跟随前台（<html> 挂站点默认）', () => {
   setPaletteDefault(() => 'dailan');
   try {
-    assert.match(heroToolsHtml(), /<summary aria-label="配色（黛蓝）"/);
+    assert.match(heroToolsHtml(), /<summary aria-label="样式（黛蓝）"/);
   } finally { setPaletteDefault(() => ''); }
   // 后台：不渲染选择器，但站点默认照样挂 <html> —— 前台选什么，后台跟着变
   const adminHtml = adminLayout({ title: '设置', body: '<p>x</p>', active: 'system', csrf: 'c' });
@@ -360,7 +360,7 @@ await test('服务端渲染站点默认：<html data-palette> 直接挂在首帧
   try {
     const html = layout({ title: '测试', main: '<p>x</p>', canonical: '/' });
     assert.match(html, /<html lang="[^"]+" data-palette="dailan">/);
-    assert.match(heroToolsHtml(), /<summary aria-label="配色（黛蓝）"/, '入口的 aria-label 该是站点默认的色名');
+    assert.match(heroToolsHtml(), /<summary aria-label="样式（黛蓝）"/, '入口的 aria-label 该是站点默认的色名');
   } finally { setPaletteDefault(() => ''); }
   assert.doesNotMatch(layout({ title: 't', main: '', canonical: '/' }), /<html[^>]*data-palette=/, '没设默认时 <html> 不挂属性');
 });
@@ -495,7 +495,9 @@ await test('后台「站点与阅读」有默认版式下拉，选项与清单�
   assert.ok(sel, '后台没有默认版式下拉');
   assert.equal([...sel.matchAll(/value="(paper|box)"/g)].map((m) => m[1]).join(','), 'paper,box');
   assert.match(sel, /value="box" selected/, '当前值没回填');
-  assert.match(html, /只影响首页之外的页面/, '缺「只影响首页之外」的说明');
+  // 站主要求删掉那行说明（「只影响首页之外的页面…」），别再长回来
+  assert.doesNotMatch(html, /只影响首页之外的页面/);
+  assert.doesNotMatch(html, /a-field-note/);
 });
 
 // ———— 自定义配色（色相滑块）——————————————
