@@ -634,11 +634,11 @@ body.mnav-open .mnav-panel { transform: none; opacity: 1; }
    不带边框，常态与旁边文字同为 --muted，悬停/展开才亮成 --accent + 软金底 —— 工具不该比统计更抢眼。
    垂直对齐：vertical-align:middle 把整组中点对到父级基线（父级 font-size:0，x-height 也是 0），
    再上移 .36em —— 数字字面中心就在基线上方约半个大写高，图标中心由此落到「14」的中线上。
-   两枚之间共用一枚小圆点：24px 圆钮自带 6px 内缩，gap 收到 .15rem，图形间距约 8px，
-   比外侧 1.1rem 的分隔更紧，读起来是"一组工具"。圆点用 2px 方块画（与「·」字形同径），
-   跟着 flex 居中，不受字形基线影响 —— 用真字形时两个引擎会各偏 1px。 */
-.hero-tools { display: inline-flex; align-items: center; gap: .15rem; vertical-align: middle; position: relative; top: -.36em; }
-.hero-tools .sep-dot { width: 2px; height: 2px; flex: none; border-radius: 50%; background: currentColor; }
+   两枚之间也是同一枚「·」，且间距与行内其它分隔取同一个「看得见的空白」（约 21.5px）：
+   24px 圆钮自带 6px 内缩、字形左右各约 3px，所以分隔符两侧留 .8rem、图标组自身的外边距收到 .25rem。
+   图形和文字一视同仁 —— 不靠肉眼调，下面有实测数字。 */
+.hero-tools { display: inline-flex; align-items: center; vertical-align: middle; position: relative; top: -.36em; margin-inline: .25rem; }
+.hero-tools .sep { margin-inline: .8rem; }
 .hero-meta .hero-tool,
 .hero-meta .pal-hero > summary {
   box-sizing: border-box;
@@ -658,9 +658,11 @@ body.mnav-open .mnav-panel { transform: none; opacity: 1; }
 .hero-meta .hero-tool svg,
 .hero-meta .pal-hero .pal-ico { display: block; width: 15px; height: 15px; }
 
-/* 320px：四个 1.1rem 间隙让最后一段必然折行，行尾会孤零零剩一个「·」。收一档间隙即可整行放下。 */
+/* 320px：整行贴边，四个文字间距各收 .1rem，图标组按同一口径重算（见上：留白一样，只是盒更窄）。 */
 @media (max-width: 340px) {
-  .hero-meta { gap: .55rem 1rem; }
+  .hero-meta > * { margin-inline: .45rem; }
+  .hero-tools { margin-inline: .14rem; }
+  .hero-tools .sep { margin-inline: .59rem; }
 }
 
 /* 最近更新：封面里的一块浅色铭牌 */
