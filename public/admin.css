@@ -2514,46 +2514,6 @@ article.a-preview-sheet > h1 { margin: 0; padding-bottom: 1.5rem; border-bottom:
   font-size: .76rem; color: var(--muted); letter-spacing: .02em;
 }
 
-/* 站点图标：左边当前图，右边字段 + 文件选择。
-   原生「选择文件」按钮跟着系统走、和全站按钮不同款，这里用 ::file-selector-button 把它改成同一套样式。 */
-.a-filefield { display: flex; align-items: flex-start; gap: 1rem; margin: 0 0 .2rem; }
-/* 分享封面那一行只有「图 + 文件选择」，没有上下叠的标签，故与图垂直居中。 */
-.a-filefield-center { align-items: center; }
-.a-fileprev {
-  flex: none; width: 56px; height: 56px; object-fit: cover;
-  border: 1px solid var(--rule); border-radius: var(--radius-sm);
-  background: var(--bg-soft);
-}
-/* 分享封面按 1200×630 显示：比例的本身就是说明，不必再写一行字。 */
-.a-fileprev-wide { width: 168px; height: 88px; }
-.a-filewrap { display: flex; flex-direction: column; gap: .4rem; min-width: 0; flex: 1; }
-.a-filewrap > label { font-size: var(--a-fs-sm); color: var(--fg-soft); }
-.a-file {
-  width: 100%; max-width: 26rem;
-  font: inherit; font-size: var(--a-fs-sm); color: var(--muted);
-}
-/* 原生「选择文件」按钮跟着系统走，和全站按钮不同款。用 ::file-selector-button 把它做成
-   与 .a-btn-ghost 同一套（同样的高、字号、圆角、发丝边），下面的「上传」才是实底主操作。
-   不额外包一层隐藏 input + label 假按钮：那样要么丢键盘可达性，要么得写 JS 回填文件名。 */
-.a-file::file-selector-button {
-  margin-right: .75rem;
-  height: var(--ctl-h);
-  padding: 0 1.05rem;
-  font: 500 .93rem/1.35 var(--sans);
-  color: var(--fg-soft);
-  background: color-mix(in srgb, var(--bg-elev) 55%, transparent);
-  border: 1px solid var(--rule-strong);
-  border-radius: var(--a-button-radius);
-  cursor: pointer;
-  transition: color var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease);
-}
-.a-file::file-selector-button:hover { color: var(--accent-read); border-color: var(--accent); }
-.a-file:focus-visible { outline: none; }
-.a-file:focus-visible::file-selector-button {
-  border-color: var(--accent);
-  box-shadow: var(--ring);
-}
-
 @media (max-width: 720px) {
   /* 窄屏两行：名称独占第一行，控件排第二行。
      来源标签（内置/固定页）在窄屏藏掉：它只是说明，不参与操作，留着会独占第三行。 */
@@ -2565,13 +2525,4 @@ article.a-preview-sheet > h1 { margin: 0; padding-bottom: 1.5rem; border-bottom:
   .a-navrow-kind { display: none; }
   .a-navadd-row, .a-linkrow, .a-linkhead { grid-template-columns: 1fr; }
   .a-linkhead { display: none; }
-}
-
-/* 窄屏放不下「预览图 + 原生文件控件」并排：168px 的封面 + 「选择文件 · 未选择文件」实测在 390px 上
-   会把末尾那截切掉。这里让预览独占一行、控件换到下一行，封面也不再按固定像素撑。 */
-@media (max-width: 560px) {
-  .a-filefield { flex-wrap: wrap; gap: .65rem; }
-  .a-filefield-center { align-items: flex-start; }
-  .a-fileprev-wide { width: 100%; max-width: 260px; height: auto; aspect-ratio: 1200 / 630; }
-  .a-file { max-width: 100%; }
 }

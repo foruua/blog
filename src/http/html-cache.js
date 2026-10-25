@@ -9,7 +9,7 @@ const gzipAsync = promisify(gzip);
 const brotliAsync = promisify(brotliCompress);
 
 // 与 server.js 的静态资源清单解耦：调用方传入 isImmutableAsset 判定即可。
-const NON_HTML_PATH_RE = /^\/(?:admin|moderate|unsubscribe|healthz|api|avatar|uploads|theme-assets|site)(?:$|\/)|^\/(?:feed\.xml|atom\.xml|feed\.json|sitemap\.xml|robots\.txt|site\.webmanifest|favicon\.ico)$/;
+const NON_HTML_PATH_RE = /^\/(?:admin|moderate|unsubscribe|healthz|api|avatar|uploads|theme-assets)(?:$|\/)|^\/(?:feed\.xml|atom\.xml|feed\.json|sitemap\.xml|robots\.txt|site\.webmanifest|favicon\.ico)$/;
 const HTML_CACHE_QUERY_KEYS = new Set([
   'before', 'n', 'cpage', 'reply', 'c', 'partial', 'panel', 'suffix', 'q', 'kind', 'page',
 ]);

@@ -122,10 +122,8 @@ export const setNavPages = (fn) => { pagesOf = typeof fn === 'function' ? fn : (
 
 let navSourceOf = () => null;   // () => { items, moreLabel } | null
 let footerSourceOf = () => ({ text: '', links: [] });
-let iconsOf = () => ({ favicon: '', apple: '', og: '', custom: {} });
 export const setNavSource = (fn) => { navSourceOf = typeof fn === 'function' ? fn : () => null; };
 export const setFooterSource = (fn) => { footerSourceOf = typeof fn === 'function' ? fn : () => ({ text: '', links: [] }); };
-export const setSiteIcons = (fn) => { iconsOf = typeof fn === 'function' ? fn : () => ({ favicon: '', apple: '', og: '', custom: {} }); };
 
 /**
  * 菜单：有注入的读取函数就用它（含后台改过的顺序/名称/显隐），否则按出厂清单 + 固定页现算。
@@ -317,10 +315,9 @@ const navDrawerHtml = (active, items) => items.map(([href, label, key], i) =>
   `<li><a href="${esc(href)}"${key === active ? ' aria-current="page"' : ''}>${navIco(key)}<span>${esc(label)}</span><span class="n-idx" aria-hidden="true">${String(i + 1).padStart(2, '0')}</span></a></li>`).join('\n      ');
 
 // 站点默认分享图：文章没有首图时用它。layout() 内部兜底与 public.js 的 OG/JSON-LD 共用这一份
-// （以前 public.js 又抄了一份常量，改默认图要记得改两处）。
-// 站主在后台传过分享封面就用那张，没传才回落到 public/og-default.jpg。
+// （以前 public.js 又抄了一份常量，改默认图要记得改两处）。图本身由 npm run make:og 生成。
 export const defaultOgImage = () => ({
-  url: absUrl(iconsOf()?.og || `/og-default.jpg?v=${assetVer('og-default.jpg')}`),
+  url: absUrl(`/og-default.jpg?v=${assetVer('og-default.jpg')}`),
   width: 1200,
   height: 630,
   alt: SITE.identity,
@@ -412,9 +409,6 @@ function withMainContext(ctx, main) {
 
 /** <head> 内容（不含 head 标签本身）。主题布局必须原样输出它，SEO/分享/主题引导才不会丢。 */
 function headHtmlOf(ctx) {
-  // 图标：后台上传过就用 DATA_DIR 里那份（地址已带内容指纹），没传回落到 public/ 的出厂图标。
-  // 两条 link 同时给 PNG 与 SVG 会浪费一次请求，故二选一：传了方形图就只发 PNG。
-  const icons = iconsOf() ?? {};
   return `<meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#faf8f4" media="(prefers-color-scheme:light)">
@@ -439,8 +433,8 @@ ${ctx.ogH ? `<meta property="og:image:height" content="${ctx.ogH}">` : ''}
 <link rel="alternate" type="application/rss+xml" title="${esc(SITE.identity)}" href="/feed.xml">
 <link rel="alternate" type="application/atom+xml" title="${esc(SITE.identity)}" href="/atom.xml">
 <link rel="alternate" type="application/feed+json" title="${esc(SITE.identity)}" href="/feed.json">
-<link rel="icon"${icons.favicon ? ` href="${esc(icons.favicon)}" sizes="32x32" type="image/png"` : ` href="/favicon.svg?v=${assetVer('favicon.svg')}" type="image/svg+xml"`}>
-<link rel="apple-touch-icon" href="${esc(icons.apple || `/apple-touch-icon.png?v=${assetVer('apple-touch-icon.png')}`)}">
+<link rel="icon" href="/favicon.svg?v=${assetVer('favicon.svg')}" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png?v=${assetVer('apple-touch-icon.png')}">
 <link rel="manifest" href="/site.webmanifest">
 <link rel="stylesheet" href="/base.css?v=${assetVer('base.css')}">
 <link rel="stylesheet" href="/style.css?v=${assetVer('style.css')}">

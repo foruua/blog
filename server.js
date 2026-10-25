@@ -16,11 +16,10 @@ import { serve } from '@hono/node-server';
 import { open, close, sqliteVersion, optimize } from './db/driver.js';
 import { migrate } from './db/migrate.js';
 import { createRepo } from './db/repo.js';
-import { setNavPages, setPaletteDefault, setNavSource, setFooterSource, setSiteIcons } from './src/render/layout.js';
+import { setNavPages, setPaletteDefault, setNavSource, setFooterSource } from './src/render/layout.js';
 import { applySiteIdentity } from './src/site/identity.js';
 import { navFormState } from './src/site/nav.js';
 import { footerOf } from './src/site/copy.js';
-import { siteIconsState, ICON_FILES, SHARE_FILE, siteIconPath, hasSiteIcon } from './src/site/icons.js';
 import { createSearch } from './src/search/index.js';
 import { settings, KEYS } from './src/settings.js';
 import { createCommentRepo } from './db/comments.js';
@@ -161,14 +160,13 @@ setNavPages(() => repo.pages());
 setPaletteDefault(() => settings.paletteDefault(repo));
 setLayoutDefault(() => settings.layoutDefault(repo));
 
-// —— 站点身份 / 导航 / 页脚 / 图标 ——
+// —— 站点身份 / 导航 / 页脚 ——
 // 都在后台可改。SITE 是各处 import 的同一个对象，这里先按库里的值覆写一次（.env 只当出厂值），
 // 后台保存后再调一次 applySiteIdentity() 就立刻生效，不需要重启进程。
 const settingRead = (key) => repo.getSetting(key);
 applySiteIdentity(settingRead);
 setNavSource(() => navFormState(settingRead, repo.pages()));
 setFooterSource(() => footerOf(settingRead));
-setSiteIcons(() => siteIconsState());
 const comments = createCommentRepo(db);
 const adminRepo = createAdminRepo(db);
 const feeds = createFeedRepo(db);
@@ -584,25 +582,10 @@ app.get('/theme-assets/*', async (c) => {
 app.get('/uploads/*', (c) => sendFile(c, c.req.path, { root: UPLOADS_DIR, prefix: '/uploads' }));
 app.get('/favicon.ico', (c) => c.body(null, 204));
 
-// 站主在后台上传的图标与分享图（DATA_DIR/site）。只按白名单取文件——文件名不进路径拼接，
-// 目录外的东西读不到。地址里带内容指纹（见 site/icons.js），故可以按 immutable 长缓存；换图会换 URL。
-const SITE_ICON_FILES = new Set([...Object.values(ICON_FILES), SHARE_FILE]);
-app.get('/site/:file', (c) => {
-  const file = String(c.req.param('file') ?? '');
-  if (!SITE_ICON_FILES.has(file) || !hasSiteIcon(file)) return c.notFound();
-  const body = fs.readFileSync(siteIconPath(file));
-  return c.body(body, 200, {
-    'Content-Type': file.endsWith('.jpg') ? 'image/jpeg' : 'image/png',
-    'Cache-Control': 'public, max-age=31536000, immutable',
-  });
-});
-
 // PWA 清单动态生成：图标 URL 带内容指纹，换图后 manifest 里的引用也跟着换；
 // 清单本身只发 no-cache（下方默认中间件也会这么兜），浏览器每次校验一次，几十字节。
 app.get('/site.webmanifest', (c) => {
   const icon = (file) => `/${file}?v=${assetVer(file)}`;
-  // 后台上传过图标就用 DATA_DIR 里那份；没传过仍指 public/ 的出厂图标。
-  const own = siteIconsState();
   const manifest = {
     id: '/',
     name: SITE.identity,
@@ -615,9 +598,9 @@ app.get('/site.webmanifest', (c) => {
     background_color: '#faf8f4',
     theme_color: '#faf8f4',
     icons: [
-      { src: own.icon192 || icon('icon-192.png'), sizes: '192x192', type: 'image/png' },
-      { src: own.icon512 || icon('icon-512.png'), sizes: '512x512', type: 'image/png' },
-      { src: own.maskable || icon('icon-maskable-512.png'), sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+      { src: icon('icon-192.png'), sizes: '192x192', type: 'image/png' },
+      { src: icon('icon-512.png'), sizes: '512x512', type: 'image/png' },
+      { src: icon('icon-maskable-512.png'), sizes: '512x512', type: 'image/png', purpose: 'maskable' },
     ],
   };
   return c.body(JSON.stringify(manifest), 200, {

@@ -3,12 +3,12 @@ import { adminLayout } from '../layout.js';
 import { PALETTES, LAYOUTS, HERO_MAX } from '../../settings.js';
 import { TLS_MODES, TLS_LABEL } from '../../mail.js';
 import { pickerDialog } from './picker.js';
-import { identitySection, navSection, footerSection, copySection, iconsSection, shareSection, commentsSection, accountSection } from './site.js';
+import { identitySection, navSection, footerSection, copySection, commentsSection, accountSection } from './site.js';
 
 export function systemPage({
   mail = {}, hero = {}, site = {}, history = {}, csrf, notice = '', badges, unsub = 0,
   identity = {}, nav = { items: [], moreLabel: '页面' }, footer = { text: '', links: [] },
-  copy = {}, icons = {}, comments = {}, configured = true,
+  copy = {}, comments = {}, configured = true,
 }) {
 
 
@@ -163,10 +163,6 @@ ${heroSection}
       </div>
     </form>
     </div>
-
-${iconsSection({ icons, csrf })}
-
-${shareSection({ icons, csrf })}
 
 ${commentsSection({ comments, csrf })}
 

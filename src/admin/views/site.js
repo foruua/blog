@@ -4,7 +4,7 @@ import { COPY_MAX, FOOTER_LINK_MAX, FOOTER_TEXT_MAX } from '../../site/copy.js';
 import { NAV_GROUP_LABEL, NAV_GROUPS, BUILTIN_KEYS } from '../../site/nav.js';
 import { COMMENT_RATE_RANGE } from '../../settings.js';
 
-// 设置页新增的几块表单：站点身份 / 导航菜单 / 页脚与社交 / 页面文案 / 站点图标 / 评论 / 账号安全。
+// 设置页新增的几块表单：站点身份 / 导航菜单 / 页脚与社交 / 页面文案 / 评论 / 账号安全。
 // 拆在这里而不是继续堆进 system.js：那一份已经两百多行，再加七块会变成没人愿意改的长文件。
 // 每块都是独立 <form>：改站名不该连带把导航顺序一起提交。
 //
@@ -167,69 +167,6 @@ ${field('c-ntitle', '笔记页标题', text('c-ntitle', 'notesTitle', copy.notes
       </div>
 ${field('c-ndesc', '笔记页简介', text('c-ndesc', 'notesDesc', copy.notesDesc, COPY_MAX.desc))}
 ${saveRow()}
-    </form>
-    </div>`;
-}
-
-/** 站点图标：一张方形源图生成全套。 */
-export function iconsSection({ icons = {}, csrf }) {
-  // 这函数也可能被测试直接调用（只关心别的区块），故每个字段都给兜底，别让「没传图标状态」变成 500。
-  const preview = icons.preview ?? {};
-  const iconSrc = esc(preview.icon || '/icon-192.png');
-  return `    <h2 class="a-h2">站点图标</h2>
-    <div class="a-card a-panel">
-    <form method="post" action="/admin/site/icons" enctype="multipart/form-data">
-      ${csrfField(csrf)}
-      <div class="a-filefield">
-        <img class="a-fileprev" src="${iconSrc}" alt="" width="56" height="56" loading="lazy" decoding="async">
-        <div class="a-filewrap">
-          <label for="ic-file">方形图标</label>
-          <input class="a-file" id="ic-file" name="icon" type="file" accept="image/png,image/jpeg,image/webp" required>
-        </div>
-      </div>
-      <div class="a-actions"><button type="submit" class="a-btn">上传</button></div>
-    </form>
-
-    <form method="post" action="/admin/site/icons/clear">
-      ${csrfField(csrf)}
-      <div class="a-actions">
-        <button type="submit" class="a-btn-danger"
-                data-modal-title="恢复出厂图标？"
-                data-modal-body="上传的图标会被删除，前台回到自带的那一套。"
-                data-modal-note="删除后原始图片不可恢复，需要重新上传。"
-                data-modal-ok="恢复出厂"
-                ${icons.anyCustom ? '' : 'hidden'}>恢复出厂图标</button>
-      </div>
-    </form>
-    </div>`;
-}
-
-/** 分享封面：链接被分享出去时卡片上的那张图（og:image）。左边就是实图，缩略图自己说明用途，不再加文字。 */
-export function shareSection({ icons = {}, csrf }) {
-  const preview = icons.preview ?? {};
-  const ogSrc = esc(preview.og || '/og-default.jpg');
-  return `    <h2 class="a-h2">分享封面</h2>
-    <div class="a-card a-panel">
-    <form method="post" action="/admin/site/og" enctype="multipart/form-data">
-      ${csrfField(csrf)}
-      <div class="a-filefield a-filefield-center">
-        <img class="a-fileprev a-fileprev-wide" src="${ogSrc}" alt="" width="168" height="88" loading="lazy" decoding="async">
-        <input class="a-file" id="og-file" name="og" type="file" accept="image/png,image/jpeg,image/webp"
-               aria-label="分享封面" required>
-      </div>
-      <div class="a-actions"><button type="submit" class="a-btn">上传</button></div>
-    </form>
-
-    <form method="post" action="/admin/site/og/clear">
-      ${csrfField(csrf)}
-      <div class="a-actions">
-        <button type="submit" class="a-btn-danger"
-                data-modal-title="恢复默认封面？"
-                data-modal-body="上传的分享封面会被删除，回到仓库里自带的那张。"
-                data-modal-note="删除后原始图片不可恢复，需要重新上传。"
-                data-modal-ok="恢复默认"
-                ${icons.ogCustom ? '' : 'hidden'}>恢复默认封面</button>
-      </div>
     </form>
     </div>`;
 }

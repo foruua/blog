@@ -5,8 +5,6 @@ import { settingsFormState, saveSettings, KEYS, HERO_MAX, HERO_OVERLAY_MAX, HERO
 import { siteIdentityOf } from '../../site/identity.js';
 import { navFormState } from '../../site/nav.js';
 import { footerOf, copyOf } from '../../site/copy.js';
-import { siteIconsState } from '../../site/icons.js';
-import { assetVer } from '../../render/layout.js';
 import {
   KEYS as MAIL_KEYS, DEFAULTS as MAIL_DEFAULTS, TLS_MODES, TLS_LABEL, PRESETS,
   configSource, smtpConfig, ownerEmail, fromAddress,
@@ -159,18 +157,6 @@ export function registerSettingsRoutes(app, { repo, crypt, adminRepo, mutate = (
 
   function systemHtml(c, { notice = '', mail = null, hero = null } = {}) {
     const read = (key) => repo.getSetting(key);
-    // 图标预览：上传过就用 DATA_DIR 里那份，没传过回落到 public/ 的出厂文件（带指纹避免后台看到旧图）。
-    const iconState = siteIconsState();
-    // 两个「恢复」按钮各管各的：anyCustom 只数五档图标，分享封面由 ogCustom 单独判断。
-    const icons = {
-      ...iconState,
-      anyCustom: ['favicon', 'icon192', 'icon512', 'maskable', 'apple'].some((key) => iconState.custom[key]),
-      ogCustom: Boolean(iconState.custom.og),
-      preview: {
-        icon: iconState.icon192 || `/icon-192.png?v=${assetVer('icon-192.png')}`,
-        og: iconState.og || `/og-default.jpg?v=${assetVer('og-default.jpg')}`,
-      },
-    };
     return c.html(systemPage(ctx(c, {
       notice,
       mail: mail ?? mailFormState(),
@@ -182,7 +168,6 @@ export function registerSettingsRoutes(app, { repo, crypt, adminRepo, mutate = (
       nav: navFormState(read, repo.pages()),
       footer: footerOf(read),
       copy: copyOf(read),
-      icons,
       comments: commentsFormState(repo),
       configured: auth ? auth.configured() : true,
     })));
