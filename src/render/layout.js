@@ -217,9 +217,11 @@ const palettePickerHtml = (palDefault = '') => {
 };
 
 /** 首页 hero-meta 那一行的两枚工具：RSS 与配色。图标式入口 —— 与两侧「N 篇文章」同一层小字，不抢视线。
+ *  两枚之间也放一枚小圆点（与行内其它「·」同色同径，但用元素画，不靠字形基线），间距比外侧小一档。
  *  配色面板锚在整行中间（见 style.css 的 .pal-hero）：锚在 24px 的图标上，窄屏会顶出视口。 */
 export const heroToolsHtml = (palDefault = sitePaletteDefault()) => `<span class="hero-tools">
         <a class="hero-tool" href="/feed.xml" aria-label="RSS 订阅" title="RSS 订阅">${RSS_ICO}</a>
+        <span class="sep sep-dot" aria-hidden="true"></span>
         ${palettePickerHtml(palDefault)}
       </span>`;
 

@@ -633,8 +633,12 @@ body.mnav-open .mnav-panel { transform: none; opacity: 1; }
    它们原先在页脚是 34px 细线圆钮；搬进这行 13px 小字后收成 24px 的圆形命中区（WCAG 2.5.8 下限）：
    不带边框，常态与旁边文字同为 --muted，悬停/展开才亮成 --accent + 软金底 —— 工具不该比统计更抢眼。
    垂直对齐：vertical-align:middle 把整组中点对到父级基线（父级 font-size:0，x-height 也是 0），
-   再上移 .36em —— 数字字面中心就在基线上方约半个大写高，图标中心由此落到「14」的中线上。 */
-.hero-tools { display: inline-flex; align-items: center; gap: .3rem; vertical-align: middle; position: relative; top: -.36em; }
+   再上移 .36em —— 数字字面中心就在基线上方约半个大写高，图标中心由此落到「14」的中线上。
+   两枚之间共用一枚小圆点：24px 圆钮自带 6px 内缩，gap 收到 .15rem，图形间距约 8px，
+   比外侧 1.1rem 的分隔更紧，读起来是"一组工具"。圆点用 2px 方块画（与「·」字形同径），
+   跟着 flex 居中，不受字形基线影响 —— 用真字形时两个引擎会各偏 1px。 */
+.hero-tools { display: inline-flex; align-items: center; gap: .15rem; vertical-align: middle; position: relative; top: -.36em; }
+.hero-tools .sep-dot { width: 2px; height: 2px; flex: none; border-radius: 50%; background: currentColor; }
 .hero-meta .hero-tool,
 .hero-meta .pal-hero > summary {
   box-sizing: border-box;
