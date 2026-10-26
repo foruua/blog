@@ -672,8 +672,10 @@ body.mnav-open .mnav-panel { transform: none; opacity: 1; }
 }
 .hero-meta .hero-tool:focus-visible,
 .hero-meta .pal-hero > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-.hero-meta .hero-tool svg,
-.hero-meta .pal-hero .pal-ico { display: block; width: 15px; height: 15px; }
+.hero-meta .hero-tool svg { display: block; width: 15px; height: 15px; }
+/* 色饼比 RSS 图标大一档（17px vs 15px）：它靠多色环形说话，缩到同尺寸就糊；
+   只动图标本体，24px 圆钮和软金底不动，两枚的外轮廓仍一样大。 */
+.hero-meta .pal-hero .pal-ico { display: block; width: 17px; height: 17px; }
 
 /* 320px：整行贴边，四个文字间距各收 .1rem，图标组按同一口径重算（见上：留白一样，只是盒更窄）。 */
 @media (max-width: 340px) {
