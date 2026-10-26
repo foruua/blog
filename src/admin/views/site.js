@@ -1,11 +1,11 @@
 import { esc, csrfField } from '../../util/text.js';
 import { IDENTITY_MAX } from '../../site/identity.js';
-import { COPY_MAX, FOOTER_LINK_MAX, FOOTER_TEXT_MAX } from '../../site/copy.js';
+import { COPY_MAX } from '../../site/copy.js';
 import { NAV_GROUP_LABEL, NAV_GROUPS, BUILTIN_KEYS } from '../../site/nav.js';
 import { COMMENT_RATE_RANGE } from '../../settings.js';
 
-// 设置页新增的几块表单：站点身份 / 导航菜单 / 页脚与社交 / 页面文案 / 评论 / 账号安全。
-// 拆在这里而不是继续堆进 system.js：那一份已经两百多行，再加七块会变成没人愿意改的长文件。
+// 设置页新增的几块表单：站点身份 / 导航菜单 / 页面文案 / 评论 / 账号安全。
+// 拆在这里而不是继续堆进 system.js：那一份已经两百多行，再多几块会变成没人愿意改的长文件。
 // 每块都是独立 <form>：改站名不该连带把导航顺序一起提交。
 //
 // 只留字段名与按钮，不写解释性小字：这些项本身就是自解释的（站名就是站名），
@@ -109,38 +109,6 @@ ${rows || '        <p class="a-empty">还没有导航项。</p>'}
       <div class="a-field">
         <label for="navMore">「页面」下拉的名称</label>
         <input class="a-input" id="navMore" name="moreLabel" type="text" maxlength="8" value="${esc(nav.moreLabel)}" autocomplete="off">
-      </div>
-${saveRow()}
-    </form>
-    </div>`;
-}
-
-/** 页脚与社交：一句自述 + 最多六条站外链接。 */
-export function footerSection({ footer, csrf }) {
-  const rows = Math.min(FOOTER_LINK_MAX, Math.max(3, footer.links.length + 1));
-  const links = Array.from({ length: rows }, (_, i) => {
-    const link = footer.links[i] ?? { label: '', href: '' };
-    return `        <div class="a-linkrow">
-          <input class="a-input" type="text" name="linkLabel${i}" value="${esc(link.label)}" maxlength="24"
-                 aria-label="第 ${i + 1} 条链接的名称" autocomplete="off">
-          <input class="a-input" type="text" name="linkHref${i}" value="${esc(link.href)}" maxlength="300"
-                 aria-label="第 ${i + 1} 条链接的地址" autocomplete="off" spellcheck="false">
-        </div>`;
-  }).join('\n');
-
-  return `    <h2 class="a-h2">页脚与社交</h2>
-    <div class="a-card a-panel">
-    <form method="post" action="/admin/site/footer">
-      ${csrfField(csrf)}
-      <div class="a-field">
-        <label for="f-text">页脚文案</label>
-        <input class="a-input" id="f-text" name="footerText" type="text" maxlength="${FOOTER_TEXT_MAX}"
-               value="${esc(footer.text)}" autocomplete="off">
-      </div>
-      <div class="a-field">
-        <p class="a-field-label">社交链接</p>
-        <div class="a-linkhead" aria-hidden="true"><span>名称</span><span>地址</span></div>
-${links}
       </div>
 ${saveRow()}
     </form>

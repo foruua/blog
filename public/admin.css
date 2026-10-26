@@ -1723,7 +1723,6 @@ html[data-theme="dark"] .a-select {
 
 body.admin { --a-button-radius: var(--radius-pill); --a-button-gap: .5rem; }
 
-
 .a-modal-actions, .a-feed-editor-actions { gap: var(--a-button-gap); flex-wrap: wrap; }
 .a-picker-head { flex-wrap: wrap; }
 .a-picker-head-actions { display: flex; align-items: center; gap: var(--a-button-gap); }
@@ -2045,7 +2044,6 @@ article.a-preview-sheet > h1 { margin: 0; padding-bottom: 1.5rem; border-bottom:
   #editorForm .a-bar-actions { flex: 0 0 100%; }
   .a-main.is-editor .a-writing { margin-bottom: .4rem; }
 
-
 /* —— 方案 A · 紧凑按钮（手机）—— 视觉高度 30px，命中区用伪元素撑回 44px；桌面不受影响。 */
 
   /* 底栏与悬浮按钮一起缩小。 */
@@ -2117,7 +2115,6 @@ article.a-preview-sheet > h1 { margin: 0; padding-bottom: 1.5rem; border-bottom:
   .a-more-row { min-height: 56px; padding: 10px 12px; }
   .a-more-ic { width: 32px; height: 32px; border-radius: 10px; }
 
-
 /* —— 手机端工具行与媒体卡：按钮/输入再收一档，引用与图标回到同一行 —— */
 
   /* 友圈工具行：刷新/清空、统一设置/应用都收成 30px；数字框同步到 30px，整行才不打架。 */
@@ -2144,11 +2141,9 @@ article.a-preview-sheet > h1 { margin: 0; padding-bottom: 1.5rem; border-bottom:
   .a-media-actions .a-media-icon { width: 30px; height: 30px; position: relative; }
   .a-media-actions .a-media-icon::after { content: ""; position: absolute; inset: -7px 0; }
 
-
 /* 评论动作区不再画上分割线：行与行之间已有分隔，按钮上方再加一条会显得碎。 */
 
   .a-table td.a-ops { border-top: 0; margin-top: .6rem; padding-top: .15rem; }
-
 
 /* —— 手机端统一按钮尺寸：所有单行按钮 30px（输入框仍保持 44px 的输入舒适度）—— */
 
@@ -2176,11 +2171,9 @@ article.a-preview-sheet > h1 { margin: 0; padding-bottom: 1.5rem; border-bottom:
   .a-table-comments tbody tr:focus-within td { background: transparent; }
   .a-reply-row > td { background: none; border-top: 1px solid var(--rule); }
 
-
 /* 搜索是“一行工具”，输入/下拉跟着按钮一起到 30px，避免按钮比输入框矮一截。 */
 
   .a-search .a-input, .a-search .a-select { height: 30px; padding-inline: .6rem; font-size: 16px; }
-
 
 /* 手机端友圈/友链的行首：标题、状态、最近成功/检查始终一行 —— 标题与域名可省略，状态与时间不换行。 */
 
@@ -2197,7 +2190,6 @@ article.a-preview-sheet > h1 { margin: 0; padding-bottom: 1.5rem; border-bottom:
   .a-fl-tag,
   :is(.a-feed-meta, .a-fl-meta) { flex: 0 0 auto; white-space: nowrap; }
   :is(.a-feed-meta, .a-fl-meta) { font-size: var(--a-fs-label); }
-
 
 /* 一行优先：给标题让出宽度。域名小牌在手机上退场，极窄屏再把方章藏掉；状态与最近时间不缩。 */
 
@@ -2252,7 +2244,6 @@ article.a-preview-sheet > h1 { margin: 0; padding-bottom: 1.5rem; border-bottom:
 
   .a-media-dialog .a-media-ref-head { margin: 1rem 0 .45rem; }
   .a-media-dialog .a-media-refs a { padding: .65rem .4rem; }
-
 
 /* 手机端内容列表：状态下拉给箭头留出内距；标题独占一行，评论与时间并排一行。 */
 
@@ -2493,27 +2484,6 @@ article.a-preview-sheet > h1 { margin: 0; padding-bottom: 1.5rem; border-bottom:
 .a-navadd-title { margin: 0 0 .55rem; font-size: .86rem; color: var(--fg-soft); }
 .a-navadd-row { display: grid; grid-template-columns: minmax(7rem, 1fr) minmax(10rem, 1.6fr) 8.5rem; gap: .5rem; }
 
-/* 字段小标题：用于一组输入（外链三格、页脚社交两列）与「没有单个 input 可 for」的场合。
-   label 元素必须有 for，这里的组标题不能用 label —— 否则就是一个没有控件的孤立标签。 */
-.a-field-label {
-  margin: 0 0 .45rem;
-  font-size: var(--a-fs-sm);
-  color: var(--fg-soft);
-  letter-spacing: .02em;
-}
-.a-mini { display: flex; flex-direction: column; gap: .3rem; min-width: 0; }
-.a-mini > label { font-size: .76rem; color: var(--muted); letter-spacing: .02em; }
-.a-mini .a-input, .a-mini .a-select { height: 2.1rem; }
-
-/* 页脚社交：名称 + 地址两列，留空的行会被忽略。列头只做视觉对齐，可访问名在每格的 aria-label 上。 */
-.a-linkrow { display: grid; grid-template-columns: minmax(6rem, .6fr) minmax(10rem, 1.4fr); gap: .5rem; }
-.a-linkrow + .a-linkrow { margin-top: .45rem; }
-.a-linkhead {
-  display: grid; grid-template-columns: minmax(6rem, .6fr) minmax(10rem, 1.4fr); gap: .5rem;
-  margin: 0 0 .35rem;
-  font-size: .76rem; color: var(--muted); letter-spacing: .02em;
-}
-
 @media (max-width: 720px) {
   /* 窄屏两行：名称独占第一行，控件排第二行。
      来源标签（内置/固定页）在窄屏藏掉：它只是说明，不参与操作，留着会独占第三行。 */
@@ -2523,6 +2493,5 @@ article.a-preview-sheet > h1 { margin: 0; padding-bottom: 1.5rem; border-bottom:
   .a-navrow-show { grid-column: 3; }
   .a-navrow-move { grid-column: 4; }
   .a-navrow-kind { display: none; }
-  .a-navadd-row, .a-linkrow, .a-linkhead { grid-template-columns: 1fr; }
-  .a-linkhead { display: none; }
+  .a-navadd-row { grid-template-columns: 1fr; }
 }

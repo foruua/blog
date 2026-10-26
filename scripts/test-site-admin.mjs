@@ -6,7 +6,7 @@ import { safeLinkHref } from '../src/site/copy.js';
 import { open } from '../db/driver.js';
 
 // 站点配置（后台「设置」页新增的七块）的端到端 + 纯函数测试。
-// 覆盖：站点身份热生效与 .env 回落、导航改名/换序/隐藏/外链增删、页脚与社交、页面文案、
+// 覆盖：站点身份热生效与 .env 回落、导航改名/换序/隐藏/外链增删、页面文案、
 // 评论三开关（含全站关闭后前台与提交端点）、改密码、图标上传与 /site/* 服务。
 
 const { startServer } = await import('./_server.mjs');
@@ -34,7 +34,7 @@ let page = await html('/admin/system');
 let csrf = csrfOf(page);
 
 // —— 渲染 ——
-for (const heading of ['站点身份', '导航菜单', '页面文案', '页脚与社交', '评论', '账号安全']) {
+for (const heading of ['站点身份', '导航菜单', '页面文案', '评论', '账号安全']) {
   check(`S1 设置页有「${heading}」一块`, page.includes(`>${heading}</h2>`), heading);
 }
 check('S1b 设置页把「站点与阅读」改成了「阅读与外观」', page.includes('>阅读与外观</h2>'));
@@ -44,13 +44,12 @@ check('S1b 设置页把「站点与阅读」改成了「阅读与外观」', pag
 //    曾经「社交链接」那格是个光秃秃的 <label>，DevTools 直接报 “A <label> isn't associated with a form field”。
 // 2) 本次新增的表单里不许出现 placeholder（一输入就消失、对比度也不合格），也不许有解释性小字（a-dim）。
 {
-  const { identitySection, navSection, footerSection, copySection, commentsSection, accountSection } =
+  const { identitySection, navSection, copySection, commentsSection, accountSection } =
     await import('../src/admin/views/site.js');
   const html = [
     identitySection({ identity: { title: 't', desc: 'd', author: 'a', email: 'e@x.io', mark: 'm', icp: '', lang: 'zh-CN' }, csrf: 'c' }),
     navSection({ nav: { items: [{ key: 'home', label: '首页', href: '/', group: 'main', show: 1 }], moreLabel: '页面' }, csrf: 'c' }),
     copySection({ copy: { heroPosts: '篇文章', heroNotes: '篇笔记', recent: '最近更新', postsTitle: '文章', postsDesc: '', notesTitle: '笔记', notesDesc: '' }, csrf: 'c' }),
-    footerSection({ footer: { text: '', links: [] }, csrf: 'c' }),
     commentsSection({ comments: { open: true, moderateAll: false, rate: 5 }, csrf: 'c' }),
     accountSection({ csrf: 'c', configured: true }),
   ].join('\n');
@@ -177,25 +176,6 @@ check('S1b 设置页把「站点与阅读」改成了「阅读与外观」', pag
     _csrf: csrf, moreLabel: '页面', newLabel: '坏链', newHref: 'javascript:alert(1)',
   }));
   check('S4g javascript: 地址被拒', decodeURIComponent(bad.headers.get('location') ?? '').includes('不合法'), bad.headers.get('location'));
-}
-
-// —— 页脚与社交 ——
-{
-  const r = await client('/admin/site/footer', form({
-    _csrf: csrf, footerText: '一手写代码，一手写字。',
-    linkLabel0: 'GitHub', linkHref0: 'https://github.com/chenlun', linkLabel1: '写邮件', linkHref1: 'mailto:a@uua.me',
-  }));
-  check('S5a 页脚保存成功', decodeURIComponent(r.headers.get('location') ?? '').includes('✓'), r.headers.get('location'));
-  const home = await html('/');
-  check('S5b 页脚文案已渲染', home.includes('一手写代码，一手写字。'));
-  check('S5c 两条社交链接都在', home.includes('>GitHub</a>') && home.includes('mailto:a@uua.me'));
-  check('S5d 站外链接带 nofollow noopener', /<a href="https:\/\/github\.com\/chenlun" target="_blank" rel="noopener nofollow">/.test(home));
-
-  const bad = await client('/admin/site/footer', form({ _csrf: csrf, footerText: '', linkLabel0: '只有名称' }));
-  check('S5e 只填名称不填地址被拒', decodeURIComponent(bad.headers.get('location') ?? '').includes('都要填'), bad.headers.get('location'));
-
-  await client('/admin/site/footer', form({ _csrf: csrf, footerText: '' }));
-  check('S5f 清空后页脚恢复原样', !(await html('/')).includes('一手写代码'));
 }
 
 // —— 页面文案 ——

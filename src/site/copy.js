@@ -1,5 +1,3 @@
-import { esc } from '../util/text.js';
-
 // —— 页面文案 ——
 // 首页统计行、列表页刊头这几处句子原本焊在渲染代码里，改一个字要动源码。
 // 这里只收「最常被改的那几个词」，不做整站文案系统：字段太多会变成一份没人维护的翻译表。
@@ -70,18 +68,11 @@ export function saveCopy(body, set, val) {
   return null;
 }
 
-// —— 页脚与社交 ——
-// 页脚原本只有「© 年份 作者」+ 备案号一行，想加一句自述或几个外链只能去改源码。
-// 社交链接是**站外**地址：一律 http(s) 或 mailto，渲染时 nofollow noopener，不给它任何站内权重。
+// —— 外链规范化 ——
+// 导航里的自定义链接是**站外**地址：只认 http(s) 与 mailto，渲染时一律 nofollow noopener，
+// 不给它任何站内权重。javascript: / data: 这类会被原样塞进 href，属于自伤型注入面。
+export const LINK_HREF_MAX = 300;
 
-export const FOOTER_KEYS = { text: 'footer_text', links: 'footer_links' };
-export const FOOTER_TEXT_MAX = 160;
-export const FOOTER_LINK_MAX = 6;
-
-const LINK_LABEL_MAX = 24;
-const LINK_HREF_MAX = 300;
-
-/** 只认 http(s) 与 mailto：javascript: / data: 这类会被原样塞进 href，属于自伤型注入面。 */
 export function safeLinkHref(raw) {
   const value = String(raw ?? '').trim().slice(0, LINK_HREF_MAX);
   if (!value) return '';
@@ -92,46 +83,3 @@ export function safeLinkHref(raw) {
     return url.toString();
   } catch { return ''; }
 }
-
-export function footerLinksOf(read) {
-  const raw = read?.(FOOTER_KEYS.links);
-  if (!raw) return [];
-  let list;
-  try { list = JSON.parse(raw); } catch { return []; }
-  if (!Array.isArray(list)) return [];
-  return list.slice(0, FOOTER_LINK_MAX)
-    .map((item) => ({
-      label: oneLine(item?.label, LINK_LABEL_MAX),
-      href: safeLinkHref(item?.href),
-    }))
-    .filter((item) => item.label && item.href);
-}
-
-export function footerOf(read) {
-  return {
-    text: oneLine(read?.(FOOTER_KEYS.text), FOOTER_TEXT_MAX),
-    links: footerLinksOf(read),
-  };
-}
-
-export function saveFooter(body, set, val) {
-  const text = oneLine(val(body, 'footerText'), FOOTER_TEXT_MAX);
-  const rows = [];
-  for (let i = 0; i < FOOTER_LINK_MAX; i += 1) {
-    const label = oneLine(val(body, `linkLabel${i}`), LINK_LABEL_MAX);
-    const raw = val(body, `linkHref${i}`).trim();
-    if (!label && !raw) continue;
-    if (!label || !raw) return `第 ${i + 1} 条链接的「名称」和「地址」都要填`;
-    const href = safeLinkHref(raw);
-    if (!href) return `第 ${i + 1} 条链接的地址不合法：${raw}（只支持 http(s):// 与 mailto:）`;
-    rows.push({ label, href });
-  }
-  set(FOOTER_KEYS.text, text);
-  set(FOOTER_KEYS.links, rows.length ? JSON.stringify(rows) : '');
-  return null;
-}
-
-/** 页脚社交链接的标记：与页脚法务行同层，图标一律 aria-hidden，链接的可访问名就是那个词。 */
-export const footerLinksHtml = (links) => (links?.length
-  ? `        <p class="foot-links">${links.map((l) => `<a href="${esc(l.href)}"${/^https?:/i.test(l.href) ? ' target="_blank" rel="noopener nofollow"' : ''}>${esc(l.label)}</a>`).join('<span class="sep" aria-hidden="true">·</span>')}</p>`
-  : '');

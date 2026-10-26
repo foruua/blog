@@ -3,7 +3,6 @@ import { SITE, PUBLIC_DIR } from '../config.js';
 import { esc, monthCn, cleanExcerpt, relativeDate, contentUrl, absUrl } from '../util/text.js';
 import { PALETTES, CUSTOM_PALETTE, LAYOUTS } from '../settings.js';
 import { navItemsOf, visibleNavOf } from '../site/nav.js';
-import { footerLinksHtml } from '../site/copy.js';
 import { lightboxHtml } from './lightbox.js';
 import { emojiPanelTemplate } from '../comments/view.js';
 import { themeRequest } from '../themes/request.js';
@@ -121,9 +120,7 @@ let pagesOf = () => [];
 export const setNavPages = (fn) => { pagesOf = typeof fn === 'function' ? fn : () => []; };
 
 let navSourceOf = () => null;   // () => { items, moreLabel } | null
-let footerSourceOf = () => ({ text: '', links: [] });
 export const setNavSource = (fn) => { navSourceOf = typeof fn === 'function' ? fn : () => null; };
-export const setFooterSource = (fn) => { footerSourceOf = typeof fn === 'function' ? fn : () => ({ text: '', links: [] }); };
 
 /**
  * 菜单：有注入的读取函数就用它（含后台改过的顺序/名称/显隐），否则按出厂清单 + 固定页现算。
@@ -446,9 +443,6 @@ ${jsonLdHtml(ctx.structuredData)}
 
 /** 页面公共外壳：页头、抽屉、页脚、灯箱、表情模板与脚本。主题布局可按需拼装。 */
 function chromeOf(ctx) {
-  const footer = footerSourceOf() ?? {};
-  const footerNote = String(footer.text ?? '').trim();
-  const footerLinks = Array.isArray(footer.links) ? footer.links : [];
   return {
     head: `<head>\n${headHtmlOf(ctx)}\n</head>`,
     skip: '<a class="skip" href="#main">跳到正文</a>',
@@ -475,7 +469,6 @@ function chromeOf(ctx) {
 </header>`,
     drawer: ctx.drawer,
     // 页脚只剩一法务行（© / 备案号），宽屏居中落在正中；RSS 与配色搬进了首页 hero-meta 那一行。
-    // 后台加了「页脚文案」与「社交链接」两格：默认都为空，输出与原来逐字相同。
     // 后台入口与「回到顶部」早先已从页脚撤掉 —— 手机端不再需要第二枚回到顶部（悬浮钮仍按原断点隐藏）。
     footer: `<footer class="site">
     <div class="foot-inner">
@@ -483,7 +476,6 @@ function chromeOf(ctx) {
         <span>© ${new Date().getFullYear()}${SITE.author ? ` ${esc(SITE.author)}` : ''}</span>
         ${SITE.icp ? `<a class="foot-icp" href="https://beian.miit.gov.cn/" rel="nofollow noopener">${esc(SITE.icp)}</a>` : ''}
       </div>
-${footerNote ? `      <p class="foot-note">${esc(footerNote)}</p>\n` : ''}${footerLinksHtml(footerLinks)}
     </div>
   </footer>`,
     emoji: ctx.emojiTpl,
