@@ -1017,7 +1017,10 @@ body.mnav-open .mnav-panel { transform: none; opacity: 1; }
 .chron:not([open]) .chron-rail::after {
   content: ""; width: .42rem; height: .42rem; flex: none;
   border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted);
-  transform: rotate(-45deg); align-self: center;
+  transform: rotate(-45deg); align-self: baseline;
+  /* 箭头跟随「N 篇」的基线，而不是 align-self:center 的整行居中：行高被 26px 宋体年号撑开，
+     两条参照系差约 3.8px（像素扫描实测），center 会让箭头悬在「篇」上方、整组看着错位。
+     空盒参与 baseline 对齐时取底边距缘 —— 箭头底边落在共享基线上，墨迹中心与「篇」只差 0.2px。 */
 }
 
 .mgrp-label::after {
