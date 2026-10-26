@@ -182,13 +182,14 @@ const searchDrawerForm = () => `<form class="s-drawer-form" action="/search" met
 // 其实是点了会变暗）的开关。版式只有两格，用图标 + 名称并排；配色是五行带色样的长条，故单独分段。
 // 「自定义」区只预置当前预设的种子（色相 / 浓度 / 纸色），真正的令牌由 ui.js 按需调 PaletteLib 现算，
 // 服务端不生成那段 CSS。初始值取当前生效预设 —— 从「青瓷」滑进自定义时观感要接得上，不能一拖就跳色。
-// 入口图标是「色饼」：一枚圆盘，右上一角填实 —— 读作「一块被咬了一口」的色卡。
+// 入口图标是「色饼」：一枚圆盘，右下四分之一填实（3 点到 6 点）—— 读作「一块被咬了一口」的色卡。
 // 换掉了原来的三推子（三条轨道各带一枚滑块）：它在 14px 下既占横向空间，三条横线还会和那一行小字
 // 抢眼睛；色饼的轮廓是个圆，缩到 14px 仍是「一个圆里有块颜色」，形状不散。
 // 同一批候选做过 48 / 24 / 14 三档 + 明暗对照，记录在本地沙盒 docs/design/style-icon/round2.html
 // （design/ 在 .gitignore 里，不进仓库 —— 这里写明路径是给手边有这份文件的人看的）。
 // 20 格画布、1.6 描边，与检索、明暗三态同一套规格；扇形只填不描边 —— 14px 下那圈描边会把扇形吃掉。
-const PAL_ICO = '<svg class="pal-ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="10" r="6.4"/><path d="M10 3.6A6.4 6.4 0 0 1 15.54 13.2L10 10z" fill="currentColor" stroke="none"/></svg>';
+// 扇形起止 (16.4,10) → (10,16.4)：钟面 3 点到 6 点，顺时针 90°，sweep=1。
+const PAL_ICO = '<svg class="pal-ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="10" r="6.4"/><path d="M16.4 10A6.4 6.4 0 0 1 10 16.4L10 10z" fill="currentColor" stroke="none"/></svg>';
 // 订阅入口：点 + 两道弧。viewBox 收到 3.25 3.6 12.05 12.05，把图形撑到上面那枚同样的 12px，
 // 描边跟着收到 0.97（≈1.2px）；两枚图标的图形框、线宽、上下留白由此一致。
 const RSS_ICO = '<svg class="ico-rss" viewBox="3.25 3.6 12.05 12.05" fill="none" stroke="currentColor" stroke-width="0.97" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5.6" cy="13.3" r="1.15" fill="currentColor" stroke="none"/><path d="M4.5 9.3a5.1 5.1 0 0 1 5.1 5.1"/><path d="M4.5 4.8a9.6 9.6 0 0 1 9.6 9.6"/></svg>';
