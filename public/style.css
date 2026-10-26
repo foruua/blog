@@ -2017,11 +2017,12 @@ footer.site .foot-police {
 }
 footer.site .foot-icp:hover,
 footer.site .foot-police:hover { color: var(--accent); }
-/* 警徽与号码同一条链接：整块（图标 + 字）都可点。图标用 inline-flex 与文字居中对齐，
-   不能只给 vertical-align —— 11.5px 的小字配 13px 的盾，基线对齐会把它顶高一截。 */
-footer.site .foot-police { display: inline-flex; align-items: center; gap: .32rem; }
-/* 官方徽标是彩色位图：只定高，宽度按原比例（62×67）走，别拉变形。 */
-footer.site .foot-police-ico { height: 14px; width: auto; flex: none; }
+/* 警徽与号码同一条链接：整块（图标 + 字）都可点。
+   链接必须保持普通 inline —— inline-flex 的基线取第一个子项（那张图）的底边，
+   会让这条链接按「图片底边」去对齐别人的文字基线，实测文字比 ICP 那行高 3.2px，两个备案号看着不齐。
+   保持 inline 后，链接的基线就是它自己的文字基线，三段的字自然落在同一条线上；
+   图标位置改用 vertical-align 微调，只影响图标本身。 */
+footer.site .foot-police-ico { height: 14px; width: auto; vertical-align: -.22em; margin-right: .32rem; }
 @media (max-width: 620px) {
   /* 手机端一行放不下两段：让 .foot-legal 撑满、端点分开（© 靠左、备案号靠右），固定一行不折行。 */
   footer.site .foot-legal {
