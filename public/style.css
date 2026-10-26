@@ -1304,11 +1304,6 @@ article.post .prose,
 .page .prose { color: var(--fg-soft); }
 /* 两端对齐：CJK 由浏览器按字符间距铺开，不写 text-justify: inter-ideograph（只在旧 IE/Edge 生效）。数字改回比例字宽：body 的全局 tabular-nums 是为"日期竖着对齐"服务的，落正文里会让数字显松。 */
 .prose p, .prose li, .prose dd { text-align: justify; font-variant-numeric: normal; }
-/* 末行孤字：中文两端对齐下常出现末行只剩一两个字（390 屏实测一篇里 4 段）。
-   pretty 让排版器为末行回头调折行点，实测能把 2 字末行抬到 3 字；hanging-punctuation 只在 Safari 生效，
-   让段首引号探出栏宽，Chrome 忽略之，属纯渐进。 */
-.prose p, .prose li, .prose dd { text-wrap: pretty; }
-.prose p { hanging-punctuation: first; }
 .prose p { margin: 0 0 var(--flow); }
 /* 文章和笔记都**不要导语**（2026-10-19 用户要求）：首段与其余段落同号同色，整篇一个字号。
    原先这里有一条 .prose > p:first-child { font-size: 1.075em; color: var(--fg-soft) }，
@@ -1370,8 +1365,7 @@ article.post .prose,
   background: var(--code-bg);
   border: 1px solid var(--rule);
   border-radius: var(--radius-sm);
-  /* 内距从 .4em 收到 .28em：右内距叠加全角句号自带的左侧留白，之前「一个 em 。」处空出约半个字 */
-  padding: .12em .28em;
+  padding: .12em .4em;
   overflow-wrap: break-word;
 }
 .prose pre {
@@ -1399,9 +1393,7 @@ article.post .prose,
 .prose pre code {
   background: none; border: 0; padding: 0;
   color: var(--code-fg);
-  /* 原先 .85rem（13.6px）是写死的绝对值，对 18px 正文只剩 0.76 倍、偏小；0.9rem 回到常用的 0.8—0.9 带内。
-     行内 code 用的是相对值 .86em（15.48px），两处基准不同是有意的：块级要压一档免得喧宾夺主。 */
-  font-size: .9rem; line-height: 1.72;
+  font-size: .85rem; line-height: 1.72;
 }
 
 /* 代码块复制：按钮由 app.js 注入（服务端不掺 DOM，无 JS 时围栏输出与以前逐字相同）。底色取 code-bg 与纸色之间的一档，避免盖住代码。 */
