@@ -673,9 +673,9 @@ body.mnav-open .mnav-panel { transform: none; opacity: 1; }
 .hero-meta .hero-tool:focus-visible,
 .hero-meta .pal-hero > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .hero-meta .hero-tool svg { display: block; width: 15px; height: 15px; }
-/* 色饼比 RSS 图标大一档（19px vs 15px）：它靠多色环形说话，缩到同尺寸就糊；
-   只动图标本体，24px 圆钮和软金底不动，两枚的外轮廓仍一样大（图标四周各留 2.5px 圆底）。 */
-.hero-meta .pal-hero .pal-ico { display: block; width: 19px; height: 19px; }
+/* 样式入口图标比 RSS 大一档（20px vs 15px）：半实心圆盘靠大轮廓说话，缩到同尺寸就糊；
+   只动图标本体，24px 圆钮和软金底不动（图标四周各留 2px 圆底）。 */
+.hero-meta .pal-hero .pal-ico { display: block; width: 20px; height: 20px; }
 
 /* 320px：整行贴边，四个文字间距各收 .1rem，图标组按同一口径重算（见上：留白一样，只是盒更窄）。 */
 @media (max-width: 340px) {
@@ -2034,6 +2034,8 @@ footer.site .foot-police:hover { color: var(--accent); }
    保持 inline 后，链接的基线就是它自己的文字基线，三段的字自然落在同一条线上；
    图标位置改用 vertical-align 微调，只影响图标本身。 */
 footer.site .foot-police-ico { height: 14px; width: auto; vertical-align: -.22em; margin-right: .32rem; }
+/* ICP 徽标与警徽同一套对齐：链接保持 inline（基线是文字的），图标单独 vertical-align 微调。 */
+footer.site .foot-icp-ico { height: 14px; width: auto; vertical-align: -.22em; margin-right: .32rem; }
 @media (max-width: 620px) {
   /* 两行结构窄屏不用动：第一行版权、第二行备案号各自居中，放不下时备案号再各占一行。 */
   footer.site .foot-legal { flex: 1 1 auto; }

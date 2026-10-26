@@ -8,7 +8,7 @@ import { emojiPanelTemplate } from '../comments/view.js';
 import { themeRequest } from '../themes/request.js';
 
 // 带内容指纹的静态资源；server.js 也 import 这份生成「可长期缓存」正则——两处必须同一份，否则新增资源必漏。
-export const VERSIONED_ASSETS = ['base.css', 'style.css', 'app.js', 'nav.js', 'admin.css', 'admin.js', 'admin-editor.js', 'media-picker.js', 'editor.js', 'favicon.svg', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png', 'og-default.jpg', 'police-badge.png', 'request.js', 'ui.js', 'search.js', 'palette.js'];
+export const VERSIONED_ASSETS = ['base.css', 'style.css', 'app.js', 'nav.js', 'admin.css', 'admin.js', 'admin-editor.js', 'media-picker.js', 'editor.js', 'favicon.svg', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png', 'og-default.jpg', 'police-badge.png', 'icp-badge.png', 'request.js', 'ui.js', 'search.js', 'palette.js'];
 
 // —— 主题钩子 ——
 // server.js 在启动时注入「当前请求该用哪套主题」和「如何渲染主题模板」；测试或未启用主题时保持内置渲染。
@@ -182,14 +182,12 @@ const searchDrawerForm = () => `<form class="s-drawer-form" action="/search" met
 // 其实是点了会变暗）的开关。版式只有两格，用图标 + 名称并排；配色是五行带色样的长条，故单独分段。
 // 「自定义」区只预置当前预设的种子（色相 / 浓度 / 纸色），真正的令牌由 ui.js 按需调 PaletteLib 现算，
 // 服务端不生成那段 CSS。初始值取当前生效预设 —— 从「青瓷」滑进自定义时观感要接得上，不能一拖就跳色。
-// 入口图标是「色饼」：一枚圆盘，右下四分之一填实（3 点到 6 点）—— 读作「一块被咬了一口」的色卡。
-// 换掉了原来的三推子（三条轨道各带一枚滑块）：它在 14px 下既占横向空间，三条横线还会和那一行小字
-// 抢眼睛；色饼的轮廓是个圆，缩到 14px 仍是「一个圆里有块颜色」，形状不散。
+// 入口图标与明暗三态的「跟随系统」同形：半实心圆盘 —— 样式管的是整套外观（明暗/版式/配色），
+// 半实半空正好读作「外观有一半可换」。轮廓仍是圆，缩到 14px 也不散形。
 // 同一批候选做过 48 / 24 / 14 三档 + 明暗对照，记录在本地沙盒 docs/design/style-icon/round2.html
 // （design/ 在 .gitignore 里，不进仓库 —— 这里写明路径是给手边有这份文件的人看的）。
-// 20 格画布、1.6 描边，与检索、明暗三态同一套规格；扇形只填不描边 —— 14px 下那圈描边会把扇形吃掉。
-// 扇形起止 (16.4,10) → (10,16.4)：钟面 3 点到 6 点，顺时针 90°，sweep=1。
-const PAL_ICO = '<svg class="pal-ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="10" r="6.4"/><path d="M16.4 10A6.4 6.4 0 0 1 10 16.4L10 10z" fill="currentColor" stroke="none"/></svg>';
+// 20 格画布、1.6 描边，与检索、明暗三态同一套规格。
+const PAL_ICO = '<svg class="pal-ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="10" r="7.2"/><path d="M10 2.8a7.2 7.2 0 0 0 0 14.4z" fill="currentColor" stroke="none"/></svg>';
 // 订阅入口：点 + 两道弧。viewBox 收到 3.25 3.6 12.05 12.05，把图形撑到上面那枚同样的 12px，
 // 描边跟着收到 0.97（≈1.2px）；两枚图标的图形框、线宽、上下留白由此一致。
 const RSS_ICO = '<svg class="ico-rss" viewBox="3.25 3.6 12.05 12.05" fill="none" stroke="currentColor" stroke-width="0.97" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5.6" cy="13.3" r="1.15" fill="currentColor" stroke="none"/><path d="M4.5 9.3a5.1 5.1 0 0 1 5.1 5.1"/><path d="M4.5 4.8a9.6 9.6 0 0 1 9.6 9.6"/></svg>';
@@ -448,6 +446,10 @@ ${jsonLdHtml(ctx.structuredData)}
 // 走静态资源 + 内容指纹即可长缓存，换图自动换 URL。
 const policeBadgeImg = () => `<img class="foot-police-ico" src="/police-badge.png?v=${assetVer('police-badge.png')}" alt="" width="13" height="14" decoding="async">`;
 
+// ICP 徽标用备案 logo（public/icp-badge.png，白底原图经白底反推 alpha 抠成透明，42×40）。
+// 与警徽同一规矩：走静态资源 + 内容指纹长缓存，不内联 base64。
+const icpBadgeImg = () => `<img class="foot-icp-ico" src="/icp-badge.png?v=${assetVer('icp-badge.png')}" alt="" width="15" height="14" decoding="async">`;
+
 /**
  * 页脚的公安联网备案号。号码形如「冀公网安备13060202001368号」，其中末尾那串数字同时是
  * 官方查询页的 code 参数 —— 从号码里抠出来拼链接，站主照着备案单填一行字即可，不必另维护一条 URL。
@@ -494,7 +496,7 @@ function chromeOf(ctx) {
       <div class="foot-legal">
         <span class="foot-copy">© ${new Date().getFullYear()}${SITE.author ? ` ${esc(SITE.author)}` : ''}</span>
         <span class="foot-beian">
-          ${SITE.icp ? `<a class="foot-icp" href="https://beian.miit.gov.cn/" rel="nofollow noopener">${esc(SITE.icp)}</a>` : ''}
+          ${SITE.icp ? `<a class="foot-icp" href="https://beian.miit.gov.cn/" rel="nofollow noopener">${icpBadgeImg()}${esc(SITE.icp)}</a>` : ''}
           ${policeHtml()}
         </span>
       </div>
