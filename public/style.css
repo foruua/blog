@@ -499,8 +499,7 @@ body.mnav-open .mnav-panel { transform: none; opacity: 1; }
 .hero-title {
   margin: 0;
   font-family: var(--display);
-  /* 同 article.post h1：封面主标是全站次大的字，跟着退到常规字重 */
-  font-weight: 400;
+  font-weight: var(--display-weight);
   font-size: var(--hero-size);
   line-height: 1.02;
   letter-spacing: .022em;
@@ -730,8 +729,7 @@ body.mnav-open .mnav-panel { transform: none; opacity: 1; }
   margin: .95rem 0 0;
   font-family: var(--display);
   font-size: clamp(2rem, 4.4vw, 3rem);
-  /* 同 article.post h1：栏目刊头到 48px，Bold 的横画在这个字号已经糊成一排黑条，退回常规字重 */
-  font-weight: 400;
+  font-weight: var(--display-weight);
   letter-spacing: var(--title-track);
   line-height: 1.04;
   color: var(--fg);
@@ -1272,9 +1270,7 @@ article.post h1 {
   margin: clamp(.85rem, 2vw, 1.15rem) 0 0;
   font-family: var(--display);
   font-size: var(--title-size);
-  /* 刊头级标题用宋体的常规字重：Bold 会把横画加粗、毁掉宋体横细竖粗的对比（实测宋体只有 400/700/900 三档，
-     没有中间值可退）。层级由字号差撑（29.6px 对 h2 的 25.28px）；h2/h3/列表标题维持 700，小字号才需要重量。 */
-  font-weight: 400;
+  font-weight: var(--display-weight);
   letter-spacing: var(--title-track);
   /* 1.34 → 1.38：中文长标题折成两行时，1.34 会让第二行顶到第一行的下缘。 */
   line-height: 1.38;
@@ -1573,8 +1569,7 @@ article.post-empty .post-empty-title {
   margin: 0;
   font-family: var(--display);
   font-size: clamp(2.6rem, 8vw, 4.6rem);
-  /* 同 article.post h1：全站最大的字（74px），Bold 会糊，常规字重才撑得起这么大 */
-  font-weight: 400;
+  font-weight: var(--display-weight);
   letter-spacing: .04em;
   line-height: 1.38;
   color: var(--fg);
