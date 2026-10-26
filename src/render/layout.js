@@ -5,6 +5,7 @@ import { PALETTES, CUSTOM_PALETTE, LAYOUTS } from '../settings.js';
 import { navItemsOf, visibleNavOf } from '../site/nav.js';
 import { lightboxHtml } from './lightbox.js';
 import { emojiPanelTemplate } from '../comments/view.js';
+import { ICON_COPYRIGHT } from './icons.js';
 import { themeRequest } from '../themes/request.js';
 
 // 带内容指纹的静态资源；server.js 也 import 这份生成「可长期缓存」正则——两处必须同一份，否则新增资源必漏。
@@ -494,7 +495,7 @@ function chromeOf(ctx) {
     footer: `<footer class="site">
     <div class="foot-inner">
       <div class="foot-legal">
-        <span class="foot-copy">© ${new Date().getFullYear()}${SITE.author ? ` ${esc(SITE.author)}` : ''}</span>
+        <span class="foot-copy"><span class="sr-only">©</span>${ICON_COPYRIGHT} ${new Date().getFullYear()}${SITE.author ? `<span class="sep">·</span>${esc(SITE.author)}` : ''}</span>
         <span class="foot-beian">
           ${SITE.icp ? `<a class="foot-icp" href="https://beian.miit.gov.cn/" rel="nofollow noopener">${icpBadgeImg()}${esc(SITE.icp)}</a>` : ''}
           ${policeHtml()}

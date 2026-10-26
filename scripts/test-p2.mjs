@@ -527,8 +527,8 @@ const page = await (await fetch(`${BASE}/p/${SLUG}/`)).text();
       relOk, `相对日期 ${relTimes.length} 条 / 共 ${recentItems} 条`);
     check('T43 刊头里没有站名，导航独占整条（row-solo）',
       !home.includes('class="brand"') && home.includes('class="row row-solo"'), '');
-    check('T44 页脚两行：第一行版权（© 年份[ 署名]），第二行备案号',
-      /<span class="foot-copy">© \d{4}(?: [^<]+)?<\/span>/.test(home) && home.includes('class="foot-beian"'), '');
+    check('T44 页脚两行：第一行版权（sr-only © + 矢量符号 + 年份[· 署名]），第二行备案号',
+      /<span class="foot-copy"><span class="sr-only">©<\/span><svg [\s\S]{0,300}?> \d{4}(?:<span class="sep">·<\/span>[^<]+)?<\/span>/.test(home) && home.includes('class="foot-beian"'), '');
 
     check('T45 无站名时 <title> 与 og:site_name 退回域名，不是空的',
       SITE.identity.length > 0
