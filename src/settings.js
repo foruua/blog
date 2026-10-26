@@ -71,20 +71,40 @@ export const HERO_RETIRED_KEYS = ['hero_video_mode', 'hero_layout', 'hero_text_t
 /* 首页轮播上限，写死而非设置项：这是封面不是相册，八张还翻不到头就该换内容。 */
 export const HERO_MAX = 8;
 
-// 访客可选配色的唯一真相源：后台校验、配色面板里的色样、THEME_BOOT 白名单都取自这里。paper/ink 只是两个
-// 色样点；chroma 是「自定义」滑块从预设接上来的浓度（与 palette.js 的 LEVELS 同步，test-palette 会比对）。
-// 整套令牌在 base.css 末尾，改配色值要两处同步（test-palette.mjs 对不上会报错）。
-// hue 是这套配色的 OKLCH 色相（不是 HSL —— 两者角度不等价，黛蓝在 HSL 是 213、OKLCH 是 252）。
-// 它的唯一用途：从预设切到「自定义」时，滑块停在这个角度，观感才接得上。key '' 即「素笺」。
+// 访客可选配色的唯一真相源：后台校验、配色面板里的色样、THEME_BOOT 白名单都取自这里。
+// paper / ink 是两个色样点（面板里那枚小方块），**不是**生成器的输入。
+// seed 才是「自定义」滑块从预设接上来的种子，全部由 base.css 的 --bg / --accent 反算 ——
+// 手抄一遍 hex 在这里，改令牌时必然忘，于是「从预设拖一下」就跳色。别再手改这些数字：
+// 改完 base.css 跑 `node scripts/palette-seeds.mjs`，它会把对不上的地方连色差一起打出来。
+//   hue            墨的 OKLCH 色相（不是 HSL —— 两者角度不等价，黛蓝在 HSL 是 213、OKLCH 是 251）
+//   chroma / D     墨的绝对彩度（D = 深色那套；暗纸上同一支墨要更饱和才看得出）
+//   paper / D      纸的染色强度 0—1（D = 深色那套）
+//   inkL / D       墨的明度（生成器默认骨架是 0.48 / 0.79，预设各自不同 —— 这正是跳色的来源）
+//   bgL / D        纸的明度（配合 paper 强度还原出 --bg 本身）
+// chroma 是「自定义」滑块从预设接上来的浓度（与 palette.js 的 CHROMA_RANGE 同量纲，test-palette 会比对）。
+// 整套令牌在 base.css，改配色值要两处同步（test-palette.mjs 与 palette-seeds.mjs 对不上会报错）。
+// key '' 即「素笺」，它的令牌是 :root 里那套默认值。
 // 宣纸（黑白灰）排在第一位：它是现行站点的默认配色，配色面板按这份顺序渲染。
-// 它的 ink 是中灰 —— 灰没有可读的色相，hue 取 80 只是为了从它滑进「自定义」时不跳色（与素笺同角度）。
+// 它的墨是中灰 —— 灰没有可读的色相，hue 82 是从 #5b564d 实测出来的，拖进「自定义」时不跳色。
 export const PALETTES = [
-  { key: 'xuanzhi', name: '宣纸', paper: '#f7f5f1', ink: '#5b564d', hue: 80,  level: 'mid',  chroma: 1 },
-  { key: '',       name: '素笺', paper: '#faf8f4', ink: '#926922', hue: 80,  level: 'mid',  chroma: 1 },
-  { key: 'qingci', name: '青瓷', paper: '#eef4f1', ink: '#26604f', hue: 168, level: 'mid',  chroma: 1 },
-  { key: 'dailan', name: '黛蓝', paper: '#eff3f8', ink: '#2f5a86', hue: 252, level: 'mid',  chroma: 1 },
-  { key: 'qian',   name: '茜色', paper: '#f9f2f0', ink: '#9d3a32', hue: 32,  level: 'bold', chroma: 1.3 },
-  { key: 'ziteng', name: '紫藤', paper: '#f4f2f8', ink: '#5d4685', hue: 300, level: 'mid',  chroma: 1 },
+  { key: 'xuanzhi', name: '宣纸', paper: '#f7f5f1', ink: '#5b564d',
+    seed: { hue: 82,  chroma: 0.016, chromaD: 0.017, paper: 0.26,  paperD: 0.119,
+            inkL: 0.455, inkLD: 0.821, bgL: 0.974, bgLD: 0.177 } },
+  { key: '',       name: '素笺', paper: '#faf8f4', ink: '#926922',
+    seed: { hue: 77,  chroma: 0.100, chromaD: 0.106, paper: 0.26,  paperD: 0.193,
+            inkL: 0.550, inkLD: 0.781, bgL: 0.983, bgLD: 0.149 } },
+  { key: 'qingci', name: '青瓷', paper: '#eef4f1', ink: '#26604f',
+    seed: { hue: 171, chroma: 0.067, chromaD: 0.082, paper: 0.341, paperD: 0.468,
+            inkL: 0.445, inkLD: 0.790, bgL: 0.966, bgLD: 0.161 } },
+  { key: 'dailan', name: '黛蓝', paper: '#eff3f8', ink: '#2f5a86',
+    seed: { hue: 251, chroma: 0.087, chromaD: 0.074, paper: 0.361, paperD: 0.650,
+            inkL: 0.458, inkLD: 0.788, bgL: 0.967, bgLD: 0.156 } },
+  { key: 'qian',   name: '茜色', paper: '#f9f2f0', ink: '#9d3a32',
+    seed: { hue: 28,  chroma: 0.134, chromaD: 0.093, paper: 0.364, paperD: 0.645,
+            inkL: 0.486, inkLD: 0.763, bgL: 0.971, bgLD: 0.150 } },
+  { key: 'ziteng', name: '紫藤', paper: '#f4f2f8', ink: '#5d4685',
+    seed: { hue: 299, chroma: 0.102, chromaD: 0.101, paper: 0.374, paperD: 0.783,
+            inkL: 0.448, inkLD: 0.791, bgL: 0.969, bgLD: 0.154 } },
 ];
 const PALETTE_KEYS = PALETTES.map((p) => p.key);
 

@@ -81,13 +81,35 @@
   const LEVELS = { soft: 0.72, mid: 1, bold: 1.3 };
   const LEVEL_KEYS = ['soft', 'mid', 'bold'];
 
-  /* 自定义的三个旋钮：浓度（强调色彩度倍率）、纸色（纸面彩度倍率）、深浅（强调色明度偏移）。
-     浓度 0.55—1.45 覆盖「近灰」到「浓艳」；纸色 0—1.8 覆盖「中性纸」到「明显染色」；
-     深浅只给三档（轻 / 标准 / 重），实际偏移 ±0.02 后还要过对比度钳制。 */
-  const CHROMA_RANGE = { min: 0.55, max: 1.45 };
-  const PAPER_RANGE = { min: 0, max: 1.8 };
+  /* 自定义的三个旋钮：浓度、纸色、深浅。
+     浓度是**绝对 OKLCH 彩度**（0—0.145），不是倍率。这一条是踩出来的：
+     sRGB 在 L=0.48 处每个色相能承受的彩度差 3 倍（红可到 0.195，青蓝只到 0.082），
+     倍率上限 1.45 换算出 0.152 —— 九成色相根本到不了，超出的部分被降 chroma 的二分静默吞掉，
+     于是「浓淡」滑块后半程是一个颜色都不变的死区（宣纸只有 44% 行程有效，青蓝 25%）。
+     改成绝对值 + 色域拟合（见 fitL）之后，滑块走多远，墨就浓多少。
+     纸色同理：强度 0—1，对应最大彩度 0.022，并顺带 ±0.013 的明度偏移
+     （纸是自己染的 —— 染得越浓，纸也略暗一点，这比只改彩度更像「换了一张纸」）。
+     深浅仍只给三档（轻 / 标准 / 重），±0.02 偏移后还要过对比度钳制。 */
+  const CHROMA_RANGE = { min: 0, max: 0.145 };
+  const PAPER_RANGE = { min: 0, max: 1 };
+  const PAPER_C_MAX = 0.022;
+  const PAPER_L_DROP = 0.013;
+  const PAPER_L_RISE = 0.010;
   const INK_KEYS = [-1, 0, 1];
   const INK_STEP = 0.02;
+  // 超色域时最多允许压暗多少明度来换彩度。上限 0.09 是量出来的：
+  // 最吃紧的黄色相（H≈80）要把 C 顶到 0.145，得从 L=0.48 压到约 0.39；再低就发黑不像墨了。
+  const L_FIT_MAX = 0.09;
+  // 旧版浓淡是倍率（0.55—1.45），纸色是倍率（0—1.8）。新值是绝对彩度（0—0.145）与强度（0—1）。
+  // 浓淡两个量纲不重叠，能按值域认；纸色的旧范围 0—1.8 与新范围 0—1 在 0—1 之间**重叠**，
+  // 光看数值分不出来（旧的 1.0 = 新的一半）。所以新版种子带一个 --seed-v:2 ——
+  // 没有这个标记的一律按旧量纲换算。别把这条删掉，删了存量访客的纸色会突然加倍。
+  const SEED_VERSION = 2;
+  // 旧倍率 1.0 当年对应的是旧上限 0.105，不是现在这个 0.145 —— 换算要用旧尺子量旧值，
+  // 否则旧用户的 mid 会悄悄变浓 40%。
+  const LEGACY_CHROMA_SCALE = 0.105;
+  const LEGACY_CHROMA_SPLIT = 0.3;
+  const LEGACY_PAPER_SCALE = 1.8;
 
   // 语法高亮的辅助色相：向固定锚点收敛（权重 0.78—0.85），任何主色相下都能和 keyword 分开，
   // 又都染着一点主色的味道 —— 直接固定成五个纯色会和整套配色打架，完全跟随主色相则五个分不开。
@@ -136,47 +158,100 @@
     return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : fallback;
   };
 
+  // 三档对应的**绝对彩度**（旧倍率 × 旧上限 0.105）。这是「档位」这个名字现在唯一还站得住的含义：
+  // 拿绝对彩度去比三档，别再拿它去除新上限 —— 那会让旧的 mid（0.105）显得只有 72%，掉到 soft 去。
+  const LEVEL_C = { soft: 0.105 * 0.72, mid: 0.105, bold: 0.105 * 1.3 };
+
   const levelOfChroma = (chroma) => {
     const c = Number(chroma);
+    // 旧调用可能传倍率（> 0.3），先换成绝对彩度。
+    const abs = c > LEGACY_CHROMA_SPLIT ? c * LEGACY_CHROMA_SCALE : c;
     let best = 'mid';
     let dist = Infinity;
     for (const key of LEVEL_KEYS) {
-      const d = Math.abs(LEVELS[key] - c);
+      const d = Math.abs(LEVEL_C[key] - abs);
       if (d < dist) { dist = d; best = key; }
     }
     return best;
   };
 
-  /* 种子归一：色相取整归一、三个旋钮各自钳进安全区间。旧调用 customCss(hue, 'mid') 仍然认，
-     等价于 {chroma: LEVELS.mid, paper: 1, ink: 0}。返回的 level 只用于 CSS 种子回读和 aria-label。 */
+  /* 种子归一：色相取整归一、各旋钮钳进安全区间。
+     兼容三层：① 老调用 customCss(hue, 'mid') ② 旧面板的倍率种子 ③ 新面板的绝对种子。
+     inkL / inkLD / bgL / bgLD 是「预设自己的骨架明度」：站点手绘的四套令牌各自的墨色并不落在
+     生成器写死的 0.48 上（宣纸 0.455、素笺 0.550），不带上它，从预设拖第一下就是一次跳色。
+     它们是站主级字段（跟着预设走），不进滑块；访客的深浅旋钮仍是 ink（±0.02）。 */
   function normalizeSeed(hue, opts) {
     const h = Math.round(((Number(hue) % 360) + 360) % 360);
     const o = opts && typeof opts === 'object' ? opts : {};
     const legacy = typeof opts === 'string' ? LEVELS[opts] : undefined;
-    const chroma = clampRange(o.chroma ?? legacy, CHROMA_RANGE.min, CHROMA_RANGE.max, LEVELS.mid);
-    const paper = clampRange(o.paper, PAPER_RANGE.min, PAPER_RANGE.max, 1);
+    const rawChroma = o.chroma ?? legacy;
+    const rawPaper = o.paper;
+    // 带 --seed-v:2 的才是新量纲；旧 CSS / 旧 localStorage 没有这个标记，按旧倍率换算。
+    // 内部复用（tokensOf 拿到 normalizeSeed 的输出）会带着 v，所以这条路是幂等的。
+    const modern = Number(o.v) >= SEED_VERSION;
+    const chromaRaw = modern || !(rawChroma > LEGACY_CHROMA_SPLIT)
+      ? rawChroma
+      : rawChroma * LEGACY_CHROMA_SCALE;
+    const paperRaw = modern ? rawPaper : Number(rawPaper) / LEGACY_PAPER_SCALE;
+    const chroma = clampRange(chromaRaw, CHROMA_RANGE.min, CHROMA_RANGE.max, CHROMA_RANGE.max);
+    const paper = clampRange(paperRaw, PAPER_RANGE.min, PAPER_RANGE.max, 0.5);
     const ink = clampRange(o.ink, -1, 1, 0);
+    const keep = (v, fallback) => (Number.isFinite(Number(v)) && v !== null && v !== undefined ? Number(v) : fallback);
+    // 深色那套的浓度 / 纸色强度可以独立于浅色：暗纸上同一支墨要更饱和才看得出，
+    // 站点手绘的深色令牌本来也更深。不填就沿用浅色的值。
+    // 注意不能直接喂 clampRange：Number(null) 是 0，会把「没填」钳成一个合法的 0。
+    const orNull = (v, range) => (v === null || v === undefined || v === '' ? null : clampRange(v, range.min, range.max, null));
+    const chromaD = orNull(o.chromaD, CHROMA_RANGE);
+    const paperD = orNull(o.paperD, PAPER_RANGE);
     return {
       hue: Number.isFinite(h) ? h : 0,
+      // 归一化后的种子自带版本号：再喂回 normalizeSeed 时走「新量纲」那条路，不会二次换算。
+      v: SEED_VERSION,
       chroma,
+      chromaD: chromaD ?? chroma,
       paper,
+      paperD: paperD ?? paper,
       ink,
+      inkL: keep(o.inkL, null),
+      inkLD: keep(o.inkLD, null),
+      bgL: keep(o.bgL, null),
+      bgLD: keep(o.bgLD, null),
       level: levelOfChroma(chroma),
     };
+  }
+
+  /* 色域拟合：颜色落在 sRGB 之外时，**先压明度、再降彩度**。
+     原来的做法只降彩度 —— 那等于告诉访客「你拖到的这段区间不存在」，滑块后半程就成了死区。
+     压明度才是「更浓的墨本来就更深」在数值上的对应：C 顶到 0.145 的黄色，L 要低到 0.39 才装得下。
+     只要压得动就用压暗的那个 L；压到 L_FIT_MAX 还不够（蓝紫方向），才回落到降彩度。 */
+  function fitL(L, C, H) {
+    if (inGamut(oklchLinear(L, C, H))) return L;
+    for (let d = 0.002; d <= L_FIT_MAX + 1e-9; d += 0.002) {
+      const l = L - d;
+      if (l > 0.05 && inGamut(oklchLinear(l, C, H))) return l;
+    }
+    return L;
   }
 
   // 「重」= 对比更强：浅色纸往下压明度，深色纸往上提明度。先按访客选的方向算，
   // 再拿实际纸面做一次对比度钳制 —— 滑块可以拖到边界，但读不清的组合不会真的落地。
   const inkL = (L, ink, dark) => L + (dark ? 1 : -1) * ink * INK_STEP;
 
+  // 预设自带的骨架明度：浅色一套、深色一套。没有就用生成器的默认骨架。
+  const baseLOf = (seed, s, dark) => (dark ? seed.inkLD ?? s.L.accent : seed.inkL ?? s.L.accent);
+  // 深浅两套的墨与纸强度各自独立（见 normalizeSeed）。
+  const chromaOf = (seed, dark) => (dark ? seed.chromaD : seed.chroma);
+  const paperOf = (seed, dark) => (dark ? seed.paperD : seed.paper);
+
   function accentOf(seed, s, dark, bg, elev) {
     const paperIsLight = luminance(bg) > 0.5;
-    let L = inkL(s.L.accent, seed.ink, dark);
-    let hex = oklchToHex(L, s.C.accent * seed.chroma, seed.hue);
+    const ca = chromaOf(seed, dark);
+    let L = fitL(inkL(baseLOf(seed, s, dark), seed.ink, dark), ca, seed.hue);
+    let hex = oklchToHex(L, ca, seed.hue);
     for (let i = 0; i < 24; i++) {
       if (contrast(hex, bg) >= 4.55 && contrast(hex, elev) >= 4.55) break;
-      L += paperIsLight ? -0.004 : 0.004;
-      hex = oklchToHex(L, s.C.accent * seed.chroma, seed.hue);
+      L = fitL(L + (paperIsLight ? -0.004 : 0.004), ca, seed.hue);
+      hex = oklchToHex(L, ca, seed.hue);
     }
     return { hex, L };
   }
@@ -184,36 +259,50 @@
   function tokensOf(hue, opts, dark) {
     const seed = normalizeSeed(hue, opts);
     const s = SHAPES[dark ? 'dark' : 'light'];
-    const ca = seed.chroma;
-    const cp = seed.paper;
-    const bg = oklchToHex(s.L.bg, s.C.bg * cp, seed.hue);
-    const elev = oklchToHex(s.L.elev, s.C.elev * cp, seed.hue);
+    // 浓度直接就是强调色的 OKLCH 彩度（绝对值，不是倍率）。深浅两套各自取。
+    const ca = chromaOf(seed, dark);
+    const paperK = paperOf(seed, dark);
+    // 纸色强度 → 彩度 + 轻微明度。深色纸染色时不是变暗而是略提亮：暗底上上色看起来更亮。
+    const bgC = paperK * PAPER_C_MAX;
+    const bgShift = paperK * (dark ? PAPER_L_RISE : -PAPER_L_DROP);
+    const bgL = (dark ? seed.bgLD ?? s.L.bg : seed.bgL ?? s.L.bg) + bgShift;
+    // 纸面一族（elev / soft / code-bg）保持相对 bg 的原有间距与彩度比，整族跟着走 ——
+    // 只让 bg 动、其余不动，纸的层次会在拖动时塌掉。
+    const rel = (name) => bgL + (s.L[name] - s.L.bg);
+    const cRel = (name) => bgC * (s.C[name] / s.C.bg);
+    const bg = oklchToHex(bgL, bgC, seed.hue);
+    const elev = oklchToHex(rel('elev'), cRel('elev'), seed.hue);
     const accent = accentOf(seed, s, dark, bg, elev);
     const [r, g, b] = hexToRgb(accent.hex);
+    // 语法高亮跟着浓度走，但留一条彩度地板：浓度拖到 0 时若八枚令牌全变成同一个灰，
+    // 代码块就只剩一片糊 —— 这是「纯灰墨」唯一必须让步的地方。灰系两枚（注释 / meta）另有更小的地板。
+    const hlC = Math.max(ca * (s.C.hl / CHROMA_RANGE.max), 0.02);
+    const dimC = (k) => Math.max(hlC * k, 0.005);
+    const goldK = ca / CHROMA_RANGE.max;
     const gold = s.gold
-      .map(([L, C], i) => `${oklchToHex(L, C * ca, seed.hue)} ${i === 1 ? s.goldStop : i === 0 ? '0%' : '100%'}`)
+      .map(([L, C], i) => `${oklchToHex(L, C * goldK, seed.hue)} ${i === 1 ? s.goldStop : i === 0 ? '0%' : '100%'}`)
       .join(', ');
     // accent-ink 跟着 accent 的实际位移走，保持「同一支墨的深浅两档」这层关系。
     const accentInkL = s.L.accentInk + (accent.L - s.L.accent);
     return {
       bg,
-      'bg-soft': oklchToHex(s.L.soft, s.C.soft * cp, seed.hue),
+      'bg-soft': oklchToHex(rel('soft'), cRel('soft'), seed.hue),
       'bg-elev': elev,
       accent: accent.hex,
-      'accent-ink': oklchToHex(accentInkL, s.C.accent * ca * 1.05, seed.hue),
+      'accent-ink': oklchToHex(accentInkL, ca * 1.05, seed.hue),
       'accent-soft': `rgba(${r}, ${g}, ${b}, ${s.soft})`,
       'accent-line': `rgba(${r}, ${g}, ${b}, ${s.line})`,
       gold: `linear-gradient(120deg, ${gold})`,
-      'code-bg': oklchToHex(s.L.codeBg, s.C.code * cp, seed.hue),
-      'code-fg': oklchToHex(s.L.codeFg, s.C.code * ca * 1.5, seed.hue),
-      'hl-comment': oklchToHex(s.L.comment, s.C.hl * ca * 0.12, seed.hue),
-      'hl-keyword': oklchToHex(s.L.keyword, s.C.hl * ca, seed.hue),
-      'hl-string': oklchToHex(s.L.string, s.C.hl * ca * 0.82, mixHue(seed.hue, 148, 0.78)),
-      'hl-number': oklchToHex(s.L.number, s.C.hl * ca * 0.9, mixHue(seed.hue, 55, 0.82)),
-      'hl-title': oklchToHex(s.L.title, s.C.hl * ca * 0.75, mixHue(seed.hue, 245, 0.85)),
-      'hl-variable': oklchToHex(s.L.variable, s.C.hl * ca * 0.8, mixHue(seed.hue, 298, 0.85)),
-      'hl-meta': oklchToHex(s.L.meta, s.C.hl * ca * 0.14, seed.hue),
-      'hl-deletion': oklchToHex(s.L.deletion, s.C.hl * ca * 1.05, mixHue(seed.hue, 22, 0.82)),
+      'code-bg': oklchToHex(rel('codeBg'), cRel('code'), seed.hue),
+      'code-fg': oklchToHex(s.L.codeFg, ca * (s.C.code / CHROMA_RANGE.max) * 1.5, seed.hue),
+      'hl-comment': oklchToHex(s.L.comment, dimC(0.12), seed.hue),
+      'hl-keyword': oklchToHex(s.L.keyword, hlC, seed.hue),
+      'hl-string': oklchToHex(s.L.string, hlC * 0.82, mixHue(seed.hue, 148, 0.78)),
+      'hl-number': oklchToHex(s.L.number, hlC * 0.9, mixHue(seed.hue, 55, 0.82)),
+      'hl-title': oklchToHex(s.L.title, hlC * 0.75, mixHue(seed.hue, 245, 0.85)),
+      'hl-variable': oklchToHex(s.L.variable, hlC * 0.8, mixHue(seed.hue, 298, 0.85)),
+      'hl-meta': oklchToHex(s.L.meta, dimC(0.14), seed.hue),
+      'hl-deletion': oklchToHex(s.L.deletion, hlC * 1.05, mixHue(seed.hue, 22, 0.82)),
     };
   }
 
@@ -228,14 +317,23 @@
      「显式深色」与「系统深色」，合并只能靠 light-dark()，不支持的浏览器上整套会塌。
      另：--seed-* 不是配色令牌，是给面板读回控件位置的 —— 存在 CSS 里就不用再开一个
      localStorage 键，也不会出现「种子和值对不上」的半截状态。--seed-lv 保留给旧版面板/旧数据，
-     新面板优先读 --seed-c / --seed-p / --seed-k。 */
+     新面板优先读 --seed-c / --seed-p / --seed-k。
+     --seed-il / -id / -bl / -bd 是预设自带的骨架明度（浅色墨 / 深色墨 / 浅色纸 / 深色纸），
+     --seed-cd / -pd 是深色那套的浓度与纸色强度。
+     后六个只有从预设拖进自定义时才写；纯手调（没有预设底子）时省略，生成器回落到自己的骨架。 */
   function customCss(hue, opts) {
     const seed = normalizeSeed(hue, opts);
     const light = tokensOf(seed.hue, seed, false);
     const dark = tokensOf(seed.hue, seed, true);
     const darkDecl = decl(dark);
-    const seeds = `--seed-h:${seed.hue};--seed-lv:${seed.level}`
-      + `;--seed-c:${seed.chroma.toFixed(2)};--seed-p:${seed.paper.toFixed(2)};--seed-k:${seed.ink.toFixed(2)}`;
+    const extra = [
+      ['cd', seed.chromaD !== seed.chroma ? seed.chromaD : null],
+      ['pd', seed.paperD !== seed.paper ? seed.paperD : null],
+      ['il', seed.inkL], ['id', seed.inkLD], ['bl', seed.bgL], ['bd', seed.bgLD],
+    ].filter(([, v]) => v !== null).map(([k, v]) => `;--seed-${k}:${v.toFixed(3)}`).join('');
+    const seeds = `--seed-v:${SEED_VERSION};--seed-h:${seed.hue};--seed-lv:${seed.level}`
+      + `;--seed-c:${seed.chroma.toFixed(3)};--seed-p:${seed.paper.toFixed(3)};--seed-k:${seed.ink.toFixed(2)}`
+      + extra;
     return `${SEL}{${decl(light)};${seeds}}`
       + `${SEL_DARK}{${darkDecl}}`
       + `@media (prefers-color-scheme:dark){${SEL_AUTO}{${darkDecl}}}`;
@@ -270,7 +368,16 @@
     LEVEL_KEYS,
     CHROMA_RANGE,
     PAPER_RANGE,
+    PAPER_C_MAX,
+    PAPER_L_DROP,
+    PAPER_L_RISE,
+    L_FIT_MAX,
     INK_KEYS,
+    INK_STEP,
+    LEGACY_CHROMA_SCALE,
+    LEGACY_CHROMA_SPLIT,
+    LEGACY_PAPER_SCALE,
+    SEED_VERSION,
     normalizeSeed,
     levelOfChroma,
     hexToOklch,
