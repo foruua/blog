@@ -486,14 +486,16 @@ function chromeOf(ctx) {
   </div>
 </header>`,
     drawer: ctx.drawer,
-    // 页脚只剩一法务行（© / 备案号），宽屏居中落在正中；RSS 与配色搬进了首页 hero-meta 那一行。
+    // 页脚两行：第一行版权，第二行两条备案号（RSS 与配色在首页 hero-meta 那一行）。
     // 后台入口与「回到顶部」早先已从页脚撤掉 —— 手机端不再需要第二枚回到顶部（悬浮钮仍按原断点隐藏）。
     footer: `<footer class="site">
     <div class="foot-inner">
-      <div class="foot-legal${SITE.police ? ' has-police' : ''}">
-        <span>© ${new Date().getFullYear()}${SITE.author ? ` ${esc(SITE.author)}` : ''}</span>
-        ${SITE.icp ? `<a class="foot-icp" href="https://beian.miit.gov.cn/" rel="nofollow noopener">${esc(SITE.icp)}</a>` : ''}
-        ${policeHtml()}
+      <div class="foot-legal">
+        <span class="foot-copy">© ${new Date().getFullYear()}${SITE.author ? ` ${esc(SITE.author)}` : ''}</span>
+        <span class="foot-beian">
+          ${SITE.icp ? `<a class="foot-icp" href="https://beian.miit.gov.cn/" rel="nofollow noopener">${esc(SITE.icp)}</a>` : ''}
+          ${policeHtml()}
+        </span>
       </div>
     </div>
   </footer>`,

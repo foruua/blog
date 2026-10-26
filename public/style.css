@@ -1997,16 +1997,24 @@ footer.site .foot-inner {
   gap: 1rem 1.5rem;
 }
 footer.site .foot-legal {
-  display: flex; flex-wrap: wrap;
-  align-items: baseline;
-  gap: .25rem 1.1rem;
+  display: flex; flex-direction: column; align-items: center;
+  gap: .15rem 1.1rem;
   min-width: 0;
   font-family: var(--mono);
   font-size: .72rem; line-height: 1.6;
   letter-spacing: .09em;
   color: var(--muted-soft);
 }
-footer.site .foot-legal > span { white-space: nowrap; }
+footer.site .foot-legal .foot-copy { white-space: nowrap; }
+/* 第二行两条备案号同行排；320px 放不下时允许各自成行（仍居中），比溢出稳。 */
+footer.site .foot-beian {
+  display: flex; flex-wrap: wrap; align-items: baseline;
+  justify-content: center;
+  gap: .15rem .9rem;
+  min-width: 0;
+}
+footer.site .foot-icp,
+footer.site .foot-police { white-space: nowrap; }
 /* ICP 与公安联网备案号同款：同一行法务信息，只是链到各自的查询页。 */
 footer.site .foot-icp,
 footer.site .foot-police {
@@ -2026,22 +2034,8 @@ footer.site .foot-police:hover { color: var(--accent); }
    图标位置改用 vertical-align 微调，只影响图标本身。 */
 footer.site .foot-police-ico { height: 14px; width: auto; vertical-align: -.22em; margin-right: .32rem; }
 @media (max-width: 620px) {
-  /* 手机端一行放不下两段：让 .foot-legal 撑满、端点分开（© 靠左、备案号靠右），固定一行不折行。 */
-  footer.site .foot-legal {
-    flex: 1 1 auto;
-    flex-wrap: nowrap;
-    justify-content: space-between;
-    gap: .5rem 1rem;
-  }
-  footer.site .foot-icp,
-  footer.site .foot-police { white-space: nowrap; }
-  /* 两个备案号同时出现时，手机上一行必然放不下（实测 390px 下三段加起来约 424px）：
-     这时改回居中并允许换行，两行各自居中，比「端点分开 + 右侧溢出」稳。 */
-  footer.site .foot-legal.has-police {
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: .15rem .9rem;
-  }
+  /* 两行结构窄屏不用动：第一行版权、第二行备案号各自居中，放不下时备案号再各占一行。 */
+  footer.site .foot-legal { flex: 1 1 auto; }
 }
 /* 窄屏不再有页脚入口，右下角浮钮也在这个断点隐藏 —— 手机端彻底不出现「回到顶部」。 */
 @media (max-width: 1000px) {

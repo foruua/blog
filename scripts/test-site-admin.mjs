@@ -98,7 +98,10 @@ check('S1b 设置页把「站点与阅读」改成了「阅读与外观」', pag
   check('S2m 号码前带警徽图片且带内容指纹', /<img class="foot-police-ico" src="\/police-badge\.png\?v=[0-9a-f]+"/.test(policeLink?.[2] ?? ''),
     (policeLink?.[2] ?? '').slice(0, 90));
   check('S2n 号码文字在链接里', (policeLink?.[2] ?? '').includes('京公网安备11000000000001号'));
-  check('S2k 有公安备案号时页脚挂上 has-police（窄屏换行用）', /class="foot-legal has-police"/.test(home));
+  // 页脚两行结构：第一行版权（foot-copy），第二行备案号（foot-beian）
+  check('S2k 页脚拆成两行：版权行 + 备案号行',
+    /<span class="foot-copy">© [^<]+测试作者<\/span>/.test(home) && /<span class="foot-beian">\s*<a class="foot-icp"/.test(home),
+    '页脚两行结构不完整');
 
   // 校验：邮箱形状
   const bad = await client('/admin/site/identity', form({ _csrf: csrf, title: 'x', email: 'not-an-email', lang: 'zh-CN' }));
