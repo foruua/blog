@@ -2,7 +2,7 @@ import { SITE, ENV_SITE } from '../config.js';
 import { EMAIL_LOOSE_RE, hasControlChar } from '../util/validation.js';
 
 // —— 站点身份 ——
-// 站名、简介、作者、博主邮箱、印章字、备案号、语言原本只认 .env：改一个字要登服务器改文件再重启进程。
+// 站名、简介、作者、博主邮箱、印章字、备案号（ICP 与公安）、语言原本只认 .env：改一个字要登服务器改文件再重启进程。
 // 这里把它们搬进 settings 表，.env 退化成「出厂值」：DB 里是空串就逐项回落，老部署不改一行配置行为不变。
 //
 // 地址（SITE.url / SITE.domain）**故意不开放编辑**：它决定会话 cookie 的作用域、canonical、sitemap、
@@ -15,11 +15,12 @@ export const IDENTITY_KEYS = {
   email: 'site_email',
   mark: 'site_mark',
   icp: 'site_icp',
+  police: 'site_police',
   lang: 'site_lang',
 };
 
 // 上限与后台输入框的 maxlength 保持一致：两处不同就会出现「填得进去、存不进去」。
-export const IDENTITY_MAX = { title: 60, desc: 200, author: 40, mark: 40, icp: 60, email: 120, lang: 20 };
+export const IDENTITY_MAX = { title: 60, desc: 200, author: 40, mark: 40, icp: 60, police: 60, email: 120, lang: 20 };
 
 const LANG_RE = /^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$/;
 
@@ -35,6 +36,7 @@ export function siteIdentityOf(read) {
     email: pick(IDENTITY_KEYS.email, ENV_SITE.email),
     mark: pick(IDENTITY_KEYS.mark, ENV_SITE.mark),
     icp: pick(IDENTITY_KEYS.icp, ENV_SITE.icp),
+    police: pick(IDENTITY_KEYS.police, ENV_SITE.police),
     lang: pick(IDENTITY_KEYS.lang, ENV_SITE.lang),
   };
 }
@@ -51,6 +53,7 @@ export function applySiteIdentity(read) {
   SITE.email = v.email;
   SITE.mark = v.mark;
   SITE.icp = v.icp;
+  SITE.police = v.police;
   SITE.lang = v.lang;
   // 站名留空时拿域名当身份，与出厂逻辑保持一致（后台允许清空站名——有人就想只用印章 + 域名）。
   SITE.identity = SITE.title || SITE.domain;
@@ -71,11 +74,13 @@ export function saveSiteIdentity(body, set, val) {
     email: text(val(body, 'email'), IDENTITY_MAX.email),
     mark: text(val(body, 'mark'), IDENTITY_MAX.mark),
     icp: text(val(body, 'icp'), IDENTITY_MAX.icp),
+    police: text(val(body, 'police'), IDENTITY_MAX.police),
     lang: text(val(body, 'lang'), IDENTITY_MAX.lang) || ENV_SITE.lang,
   };
 
   if (v.email && !EMAIL_LOOSE_RE.test(v.email)) return `博主邮箱不像邮箱地址：${v.email}`;
   if (hasControlChar(v.icp)) return '备案号里含有控制字符';
+  if (hasControlChar(v.police)) return '公安备案号里含有控制字符';
   if (!LANG_RE.test(v.lang)) return `语言标记不合法：${v.lang}（形如 zh-CN、en、ja）`;
 
   // 与出厂值相同的项存空串，而不是把 .env 的值抄一遍：以后改 .env 仍然会跟着变，

@@ -78,7 +78,8 @@ check('S1b 设置页把「站点与阅读」改成了「阅读与外观」', pag
 {
   const r = await client('/admin/site/identity', form({
     _csrf: csrf, title: '测试用的站名', desc: '一句话简介',
-    author: '测试作者', email: 'a@example.com', mark: '印', icp: '京ICP备00000000号', lang: 'zh-CN',
+    author: '测试作者', email: 'a@example.com', mark: '印', icp: '京ICP备00000000号',
+    police: '京公网安备11000000000001号', lang: 'zh-CN',
   }));
   check('S2a 保存站点身份返回 303 且带成功提示', r.status === 303 && decodeURIComponent(r.headers.get('location') ?? '').includes('✓'), `${r.status} ${r.headers.get('location')}`);
 
@@ -88,16 +89,23 @@ check('S1b 设置页把「站点与阅读」改成了「阅读与外观」', pag
   check('S2d 印章字出现在首页封面', home.includes('class="hero-mark"') && home.includes('印'));
   check('S2e 作者与备案号进了页脚', home.includes('测试作者') && home.includes('京ICP备00000000号'));
   check('S2f 语言标记写进 <html lang>', /<html lang="zh-CN"/.test(home));
+  // 公安备案号：文字照原样显示，末尾那串数字要成为官方查询页的 code 参数（抠错就跳到空结果页）
+  const policeLink = /<a class="foot-police" href="([^"]+)"[^>]*>京公网安备11000000000001号<\/a>/.exec(home);
+  check('S2j 公安备案号进了页脚且链到官方查询页',
+    Boolean(policeLink) && policeLink[1] === 'https://beian.mps.gov.cn/#/query/webSearch?code=11000000000001',
+    policeLink ? policeLink[1] : '没找到 .foot-police');
+  check('S2k 有公安备案号时页脚挂上 has-police（窄屏换行用）', /class="foot-legal has-police"/.test(home));
 
   // 校验：邮箱形状
   const bad = await client('/admin/site/identity', form({ _csrf: csrf, title: 'x', email: 'not-an-email', lang: 'zh-CN' }));
   check('S2g 非邮箱地址被拒', decodeURIComponent(bad.headers.get('location') ?? '').includes('不像邮箱'), bad.headers.get('location'));
 
   // 清空 → 回落到环境变量/域名，而不是把空串写死在前台
-  await client('/admin/site/identity', form({ _csrf: csrf, title: '', desc: '', author: '', email: '', mark: '', icp: '', lang: 'zh-CN' }));
+  await client('/admin/site/identity', form({ _csrf: csrf, title: '', desc: '', author: '', email: '', mark: '', icp: '', police: '', lang: 'zh-CN' }));
   const after = await html('/');
   check('S2h 清空站名后回落到出厂身份', !after.includes('测试用的站名'), '旧站名仍在');
   check('S2i 清空作者后页脚不再显示作者', !after.includes('测试作者'));
+  check('S2l 清空公安备案号后页脚不再输出它', !after.includes('foot-police'));
 }
 
 // —— 导航：改名 / 隐藏 / 排序 ——

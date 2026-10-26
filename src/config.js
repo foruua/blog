@@ -36,6 +36,10 @@ export const ENV_SITE = {
   mark: process.env.SITE_MARK ?? DOMAIN,
 
   icp: process.env.SITE_ICP ?? '',
+
+  // 公安联网备案号（形如「冀公网安备13060202001368号」）。与 ICP 并列显示在页脚，
+  // 号码末尾的 13 位数字同时是官方查询页的 code 参数 —— 渲染时会从这串里抠出来拼链接。
+  police: process.env.SITE_POLICE ?? '',
 };
 
 // 可变对象：地址（url/domain）只能来自环境变量——它决定 cookie 域、canonical、sitemap 与邮件里的绝对链接，

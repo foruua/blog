@@ -442,6 +442,18 @@ ${jsonLdHtml(ctx.structuredData)}
 <script>${THEME_BOOT}</script>`;
 }
 
+/**
+ * 页脚的公安联网备案号。号码形如「冀公网安备13060202001368号」，其中末尾那串数字同时是
+ * 官方查询页的 code 参数 —— 从号码里抠出来拼链接，站主照着备案单填一行字即可，不必另维护一条 URL。
+ * 抠不到数字就退到查询首页：宁可少一层深链，也不要把半截链接拼出去。
+ */
+function policeHtml() {
+  if (!SITE.police) return '';
+  const code = /\d{6,}/.exec(SITE.police)?.[0] ?? '';
+  const href = code ? `https://beian.mps.gov.cn/#/query/webSearch?code=${code}` : 'https://beian.mps.gov.cn/';
+  return `<a class="foot-police" href="${href}" rel="nofollow noopener">${esc(SITE.police)}</a>`;
+}
+
 /** 页面公共外壳：页头、抽屉、页脚、灯箱、表情模板与脚本。主题布局可按需拼装。 */
 function chromeOf(ctx) {
   return {
@@ -473,9 +485,10 @@ function chromeOf(ctx) {
     // 后台入口与「回到顶部」早先已从页脚撤掉 —— 手机端不再需要第二枚回到顶部（悬浮钮仍按原断点隐藏）。
     footer: `<footer class="site">
     <div class="foot-inner">
-      <div class="foot-legal">
+      <div class="foot-legal${SITE.police ? ' has-police' : ''}">
         <span>© ${new Date().getFullYear()}${SITE.author ? ` ${esc(SITE.author)}` : ''}</span>
         ${SITE.icp ? `<a class="foot-icp" href="https://beian.miit.gov.cn/" rel="nofollow noopener">${esc(SITE.icp)}</a>` : ''}
+        ${policeHtml()}
       </div>
     </div>
   </footer>`,

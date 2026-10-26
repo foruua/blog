@@ -42,6 +42,7 @@ ${field('i-email', '博主邮箱', text('i-email', 'email', identity.email, IDEN
 ${field('i-icp', '备案号', text('i-icp', 'icp', identity.icp, IDENTITY_MAX.icp))}
 ${field('i-lang', '语言标记', text('i-lang', 'lang', identity.lang, IDENTITY_MAX.lang))}
       </div>
+${field('i-police', '公安备案号', text('i-police', 'police', identity.police, IDENTITY_MAX.police))}
 ${saveRow()}
     </form>
     </div>`;
