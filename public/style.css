@@ -2012,8 +2012,8 @@ footer.site .foot-legal .foot-copy { white-space: nowrap; }
    （11.5px 字号下字格 7.98px，「沉」12.58px），放大到墨迹 ≈10px 才与汉字齐平。
    语义由模板里 .sr-only 的「©」补，图形本身 aria-hidden（与站名字标 .bseal 同一套做法）。 */
 footer.site .foot-copy > svg {
-  height: 1.12em; width: 1.12em;
-  vertical-align: -.15em;
+  height: 1.05em; width: 1.05em;
+  vertical-align: -.14em;
   margin-right: .22em;
 }
 /* 署名前的金色中点：与文章 meta 行「4 天前 · 1654 字」同一个分隔符语言 */
