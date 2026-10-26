@@ -185,7 +185,8 @@ const searchDrawerForm = () => `<form class="s-drawer-form" action="/search" met
 // 入口图标是「色饼」：一枚圆盘，右上一角填实 —— 读作「一块被咬了一口」的色卡。
 // 换掉了原来的三推子（三条轨道各带一枚滑块）：它在 14px 下既占横向空间，三条横线还会和那一行小字
 // 抢眼睛；色饼的轮廓是个圆，缩到 14px 仍是「一个圆里有块颜色」，形状不散。
-// 同一批候选做过 48 / 24 / 14 三档 + 明暗对照，见 docs/design/style-icon/round2.html。
+// 同一批候选做过 48 / 24 / 14 三档 + 明暗对照，记录在本地沙盒 docs/design/style-icon/round2.html
+// （design/ 在 .gitignore 里，不进仓库 —— 这里写明路径是给手边有这份文件的人看的）。
 // 20 格画布、1.6 描边，与检索、明暗三态同一套规格；扇形只填不描边 —— 14px 下那圈描边会把扇形吃掉。
 const PAL_ICO = '<svg class="pal-ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="10" r="6.4"/><path d="M10 3.6A6.4 6.4 0 0 1 15.54 13.2L10 10z" fill="currentColor" stroke="none"/></svg>';
 // 订阅入口：点 + 两道弧。viewBox 收到 3.25 3.6 12.05 12.05，把图形撑到上面那枚同样的 12px，
