@@ -262,17 +262,14 @@ body {
   color: var(--fg);
   font: var(--body-size) / var(--body-leading) var(--sans);
   font-kerning: normal;
+  font-feature-settings: "kern" 1;
   font-variant-numeric: tabular-nums;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   overflow-wrap: break-word;
   /* 纸面底色；暖光与颗粒在 body::after（原先挂在 background-image + fixed 上）。 */
   background-color: var(--bg);
-}
-/* 字重平滑只留给深色：浅色纸面上 antialiased 会把笔画削细（实测去掉后 DPR1 有 14.4% 的像素变深、
-   最大差 62/255），浅色回归 auto 更接近纸墨；深色下浅字压深底，发虚的方向相反，仍要 grayscale 压住。
-   只写深色两条，不进配色块 —— 它是排版属性，与明暗配色无关，跟着 data-theme 走即可。 */
-html[data-theme="dark"] body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
-@media (prefers-color-scheme: dark) {
-  html:not([data-theme="light"]):not([data-theme="dark"]) body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
 }
 /* 纸面的暖光 + 细颗粒，固定视口 —— 不写在 body 的 background-image 上：iOS Safari 不实现 background-attachment: fixed，手机上暖光会跟着文档滚走。 */
 body::after {
