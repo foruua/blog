@@ -442,6 +442,10 @@ ${jsonLdHtml(ctx.structuredData)}
 <script>${THEME_BOOT}</script>`;
 }
 
+// 警徽：盾形 + 五角星。星不是画在盾上面，而是从盾里抠掉（整条 path 走 evenodd）——
+// 这样只有一种颜色，纸色、暗色都成立，不必知道底色。13px 下仍读得出「盾里有个星」。
+const POLICE_ICO = '<svg class="foot-police-ico" viewBox="0 0 20 20" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M10 2.3 15.3 4.35V9.5c0 3.5-2.25 6.45-5.3 8.2-3.05-1.75-5.3-4.7-5.3-8.2V4.35zM10 5.8 10.69 7.95 12.95 7.94 11.12 9.26 11.82 11.41 10 10.08 8.18 11.41 8.88 9.26 7.05 7.94 9.31 7.95z"/></svg>';
+
 /**
  * 页脚的公安联网备案号。号码形如「冀公网安备13060202001368号」，其中末尾那串数字同时是
  * 官方查询页的 code 参数 —— 从号码里抠出来拼链接，站主照着备案单填一行字即可，不必另维护一条 URL。
@@ -451,7 +455,7 @@ function policeHtml() {
   if (!SITE.police) return '';
   const code = /\d{6,}/.exec(SITE.police)?.[0] ?? '';
   const href = code ? `https://beian.mps.gov.cn/#/query/webSearch?code=${code}` : 'https://beian.mps.gov.cn/';
-  return `<a class="foot-police" href="${href}" rel="nofollow noopener">${esc(SITE.police)}</a>`;
+  return `<a class="foot-police" href="${href}" rel="nofollow noopener">${POLICE_ICO}${esc(SITE.police)}</a>`;
 }
 
 /** 页面公共外壳：页头、抽屉、页脚、灯箱、表情模板与脚本。主题布局可按需拼装。 */

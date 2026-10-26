@@ -90,10 +90,14 @@ check('S1b 设置页把「站点与阅读」改成了「阅读与外观」', pag
   check('S2e 作者与备案号进了页脚', home.includes('测试作者') && home.includes('京ICP备00000000号'));
   check('S2f 语言标记写进 <html lang>', /<html lang="zh-CN"/.test(home));
   // 公安备案号：文字照原样显示，末尾那串数字要成为官方查询页的 code 参数（抠错就跳到空结果页）
-  const policeLink = /<a class="foot-police" href="([^"]+)"[^>]*>京公网安备11000000000001号<\/a>/.exec(home);
+  const policeLink = /<a class="foot-police" href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/.exec(home);
   check('S2j 公安备案号进了页脚且链到官方查询页',
     Boolean(policeLink) && policeLink[1] === 'https://beian.mps.gov.cn/#/query/webSearch?code=11000000000001',
     policeLink ? policeLink[1] : '没找到 .foot-police');
+  // 警徽是内联 SVG（不是外链图片）：盾形 + 从盾里抠掉的五角星，靠 fill-rule="evenodd" 形成镂空
+  check('S2m 号码前带内联警徽 SVG', /<svg class="foot-police-ico"[\s\S]*?<path[^>]*fill-rule="evenodd"/.test(policeLink?.[2] ?? ''),
+    (policeLink?.[2] ?? '').slice(0, 80));
+  check('S2n 号码文字在链接里', (policeLink?.[2] ?? '').includes('京公网安备11000000000001号'));
   check('S2k 有公安备案号时页脚挂上 has-police（窄屏换行用）', /class="foot-legal has-police"/.test(home));
 
   // 校验：邮箱形状
