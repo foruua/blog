@@ -212,9 +212,9 @@ await test('选中态首帧即对齐（ui.js 跑完就算，不再等面板打�
   const { dom, w } = mount({ seed: { palette: 'qingci' } });
   try {
     assert.equal(w.document.documentElement.dataset.palette, 'qingci', 'THEME_BOOT 没把存下的配色恢复到首帧');
-    assert.equal(pressedOf(w), '∅=false qingci=true dailan=false qian=false ziteng=false', '首帧选中态没对齐');
+    assert.equal(pressedOf(w), 'xuanzhi=false ∅=false qingci=true dailan=false qian=false ziteng=false', '首帧选中态没对齐');
     openPicker(w);
-    assert.equal(pressedOf(w), '∅=false qingci=true dailan=false qian=false ziteng=false', '打开后选中态跑了');
+    assert.equal(pressedOf(w), 'xuanzhi=false ∅=false qingci=true dailan=false qian=false ziteng=false', '打开后选中态跑了');
   } finally { dom.window.close(); }
 });
 
@@ -229,7 +229,7 @@ await test('点青瓷：立即生效、写 localStorage、面板保持打开、�
     assert.equal(w.localStorage.getItem('palette'), 'qingci');
     assert.equal(pickerOf(w).open, true, '选择后面板不该自动收起');
     assert.notEqual(w.document.activeElement, pickerOf(w).querySelector('summary'), '选择后不该把焦点拽回入口');
-    assert.equal(pressedOf(w), '∅=false qingci=true dailan=false qian=false ziteng=false');
+    assert.equal(pressedOf(w), 'xuanzhi=false ∅=false qingci=true dailan=false qian=false ziteng=false');
     assert.equal(pickedName(w), '青瓷', '选完入口的 aria-label 要跟上新色名');
   } finally { dom.window.close(); }
 });
@@ -651,7 +651,7 @@ await test('自定义：首帧注入那段 CSS，种子挂到 dataset 上，summ
     const style = w.document.getElementById('palCustom');
     assert.ok(style, 'CSS 没注入');
     assert.equal(style.textContent, built);
-    assert.equal(pressedOf(w), '∅=false qingci=false dailan=false qian=false ziteng=false', '自定义时预设都不该是选中态');
+    assert.equal(pressedOf(w), 'xuanzhi=false ∅=false qingci=false dailan=false qian=false ziteng=false', '自定义时预设都不该是选中态');
     assert.equal(pickedName(w), '210°·100%', '自定义没有色名，入口该显示「角度·浓度」');
   } finally { dom.window.close(); }
 });

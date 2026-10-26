@@ -3096,11 +3096,15 @@ html:not(.has-js) .pal { display: none; }
 .pal-panel {
   position: absolute; top: calc(100% + 5px); right: 0; z-index: 40;
   width: max-content; min-width: 14.5rem; max-width: calc(100vw - 2rem);
-  /* 明暗三格 + 五套预设 + 自定义，比早先页脚那版更高：横屏手机 / 分屏上要能自己滚，不能顶出视口。
+  /* 明暗三格 + 六套预设 + 自定义，比早先页脚那版更高：横屏手机 / 分屏上要能自己滚，不能顶出视口。
      上边留出页头的高度，面板从触发器下方展开、向下长。 */
   max-height: calc(100dvh - 8rem); overflow-y: auto; overscroll-behavior: contain;
   padding: .55rem;
-  display: grid; gap: 1px;
+  /* 预设两列排：六套从 6×44px 压到 3×40px，面板矮 160px。
+     列宽由 min-width 兜住 —— 面板总宽仍是 14.5rem（232px），不比单列时宽一像素：
+     每列 107px 装得下 20px 色样 + 两个字的色名，剩的留给选中那枚勾。
+     明暗 / 版式 / 分隔线 / 自定义各自通栏（见下面那条），所以只有色样那一段分两列。 */
+  display: grid; grid-template-columns: 1fr 1fr; gap: 1px;
   /* 必须是实色：--card-bg 是半透明的，面板浮在正文列表上时后面的字会透出来 —— 色样和滑块压在
      一层灰字上，颜色根本没法看。--bg-elev 跟着当前配色走，青瓷/黛蓝进来自动是它们的纸片色。
      这一版跟着二级菜单一起"揭"起来：边框换成一圈 1px 外环 + 更重的那档阴影。 */
@@ -3111,6 +3115,11 @@ html:not(.has-js) .pal { display: none; }
     0 0 0 1px color-mix(in srgb, var(--rule-strong) 50%, transparent),
     var(--shadow-lg);
 }
+/* 两列只管色样那一段：其余四块通栏。少了这条，明暗三格会被挤进半栏、分隔线只画一半。 */
+.pal-panel > .pal-theme,
+.pal-panel > .pal-lyt,
+.pal-panel > .pal-rule,
+.pal-panel > .pal-custom { grid-column: 1 / -1; }
 /* 首页 hero-meta 那枚：入口样式在 .hero-meta 那一节（图标 + 24px 圆点命中区）。
    面板锚在整行中间向下展开 —— 锚在 24px 的图标上会贴到屏幕边缘，窄屏直接顶出去。
    居中分两段：① 整行在页面里居中（.hero 的 align-items: center）② 面板在整行里居中（下面的 50%）。
@@ -3174,6 +3183,9 @@ html:not(.has-js) .pal { display: none; }
   transition: background var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
 }
 .pal-panel .pal-opt:hover { background: var(--row-hover); color: var(--fg); border-bottom-color: transparent; }
+/* 两列之后每格 107px、相邻只隔 1px：全局那条 3px 外扩的焦点环会压到隔壁格子上，
+   这里收成 1px —— 环仍完整，也不越界。 */
+.pal-panel .pal-opt:focus-visible { outline-offset: 1px; }
 /* 选中行坐强调色软底上：文字走「强调色掺墨」合成（accent 直接上只有 4.3:1，合成后 5.2:1）。 */
 .pal-panel .pal-opt[aria-pressed="true"] { background: var(--accent-soft); color: color-mix(in srgb, var(--accent) 82%, var(--fg)); }
 .pal-panel .pal-opt[aria-pressed="true"]::after {

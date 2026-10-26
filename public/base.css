@@ -648,6 +648,105 @@ html[data-theme="dark"][data-palette="ziteng"] {
   }
 }
 
+/* —— 宣纸：暖灰纸 + 墨（墨/纸 16.8:1，强调/纸 6.7:1） ——
+   黑白灰与上面几套的区别：它们只动那 18 个色彩令牌，纸有色而墨不变；这套纸是中性的，
+   墨也必须跟着中性，否则会「冷纸配暖字」——故多覆盖 --fg / --fg-soft / --muted / --muted-soft /
+   --rule / --rule-strong 六个。
+   两处必然的取舍：
+   ① 强调色只剩明度差 —— 正文 16.8:1、强调 6.7:1，悬停是「变浅」不是「变色」，这是灰度方案的本分；
+   ② 代码高亮不能再靠色相分色，改成明度阶梯（关键字最深、注释最浅），按 --code-bg 实测最差 4.64:1。 */
+html[data-palette="xuanzhi"] {
+  --bg: #f7f5f1;
+  --bg-soft: #efece5;
+  --bg-elev: #fdfcfa;
+  --fg: #16150f;
+  --fg-soft: #45423b;
+  --muted: #6d685f;          /* 5.1:1 on --bg */
+  --muted-soft: #797469;
+  --rule: rgba(22, 21, 15, .10);
+  --rule-strong: rgba(22, 21, 15, .24);
+  --accent: #5b564d;
+  --accent-ink: #514c44;
+  --accent-soft: rgba(91, 86, 77, .10);
+  --accent-line: rgba(91, 86, 77, .34);
+  /* 金线在这里是「银线」：浅灰 → 石墨 → 亮银，印章、短横、进度条都吃这一支。 */
+  --gold: linear-gradient(120deg, #a8a29a 0%, #4c483f 42%, #ded9d0 100%);
+  /* 语义色不跟着灰：删除与报错若也变灰，就和普通按钮分不出来了。只留一档低饱和砖红。 */
+  --danger: #9c4636;
+  --danger-soft: rgba(156, 70, 54, .10);
+  --code-bg: #f2f0ea;
+  --code-fg: #332f28;
+  /* 明度阶梯（不是色相分色）：注释最浅 4.64:1，逐级加深到关键字 13.1:1。 */
+  --hl-comment: #706b63;
+  --hl-keyword: #312b22;
+  --hl-string: #5e564c;
+  --hl-number: #4e4538;
+  --hl-title: #453d33;
+  --hl-variable: #554d41;
+  --hl-meta: #6a655d;
+  --hl-deletion: #615440;
+}
+html[data-theme="dark"][data-palette="xuanzhi"] {
+  --bg: #121110;
+  --bg-soft: #1b1a18;
+  --bg-elev: #171614;
+  --fg: #f2f0ea;
+  --fg-soft: #c8c5bc;
+  --muted: #97938a;
+  --muted-soft: #7e7a72;
+  --rule: rgba(242, 240, 234, .12);
+  --rule-strong: rgba(242, 240, 234, .26);
+  --accent: #c9c4b8;
+  --accent-ink: #d8d3c7;
+  --accent-soft: rgba(201, 196, 184, .13);
+  --accent-line: rgba(201, 196, 184, .36);
+  --gold: linear-gradient(120deg, #efeae0 0%, #b6b0a4 45%, #f7f3ea 100%);
+  --danger: #d99080;
+  --danger-soft: rgba(217, 144, 128, .12);
+  --warn: #d9b78c;
+  --code-bg: #171614;
+  --code-fg: #ded9cd;
+  --hl-comment: #aeaaa3;
+  --hl-keyword: #f9f8f5;
+  --hl-string: #d2cec7;
+  --hl-number: #ebe7e2;
+  --hl-title: #f4f1ed;
+  --hl-variable: #e0dcd7;
+  --hl-meta: #a9a59e;
+  --hl-deletion: #e2d9cc;
+}
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme="light"]):not([data-theme="dark"])[data-palette="xuanzhi"] {
+    --bg: #121110;
+    --bg-soft: #1b1a18;
+    --bg-elev: #171614;
+    --fg: #f2f0ea;
+    --fg-soft: #c8c5bc;
+    --muted: #97938a;
+    --muted-soft: #7e7a72;
+    --rule: rgba(242, 240, 234, .12);
+    --rule-strong: rgba(242, 240, 234, .26);
+    --accent: #c9c4b8;
+    --accent-ink: #d8d3c7;
+    --accent-soft: rgba(201, 196, 184, .13);
+    --accent-line: rgba(201, 196, 184, .36);
+    --gold: linear-gradient(120deg, #efeae0 0%, #b6b0a4 45%, #f7f3ea 100%);
+    --danger: #d99080;
+    --danger-soft: rgba(217, 144, 128, .12);
+    --warn: #d9b78c;
+    --code-bg: #171614;
+    --code-fg: #ded9cd;
+    --hl-comment: #aeaaa3;
+    --hl-keyword: #f9f8f5;
+    --hl-string: #d2cec7;
+    --hl-number: #ebe7e2;
+    --hl-title: #f4f1ed;
+    --hl-variable: #e0dcd7;
+    --hl-meta: #a9a59e;
+    --hl-deletion: #e2d9cc;
+  }
+}
+
 /* 更高对比的“强调色深一档”只适用于默认素笺：预设配色各自经过独立的对比度实测，
    统一换成棕色会破坏配色身份。这里放在所有 data-palette 块之后，避免被后者的同权重选择器覆盖。 */
 @media (prefers-contrast: more) {

@@ -73,10 +73,13 @@ export const HERO_MAX = 8;
 
 // 访客可选配色的唯一真相源：后台校验、配色面板里的色样、THEME_BOOT 白名单都取自这里。paper/ink 只是两个
 // 色样点；chroma 是「自定义」滑块从预设接上来的浓度（与 palette.js 的 LEVELS 同步，test-palette 会比对）。
-// 整套令牌在 style.css 末尾，改配色值要两处同步（test-palette.mjs 对不上会报错）。
+// 整套令牌在 base.css 末尾，改配色值要两处同步（test-palette.mjs 对不上会报错）。
 // hue 是这套配色的 OKLCH 色相（不是 HSL —— 两者角度不等价，黛蓝在 HSL 是 213、OKLCH 是 252）。
 // 它的唯一用途：从预设切到「自定义」时，滑块停在这个角度，观感才接得上。key '' 即「素笺」。
+// 宣纸（黑白灰）排在第一位：它是现行站点的默认配色，配色面板按这份顺序渲染。
+// 它的 ink 是中灰 —— 灰没有可读的色相，hue 取 80 只是为了从它滑进「自定义」时不跳色（与素笺同角度）。
 export const PALETTES = [
+  { key: 'xuanzhi', name: '宣纸', paper: '#f7f5f1', ink: '#5b564d', hue: 80,  level: 'mid',  chroma: 1 },
   { key: '',       name: '素笺', paper: '#faf8f4', ink: '#926922', hue: 80,  level: 'mid',  chroma: 1 },
   { key: 'qingci', name: '青瓷', paper: '#eef4f1', ink: '#26604f', hue: 168, level: 'mid',  chroma: 1 },
   { key: 'dailan', name: '黛蓝', paper: '#eff3f8', ink: '#2f5a86', hue: 252, level: 'mid',  chroma: 1 },
