@@ -2020,7 +2020,8 @@ footer.site .foot-police:hover { color: var(--accent); }
 /* 警徽与号码同一条链接：整块（图标 + 字）都可点。图标用 inline-flex 与文字居中对齐，
    不能只给 vertical-align —— 11.5px 的小字配 13px 的盾，基线对齐会把它顶高一截。 */
 footer.site .foot-police { display: inline-flex; align-items: center; gap: .32rem; }
-footer.site .foot-police-ico { width: 13px; height: 13px; flex: none; }
+/* 官方徽标是彩色位图：只定高，宽度按原比例（62×67）走，别拉变形。 */
+footer.site .foot-police-ico { height: 14px; width: auto; flex: none; }
 @media (max-width: 620px) {
   /* 手机端一行放不下两段：让 .foot-legal 撑满、端点分开（© 靠左、备案号靠右），固定一行不折行。 */
   footer.site .foot-legal {

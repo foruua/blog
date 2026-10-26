@@ -8,7 +8,7 @@ import { emojiPanelTemplate } from '../comments/view.js';
 import { themeRequest } from '../themes/request.js';
 
 // 带内容指纹的静态资源；server.js 也 import 这份生成「可长期缓存」正则——两处必须同一份，否则新增资源必漏。
-export const VERSIONED_ASSETS = ['base.css', 'style.css', 'app.js', 'nav.js', 'admin.css', 'admin.js', 'admin-editor.js', 'media-picker.js', 'editor.js', 'favicon.svg', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png', 'og-default.jpg', 'request.js', 'ui.js', 'search.js', 'palette.js'];
+export const VERSIONED_ASSETS = ['base.css', 'style.css', 'app.js', 'nav.js', 'admin.css', 'admin.js', 'admin-editor.js', 'media-picker.js', 'editor.js', 'favicon.svg', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png', 'og-default.jpg', 'police-badge.png', 'request.js', 'ui.js', 'search.js', 'palette.js'];
 
 // —— 主题钩子 ——
 // server.js 在启动时注入「当前请求该用哪套主题」和「如何渲染主题模板」；测试或未启用主题时保持内置渲染。
@@ -442,9 +442,10 @@ ${jsonLdHtml(ctx.structuredData)}
 <script>${THEME_BOOT}</script>`;
 }
 
-// 警徽：盾形 + 五角星。星不是画在盾上面，而是从盾里抠掉（整条 path 走 evenodd）——
-// 这样只有一种颜色，纸色、暗色都成立，不必知道底色。13px 下仍读得出「盾里有个星」。
-const POLICE_ICO = '<svg class="foot-police-ico" viewBox="0 0 20 20" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M10 2.3 15.3 4.35V9.5c0 3.5-2.25 6.45-5.3 8.2-3.05-1.75-5.3-4.7-5.3-8.2V4.35zM10 5.8 10.69 7.95 12.95 7.94 11.12 9.26 11.82 11.41 10 10.08 8.18 11.41 8.88 9.26 7.05 7.94 9.31 7.95z"/></svg>';
+// 警徽用公安备案那枚官方徽标（public/police-badge.png，62×67 带透明通道）。
+// 不内联 base64：11KB 塞进每一页的 HTML 不划算，而且每次响应都要重传、也进不了缓存；
+// 走静态资源 + 内容指纹即可长缓存，换图自动换 URL。
+const policeBadgeImg = () => `<img class="foot-police-ico" src="/police-badge.png?v=${assetVer('police-badge.png')}" alt="" width="13" height="14" decoding="async">`;
 
 /**
  * 页脚的公安联网备案号。号码形如「冀公网安备13060202001368号」，其中末尾那串数字同时是
@@ -455,7 +456,7 @@ function policeHtml() {
   if (!SITE.police) return '';
   const code = /\d{6,}/.exec(SITE.police)?.[0] ?? '';
   const href = code ? `https://beian.mps.gov.cn/#/query/webSearch?code=${code}` : 'https://beian.mps.gov.cn/';
-  return `<a class="foot-police" href="${href}" rel="nofollow noopener">${POLICE_ICO}${esc(SITE.police)}</a>`;
+  return `<a class="foot-police" href="${href}" rel="nofollow noopener">${policeBadgeImg()}${esc(SITE.police)}</a>`;
 }
 
 /** 页面公共外壳：页头、抽屉、页脚、灯箱、表情模板与脚本。主题布局可按需拼装。 */

@@ -94,9 +94,9 @@ check('S1b 设置页把「站点与阅读」改成了「阅读与外观」', pag
   check('S2j 公安备案号进了页脚且链到官方查询页',
     Boolean(policeLink) && policeLink[1] === 'https://beian.mps.gov.cn/#/query/webSearch?code=11000000000001',
     policeLink ? policeLink[1] : '没找到 .foot-police');
-  // 警徽是内联 SVG（不是外链图片）：盾形 + 从盾里抠掉的五角星，靠 fill-rule="evenodd" 形成镂空
-  check('S2m 号码前带内联警徽 SVG', /<svg class="foot-police-ico"[\s\S]*?<path[^>]*fill-rule="evenodd"/.test(policeLink?.[2] ?? ''),
-    (policeLink?.[2] ?? '').slice(0, 80));
+  // 警徽是官方那枚彩色徽标（public/police-badge.png），走静态资源 + 内容指纹，不内联 base64
+  check('S2m 号码前带警徽图片且带内容指纹', /<img class="foot-police-ico" src="\/police-badge\.png\?v=[0-9a-f]+"/.test(policeLink?.[2] ?? ''),
+    (policeLink?.[2] ?? '').slice(0, 90));
   check('S2n 号码文字在链接里', (policeLink?.[2] ?? '').includes('京公网安备11000000000001号'));
   check('S2k 有公安备案号时页脚挂上 has-police（窄屏换行用）', /class="foot-legal has-police"/.test(home));
 
