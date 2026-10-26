@@ -2003,12 +2003,11 @@ footer.site .foot-inner {
 }
 footer.site .foot-legal {
   display: flex; flex-direction: column; align-items: center;
-  /* 两行之间留 .45rem（约 7px）：12px 的等宽小字行高 19.2px，行距再压就给不出「两行」的呼吸感 */
+  /* 两行之间留 .45rem（约 7px）：11.5px 的等宽小字行高 18.4px，行距再压就给不出「两行」的呼吸感 */
   gap: .45rem 1.1rem;
   min-width: 0;
   font-family: var(--mono);
-  /* .72rem（11.5px）→ .75rem：与 --label-size-sm 的抬升同步，法务行里也是中文 */
-  font-size: .75rem; line-height: 1.6;
+  font-size: .72rem; line-height: 1.6;
   letter-spacing: .09em;
   color: var(--muted-soft);
 }
