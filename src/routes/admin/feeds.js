@@ -43,7 +43,7 @@ export function registerFeedRoutes(app, { feeds, links = null, refresher, repo, 
   function normalizeUrl(raw) {
     let s = String(raw ?? '').trim().replace(/\s+/g, '');
     if (!s) return { url: '' };
-    if (s.length > FEED_URL_MAX) return { url: '' };
+    if (s.length > FEED_URL_MAX) return { url: '', error: `地址太长（最多 ${FEED_URL_MAX} 个字符）` };
     if (!/^[a-z][a-z0-9+.-]*:/i.test(s)) s = `https://${s}`;
     // 先做一次真正的 URL 解析：像 `https://` 这种“有协议但没主机”的地址不能落库，
     // 否则站主会得到一条永远失败、删起来才麻烦的订阅源。
@@ -92,7 +92,7 @@ export function registerFeedRoutes(app, { feeds, links = null, refresher, repo, 
 
   app.post('/admin/feeds/subscribe-links', (c) => {
     if (!subscriber) return back(c, '✗ 友链模块未启用');
-    void subscriber.start();
+    void subscriber.start().catch((error) => logError(error, c, 'feeds.subscribe-links-failed'));
 
     if (c.req.header('x-requested-with') === 'fetch') return c.body(null, 204);
     return back(c, '✓ 已开始订阅未加入友圈的友链；进度在弹窗里更新');

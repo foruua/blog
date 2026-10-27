@@ -17,7 +17,6 @@ const STATE = {
   off: ['a-pill a-pill-draft', '已停用'],
 };
 
-const stateOf = feedState;
 
 const hostOf = (f) => {
   try { return new URL(f.url).host; } catch { return f.url; }
@@ -26,7 +25,7 @@ const hostOf = (f) => {
 
 
 function feedRow(f, csrf, { page, state = '' }) {
-  const [pill, label] = STATE[stateOf(f)];
+  const [pill, label] = STATE[feedState(f)];
   const name = f.title || hostOf(f);
   const home = safeHttpUrl(f.site_url) ?? safeHttpUrl(f.url) ?? '';
   // 摆的是真正在抓的那个地址：只填站点主页的源，订阅地址是自动发现的（resolved_url），跟着配置值走就对不上账。
@@ -48,7 +47,7 @@ function feedRow(f, csrf, { page, state = '' }) {
 
   const tip = ['点这里编辑这个订阅源', address, exactBits].filter(Boolean).join(' · ');
 
-  return `    <li class="a-feed" data-state="${stateOf(f)}"${f.last_error ? ' data-error' : ''}>
+  return `    <li class="a-feed" data-state="${feedState(f)}"${f.last_error ? ' data-error' : ''}>
       <span class="a-feed-mark" aria-hidden="true">${esc(markOf(name))}</span>
       <p class="a-feed-top">
         ${home ? `<a class="a-feed-name" href="${esc(home)}" target="_blank" rel="noopener nofollow">${esc(name)}</a>` : `<span class="a-feed-name">${esc(name)}</span>`}
@@ -147,7 +146,6 @@ ${state ? `          <input type="hidden" name="state" value="${esc(state)}">\n`
 const IMPORT_ORDER = { failed: 0, added: 1, skipped: 2 };
 const IMPORT_MARK = { failed: '✗', added: '✓', skipped: '–' };
 const IMPORT_HINT = '自动寻找 RSS / Atom；已订阅（含停用）、隐藏或已下线的站会跳过，找不到订阅源会列出原因。';
-const IMPORT_CLOSE_ICON = ICON_CLOSE;
 const IMPORT_FRAGMENT_URL = '/admin/feeds/subscribe-report';
 
 // 入口按钮何时不能点：一轮还在跑 或 没有待订阅的站。admin.js 拿片段后照它补禁用态与文案（文案由服务端给，避免两处走样）。
@@ -226,7 +224,7 @@ export function importDialog({ importReport = null, pendingLinks = 0 }) {
   return `    <dialog class="a-modal a-import-dialog" id="a-import-dialog" data-dismiss-outside aria-labelledby="a-import-dialog-title">
       <header class="a-media-dialog-head">
         <h2 id="a-import-dialog-title">订阅未加入友圈的友链</h2>
-        <button class="a-media-icon" type="button" data-import-close aria-label="关闭">${IMPORT_CLOSE_ICON}</button>
+        <button class="a-media-icon" type="button" data-import-close aria-label="关闭">${ICON_CLOSE}</button>
       </header>
       <div class="a-import-dialog-body">
 ${importBlock({ importReport, pendingLinks })}      </div>
