@@ -2865,9 +2865,9 @@ body[data-page="search"] .list li > .e-main:focus-visible h2 {
 
 /* 日期、数量、状态用可读小字（--info-size 那一档，见文件头字号刻度）。 */
 
-/* 栏目正文首项共用顶部内距，避免各自行距叠加出不同起始位置。列表/笔记**不在此列**： 它们的首行也要用 --row-pad，节点圆点才与标题首行对齐。 */
-.mast + .fc-stream .fcg-sec,
-.mast + .chron {
+/* 栏目正文首项共用顶部内距，避免各自行距叠加出不同起始位置。列表/笔记**不在此列**： 它们的首行也要用 --row-pad，节点圆点才与标题首行对齐。
+   归档年份也不在此列：每个 .chron 距上分割线固定 1.5rem，首年若单独收成 --section-inset 会比后续年份近 8px。 */
+.mast + .fc-stream .fcg-sec {
   padding-top: var(--section-inset);
 }
 

@@ -652,6 +652,12 @@ const page = await (await fetch(`${BASE}/p/${SLUG}/`)).text();
       && !/\.entries a:hover::before/.test(css),
       '账本悬停色与行分隔线都应为实色');
 
+    // 归档每个年份都靠 .chron 的 1.5rem 上内距拉开与分割线的距离；首年不能单独换成 --section-inset。
+    check('T50h 归档首年与后续年份距上分割线一致',
+      /\.chron \{[^}]*padding-top:\s*1\.5rem/.test(css)
+      && !/\.mast \+ \.chron[^{]*\{[^}]*padding-top/.test(css),
+      '首年不应单独覆盖 .chron 的 padding-top');
+
     check('T50b 浮窗打开时锁住背后的页面（否则滚到浮窗边界会连带滚走背景）；笔记流的评论抽屉反过来，不许锁',
       /html:has\(dialog\[open\]\)/.test(css) && /html\.modal-open \{ overflow: hidden/.test(css)
       // 抽屉是页面里展开的一块，锁滚动就没法读 —— 它靠 0fr + visibility 收起，不用 dialog，也不该进 modal-open 那套锁。
