@@ -33,8 +33,8 @@ async function writeIfAbsentAsync(filePath, data, createdFiles) {
     if (e.code !== 'EEXIST') throw e;
     let same = false;
     try {
-      const stat = fs.statSync(filePath);
-      same = stat.isFile() && stat.size === data.length && fs.readFileSync(filePath).equals(data);
+      const stat = await fs.promises.stat(filePath);
+      same = stat.isFile() && stat.size === data.length && (await fs.promises.readFile(filePath)).equals(data);
     } catch { same = false; }
     if (!same) throw e;
   }

@@ -5,6 +5,7 @@ import { feedState } from '../../feeds/state.js';
 import { adminLayout } from '../layout.js';
 import { progressMarkup } from '../progress.js';
 import { ICON_CLOSE } from '../../render/icons.js';
+import { FEED_URL_MAX, FEED_TITLE_MAX } from '../../config.js';
 
 /** 后台「友圈」页：登记地址、看每个源的抓取状态。失败原因直接摊在行里，编辑字段收进 popover（声明式、零 JS）。「编辑」用 popover 而非 <details>：四个动作要并排；<summary> 要么嵌站名链接（Chrome 无障碍报「Interactive element inside of a <summary>」）、要么与表单绑死。 */
 
@@ -79,12 +80,12 @@ ${back}          <header class="a-media-dialog-head"><h2 id="${editId}-title">�
           <div class="a-feed-editor-body">
           <div class="a-field">
             <label for="f-url-${f.id}">地址</label>
-            <input class="a-input" id="f-url-${f.id}" name="url" value="${esc(f.url)}" maxlength="500" spellcheck="false" autofocus>
+            <input class="a-input" id="f-url-${f.id}" name="url" value="${esc(f.url)}" maxlength="${FEED_URL_MAX}" spellcheck="false" autofocus>
           </div>
           <div class="a-grid2">
             <div class="a-field">
               <label for="f-title-${f.id}">站名</label>
-              <input class="a-input" id="f-title-${f.id}" name="title" value="${esc(f.title)}" maxlength="60">
+              <input class="a-input" id="f-title-${f.id}" name="title" value="${esc(f.title)}" maxlength="${FEED_TITLE_MAX}">
             </div>
             <div class="a-field">
               <label for="f-order-${f.id}">排序（小的在前）</label>
@@ -263,11 +264,11 @@ export function feedsPage({
         ${csrfField(csrf)}
         <div class="a-field">
           <label for="f-url">地址</label>
-          <input class="a-input" id="f-url" name="url" required maxlength="500" spellcheck="false" value="${esc(addUrl)}">
+          <input class="a-input" id="f-url" name="url" required maxlength="${FEED_URL_MAX}" spellcheck="false" value="${esc(addUrl)}">
         </div>
         <div class="a-field">
           <label for="f-title">站名</label>
-          <input class="a-input" id="f-title" name="title" maxlength="60" value="${esc(addTitle)}">
+          <input class="a-input" id="f-title" name="title" maxlength="${FEED_TITLE_MAX}" value="${esc(addTitle)}">
         </div>
         <div class="a-field a-feed-add-go">
           <button type="submit" class="a-btn">添加并抓取</button>

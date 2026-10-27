@@ -117,12 +117,16 @@ export function createLinkChecker({
       const tally = { total: sites.length, ok: 0, dead: 0, unknown: 0 };
       progress = { total: sites.length, completed: 0, running: true };
       const results = await Promise.allSettled(sites.map(async (site) => {
-        // 直接复用本轮已经读到的站点快照，不再为每个站回表取一次。
-        const r = await enqueue(site);
-        if (r.state === 'ok') tally.ok++;
-        else if (r.state === 'dead') tally.dead++;
-        else if (r.state === 'unknown') tally.unknown++;
-        progress.completed++;
+        try {
+          // 直接复用本轮已经读到的站点快照，不再为每个站回表取一次。
+          const r = await enqueue(site);
+          if (r.state === 'ok') tally.ok++;
+          else if (r.state === 'dead') tally.dead++;
+          else if (r.state === 'unknown') tally.unknown++;
+        } finally {
+          // 检查/落库抛错也要算完成，否则后台进度会永远差一格。
+          progress.completed++;
+        }
       }));
       const rejected = results.find((result) => result.status === 'rejected');
       if (rejected) throw rejected.reason;

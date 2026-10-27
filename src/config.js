@@ -95,6 +95,11 @@ export const PAGE_SIZE = 20;
 // 后台列表每页条数（文章/笔记/页面/评论/媒体共用）；以前单独放 src/admin/pagination.js，只为一行常量。
 export const ADMIN_PAGE_SIZE = 60;
 
+// 后台表单与服务端截断共用的字段上限：表单 maxlength 与落库 slice 必须同源，否则改一处就会出现「填得进存不下」。
+export const POST_DESCRIPTION_MAX = 300;
+export const FEED_URL_MAX = 500;
+export const FEED_TITLE_MAX = 60;
+
 export const COMMENTS_PER_PAGE = 20;
 
 export const FEEDS_PER_PAGE = 20;

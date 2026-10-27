@@ -17,7 +17,6 @@ import { notePanel } from '../comments/panel.js';
 import { threadOf } from '../../db/comments.js';
 import { emailMd5 } from '../avatar/md5.js';
 import { decryptEmail } from '../auth.js';
-import { mediaRevision } from '../media/revision.js';
 import { createAntispam } from '../comments/antispam.js';
 import { clientIp } from '../util/http.js';
 
@@ -49,12 +48,6 @@ const isoOf = (value) => {
 };
 
 
-
-// 图片信息的进程级缓存：路径自带内容哈希，同一路径的尺寸/变体在两次 media_revision 之间恒定。
-// 以前是每个 <img> 一次 mediaByPath 点查（/notes 一页上百张图就是上百次，全靠请求级 memo 兜着不退到更早的层）。
-// 现在按代际整块失效：revision 一变（上传/删除/重建变体）就清空，请求开始时读一次 revision 即可。
-// 缓存放路由实例闭包里（而不是模块级）：同一进程起多个实例时各存各的，不会串到别人的 repo 上。
-const MEDIA_CACHE_MAX = 4000;
 
 // 刊头「最近 N 天」窗口：友圈与友链共用一个，各写一个早晚不一致。
 const MAST_RECENT_DAYS = 30;
@@ -129,29 +122,17 @@ export function publicRoutes(repo, { comments, crypt, media = null, feeds = null
     return nodes;
   };
 
-  // 图片尺寸/候选来自 media 表（注入的 imageInfo）；未注入退回原图。缓存见文件头的 mediaCache。
-  const mediaCache = new Map();
-  let mediaCacheRev = -1;
-  const mediaOf = (c, src) => {
-    if (!media || !src) return null;
-    let rev = c.get('pubMediaRev');
-    if (rev === undefined) { rev = mediaRevision(repo); c.set('pubMediaRev', rev); }
-    if (rev !== mediaCacheRev) { mediaCache.clear(); mediaCacheRev = rev; }
-    if (!mediaCache.has(src)) {
-      // 满了按插入序丢最老的一条（FIFO，不是 LRU）：路径自带内容哈希、命中率高，够用，不值得再维护访问序。
-      if (mediaCache.size >= MEDIA_CACHE_MAX) mediaCache.delete(mediaCache.keys().next().value);
-      mediaCache.set(src, media(src));
-    }
-    return mediaCache.get(src);
-  };
+  // 图片尺寸/候选来自 media 表（注入的 imageInfo）；未注入退回原图。
+  // 缓存已经收在 createImageInfo 里：按 media_revision 整块失效，这里不再叠一层请求级 Map。
+  const mediaOf = (src) => (media && src ? media(src) : null);
   // 分享图：文章取正文首图（最大档变体），首页取封面首图；都没有就用站点默认图（见 layout.defaultOgImage）。
   const imgAttr = (tag, name) => decodeHtmlAttribute(htmlAttr(tag, name));
-  function ogImageOf(c, post) {
+  function ogImageOf(post) {
     const tag = /<img\b[^>]*>/i.exec(post?.body_html ?? '')?.[0];
     if (!tag) return null;
     const src = imgAttr(tag, 'src');
     if (!src || /^data:/i.test(src)) return null;
-    const info = mediaOf(c, src);
+    const info = mediaOf(src);
     const url = info?.full ?? info?.original ?? src;
     if (!url || /^data:/i.test(url)) return null;
     // 变体等比缩放，宽度就写在文件名里（…-w1280.webp），高度按原图比例折算；回原图时直接用库里的尺寸。
@@ -216,7 +197,7 @@ export function publicRoutes(repo, { comments, crypt, media = null, feeds = null
     return heroBlock({
       imgs: heroImgsOf(c),
       overlay: heroOverlayOf(c),
-      mediaOf: (src) => mediaOf(c, src),
+      mediaOf,
       recentHtml: recent(c),
       toolsHtml: heroToolsHtml(),
     });
@@ -304,7 +285,7 @@ ${listHtml}
   // 首页封面是 LCP：在 <head> 里 preload 第一张的候选集，让浏览器解析到 body 之前就开抢。
   // imagesrcset/imagesizes 必须与正文那张 <img> 完全一致，浏览器才会挑同一档，不会白下两份。
   function heroPreload(c) {
-    return heroPreloadTag({ imgs: heroImgsOf(c), mediaOf: (src) => mediaOf(c, src) });
+    return heroPreloadTag({ imgs: heroImgsOf(c), mediaOf });
   }
 
   app.get('/', (c) => {
@@ -383,7 +364,7 @@ ${listHtml}
       const { text, images: rawImages } = splitImages(p.body_html);
       // 画廊以静态预览兜底、按像素密度选候选；灯箱展示图取最大档变体。
       const images = rawImages.map((im) => {
-        const info = mediaOf(c, im.src);
+        const info = mediaOf(im.src);
         return { ...im, thumb: info?.thumbnail ?? null, previewSrcset: info?.srcset ?? '',
           full: info?.full ?? im.src };
       });
@@ -504,13 +485,13 @@ ${stream}
     const dayCn = formatDayCn(post.published_at);
 
 
-    const bodyHtml = withLightbox(post.body_html, `${kindPrefix(post.kind)}-${post.slug}`, (src) => mediaOf(c, src));
+    const bodyHtml = withLightbox(post.body_html, `${kindPrefix(post.kind)}-${post.slug}`, mediaOf);
     const main = articleMain({ post, words, mins, dayCn, toc, pager, commentBlock, bodyHtml });
 
     const pathname = postUrl(post);
     const publishedIso = isoOf(post.published_at);
     const modifiedIso = isoOf(post.updated_at);
-    const og = ogImageOf(c, post) ?? defaultOgImage();
+    const og = ogImageOf(post) ?? defaultOgImage();
     const jsonLd = articleJsonLd({ post, pathname, og, commentCount: countOfPost(c, post.id), publishedIso, modifiedIso });
     return c.html(layout({
       title: post.title,
@@ -739,7 +720,7 @@ ${linksBlock({ links: rows, nextHref: page < pages ? `/links/?page=${page + 1}` 
         page_html: pageMainHtml,
       },
       desc: page.description || cleanExcerpt(page.body_html ?? '', 100),
-      ogImage: ogImageOf(c, page) ?? defaultOgImage(),
+      ogImage: ogImageOf(page) ?? defaultOgImage(),
       lang: page.lang || '',
       main: pageMainHtml,
     }));

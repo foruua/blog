@@ -1,6 +1,6 @@
 import { esc, csrfField } from '../../util/text.js';
 import { IDENTITY_MAX } from '../../site/identity.js';
-import { NAV_GROUP_LABEL, NAV_GROUPS, BUILTIN_KEYS } from '../../site/nav.js';
+import { NAV_GROUP_LABEL, NAV_GROUPS, BUILTIN_KEYS, NAV_LABEL_MAX, NAV_MORE_LABEL_MAX, LINK_HREF_MAX } from '../../site/nav.js';
 import { COMMENT_RATE_RANGE } from '../../settings.js';
 
 // 设置页新增的几块表单：站点身份 / 导航菜单 / 评论 / 账号安全。
@@ -61,7 +61,7 @@ function navRow(item, i, total) {
           <input type="hidden" name="href[${i}]" value="${esc(item.href ?? '')}">
           <span class="a-navrow-idx" aria-hidden="true">${idx}</span>
           <input class="a-input a-navrow-label" type="text" name="label[${i}]" value="${esc(item.label)}"
-                 maxlength="20" aria-label="第 ${i + 1} 项的名称" required>
+                 maxlength="${NAV_LABEL_MAX}" aria-label="第 ${i + 1} 项的名称" required>
           <select class="a-select a-navrow-group" name="group[${i}]" aria-label="第 ${i + 1} 项的位置">${groupOptions}</select>
           <label class="a-check a-navrow-show"><input type="checkbox" name="show[${i}]" value="1"${item.show ? ' checked' : ''}><span>显示</span></label>
           <span class="a-navrow-move">
@@ -91,11 +91,11 @@ ${rows || '        <p class="a-empty">还没有导航项。</p>'}
         <div class="a-navadd-row">
           <div class="a-mini">
             <label for="navNewLabel">名称</label>
-            <input class="a-input" id="navNewLabel" type="text" name="newLabel" maxlength="20" autocomplete="off">
+            <input class="a-input" id="navNewLabel" type="text" name="newLabel" maxlength="${NAV_LABEL_MAX}" autocomplete="off">
           </div>
           <div class="a-mini">
             <label for="navNewHref">地址</label>
-            <input class="a-input" id="navNewHref" type="text" name="newHref" maxlength="300" autocomplete="off" spellcheck="false">
+            <input class="a-input" id="navNewHref" type="text" name="newHref" maxlength="${LINK_HREF_MAX}" autocomplete="off" spellcheck="false">
           </div>
           <div class="a-mini">
             <label for="navNewGroup">位置</label>
@@ -108,7 +108,7 @@ ${rows || '        <p class="a-empty">还没有导航项。</p>'}
 
       <div class="a-field">
         <label for="navMore">「页面」下拉的名称</label>
-        <input class="a-input" id="navMore" name="moreLabel" type="text" maxlength="8" value="${esc(nav.moreLabel)}" autocomplete="off">
+        <input class="a-input" id="navMore" name="moreLabel" type="text" maxlength="${NAV_MORE_LABEL_MAX}" value="${esc(nav.moreLabel)}" autocomplete="off">
       </div>
 ${saveRow()}
     </form>

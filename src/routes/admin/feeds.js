@@ -4,6 +4,7 @@ import { cleanText } from '../../feeds/parse.js';
 import { TIMEOUT_MS } from '../../feeds/fetch.js';
 import { feedsPage, importBlock, feedsProgress } from '../../admin/views/feeds.js';
 import { settings, KEYS, parseFeedsPerPage } from '../../settings.js';
+import { FEED_URL_MAX, FEED_TITLE_MAX } from '../../config.js';
 import { feedState, feedStateCounts, FEED_STATES } from '../../feeds/state.js';
 import { logError } from '../../util/errors.js';
 
@@ -42,7 +43,7 @@ export function registerFeedRoutes(app, { feeds, links = null, refresher, repo, 
   function normalizeUrl(raw) {
     let s = String(raw ?? '').trim().replace(/\s+/g, '');
     if (!s) return { url: '' };
-    if (s.length > 500) return { url: '' };
+    if (s.length > FEED_URL_MAX) return { url: '' };
     if (!/^[a-z][a-z0-9+.-]*:/i.test(s)) s = `https://${s}`;
     // 先做一次真正的 URL 解析：像 `https://` 这种“有协议但没主机”的地址不能落库，
     // 否则站主会得到一条永远失败、删起来才麻烦的订阅源。
@@ -75,8 +76,8 @@ export function registerFeedRoutes(app, { feeds, links = null, refresher, repo, 
     return c.html(feedsPage(ctx(c, {
       rows,
       importReport: subscriber?.report(), pendingLinks: subscriber?.pendingCount() ?? null,
-      addUrl: c.req.query('url') ? String(c.req.query('url')).slice(0, 500) : '',
-      addTitle: c.req.query('title') ? String(c.req.query('title')).slice(0, 60) : '',
+      addUrl: c.req.query('url') ? String(c.req.query('url')).slice(0, FEED_URL_MAX) : '',
+      addTitle: c.req.query('title') ? String(c.req.query('title')).slice(0, FEED_TITLE_MAX) : '',
 
       totals: { sources: all.length },
       // 计数按全量算（不是本页）：工具行那句「3 个抓取失败」写的是总数。
@@ -109,7 +110,7 @@ export function registerFeedRoutes(app, { feeds, links = null, refresher, repo, 
 
   externalWrite(app, '/admin/feeds/add', async (c) => {
     const b = await bodyOf(c);
-    const entered = { url: val(b, 'url').slice(0, 500), title: val(b, 'title').slice(0, 60) };
+    const entered = { url: val(b, 'url').slice(0, FEED_URL_MAX), title: val(b, 'title').slice(0, FEED_TITLE_MAX) };
     const normalized = normalizeUrl(val(b, 'url'));
     if (!normalized.url) return back(c, normalized.error ? `✗ ${normalized.error}` : '✗ 请填一个地址', entered);
     const url = normalized.url;
@@ -120,7 +121,7 @@ export function registerFeedRoutes(app, { feeds, links = null, refresher, repo, 
     const existing = subscribedSite(feeds, [url]);
     if (existing) return back(c, `⚠ 这个博客已订阅${existing.enabled ? '' : '（已停用）'}：${existing.title || existing.url}；一个站只能有一个源`, entered);
 
-    const title = cleanText(val(b, 'title'), 60);
+    const title = cleanText(val(b, 'title'), FEED_TITLE_MAX);
     let row;
     try { row = await mutate(() => {
       if (feeds.count() >= MAX_FEEDS) throw new Error(`最多 ${MAX_FEEDS} 个订阅源`);
@@ -159,7 +160,7 @@ export function registerFeedRoutes(app, { feeds, links = null, refresher, repo, 
     const order = Number.parseInt(val(b, 'sort_order'), 10);
     feeds.update(feed.id, {
       url,
-      title: cleanText(val(b, 'title'), 60),
+      title: cleanText(val(b, 'title'), FEED_TITLE_MAX),
       sortOrder: Number.isFinite(order) ? Math.min(9999, Math.max(0, order)) : feed.sort_order,
     });
 

@@ -2,6 +2,7 @@ import { csrfField, esc, toLocalInput, contentUrl, nowIso } from '../../util/tex
 import { adminLayout, shortTime } from '../layout.js';
 import { pickerDialog } from './picker.js';
 import { ICON_CLOSE } from '../../render/icons.js';
+import { POST_DESCRIPTION_MAX } from '../../config.js';
 
 
 
@@ -166,7 +167,7 @@ export function editorPage({ conflict = false, post, csrf, aliases = [], revisio
             </div>
             <div class="a-field a-field-wide">
               <label for="f-desc">摘要</label>
-              <input class="a-input" id="f-desc" name="description" maxlength="300" value="${esc(post.description ?? '')}">
+              <input class="a-input" id="f-desc" name="description" maxlength="${POST_DESCRIPTION_MAX}" value="${esc(post.description ?? '')}">
             </div>
           </div>
         </details>`;

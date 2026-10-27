@@ -1,5 +1,5 @@
 import { logError } from '../util/errors.js';
-import { ADMIN_PAGE_SIZE, CONTENT_DIR } from '../config.js';
+import { ADMIN_PAGE_SIZE, CONTENT_DIR, POST_DESCRIPTION_MAX } from '../config.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { Hono } from 'hono';
@@ -84,7 +84,7 @@ export function adminRoutes({ repo, comments, adminRepo, crypt, auth, renderer, 
     const title = val(b, 'title').trim() || (autosave ? '(未命名草稿)' : '');
     if (!title) return { ok: false, error: '标题不能为空' };
     // 摘要只用于 description / 分享卡片；留空即回退正文首段，不写进 frontmatter。
-    const description = val(b, 'description').trim().slice(0, 300);
+    const description = val(b, 'description').trim().slice(0, POST_DESCRIPTION_MAX);
 
     let slug = val(b, 'slug').trim();
     if (!slug) slug = slugify(title);

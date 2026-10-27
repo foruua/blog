@@ -1,6 +1,6 @@
 import { csrfField, esc } from '../../util/text.js';
 import { adminLayout } from '../layout.js';
-import { PALETTES, LAYOUTS, HERO_MAX } from '../../settings.js';
+import { PALETTES, LAYOUTS, HERO_MAX, HERO_OVERLAY_MAX } from '../../settings.js';
 import { TLS_MODES, TLS_LABEL } from '../../mail.js';
 import { pickerDialog } from './picker.js';
 import { identitySection, navSection, commentsSection, accountSection } from './site.js';
@@ -61,7 +61,7 @@ ${hero.images.length ? heroItems + '\n' : ''}${heroAdd}
       </div>
       <div class="a-hero-mode">
         <label for="heroOverlay">蒙版文案</label>
-        <input class="a-input" id="heroOverlay" name="overlay" type="text" maxlength="200"
+        <input class="a-input" id="heroOverlay" name="overlay" type="text" maxlength="${HERO_OVERLAY_MAX}"
                value="${esc(hero.overlay ?? '')}" autocomplete="off">
       </div>
       <input type="hidden" id="heroImages" name="images" value="${esc(heroValue)}" data-thumbs="${heroThumbs}">
