@@ -191,20 +191,34 @@ check('S1b 设置页把「站点与阅读」改成了「阅读与外观」', pag
   check('S4g javascript: 地址被拒', decodeURIComponent(bad.headers.get('location') ?? '').includes('不合法'), bad.headers.get('location'));
 }
 
-// —— 页面文案已下线 ——
+// —— 页面文案已下线；首页信息行改成图标 ——
 // 文案回到渲染层的字面量：后台表单与保存端点一并撤掉，避免「填了没人读」。
+// 统计行也不再有文字链接，那一行只剩邮件 / GitHub / RSS / 配色四枚图标。
 {
   check('S6a 设置页不再有「页面文案」一块', !(await html('/admin/system')).includes('页面文案'));
   const gone = await client('/admin/site/copy', form({ _csrf: csrf, heroPosts: '篇拙作' }));
   check('S6b 旧的文案保存端点已撤', gone.status === 404, gone.status);
 
   const home = await html('/');
-  check('S6c 首页统计行量词回到默认', home.includes('篇文章') && home.includes('篇笔记'));
-  check('S6d 首页「最近更新」标题回到默认', home.includes('>最近更新</h2>'));
+  check('S6c 首页不再有「N 篇文章 / N 篇笔记」', !/\d+\s*篇文章/.test(home) && !/\d+\s*篇笔记/.test(home));
+  check('S6d 首页「最近更新」标题在位', home.includes('>最近更新</h2>'));
+  check('S6e 信息行有 GitHub 与 RSS 图标',
+    home.includes('href="https://github.com/foruua"') && home.includes('aria-label="我的 GitHub"')
+    && home.includes('href="/feed.xml"') && home.includes('class="hero-meta"'));
+
+  // 邮件图标只在配了博主邮箱时出现（空的 mailto: 比少一枚更难解释）
+  await client('/admin/site/identity', form({ _csrf: csrf, email: 'a@uua.me', lang: 'zh-CN' }));
+  const withMail = await html('/');
+  check('S6f 配了邮箱后出现邮件图标',
+    withMail.includes('href="mailto:a@uua.me"') && withMail.includes('aria-label="邮件联系"'));
+  await client('/admin/site/identity', form({ _csrf: csrf, email: '', lang: 'zh-CN' }));
+  const noMail = await html('/');
+  check('S6g 没配邮箱时不渲染邮件图标', !noMail.includes('aria-label="邮件联系"'));
+
   const posts = await html('/posts/');
-  check('S6e 文章列表刊头与简介回到默认', posts.includes('>文章</h1>') && posts.includes('content="长文。偶尔写，写就写透。"'));
+  check('S6h 文章列表刊头与简介回到默认', posts.includes('>文章</h1>') && posts.includes('content="长文。偶尔写，写就写透。"'));
   const notes = await html('/notes/');
-  check('S6f 笔记页刊头与简介回到默认', notes.includes('>笔记</h1>') && notes.includes('content="还没长成文章的碎片、读书记录、临时想法。"'));
+  check('S6i 笔记页刊头与简介回到默认', notes.includes('>笔记</h1>') && notes.includes('content="还没长成文章的碎片、读书记录、临时想法。"'));
 }
 
 // —— 评论三开关 ——

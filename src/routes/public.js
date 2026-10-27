@@ -204,7 +204,6 @@ export function publicRoutes(repo, { comments, crypt, media = null, feeds = null
 
   function hero(c) {
     return heroBlock({
-      stats: statsOf(c),
       imgs: heroImgsOf(c),
       overlay: heroOverlayOf(c),
       mediaOf: (src) => mediaOf(c, src),

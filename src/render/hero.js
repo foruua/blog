@@ -9,16 +9,13 @@ import { IMAGE_PLACEHOLDER, mediaFallback } from '../media/variants.js';
 /**
  * 首页封面整块（含「最近更新」）。
  * @param {object} o
- * @param {Array} o.stats         publishedStats()：按 kind 汇总的 { kind, n, first, last, words }
  * @param {Array} o.imgs          封面图列表（{ path, w, h }）
  * @param {string} o.overlay      蒙版文案（压在封面下缘渐变上，留空不渲染整层）
  * @param {Function} o.mediaOf    路径 → 媒体变体信息（可为 null）
  * @param {string} o.recentHtml   「最近更新」区块（已渲染；空串则不占位）
- * @param {string} o.toolsHtml    hero-meta 行尾的两枚工具（RSS / 配色，已渲染；空串则只剩统计）
+ * @param {string} o.toolsHtml    信息行（邮件 / GitHub / RSS / 配色，已渲染；空串则整行不占位）
  */
-export function heroBlock({ stats = [], imgs = [], overlay = '', mediaOf = () => null, recentHtml = '', toolsHtml = '' }) {
-  const posts = stats.find((p) => p.kind === 'post')?.n ?? 0;
-  const notes = stats.find((p) => p.kind === 'note')?.n ?? 0;
+export function heroBlock({ imgs = [], overlay = '', mediaOf = () => null, recentHtml = '', toolsHtml = '' }) {
 
   const heroAlt = SITE.identity;
   // 蒙版文案：一条全局覆盖层（不分张），无 JS 也能看到。单图时在 <h1> 里，必须是 phrasing content：
@@ -85,14 +82,10 @@ export function heroBlock({ stats = [], imgs = [], overlay = '', mediaOf = () =>
   return `    <section class="hero">
       ${mark}
       ${title}
-      <div class="hero-meta">
-        <a href="/posts/">${posts} 篇文章</a>
-        <span class="sep">·</span>
-        <a href="/notes/">${notes} 篇笔记</a>
-        <span class="sep">·</span>
+${toolsHtml ? `      <div class="hero-meta">
         ${toolsHtml}
       </div>
-${recentHtml}
+` : ''}${recentHtml}
     </section>`;
 }
 

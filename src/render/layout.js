@@ -192,6 +192,13 @@ const PAL_ICO = '<svg class="pal-ico" viewBox="0 0 20 20" fill="none" stroke="cu
 // 订阅入口：点 + 两道弧。viewBox 收到 3.25 3.6 12.05 12.05，把图形撑到上面那枚同样的 12px，
 // 描边跟着收到 0.97（≈1.2px）；两枚图标的图形框、线宽、上下留白由此一致。
 const RSS_ICO = '<svg class="ico-rss" viewBox="3.25 3.6 12.05 12.05" fill="none" stroke="currentColor" stroke-width="0.97" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5.6" cy="13.3" r="1.15" fill="currentColor" stroke="none"/><path d="M4.5 9.3a5.1 5.1 0 0 1 5.1 5.1"/><path d="M4.5 4.8a9.6 9.6 0 0 1 9.6 9.6"/></svg>';
+// 邮件：信封 + 折角线。20 格画布、1.6 描边，与导航图标同一套规格（这一行里显示 15px）。
+// 折角线从内壁起笔、不碰到边框，缩到 15px 才不会和上下两条横线糊成一块色。
+const MAIL_ICO = '<svg class="ico-mail" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.9" y="5.1" width="14.2" height="9.8" rx="2"/><path d="m4.2 6.9 5.8 4.1 5.8-4.1"/></svg>';
+// GitHub：官方 mark，实心。这只猫的轮廓细节（耳、爪、尾）在 15px 只剩一团墨，只有实心版还认得出。
+const GITHUB_ICO = '<svg class="ico-github" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>';
+// 站主的 GitHub 主页：仓库地址已经固定是 github.com/foruua，这里不再多开一条配置项。
+const GITHUB_URL = 'https://github.com/foruua';
 
 // 明暗三态的三枚图标：面板内自成一套（20 格画布、1.6 描边），缩到 16px 仍是实心/空心的对比。
 // 名称不写进按钮里 —— 图标就是那一格的全部内容，名称只留给读屏（aria-label）与悬停（title）。
@@ -259,10 +266,15 @@ const palettePickerHtml = (palDefault = '') => {
     </details>`;
 };
 
-/** 首页 hero-meta 那一行的两枚工具：RSS 与配色。图标式入口 —— 与两侧「N 篇文章」同一层小字，不抢视线。
+/** 首页 hero-meta 那一行的四枚图标：邮件 / GitHub / RSS / 配色。图标式入口，彼此等重，谁也不抢视线。
  *  两枚之间也是同一枚「·」（与行内其它分隔符同形同色），间距与行内其它分隔对齐 —— 图形和文字一视同仁。
+ *  邮件在没配博主邮箱时不渲染（空的 mailto: 比少一枚更难解释）；其余三枚恒定。
  *  配色面板锚在整行中间（见 style.css 的 .pal-hero）：锚在 24px 的图标上，窄屏会顶出视口。 */
 export const heroToolsHtml = (palDefault = sitePaletteDefault()) => `<span class="hero-tools">
+        ${SITE.email ? `<a class="hero-tool" href="mailto:${esc(SITE.email)}" aria-label="邮件联系" title="邮件联系">${MAIL_ICO}</a>
+        <span class="sep" aria-hidden="true">·</span>
+        ` : ''}<a class="hero-tool" href="${GITHUB_URL}" target="_blank" rel="me noopener" aria-label="我的 GitHub" title="我的 GitHub">${GITHUB_ICO}</a>
+        <span class="sep" aria-hidden="true">·</span>
         <a class="hero-tool" href="/feed.xml" aria-label="RSS 订阅" title="RSS 订阅">${RSS_ICO}</a>
         <span class="sep" aria-hidden="true">·</span>
         ${palettePickerHtml(palDefault)}

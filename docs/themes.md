@@ -118,7 +118,7 @@ themes/<id>/
 | `chrome.emoji` | 表情面板模板（仅相关页面有内容） | 评论区表情键点了没反应 |
 | `chrome.header` | 站点页头与导航 | 只剩正文 |
 | `chrome.drawer` | 窄屏目录抽屉 | 手机上打不开菜单 |
-| `chrome.footer` | 页脚（版权 + ICP 备案号，宽屏居中） | 页脚缺版权声明；RSS 与配色入口不在页脚（在首页正文的 hero-meta 行里，随 `main` 一起给） |
+| `chrome.footer` | 页脚（版权 + ICP 备案号，宽屏居中） | 页脚缺版权声明；邮件 / GitHub / RSS / 配色四个入口不在页脚（在首页正文的 hero-meta 行里，随 `main` 一起给） |
 | `chrome.skip` `chrome.progress` `chrome.top` `chrome.toTop` | 跳到正文、阅读进度、锚点、回到顶部 | 可访问性与交互降级 |
 
 `chrome.htmlAttrs` 输出 `data-palette=…`，挂在 `<html>` 上（值已白名单校验、不含引号，直接写 `{{ chrome.htmlAttrs }}` 即可）；`chrome.lang` 是站点语言。顶层 `nav` 由站点根据当前页面自动生成，不需要路由或主题自己拼；`data.nav` 只作为覆盖入口保留。
