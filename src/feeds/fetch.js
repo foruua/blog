@@ -9,6 +9,7 @@ import https from 'node:https';
 import { Readable } from 'node:stream';
 import zlib from 'node:zlib';
 import { SITE } from '../config.js';
+import { envInt } from '../util/env.js';
 import { readBoundedStream } from '../util/stream.js';
 
 export class FeedError extends Error {
@@ -21,8 +22,6 @@ export class FeedError extends Error {
   }
 }
 
-import { envInt } from '../util/env.js';
-
 export const TIMEOUT_MS = envInt(process.env.FEED_TIMEOUT_MS, 8000, { min: 300, max: 60000 });
 const MAX_BYTES = envInt(process.env.FEED_MAX_BYTES, 2 * 1024 * 1024, { min: 8192, max: 16 * 1024 * 1024 });
 const MAX_REDIRECTS = 3;
@@ -34,7 +33,7 @@ const ALLOW_PRIVATE = ALLOW_PRIVATE_NETWORK;
 // 端口白名单：友圈地址来自访客/站主填写的站点，端口不限等于借服务器之手探测任意服务（25、6379、9200…）。
 // 只放常见 Web 端口；友链探活（src/links/check.js）直接复用这一份口径，免得两处规则各自漂移。
 // 本机测试（FEED_ALLOW_PRIVATE=true）跑在随机端口，整体放行。
-export const PUBLIC_WEB_PORTS = new Set(['', '80', '443', '8080', '8443']);
+const PUBLIC_WEB_PORTS = new Set(['', '80', '443', '8080', '8443']);
 export const isPublicWebPort = (port) => PUBLIC_WEB_PORTS.has(String(port ?? ''));
 
 /* 地址校验 */

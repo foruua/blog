@@ -145,7 +145,9 @@ export function createHtmlCache({
       let out;
       try { out = await compressOnce(body, encoding); } catch { continue; }
       // 有令牌的页面下次还得重签，缓存这份压缩字节没有意义。
-      if (!entry.hasTokens) {
+      // 压缩副本也计入内存预算：set() 只按正文长度放行，若再无条件挂上 br+gzip，
+      // 实际占用会越过 maxChars；超预算时本次照常返回，只是不落缓存。
+      if (!entry.hasTokens && chars + out.length <= maxChars) {
         (entry.enc ??= {})[encoding] = out;
         chars += out.length;   // 压缩副本也要计入内存预算（见 encBytes）
       }

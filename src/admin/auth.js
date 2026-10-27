@@ -43,6 +43,16 @@ export function verifyPassword(pw, stored) {
 }
 
 const scryptAsync = promisify(crypto.scrypt);
+
+// 改密码时用它：同步 scrypt 会在请求路径上阻塞事件循环（约几十毫秒），登录验证已经是异步的，
+// 这里没有理由再退回去。scripts/set-password 仍用同步版（CLI 没有并发请求）。
+async function hashPasswordAsync(pw) {
+  const salt = crypto.randomBytes(16);
+  const key = await scryptAsync(String(pw), salt, SCRYPT.keylen,
+    { N: SCRYPT.N, r: SCRYPT.r, p: SCRYPT.p, maxmem: SCRYPT.maxmem });
+  return ['scrypt', SCRYPT.N, SCRYPT.r, SCRYPT.p, salt.toString('base64url'), key.toString('base64url')].join('$');
+}
+
 async function verifyPasswordAsync(pw, stored) {
   try {
     const params = scryptParams(stored);
@@ -184,7 +194,8 @@ export function createAdminAuth({ db, crypt }) {
     deleteCookie(c, COOKIE, { path: '/' });
   }
 
-  async function attemptLogin(c, password, ipHash) {
+  // 登录与改密码共用的旧密码校验：限流、同 IP 单飞、scrypt 槽位、失败记账都只留这一份。
+  async function verifyOwnerPassword(password, ipHash) {
     const stored = getSetting(PW_KEY);
     if (!stored) return { ok: false, reason: 'not-configured' };
     if (loginBlocked(ipHash)) return { ok: false, reason: 'rate-limited' };
@@ -201,31 +212,25 @@ export function createAdminAuth({ db, crypt }) {
       recordFailure(ipHash);
       return { ok: false, reason: 'bad-password' };
     }
+    return { ok: true, stored };
+  }
+
+  async function attemptLogin(c, password, ipHash) {
+    const verified = await verifyOwnerPassword(password, ipHash);
+    if (!verified.ok) return verified;
     issue(c, ipHash);
     return { ok: true };
   }
 
   /**
-   * 改密码：验旧密码走与登录完全同一条路径（限流 + scrypt 槽 + 失败记账），
+   * 改密码：验旧密码走与登录完全同一条路径（verifyOwnerPassword），
    * 通过后换 hash、把 epoch +1（其它设备上的会话立即失效），再用新 epoch 重签当前会话——
    * 否则改完密码第一件事就是被自己踢下线。
    */
   async function changePassword(c, currentPw, nextPw, ipHash) {
-    const stored = getSetting(PW_KEY);
-    if (!stored) return { ok: false, reason: 'not-configured' };
-    if (loginBlocked(ipHash)) return { ok: false, reason: 'rate-limited' };
-    if (!enterIp(ipHash)) return { ok: false, reason: 'rate-limited' };
-    let valid;
-    try {
-      const release = await takeSlot();
-      if (!release) return { ok: false, reason: 'rate-limited' };
-      try { valid = await verifyPasswordAsync(currentPw, stored); } finally { release(); }
-    } finally { leaveIp(ipHash); }
-    if (!valid || stored !== getSetting(PW_KEY)) {
-      recordFailure(ipHash);
-      return { ok: false, reason: 'bad-password' };
-    }
-    const blob = hashPassword(nextPw);
+    const verified = await verifyOwnerPassword(currentPw, ipHash);
+    if (!verified.ok) return verified;
+    const blob = await hashPasswordAsync(nextPw);
     db.exec('BEGIN IMMEDIATE');
     try {
       db.prepare(`INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`).run(PW_KEY, blob);
@@ -241,7 +246,9 @@ export function createAdminAuth({ db, crypt }) {
 
   function csrfOf(c) {
     return session(c)?.csrf ?? '';
-  }  function csrfOk(c, provided) {
+  }
+
+  function csrfOk(c, provided) {
     const expect = csrfOf(c);
     if (!expect) return false;
     const got = String(provided ?? '');

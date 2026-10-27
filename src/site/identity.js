@@ -60,11 +60,6 @@ export function applySiteIdentity(read) {
   return v;
 }
 
-/** 表单初值：给生效值，不是库里的原值——否则 .env 配好的站打开后台是一片空白，容易误以为没生效。 */
-export function identityFormState(read) {
-  return siteIdentityOf(read);
-}
-
 /** 校验并保存。返回错误文案（null 表示成功）。`set(key, value)` 由调用方包在事务里。 */
 export function saveSiteIdentity(body, set, val) {
   const v = {

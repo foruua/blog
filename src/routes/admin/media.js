@@ -7,7 +7,7 @@ import { deleteWithFiles } from '../../content/commit.js';
 import { mediaFile } from '../../media/paths.js';
 import { MAX_UPLOAD } from '../../util/http.js';
 import { MAX_INPUT_PIXELS } from '../../util/image.js';
-import { normalizeImage, probeImage, ALLOWED_MIME, extensionFor } from '../../media/image.js';
+import { normalizeImage, probeImage, sha256File, ALLOWED_MIME, extensionFor } from '../../media/image.js';
 import { bumpMediaRevision } from '../../media/revision.js';
 import { heroImages } from '../../settings.js';
 import { bodyOf, pageNumber, pagination, externalWrite, notice, notFoundPage } from './shared.js';
@@ -69,16 +69,19 @@ export function registerMediaRoutes(app, { repo, adminRepo, mutate = (fn) => fn(
     });
   }
 
-  function finishUpload(c, dup, original) {
+  function finishUpload(c, dup, bytes) {
     if (!mediaComplete(dup)) return c.json({ ok: false, error: '媒体文件缺失，正在重建，请重试' }, 503);
-    if (!dup.original_bytes) adminRepo.mediaSetOriginalBytes(dup.id, original.length);
-    return c.json({ ok: true, url: dup.path, thumbnail: previewSourceOf(dup), width: dup.width, height: dup.height, bytes: original.length, deduped: true });
+    if (!dup.original_bytes) adminRepo.mediaSetOriginalBytes(dup.id, bytes);
+    return c.json({ ok: true, url: dup.path, thumbnail: previewSourceOf(dup), width: dup.width, height: dup.height, bytes, deduped: true });
   }
 
   // 上传：解码/重编码（可达数百毫秒到数秒）在全局写队列【之外】完成，只把短促的同步写放回队列——否则大图上传期间评论、保存、登录会全部排队。
   externalWrite(app, '/admin/api/upload', async (c) => {
     const temp = c.get('uploadTemp');
-    let original = null;
+    // input 可以是 Buffer（旧 multipart）或临时文件路径（raw）：sharp 两者都接受，
+    // raw 路径不要再 readFile 回内存，否则 boundedBody 的流式落盘白做。
+    let input = null;
+    let bytes = 0;
     let hash = '';
     let filename = null;
 
@@ -89,7 +92,9 @@ export function registerMediaRoutes(app, { repo, adminRepo, mutate = (fn) => fn(
       }
       const rawName = c.req.header('x-file-name') ?? '';
       try { filename = decodeURIComponent(rawName).slice(0, 200); } catch { filename = rawName.slice(0, 200); }
-      original = await fs.promises.readFile(temp.file);
+      input = temp.file;
+      bytes = temp.size;
+      hash = await sha256File(temp.file);
     } else {
       // 旧 multipart 表单（兼容旧客户端/脚本）：仍然整块读入，但先按 File.size 拦住超大请求，
       // 别等 arrayBuffer() 把超限负载整块读进堆再判 413。
@@ -100,19 +105,20 @@ export function registerMediaRoutes(app, { repo, adminRepo, mutate = (fn) => fn(
       if (Number.isFinite(declaredSize) && declaredSize > MAX_UPLOAD) {
         return c.json({ ok: false, error: `文件超过 ${Math.round(MAX_UPLOAD / 1048576)}MB` }, 413);
       }
-      original = Buffer.from(await file.arrayBuffer());
+      input = Buffer.from(await file.arrayBuffer());
+      bytes = input.length;
       filename = file.name ?? null;
-      if (original.length > MAX_UPLOAD) {
+      if (bytes > MAX_UPLOAD) {
         return c.json({ ok: false, error: '上传文件过大' }, 413);
       }
+      hash = probeImage.sha256(input);
     }
 
-    hash = hash || probeImage.sha256(original);
     const dup = adminRepo.mediaByHash(hash);
-    if (dup && mediaComplete(dup)) return mutate(() => finishUpload(c, adminRepo.mediaByHash(hash) ?? dup, original));
+    if (dup && mediaComplete(dup)) return mutate(() => finishUpload(c, adminRepo.mediaByHash(hash) ?? dup, bytes));
 
     let normalized;
-    try { normalized = await normalizeImage(original); }
+    try { normalized = await normalizeImage(input); }
     catch (error) {
       if (error?.code === 'PIXEL_LIMIT') {
         return c.json({ ok: false, error: `图片像素超过上限（约 ${Math.round(MAX_INPUT_PIXELS / 10000)} 万，可用 MAX_INPUT_PIXELS 调整）` }, 415);
@@ -164,14 +170,14 @@ export function registerMediaRoutes(app, { repo, adminRepo, mutate = (fn) => fn(
         const keep = new Set([again.path, again.thumbnail, ...parseVariants(again.variants).map((v) => v.path)]
           .filter(Boolean).map((p) => path.join(UPLOADS_DIR, p.replace(/^\/uploads\//, ''))));
         for (const f of createdFiles) if (!keep.has(f)) fs.rmSync(f, { force: true });
-        return finishUpload(c, again, original);
+        return finishUpload(c, again, bytes);
       }
       // 记录还在但原图/缩略图/变体缺失：删掉坏行，按本次写好的文件重建。
       if (again) adminRepo.mediaDelete(again.id);
       try {
         adminRepo.mediaAdd({
           path: rel, thumbnail: thumbnailFile(rel), width: size?.width, height: size?.height, bytes: buf.length,
-          originalBytes: original.length,
+          originalBytes: bytes,
           mime, hash, filename, variants: variants.length ? serializeVariants(variants) : null,
           animated: size?.animated === true,
         });
@@ -184,7 +190,7 @@ export function registerMediaRoutes(app, { repo, adminRepo, mutate = (fn) => fn(
       }
       // 新增一张图会改变「正文里已引用该路径的文章」的渲染结果；bump 一次让下次内容同步重渲染存量正文。
       bumpMediaRevision(repo);
-      return c.json({ ok: true, url: rel, thumbnail: thumbnailFile(rel), width: size?.width, height: size?.height, bytes: original.length });
+      return c.json({ ok: true, url: rel, thumbnail: thumbnailFile(rel), width: size?.width, height: size?.height, bytes });
     });
   });
 

@@ -283,13 +283,13 @@ export function createThemeRegistry({
     return theme;
   };
 
-  function activeId() {
-    const id = String(getActive() ?? '').trim();
-    return id && get(id) ? id : '';
-  }
   function active() {
-    const id = activeId();
+    const id = String(getActive() ?? '').trim();
     return id ? get(id) : null;
+  }
+  // 以前先 activeId() 再 active() 会把同一个主题 get() 两次；active 一次解析，id 从结果里取。
+  function activeId() {
+    return active()?.id ?? '';
   }
 
   /** 首次启用/激活值失效时的默认主题：优先 theme.json 的 default:true，否则列表第一个。 */

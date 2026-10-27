@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import fs from 'node:fs';
 import sharp from 'sharp';
 import { variantWidthsOf } from './variants.js';
 import { sniffImageType, SHARP_INPUT_OPTIONS, MAX_INPUT_PIXELS } from '../util/image.js';
@@ -51,3 +52,10 @@ export const probeImage = {
   mime: sniffImageType,
   sha256: (buf) => crypto.createHash('sha256').update(buf).digest('hex'),
 };
+
+// raw 上传已落在临时文件上：按流算哈希，避免为了去重再把整个文件读回内存。
+export async function sha256File(file) {
+  const hash = crypto.createHash('sha256');
+  for await (const chunk of fs.createReadStream(file)) hash.update(chunk);
+  return hash.digest('hex');
+}

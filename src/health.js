@@ -25,10 +25,10 @@ export function createHealthMonitor({
     return out;
   }
 
-  function healthSnapshot() {
+  function healthSnapshot(disk = diskStats()) {
     const backup = backupState();
     return {
-      ...diskStats(),
+      ...disk,
       backupWorkerState: backup.running ? 'running' : (backup.queued ? 'queued' : 'idle'),
       backupLastError: backup.lastError,
       backupLastAttemptAt: backup.lastAttemptAt,
@@ -38,8 +38,7 @@ export function createHealthMonitor({
     };
   }
 
-  function infraHealth() {
-    const disk = diskStats();
+  function infraHealth(disk = diskStats()) {
     if (minDiskFreeBytes > 0 && Number.isFinite(disk.diskFreeBytes) && disk.diskFreeBytes < minDiskFreeBytes) {
       return { ok: false, reason: `磁盘剩余空间不足：${Math.round(disk.diskFreeBytes / 1048576)}MB < ${Math.round(minDiskFreeBytes / 1048576)}MB` };
     }
@@ -70,5 +69,5 @@ export function createHealthMonitor({
     return { ok: true, reason: '本地检查正常' };
   }
 
-  return { healthSnapshot, infraHealth, localHealth };
+  return { healthSnapshot, infraHealth, localHealth, diskStats };
 }

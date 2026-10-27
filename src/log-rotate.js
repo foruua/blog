@@ -9,7 +9,7 @@ import { pipeline } from 'node:stream/promises';
 // fd 不变、追加位置回到 0，进程完全无感。代价是复制与截断之间新写入的少量日志会丢，这是
 // copytruncate 的固有取舍（要零丢失得让进程配合 reopen，launchd 场景做不到）。
 
-export const DEFAULT_LOG_DIR = path.join(os.homedir(), '.local/share/blog-hosting');
+const DEFAULT_LOG_DIR = path.join(os.homedir(), '.local/share/blog-hosting');
 const ROTATED_RE = /^(.*)-\d{8}-\d{6}-\d{3}Z\.log\.gz$/;
 
 // 服务与 CLI 共用同一口径；path.resolve() 不展开 ~，这里补上。

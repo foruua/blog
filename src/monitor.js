@@ -46,7 +46,7 @@ export function stateFingerprint(url, result) {
 // 拉取进行中：pull-offsite.sh 在目标目录里用 .pull-lock 目录锁。rsync --delete 会先删掉旧清单、
 // 再落新清单，中间那几秒目录里可能一个 *.json 都没有 —— 这时判「异地备份目录为空」是假警报。
 // 锁超过 2 小时按残留处理（脚本下一轮会自己清掉），照常判新鲜度，不让坏锁把告警永久遮住。
-export const OFFSITE_PULL_LOCK = '.pull-lock';
+const OFFSITE_PULL_LOCK = '.pull-lock';
 export function pullInProgress(dir, now = Date.now()) {
   try {
     const stat = fs.statSync(path.join(dir, OFFSITE_PULL_LOCK));

@@ -92,7 +92,17 @@ export function publicRoutes(repo, { comments, crypt, media = null, feeds = null
 
   // —— 评论头像邮箱 md5：渲染时现算，不落库 ——
   // 库里邮箱只有密文；md5 是 Gravatar 公开口径，存下等于把可枚举的邮箱指纹写进库与备份，故现算不回填（博主头像取 SITE_EMAIL）。
-  const authorMd5 = emailMd5(SITE.email);
+  // 后台「站点身份」可以在不重启的情况下改博主邮箱，所以这里不能把启动时的值钉死：
+  // 按当前 SITE.email 惰性计算，值没变时复用上一次的结果。
+  let authorEmail = null;
+  let authorEmailMd5 = null;
+  const authorMd5 = () => {
+    if (authorEmail !== SITE.email) {
+      authorEmail = SITE.email;
+      authorEmailMd5 = emailMd5(SITE.email);
+    }
+    return authorEmailMd5;
+  };
   // 同一页常有多条同邮箱评论。AES-GCM 每次都换随机 IV，密文并不稳定；用稳定的 email_hash 做键，
   // 没有该列（旧调用/链接聚合）时再退回密文。上限兜底，避免长期运行无界增长。
   const avatarMd5Cache = new Map();
@@ -110,7 +120,7 @@ export function publicRoutes(repo, { comments, crypt, media = null, feeds = null
   };
   const hydrateAvatar = (row) => {
     if (!row || row.avatar_md5 !== undefined) return row;
-    row.avatar_md5 = row.is_author ? authorMd5 : avatarMd5Of(row);
+    row.avatar_md5 = row.is_author ? authorMd5() : avatarMd5Of(row);
     return row;
   };
   const withAvatars = (rows) => { for (const row of rows) hydrateAvatar(row); return rows; };
@@ -824,9 +834,11 @@ ${emptyPage('这一年还没有内容', `换一年看看，或者去 <a href="/a
   let notFoundCache = null;
   const NOT_FOUND_TTL_MS = 60_000;
   function notFound(c) {
+    const stamp = typeof repo.changeStamp === 'function' ? repo.changeStamp() : '';
     const hit = notFoundCache;
     // 命中也要走 c.html：c.body 默认 text/plain，会把缓存住的页面当纯文本渲染成裸 <pre>。
-    if (hit && Date.now() - hit.at < NOT_FOUND_TTL_MS) return c.html(hit.body, 404);
+    // 除 TTL 外再看内容修订号：文章/评论/设置一改，404 页里的「最近更新」也应立刻跟上。
+    if (hit && hit.stamp === stamp && Date.now() - hit.at < NOT_FOUND_TTL_MS) return c.html(hit.body, 404);
     // 404 不只是一个死胡同：给搜索框与最近更新，把误入的人接回内容里。
     const recentRows = repo.recentEntries(3);
     const recentCounts = recentRows.length ? comments.countsOf(recentRows.map((row) => row.id)) : new Map();
@@ -853,7 +865,7 @@ ${entriesBlock(recent, { relative: true })}
       themeData: { recent: recent.map(themePost), not_found_html: notFoundMain },
       main: notFoundMain,
     });
-    notFoundCache = { at: Date.now(), body: res };
+    notFoundCache = { at: Date.now(), stamp, body: res };
     return c.html(res, 404);
   }
 

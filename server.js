@@ -46,6 +46,7 @@ import { envDurationMs } from './src/util/env.js';
 import { initMail, deliver as deliverMail } from './src/mail.js';
 import { createMailOutbox } from './src/mail-outbox.js';
 import { createImageInfo } from './src/media/info.js';
+import { mediaRevision } from './src/media/revision.js';
 import { createBackupSummaryCache, isRecoverableBackup } from './src/backup.js';
 import { createBackupScheduler } from './src/backup-scheduler.js';
 import { createHealthMonitor } from './src/health.js';
@@ -176,7 +177,7 @@ initMail({ getSetting: repo.getSetting, crypt });
 const outbox = createMailOutbox({ db, deliver: deliverMail, log: (line) => console.log(line), crypt });
 outbox.start();
 const auth = createAdminAuth({ db, crypt });
-const imageInfo = createImageInfo(adminRepo);
+const imageInfo = createImageInfo(adminRepo, { revisionOf: () => mediaRevision(repo) });
 const renderer = createRenderer({ imageInfo });
 
 // 评论头像：反代 + 本地缓存；访客只连本站（CSP 保持 img-src 'self'）；缓存在 data/ 下、不进备份。
@@ -267,7 +268,7 @@ const backupScheduler = createBackupScheduler({
   identity: SITE.identity,
   outbox, backgroundWrites, backupSummary, logError,
 });
-const { healthSnapshot, infraHealth, localHealth } = createHealthMonitor({
+const { healthSnapshot, infraHealth, localHealth, diskStats } = createHealthMonitor({
   repo,
   dataDir: DATA_DIR,
   dbFile: DB_FILE,
@@ -490,14 +491,17 @@ app.get('/healthz', (c) => {
   let ok = true;
   let posts = null;
   try { posts = repo.stats().published; } catch { ok = false; }
-  const infra = infraHealth();
-  if (!infra.ok) ok = false;
   const uptimeSec = Math.round(process.uptime());
   // 篇数本来就在 Feed/sitemap 里公开；备份年龄与异地状态才是需要 token 的内部字段。
   // 匿名请求不跑 statfs / stat：监控与看门狗都会带 token，没必要让扫描器付这份成本。
+  // 匿名只看数据库是否可读；磁盘/WAL/备份是否健康属于内部字段，由下面授权后的 infraHealth 判定。
   if (!monitorAuthorized(c)) return c.json({ ok, posts, uptimeSec }, ok ? 200 : 503);
 
-  const health = healthSnapshot();
+  // 授权请求只取一次磁盘快照，infraHealth 与 healthSnapshot 共用，别为同一页 statfs 两遍。
+  const disk = diskStats();
+  const infra = infraHealth(disk);
+  if (!infra.ok) ok = false;
+  const health = healthSnapshot(disk);
   // 磁盘/WAL/备份卡住与数据库读失败同级：外网探针与看门狗看到 ok:false 就该告警。
   // （三项判定已收敛进 infraHealth，与 localHealth 共用口径。）
   const base = { ok, posts, uptimeSec };
@@ -610,7 +614,7 @@ app.get('/site.webmanifest', (c) => {
 
 // 只给已审核评论出现过的邮箱 md5 回源；任意 hash 不再能消耗上游预算/做枚举。
 const knownAvatars = createKnownAvatars({
-  comments, crypt, siteEmail: SITE.email, log: (line) => console.log(line),
+  comments, crypt, siteEmail: () => SITE.email, log: (line) => console.log(line),
 });
 // 启动时预热“已知邮箱”集合；重建分批让出事件循环，不阻塞监听。
 void knownAvatars.refresh?.();

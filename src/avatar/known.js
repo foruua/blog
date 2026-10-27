@@ -19,6 +19,9 @@ export function createKnownAvatars({
   let rebuilding = null;
   // email_enc 每次加密的 IV 都不同，但同一条评论的密文稳定；缓存解密结果，TTL 重建时不必重复 AES。
   const hashByEnc = new Map();
+  // 后台可热改博主邮箱：允许调用方传 getter，重建时取当前值。
+  const siteEmailNow = () => (typeof siteEmail === 'function' ? siteEmail() : siteEmail);
+  const authorHashNow = () => emailMd5(siteEmailNow());
 
   const yieldToEventLoop = () => new Promise((resolve) => setImmediate(resolve));
 
@@ -26,7 +29,7 @@ export function createKnownAvatars({
     if (rebuilding) return rebuilding;
     rebuilding = (async () => {
       const next = new Set();
-      const author = emailMd5(siteEmail);
+      const author = authorHashNow();
       if (author) next.add(author);
 
       const encs = comments.approvedEmailEncs?.() ?? [];
@@ -60,8 +63,13 @@ export function createKnownAvatars({
   }
 
   async function isKnown(hash) {
-    if (ready ? now() - at >= ttlMs : now() >= retryAt) await build();
-    return known.has(String(hash ?? ''));
+    // retryAt 只在失败后退避期非零；优先看它，失败后不会因为 ready 仍为 true 而等满整个 TTL。
+    if (retryAt ? now() >= retryAt : !ready || now() - at >= ttlMs) await build();
+    const value = String(hash ?? '');
+    if (!value) return false;
+    // 博主邮箱刚改、集合还没到 TTL 重建时，也要立刻认出新邮箱的 hash。
+    if (value === authorHashNow()) return true;
+    return known.has(value);
   }
 
   // 启动时预热可让首个头像请求不必等待重建；调用方可以忽略返回值。

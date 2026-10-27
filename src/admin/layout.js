@@ -100,7 +100,7 @@ export function adminLayout({
   page = '', kicker = '',
 }) {
   return `<!DOCTYPE html>
-<html lang="${SITE.lang}"${paletteAttr()}>
+<html lang="${esc(SITE.lang)}"${paletteAttr()}>
 ${headOf(`${title} · ${SITE.identity} 后台`)}
 <body class="admin${page ? ` page-${esc(page)}` : ''}">
 <div id="progress" aria-hidden="true"></div>
@@ -168,7 +168,7 @@ ${tabbar(active, badges)}
 
 export function loginPage({ notice = '', to = '/admin', configured = true } = {}) {
   return `<!DOCTYPE html>
-<html lang="${SITE.lang}"${paletteAttr()}>
+<html lang="${esc(SITE.lang)}"${paletteAttr()}>
 ${headOf(`登录 · ${SITE.identity} 后台`)}
 <body class="admin a-login-body">
 <div class="a-login-wrap">

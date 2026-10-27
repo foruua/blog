@@ -532,7 +532,7 @@ function chromeOf(ctx) {
 function builtinLayout(opts, ctx = layoutContext(opts)) {
   const chrome = chromeOf(ctx);
   return `<!DOCTYPE html>
-<html lang="${SITE.lang}"${paletteAttr()}${layoutAttr()}>
+<html lang="${esc(SITE.lang)}"${paletteAttr()}${layoutAttr()}>
 ${chrome.head}
 <body data-page="${esc(ctx.page)}">
 ${chrome.top}

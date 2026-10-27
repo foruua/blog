@@ -245,6 +245,20 @@ try {
     assert.equal(calls.length, before, '未知 hash 不能触达上游');
   });
 
+  await test('V25 knownAvatars 支持热改博主邮箱（getter 而非启动快照）', async () => {
+    const { createKnownAvatars } = await import('../src/avatar/known.js');
+    let current = 'owner-a@example.com';
+    const known = createKnownAvatars({
+      comments: { approvedEmailEncs: () => [] },
+      crypt: null,
+      siteEmail: () => current,
+    });
+    assert.equal(await known(emailMd5('owner-a@example.com')), true);
+    current = 'owner-b@example.com';
+    assert.equal(await known(emailMd5('owner-b@example.com')), true, '新邮箱要立刻进入白名单');
+    assert.equal(await known(emailMd5('not-a-owner@example.com')), false);
+  });
+
   await test('V12 路由：没配上游时也回合法图片（透明占位），不是碎图标', async () => {
     const cache = createAvatarCache({ dir: freshDir(), upstreams: [] });
     const app = new Hono({ strict: false });

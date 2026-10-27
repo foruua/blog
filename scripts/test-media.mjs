@@ -10,6 +10,7 @@ import { thumbnailFile, variantFile, previewSrcsetOf, previewSourceOf, variantWi
 import { createRenderer } from '../src/render/markdown.js';
 import { withLightbox } from '../src/render/lightbox.js';
 import { notesStream, splitImages } from '../src/render/notes.js';
+import { createImageInfo } from '../src/media/info.js';
 import { migrate } from '../db/migrate.js';
 
 const input = await sharp({ create: { width: 1200, height: 800, channels: 3, background: 'red' } }).png().toBuffer();
@@ -53,6 +54,24 @@ assert.equal(variantFile('/uploads/version.png', 480), '/uploads/version.png.v4-
 assert.equal(originalPathOf('/uploads/version.png.v3-w480.webp'), '/uploads/version.png');
 assert.equal(previewSrcsetOf({ mime: 'image/gif', variants: '[{"w":240,"path":"x"}]' }), '');
 assert.equal(previewSrcsetOf({ path: '/small.png', width: 320, mime: 'image/png', variants: '[{"w":240,"path":"/small.png.v4-w240.webp"},{"w":320,"path":"/small.png.v4-w320.webp"}]' }), '/small.png.v4-w240.webp 240w, /small.png.v4-w320.webp 320w');
+// 图片信息缓存：同一路径在同一媒体修订号内只查一次库；修订号一变立即失效。
+{
+  let revision = 1, lookups = 0;
+  const fakeMedia = { mediaByPath: (p) => {
+    lookups++;
+    return p === '/uploads/cache.png'
+      ? { path: p, width: 1200, height: 800, thumbnail: thumbnailFile(p), variants: '[]' }
+      : null;
+  } };
+  const imageInfo = createImageInfo(fakeMedia, { revisionOf: () => revision });
+  assert.equal(imageInfo('/uploads/cache.png')?.width, 1200);
+  assert.equal(imageInfo('/uploads/cache.png')?.width, 1200);
+  assert.equal(lookups, 1);
+  revision = 2;
+  assert.equal(imageInfo('/uploads/cache.png')?.width, 1200);
+  assert.equal(lookups, 2);
+}
+
 const media = { path: '/uploads/a.gif', width: 1200, height: 800, mime: 'image/gif', variants: JSON.stringify(normalized.variants.map(v => ({w:v.width,path:variantFile('/uploads/a.gif',v.width)}))) };
 const info = { original: media.path, preview: previewSourceOf(media, 960), thumbnail: previewSourceOf(media), srcset: previewSrcsetOf(media,2560), width:1200,height:800 };
 const previewHtml = createRenderer({imageInfo:()=>info}).render('![动画](/uploads/a.gif)').html;

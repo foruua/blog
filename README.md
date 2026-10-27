@@ -61,7 +61,7 @@ sudo env BLOG_DEPLOY_APP_ROOT=/srv/blog \
 - **进程内看门狗**（`src/monitor.js`）：生产环境每 5 分钟探一次自己的公网 `/healthz`。反向代理或公网入口断开这类「进程活着但公网不可达」的故障靠它发现；连续 2 次失败才发信，恢复后再发一封，抖动不打扰。`WATCHDOG_INTERVAL_MS=0` 可关闭。
 - **外部探针**（`scripts/monitor.mjs`）：进程挂了它才探得到，建议放在另一台机器上。`npm run monitor`，状态变化时发邮件或打 webhook。异地副本由 Mac 定时 `scripts/pull-offsite.sh` 拉取；配 `MONITOR_OFFSITE_DIR` 后，外部探针会直接检查该目录里最新清单的年龄，不依赖生产机自报异地状态。
 
-告警默认走站点已有的 SMTP（后台「设置」里那套），不需要另配渠道；外部探针要发邮件需设 `MONITOR_MAIL=true`，并且能读到站点的 `data/blog.db` 与 `.app-secret`（否则解不开 SMTP 密码）。跨机器部署建议改用 webhook。`/healthz` 只在带 `MONITOR_TOKEN` 时才返回备份年龄、异地状态、磁盘剩余空间、数据库/WAL 大小与备份 worker 状态（匿名只回 `{ ok, posts, uptimeSec }`）——所以生产必须配这个 token，否则探针会一直报「读不到备份状态」。磁盘低于 `HEALTH_MIN_DISK_FREE_BYTES`（默认 512MB）或 WAL 超过 `HEALTH_MAX_WAL_BYTES`（默认 512MB）时 `/healthz` 也会返回 `ok:false`。
+告警默认走站点已有的 SMTP（后台「设置」里那套），不需要另配渠道；外部探针要发邮件需设 `MONITOR_MAIL=true`，并且能读到站点的 `data/blog.db` 与 `.app-secret`（否则解不开 SMTP 密码）。跨机器部署建议改用 webhook。`/healthz` 只在带 `MONITOR_TOKEN` 时才返回备份年龄、异地状态、磁盘剩余空间、数据库/WAL 大小与备份 worker 状态（匿名只回 `{ ok, posts, uptimeSec }`；匿名的 `ok` 只表示进程与数据库可读，磁盘/WAL/备份问题只在带 token 的响应里体现）——所以生产必须配这个 token，否则探针会一直报「读不到备份状态」。磁盘低于 `HEALTH_MIN_DISK_FREE_BYTES`（默认 512MB）或 WAL 超过 `HEALTH_MAX_WAL_BYTES`（默认 512MB）时 `/healthz` 也会返回 `ok:false`。
 
 ## 目录与内容
 

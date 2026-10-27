@@ -12,7 +12,10 @@ import { signModeration } from './moderation.js';
 export function createCommentNotifier({ repo, comments, crypt, mail = null }) {
   // 生产环境注入 mail-outbox；旧调用方（测试、单独挂载的模块）没有队列时退回立即投递，保持原语义。
   const queue = mail?.enqueue
-    ? async (msg) => { mail.enqueue(msg); }
+    ? (msg) => {
+      try { return Promise.resolve(mail.enqueue(msg)); }
+      catch (error) { return Promise.reject(error); }
+    }
     : (msg) => send(msg).catch(() => {});
 
   // 评论分页后"去看这条评论"的链接必须带上所在页：锚点只在那页 HTML 里存在，落别页就是"跳过去什么也没有"。
