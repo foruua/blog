@@ -247,9 +247,9 @@ await test('选中态首帧即对齐（ui.js 跑完就算，不再等面板打�
   const { dom, w } = mount({ seed: { palette: 'qingci' } });
   try {
     assert.equal(w.document.documentElement.dataset.palette, 'qingci', 'THEME_BOOT 没把存下的配色恢复到首帧');
-    assert.equal(pressedOf(w), 'xuanzhi=false ∅=false qingci=true dailan=false qian=false ziteng=false', '首帧选中态没对齐');
+    assert.equal(pressedOf(w), '∅=false xuanzhi=false qingci=true dailan=false qian=false ziteng=false', '首帧选中态没对齐');
     openPicker(w);
-    assert.equal(pressedOf(w), 'xuanzhi=false ∅=false qingci=true dailan=false qian=false ziteng=false', '打开后选中态跑了');
+    assert.equal(pressedOf(w), '∅=false xuanzhi=false qingci=true dailan=false qian=false ziteng=false', '打开后选中态跑了');
   } finally { dom.window.close(); }
 });
 
@@ -264,7 +264,7 @@ await test('点青瓷：立即生效、写 localStorage、面板保持打开、�
     assert.equal(w.localStorage.getItem('palette'), 'qingci');
     assert.equal(pickerOf(w).open, true, '选择后面板不该自动收起');
     assert.notEqual(w.document.activeElement, pickerOf(w).querySelector('summary'), '选择后不该把焦点拽回入口');
-    assert.equal(pressedOf(w), 'xuanzhi=false ∅=false qingci=true dailan=false qian=false ziteng=false');
+    assert.equal(pressedOf(w), '∅=false xuanzhi=false qingci=true dailan=false qian=false ziteng=false');
     assert.equal(pickedName(w), '青瓷', '选完入口的 aria-label 要跟上新色名');
   } finally { dom.window.close(); }
 });
@@ -423,7 +423,7 @@ await test('boot 与站点默认的优先级：访客选择 > 素笺明选 > 站
 // 且「纸面」= 不挂属性（CSS 里用 html[data-layout="box"] 起头，少一层 :not）。
 
 await test('版式清单与 CSS 对得上：素匣的每条规则都挂在 html[data-layout="box"] 下，且都排除首页', () => {
-  assert.deepEqual(LAYOUTS.map((l) => l.key), ['paper', 'box'], '清单应恰好是纸面 + 素匣');
+  assert.deepEqual(LAYOUTS.map((l) => l.key), ['box', 'paper'], '清单应恰好是素匣 + 纸面');
   // 两处主规则：匣子本体与列宽。少了任一条，要么没框、要么行长被压窄。
   assert.match(css, /html\[data-layout="box"\] body:not\(\[data-page="home"\]\) main#main \{/);
   assert.match(css, /html\[data-layout="box"\] body:not\(\[data-page="home"\]\) \.wrap \{/);
@@ -498,16 +498,17 @@ await test('面板版式两格：首帧对齐、点素匣挂 data-layout 并落�
   } finally { dom.window.close(); }
 });
 
-await test('settings：默认版式只认 paper / box，脏值回落纸面，空值按纸面', () => {
+await test('settings：默认版式只认 box / paper，脏值回落素匣，空值按素匣', () => {
   const repo = { store: new Map(), getSetting(k) { return this.store.get(k) ?? null; } };
-  assert.equal(settings.layoutDefault(repo), 'paper', '没设过 → 纸面');
+  assert.equal(settings.layoutDefault(repo), 'box', '没设过 → 素匣');
   assert.equal(parseLayoutDefault('box'), 'box');
   assert.equal(parseLayoutDefault(' BOX '), 'box', '大小写与首尾空白应归一');
-  assert.equal(parseLayoutDefault(''), 'paper', '旧表单没这字段 → 纸面，不是篡改');
-  assert.equal(parseLayoutDefault(undefined), 'paper');
+  assert.equal(parseLayoutDefault('paper'), 'paper', '明确选纸面要认');
+  assert.equal(parseLayoutDefault(''), 'box', '旧表单没这字段 → 素匣，不是篡改');
+  assert.equal(parseLayoutDefault(undefined), 'box');
   assert.equal(parseLayoutDefault('wide'), null, '白名单外一律 null');
   repo.store.set(KEYS.layoutDefault, 'wide');
-  assert.equal(settings.layoutDefault(repo), 'paper', '库里脏值回落纸面');
+  assert.equal(settings.layoutDefault(repo), 'box', '库里脏值回落素匣');
 });
 
 await test('saveSettings：默认版式随站点设置一起存，脏值整单拒绝', () => {
@@ -534,7 +535,7 @@ await test('后台「站点与阅读」有默认版式下拉，选项与清单�
   });
   const sel = /<select class="a-select" id="s-layout" name="layoutDefault">([\s\S]*?)<\/select>/.exec(html)?.[1] ?? '';
   assert.ok(sel, '后台没有默认版式下拉');
-  assert.equal([...sel.matchAll(/value="(paper|box)"/g)].map((m) => m[1]).join(','), 'paper,box');
+  assert.equal([...sel.matchAll(/value="(box|paper)"/g)].map((m) => m[1]).join(','), 'box,paper');
   assert.match(sel, /value="box" selected/, '当前值没回填');
   // 站主要求删掉那行说明（「只影响首页之外的页面…」），别再长回来
   assert.doesNotMatch(html, /只影响首页之外的页面/);
@@ -720,7 +721,7 @@ await test('自定义：首帧注入那段 CSS，种子挂到 dataset 上，summ
     const style = w.document.getElementById('palCustom');
     assert.ok(style, 'CSS 没注入');
     assert.equal(style.textContent, built);
-    assert.equal(pressedOf(w), 'xuanzhi=false ∅=false qingci=false dailan=false qian=false ziteng=false', '自定义时预设都不该是选中态');
+    assert.equal(pressedOf(w), '∅=false xuanzhi=false qingci=false dailan=false qian=false ziteng=false', '自定义时预设都不该是选中态');
     assert.equal(pickedName(w), '210°·72%', '自定义没有色名，入口该显示「角度·浓度」');
   } finally { dom.window.close(); }
 });

@@ -83,16 +83,15 @@ export const HERO_MAX = 8;
 //   bgL / D        纸的明度（配合 paper 强度还原出 --bg 本身）
 // chroma 是「自定义」滑块从预设接上来的浓度（与 palette.js 的 CHROMA_RANGE 同量纲，test-palette 会比对）。
 // 整套令牌在 base.css，改配色值要两处同步（test-palette.mjs 与 palette-seeds.mjs 对不上会报错）。
-// key '' 即「素笺」，它的令牌是 :root 里那套默认值。
-// 宣纸（黑白灰）排在第一位：它是现行站点的默认配色，配色面板按这份顺序渲染。
-// 它的墨是中灰 —— 灰没有可读的色相，hue 82 是从 #5b564d 实测出来的，拖进「自定义」时不跳色。
+// key '' 即「素笺」，它的令牌是 :root 里那套默认值 —— 也是现行站点的默认配色，故排第一位。
+// 宣纸（黑白灰）排第二：它的墨是中灰 —— 灰没有可读的色相，hue 82 是从 #5b564d 实测出来的，拖进「自定义」时不跳色。
 export const PALETTES = [
-  { key: 'xuanzhi', name: '宣纸', paper: '#f7f5f1', ink: '#5b564d',
-    seed: { hue: 82,  chroma: 0.016, chromaD: 0.017, paper: 0.26,  paperD: 0.119,
-            inkL: 0.455, inkLD: 0.821, bgL: 0.974, bgLD: 0.177 } },
   { key: '',       name: '素笺', paper: '#faf8f4', ink: '#926922',
     seed: { hue: 77,  chroma: 0.100, chromaD: 0.106, paper: 0.26,  paperD: 0.193,
             inkL: 0.550, inkLD: 0.781, bgL: 0.983, bgLD: 0.149 } },
+  { key: 'xuanzhi', name: '宣纸', paper: '#f7f5f1', ink: '#5b564d',
+    seed: { hue: 82,  chroma: 0.016, chromaD: 0.017, paper: 0.26,  paperD: 0.119,
+            inkL: 0.455, inkLD: 0.821, bgL: 0.974, bgLD: 0.177 } },
   { key: 'qingci', name: '青瓷', paper: '#eef4f1', ink: '#26604f',
     seed: { hue: 171, chroma: 0.067, chromaD: 0.082, paper: 0.341, paperD: 0.468,
             inkL: 0.445, inkLD: 0.790, bgL: 0.966, bgLD: 0.161 } },
@@ -114,11 +113,11 @@ const PALETTE_KEYS = PALETTES.map((p) => p.key);
 export const CUSTOM_PALETTE = 'custom';
 
 // 访客可选版式的唯一真相源：后台下拉、面板按钮、THEME_BOOT 白名单都取自这里。
-// 'paper' 是现行版式（内容直接铺在纸上）；'box' 是「素匣」（除首页外的页面收进一只圆角纸匣）。
+// 'box' 是现行默认（除首页外的页面收进一只圆角纸匣）；'paper' 是内容直接铺在纸上。
 // 与配色同理：站主设的是**默认**，访客选过的存在自己的 localStorage 里，首帧由 THEME_BOOT 覆盖。
 export const LAYOUTS = [
-  { key: 'paper', name: '纸面', hint: '内容直接铺在纸上（现行版式）' },
   { key: 'box',   name: '素匣', hint: '内页收进一只纸匣，与首页同款' },
+  { key: 'paper', name: '纸面', hint: '内容直接铺在纸上' },
 ];
 const LAYOUT_KEYS = LAYOUTS.map((l) => l.key);
 
@@ -152,10 +151,10 @@ export const settings = {
     return PALETTE_KEYS.includes(raw) ? raw : '';
   },
 
-  // 访客默认版式：'paper' 纸面 / 'box' 素匣。脏值一律回落纸面（等于没设过）。
+  // 访客默认版式：'box' 素匣 / 'paper' 纸面。脏值一律回落素匣（等于没设过）。
   layoutDefault: (repo) => {
     const raw = String(repo.getSetting(KEYS.layoutDefault) ?? '').trim().toLowerCase();
-    return LAYOUT_KEYS.includes(raw) ? raw : 'paper';
+    return LAYOUT_KEYS.includes(raw) ? raw : 'box';
   },
 
   // 主题 id；不存在时由启动逻辑/渲染前兜底自动切到 themes/ 里的第一个可用主题。
@@ -175,11 +174,11 @@ export function parsePaletteDefault(raw) {
   return PALETTE_KEYS.includes(v) ? v : null;
 }
 
-// 「访客默认版式」：只认 LAYOUTS 的 key，否则 null。空值按纸面处理 —— 旧版后台表单里没有这个
-// 下拉，不能让它们一提交就报「版式不合法」（新表单恒提交 paper / box）。
+// 「访客默认版式」：只认 LAYOUTS 的 key，否则 null。空值按素匣处理 —— 旧版后台表单里没有这个
+// 下拉，不能让它们一提交就报「版式不合法」，也不能把站点默认悄悄改回纸面（新表单恒提交 box / paper）。
 export function parseLayoutDefault(raw) {
   const v = String(raw ?? '').trim().toLowerCase();
-  if (!v) return 'paper';
+  if (!v) return 'box';
   return LAYOUT_KEYS.includes(v) ? v : null;
 }
 

@@ -158,7 +158,7 @@ html[data-theme="dark"] {
   --fg-soft: #c6c3b9;
   /* 6.0:1 on --bg。深色下同档灰看着更淡 —— 两边不是同一个数，是同一条"小字也够读"的线。 */
   --muted: #928e85;
-  --muted-soft: #7c7972;     /* 深色下 4.5:1 */
+  --muted-soft: #807d76;     /* 深色下 4.6:1（原 #7c7972 实测 4.41，审计会报） */
   --rule: rgba(244, 242, 236, .12);
   --rule-strong: rgba(244, 242, 236, .26);
   --accent: #dcb066;
@@ -203,7 +203,7 @@ html[data-theme="dark"] {
     --fg: #f4f2ec;
     --fg-soft: #c6c3b9;
     --muted: #928e85;          /* 6.0:1，同显式深色块 */
-    --muted-soft: #7c7972;     /* 深色下 4.5:1 */
+    --muted-soft: #807d76;     /* 深色下 4.6:1（原 #7c7972 实测 4.41，审计会报） */
     --rule: rgba(244, 242, 236, .12);
     --rule-strong: rgba(244, 242, 236, .26);
     --accent: #dcb066;
@@ -662,7 +662,7 @@ html[data-palette="xuanzhi"] {
   --fg: #16150f;
   --fg-soft: #45423b;
   --muted: #6d685f;          /* 5.1:1 on --bg */
-  --muted-soft: #797469;
+  --muted-soft: #746f65;     /* 4.6:1 on --bg（原 #797469 实测 4.27） */
   --rule: rgba(22, 21, 15, .10);
   --rule-strong: rgba(22, 21, 15, .24);
   --accent: #5b564d;
@@ -693,7 +693,7 @@ html[data-theme="dark"][data-palette="xuanzhi"] {
   --fg: #f2f0ea;
   --fg-soft: #c8c5bc;
   --muted: #97938a;
-  --muted-soft: #7e7a72;
+  --muted-soft: #807d76;     /* 4.6:1 on --bg（原 #7e7a72 实测 4.41） */
   --rule: rgba(242, 240, 234, .12);
   --rule-strong: rgba(242, 240, 234, .26);
   --accent: #c9c4b8;
@@ -723,7 +723,7 @@ html[data-theme="dark"][data-palette="xuanzhi"] {
     --fg: #f2f0ea;
     --fg-soft: #c8c5bc;
     --muted: #97938a;
-    --muted-soft: #7e7a72;
+    --muted-soft: #807d76;     /* 4.6:1 on --bg（原 #7e7a72 实测 4.41） */
     --rule: rgba(242, 240, 234, .12);
     --rule-strong: rgba(242, 240, 234, .26);
     --accent: #c9c4b8;
