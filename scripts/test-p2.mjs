@@ -657,6 +657,10 @@ const page = await (await fetch(`${BASE}/p/${SLUG}/`)).text();
       /\.chron \{[^}]*padding-top:\s*1\.5rem/.test(css)
       && !/\.mast \+ \.chron[^{]*\{[^}]*padding-top/.test(css),
       '首年不应单独覆盖 .chron 的 padding-top');
+    check('T50i 审核页手机端：源文可换行、操作按钮整列',
+      /\.prose pre\.mod-source \{[^}]*white-space:\s*pre-wrap/.test(css)
+      && /\.mod-form \.c-actions \{[^}]*flex-direction:\s*column/.test(css),
+      '审核页窄屏操作按钮与源文换行规则缺失');
 
     check('T50b 浮窗打开时锁住背后的页面（否则滚到浮窗边界会连带滚走背景）；笔记流的评论抽屉反过来，不许锁',
       /html:has\(dialog\[open\]\)/.test(css) && /html\.modal-open \{ overflow: hidden/.test(css)

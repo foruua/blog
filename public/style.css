@@ -1859,8 +1859,17 @@ html[data-theme="dark"] .c-flash-bad, html[data-theme="dark"] .c-flash-limited {
 /* 邮件里的审核页用前台版式，所以这些规则必须在这里（放 admin.css 里既不生效也误导人）。 */
 .mod-form { margin: 1.8rem 0 0; }
 .mod-form h3 { font-size: 1.05rem; margin: 1.6rem 0 .5rem; }
-.mod-link { color: var(--muted); font-size: .92rem; text-decoration: underline; text-underline-offset: .22em; }
+.mod-link { flex: none; color: var(--muted); font-size: .92rem; text-decoration: underline; text-underline-offset: .22em; white-space: nowrap; }
 .mod-link:hover { color: var(--accent); }
+/* 审核页的 Markdown 源是自然语言，不是代码：手机上一行太长时换行，别横向截掉。 */
+.prose pre.mod-source { overflow-x: hidden; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* 审核按钮比普通评论操作多，且文案带「（邮件里点的）」；窄屏整列排开，别把按钮和右侧链接挤成竖排。 */
+@media (max-width: 620px) {
+  .mod-form .c-actions { flex-direction: column; align-items: stretch; row-gap: .6rem; }
+  .mod-form .c-actions > button { width: 100%; height: auto; min-height: 2.2rem; padding: .6rem 1rem; line-height: 1.3; }
+  .mod-form .mod-link { align-self: flex-start; }
+}
 
 .c-form {
   margin: 2.2rem 0 0;
@@ -2593,10 +2602,11 @@ html[data-theme="dark"] .ncp-flash-bad, html[data-theme="dark"] .ncp-flash-limit
   border-bottom-color: var(--accent);
   box-shadow: 0 1px 0 var(--accent);
 }
-.ncp-actions, .c-actions { display: flex; justify-content: flex-end; align-items: center; gap: .65rem; margin: .85rem 0 0; }
+.ncp-actions, .c-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: .65rem; margin: .85rem 0 0; }
 .ncp-actions .c-emoji, .c-actions .c-emoji { margin: 0; }
 .ncp-go { flex: 0 0 auto; margin: 0; }
 .ncp-go button, .c-actions > button {
+  flex: 0 0 auto;
   height: 2.2rem; padding: 0 1.3rem;
   font: 600 .92rem/1 var(--sans); letter-spacing: .04em;
   color: var(--bg); background: var(--accent);

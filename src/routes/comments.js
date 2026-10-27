@@ -303,7 +303,7 @@ export function commentRoutes({ repo, comments, crypt, auth = null, notifier = c
       ${hint}
       <div class="prose" style="margin-top:32px">
         <p>原文（Markdown 源）：</p>
-        <pre><code>${esc(comment.body_md)}</code></pre>
+        <pre class="mod-source"><code>${esc(comment.body_md)}</code></pre>
         <p>渲染效果：</p>
         <div class="c-body c-preview">${renderComment(comment.body_md)}</div>
         ${site ? `<p>网址：<a href="${esc(site)}" rel="nofollow noopener">${esc(site)}</a></p>` : ''}

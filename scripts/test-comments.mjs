@@ -192,7 +192,8 @@ let firstId = 0;
   check('T6a2 邮件里点的「批准」被标出并排在第一个',
     pageMod.includes('你在邮件里点的是「批准并显示」')
     && /<button type="submit" name="action" value="approve">批准并显示（邮件里点的）<\/button>/.test(pageMod)
-    && pageMod.indexOf('value="approve"') < pageMod.indexOf('value="spam"'), '');
+    && pageMod.indexOf('value="approve"') < pageMod.indexOf('value="spam"')
+    && pageMod.includes('<pre class="mod-source"><code>'), '');
   const pageSpam = await (await fetch(`${BASE}/moderate/${moderationToken({ c: firstId, a: 'spam' }, 3600)}`)).text();
   check('T6a3 换个动作就换个排头（点「垃圾」时它是第一个）',
     pageSpam.includes('你在邮件里点的是「标记为垃圾」')
