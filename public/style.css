@@ -2893,7 +2893,8 @@ html:not(.has-js) .c-emoji { display: none; }
 .s-drawer-form .so-ico { width: 15px; height: 15px; color: var(--muted); flex: 0 0 auto; }
 .s-drawer-input {
   flex: 1 1 auto; min-width: 0; min-height: 2rem;
-  padding: 0; border: 0; background: none;
+  /* 输入文字与焦点框/搜索按钮之间留一档呼吸位；左右对称，别让光标贴着图标或按钮。 */
+  padding: 0 .5rem; border: 0; background: none;
   font: 400 1.02rem/1.4 var(--display); color: var(--fg);
 }
 .s-drawer-input::placeholder { color: var(--muted); }
