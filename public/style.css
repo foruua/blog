@@ -875,24 +875,15 @@ body.mnav-open .mnav-panel { transform: none; opacity: 1; }
 /* 分隔线由伪元素绘制，行不再保留透明边框，避免悬停底色之间出现 1px 空隙。 */
 .entries li { position: relative; }
 .entries a {
-  position: relative;
-  isolation: isolate;
   display: grid;
   grid-template-columns: 2.6em minmax(0, 1fr) auto;
   align-items: baseline; gap: 0 1.1rem;
   /* 底色严格等于行宽（与上下细线齐平）。不能用"负外边距"：那会让底色比细线宽，看起来错位。 */
   padding: .58rem .6rem;
-  /* 悬停底色画在 ::before 上：两端必须与行分隔线一起淡出，否则细线透明了、
-     底色还是硬边，卡片内缘会露出一截方角色块。color 仍在本体过渡。 */
-  transition: color var(--dur-3) var(--ease);
+  /* color 必须一起过渡：:hover 除了底色还改了文字色（继承的 a:hover），只过渡 background 就成了"底色渐变、文字瞬变"。 */
+  transition: background var(--dur-3) var(--ease), color var(--dur-3) var(--ease);
 }
-.entries a::before {
-  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
-  background: linear-gradient(90deg, transparent, var(--accent-soft) 5%, var(--accent-soft) 95%, transparent);
-  opacity: 0;
-  transition: opacity var(--dur-3) var(--ease);
-}
-.entries a:hover::before { opacity: 1; }
+.entries a:hover { background: var(--accent-soft); }
 .entries time {
   font: var(--info-size)/1.75 var(--mono);
   letter-spacing: var(--info-track); font-variant-numeric: tabular-nums;
@@ -2760,10 +2751,16 @@ article.post-empty::before {
   box-shadow: var(--ring);
 }
 
-/* —— 列表行：通栏实线 → 两端淡出的发丝线 —— 印刷物的分隔从不是纸边到纸边的黑线， 而是两端收在纸里的细线；行自己的 border 让位给伪元素，末行下标一并处理。 */
-.list li::after, .entries li::after {
+/* —— 列表行分隔线 —— 文章列表两端收在纸里；账本行有整行悬停底色，
+   分隔线必须是通栏实色，否则悬停时颜色会在两端淡出处断开。 */
+.list li::after {
   content: ""; position: absolute; left: 0; right: 0; top: 0; height: 1px;
   background: linear-gradient(90deg, transparent, var(--rule) 5%, var(--rule) 95%, transparent);
+  pointer-events: none;
+}
+.entries li::after {
+  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 1px;
+  background: var(--rule);
   pointer-events: none;
 }
 /* 最后一行同时绘制上下线，底色和分隔线共用无边框的行盒。 */

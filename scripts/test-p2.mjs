@@ -640,16 +640,17 @@ const page = await (await fetch(`${BASE}/p/${SLUG}/`)).text();
         // 悬停底色已去掉（`li:hover::before` 不该再有，想加回来这条先拦）；`li::before` 现在是 1px 编年竖线。
         && !/\.list li:hover::before/.test(css)
         && /\.list li::before \{[^}]*width: 1px/.test(css)
-        && /\.list li::after, \.entries li::after \{[^}]*left: 0; right: 0/.test(css),
+        && /\.list li::after \{[^}]*left: 0; right: 0/.test(css),
         `entries=${entriesA.trim().slice(0, 50)} | list=${listMain.trim().slice(0, 50)}`);
     }
 
-    // 首页/归档账本的悬停底色必须和分隔线一起两端淡出，否则细线透明了、底色还是硬边，卡片内缘会露出方角色块。
-    check('T50d2 账本悬停底色两端淡出，与分隔线同一套渐隐',
-      /\.entries a::before \{[\s\S]{0,220}linear-gradient\(90deg, transparent, var\(--accent-soft\) 5%, var\(--accent-soft\) 95%, transparent\)/.test(css)
-      && /\.entries a:hover::before \{ opacity: 1; \}/.test(css)
-      && !/\.entries a:hover \{ background: var\(--accent-soft\)/.test(css),
-      '悬停底色必须走 ::before 渐变，不能退回整块 background');
+    // 账本行有整行悬停底色：分隔线必须是通栏实色，悬停色也不能用渐变，否则两端会断开。
+    check('T50d2 账本悬停色与分隔线都不做渐变',
+      /\.entries li::after \{[^}]*background: var\(--rule\)/.test(css)
+      && /\.entries a:hover \{ background: var\(--accent-soft\); \}/.test(css)
+      && !/\.entries a::before/.test(css)
+      && !/\.entries a:hover::before/.test(css),
+      '账本悬停色与行分隔线都应为实色');
 
     check('T50b 浮窗打开时锁住背后的页面（否则滚到浮窗边界会连带滚走背景）；笔记流的评论抽屉反过来，不许锁',
       /html:has\(dialog\[open\]\)/.test(css) && /html\.modal-open \{ overflow: hidden/.test(css)
