@@ -644,6 +644,13 @@ const page = await (await fetch(`${BASE}/p/${SLUG}/`)).text();
         `entries=${entriesA.trim().slice(0, 50)} | list=${listMain.trim().slice(0, 50)}`);
     }
 
+    // 首页/归档账本的悬停底色必须和分隔线一起两端淡出，否则细线透明了、底色还是硬边，卡片内缘会露出方角色块。
+    check('T50d2 账本悬停底色两端淡出，与分隔线同一套渐隐',
+      /\.entries a::before \{[\s\S]{0,220}linear-gradient\(90deg, transparent, var\(--accent-soft\) 5%, var\(--accent-soft\) 95%, transparent\)/.test(css)
+      && /\.entries a:hover::before \{ opacity: 1; \}/.test(css)
+      && !/\.entries a:hover \{ background: var\(--accent-soft\)/.test(css),
+      '悬停底色必须走 ::before 渐变，不能退回整块 background');
+
     check('T50b 浮窗打开时锁住背后的页面（否则滚到浮窗边界会连带滚走背景）；笔记流的评论抽屉反过来，不许锁',
       /html:has\(dialog\[open\]\)/.test(css) && /html\.modal-open \{ overflow: hidden/.test(css)
       // 抽屉是页面里展开的一块，锁滚动就没法读 —— 它靠 0fr + visibility 收起，不用 dialog，也不该进 modal-open 那套锁。
