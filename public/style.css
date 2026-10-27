@@ -660,8 +660,10 @@ body.mnav-open .mnav-panel { transform: none; opacity: 1; }
 .hero-meta .hero-tool:focus-visible,
 .hero-meta .pal-hero > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .hero-meta .hero-tool svg { display: block; width: 15px; height: 15px; }
-/* GitHub 的官方 mark 是实心、且画满 16 格：同尺寸下比描边的信封/RSS 重一圈，收到 13px 与它们的图形框齐平。 */
-.hero-meta .hero-tool svg.ico-github { width: 13px; height: 13px; }
+/* 信封是扁的，同盒尺寸下墨迹只有 12×8.5（RSS 是 13.25×13.25），看着小一圈；盒给到 18px 才与 RSS 同宽。
+   GitHub 的官方 mark 画满 16 格，14px 时墨迹 14×13.7，与 RSS 齐平；再大会因实心而压过其余三枚。 */
+.hero-meta .hero-tool svg.ico-mail { width: 18px; height: 18px; }
+.hero-meta .hero-tool svg.ico-github { width: 14px; height: 14px; }
 /* 样式入口图标比 RSS 大一档（20px vs 15px）：半实心圆盘靠大轮廓说话，缩到同尺寸就糊；
    只动图标本体，24px 圆钮和软金底不动（图标四周各留 2px 圆底）。 */
 .hero-meta .pal-hero .pal-ico { display: block; width: 20px; height: 20px; }
