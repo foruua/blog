@@ -269,6 +269,8 @@ try {
   })());
   check('M8b2 抽屉搜索框的文字左右留白，不贴着焦点框/按钮',
     /\.s-drawer-input\s*\{[^}]*padding:\s*0\s+\.5rem/.test(css), '缺 .s-drawer-input { padding: 0 .5rem }');
+  check('M8b3 桌面展开的搜索框与搜索按钮留出间距',
+    /\.nav-search-input\s*\{[^}]*right:\s*calc\(100%\s*\+\s*\.5rem\)/.test(css), '缺 .nav-search-input 与按钮的 .5rem 间距');
   check('M8c 旧入口已清：没有检索链接、没有弹层', !homeDoc.querySelector('a.s-link') && !homeDoc.querySelector('#sBox, #sPal'));
   check('M8d 快捷键不进可见文案（首页无 ⌘K 字样）', !home.html.includes('⌘K'));
   check('M8e 无 JS 兜底链接在（去 /search），由 html.has-js 决定露哪一枚',

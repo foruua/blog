@@ -264,7 +264,8 @@ html.pjax-swapped .brand .bmark { animation: none; }
 .nav-search-btn:hover .so-ico,
 .nav-search-btn[aria-expanded="true"] .so-ico { color: var(--accent); }
 .nav-search-input {
-  position: absolute; right: calc(100% + .1rem); top: 50%;
+  /* 与搜索按钮留一档间距：展开后是输入框焦点环贴着按钮，太近会像连在一起。 */
+  position: absolute; right: calc(100% + .5rem); top: 50%;
   width: 0; padding: .38rem 0; border: 0;
   border-bottom: 1px solid transparent;
   transform: translateY(-50%);
