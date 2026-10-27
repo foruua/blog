@@ -1,12 +1,11 @@
 import './_test-env.mjs';
 import { cookieJar, createClient, csrfOf, loginAdmin } from './_shared.mjs';
-import { navItemsOf, visibleNavOf, saveNav } from '../src/site/nav.js';
+import { navItemsOf, visibleNavOf, saveNav, safeLinkHref } from '../src/site/nav.js';
 import { saveSiteIdentity, siteIdentityOf } from '../src/site/identity.js';
-import { safeLinkHref } from '../src/site/copy.js';
 import { open } from '../db/driver.js';
 
 // 站点配置（后台「设置」页新增的七块）的端到端 + 纯函数测试。
-// 覆盖：站点身份热生效与 .env 回落、导航改名/换序/隐藏/外链增删、页面文案、
+// 覆盖：站点身份热生效与 .env 回落、导航改名/换序/隐藏/外链增删、
 // 评论三开关（含全站关闭后前台与提交端点）、改密码、图标上传与 /site/* 服务。
 
 const { startServer } = await import('./_server.mjs');
@@ -34,7 +33,7 @@ let page = await html('/admin/system');
 let csrf = csrfOf(page);
 
 // —— 渲染 ——
-for (const heading of ['站点身份', '导航菜单', '页面文案', '评论', '账号安全']) {
+for (const heading of ['站点身份', '导航菜单', '评论', '账号安全']) {
   check(`S1 设置页有「${heading}」一块`, page.includes(`>${heading}</h2>`), heading);
 }
 check('S1b 设置页把「站点与阅读」改成了「阅读与外观」', page.includes('>阅读与外观</h2>'));
@@ -44,12 +43,11 @@ check('S1b 设置页把「站点与阅读」改成了「阅读与外观」', pag
 //    曾经「社交链接」那格是个光秃秃的 <label>，DevTools 直接报 “A <label> isn't associated with a form field”。
 // 2) 本次新增的表单里不许出现 placeholder（一输入就消失、对比度也不合格），也不许有解释性小字（a-dim）。
 {
-  const { identitySection, navSection, copySection, commentsSection, accountSection } =
+  const { identitySection, navSection, commentsSection, accountSection } =
     await import('../src/admin/views/site.js');
   const html = [
     identitySection({ identity: { title: 't', desc: 'd', author: 'a', email: 'e@x.io', mark: 'm', icp: '', lang: 'zh-CN' }, csrf: 'c' }),
     navSection({ nav: { items: [{ key: 'home', label: '首页', href: '/', group: 'main', show: 1 }], moreLabel: '页面' }, csrf: 'c' }),
-    copySection({ copy: { heroPosts: '篇文章', heroNotes: '篇笔记', recent: '最近更新', postsTitle: '文章', postsDesc: '', notesTitle: '笔记', notesDesc: '' }, csrf: 'c' }),
     commentsSection({ comments: { open: true, moderateAll: false, rate: 5 }, csrf: 'c' }),
     accountSection({ csrf: 'c', configured: true }),
   ].join('\n');
@@ -193,33 +191,20 @@ check('S1b 设置页把「站点与阅读」改成了「阅读与外观」', pag
   check('S4g javascript: 地址被拒', decodeURIComponent(bad.headers.get('location') ?? '').includes('不合法'), bad.headers.get('location'));
 }
 
-// —— 页面文案 ——
+// —— 页面文案已下线 ——
+// 文案回到渲染层的字面量：后台表单与保存端点一并撤掉，避免「填了没人读」。
 {
-  const r = await client('/admin/site/copy', form({
-    _csrf: csrf, heroPosts: '篇拙作', heroNotes: '条碎念', recent: '近来写下的',
-    postsTitle: '长文', postsDesc: '写就写透。', notesTitle: '碎片', notesDesc: '没长成文章的。',
-  }));
-  check('S6a 文案保存成功', decodeURIComponent(r.headers.get('location') ?? '').includes('✓'), r.headers.get('location'));
+  check('S6a 设置页不再有「页面文案」一块', !(await html('/admin/system')).includes('页面文案'));
+  const gone = await client('/admin/site/copy', form({ _csrf: csrf, heroPosts: '篇拙作' }));
+  check('S6b 旧的文案保存端点已撤', gone.status === 404, gone.status);
 
   const home = await html('/');
-  check('S6b 首页统计行换成自定义量词', home.includes('篇拙作') && home.includes('条碎念'));
-  check('S6c 首页「最近更新」标题已改', home.includes('近来写下的'));
-
+  check('S6c 首页统计行量词回到默认', home.includes('篇文章') && home.includes('篇笔记'));
+  check('S6d 首页「最近更新」标题回到默认', home.includes('>最近更新</h2>'));
   const posts = await html('/posts/');
-  check('S6d 文章列表刊头用新标题', posts.includes('>长文</h1>'), '刊头没换');
-  check('S6e 文章列表简介进了 meta', posts.includes('content="写就写透。"'));
-
+  check('S6e 文章列表刊头与简介回到默认', posts.includes('>文章</h1>') && posts.includes('content="长文。偶尔写，写就写透。"'));
   const notes = await html('/notes/');
-  check('S6f 笔记页标题已改', notes.includes('>碎片</h1>'), '刊头没换');
-
-  // 空标题必须被拒：空刊头等于页面没标题
-  const bad = await client('/admin/site/copy', form({ _csrf: csrf, heroPosts: '', heroNotes: '条', recent: 'x', postsTitle: 'y', notesTitle: 'z' }));
-  check('S6g 量词留空被拒', decodeURIComponent(bad.headers.get('location') ?? '').includes('不能为空'), bad.headers.get('location'));
-
-  await client('/admin/site/copy', form({
-    _csrf: csrf, heroPosts: '篇文章', heroNotes: '篇笔记', recent: '最近更新',
-    postsTitle: '文章', postsDesc: '', notesTitle: '笔记', notesDesc: '',
-  }));
+  check('S6f 笔记页刊头与简介回到默认', notes.includes('>笔记</h1>') && notes.includes('content="还没长成文章的碎片、读书记录、临时想法。"'));
 }
 
 // —— 评论三开关 ——

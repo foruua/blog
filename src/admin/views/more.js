@@ -21,7 +21,7 @@ export function morePage({ csrf, badges = {}, feedStats = null, linkStats = null
       ? row({ href: '/admin/links', icon: 'links', title: '友链', desc: `${linkStats.total} 个站 · 检查与隐藏` })
       : '',
     row({ href: '/admin/themes', icon: 'themes', title: '外观', desc: '主题安装、切换与主题设置' }),
-    row({ href: '/admin/system', icon: 'system', title: '设置', desc: '站点身份、导航、文案与邮件' }),
+    row({ href: '/admin/system', icon: 'system', title: '设置', desc: '站点身份、导航与邮件' }),
   ].filter(Boolean).join('\n');
 
   const body = `    <div class="a-more">

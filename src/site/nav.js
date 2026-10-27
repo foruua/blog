@@ -1,5 +1,4 @@
 import { pageUrl } from '../util/text.js';
-import { safeLinkHref } from './copy.js';
 
 // —— 导航菜单 ——
 // 原先是 render/layout.js 里的两个常量数组：三个一级项 + 「页面」下拉里的三项，再自动追加所有固定页。
@@ -31,6 +30,22 @@ const BUILTIN_KEYS = new Set(NAV_DEFAULTS.map((item) => item.key));
 const LINK_KEY_RE = /^link:[a-z0-9]{1,16}$/;
 
 const clean = (value, max) => String(value ?? '').replace(/[\r\n]+/g, ' ').trim().slice(0, max);
+
+// —— 外链规范化 ——
+// 导航里的自定义链接是**站外**地址：只认 http(s) 与 mailto，渲染时一律 nofollow noopener，
+// 不给它任何站内权重。javascript: / data: 这类会被原样塞进 href，属于自伤型注入面。
+export const LINK_HREF_MAX = 300;
+
+export function safeLinkHref(raw) {
+  const value = String(raw ?? '').trim().slice(0, LINK_HREF_MAX);
+  if (!value) return '';
+  if (/^mailto:[^\s<>"]+@[^\s<>"]+\.[^\s<>"]+$/i.test(value)) return value;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return '';
+    return url.toString();
+  } catch { return ''; }
+}
 
 /** 自定义链接的 key：站主删了再加一条也不会撞上原来的位置。 */
 const newLinkKey = () => `link:${Date.now().toString(36).slice(-6)}${Math.random().toString(36).slice(2, 5)}`;

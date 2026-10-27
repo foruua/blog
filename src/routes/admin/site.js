@@ -2,7 +2,6 @@ import { clientIp } from '../../util/http.js';
 import { externalWrite, bodyOf, val, checked, notice } from './shared.js';
 import { applySiteIdentity, saveSiteIdentity } from '../../site/identity.js';
 import { saveNav } from '../../site/nav.js';
-import { saveCopy } from '../../site/copy.js';
 import { saveCommentSettings } from '../../settings.js';
 
 // 站点配置的写入路由。全部落在已有的 settings 表里，保存后 redirect 回 /admin/system 带一行提示。
@@ -56,14 +55,6 @@ export function registerSiteRoutes(app, { repo, auth, crypt }) {
     return error
       ? notice(c, '/admin/system', `✗ ${error}`)
       : notice(c, '/admin/system', '✓ 导航菜单已保存');
-  });
-
-  app.post('/admin/site/copy', async (c) => {
-    const body = await bodyOf(c);
-    const error = run(() => saveCopy(body, (k, v) => repo.setSetting(k, v), val));
-    return error
-      ? notice(c, '/admin/system', `✗ ${error}`)
-      : notice(c, '/admin/system', '✓ 页面文案已保存');
   });
 
   app.post('/admin/site/comments', async (c) => {

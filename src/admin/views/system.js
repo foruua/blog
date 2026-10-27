@@ -3,12 +3,12 @@ import { adminLayout } from '../layout.js';
 import { PALETTES, LAYOUTS, HERO_MAX } from '../../settings.js';
 import { TLS_MODES, TLS_LABEL } from '../../mail.js';
 import { pickerDialog } from './picker.js';
-import { identitySection, navSection, copySection, commentsSection, accountSection } from './site.js';
+import { identitySection, navSection, commentsSection, accountSection } from './site.js';
 
 export function systemPage({
   mail = {}, hero = {}, site = {}, history = {}, csrf, notice = '', badges, unsub = 0,
   identity = {}, nav = { items: [], moreLabel: '页面' },
-  copy = {}, comments = {}, configured = true,
+  comments = {}, configured = true,
 }) {
 
 
@@ -116,13 +116,11 @@ ${hero.images.length ? heroItems + '\n' : ''}${heroAdd}
   const tlsOptions = TLS_MODES
     .map((v) => `<option value="${v}"${tls === v ? ' selected' : ''}>${TLS_LABEL[v] ?? v}</option>`).join('\n            ');
 
-  // 分组顺序按「改得最勤的放最前」：站点身份 → 导航 → 文案 → 封面 → 阅读 → 图标 → 评论 → 账号 → 邮件 → 维护。
+  // 分组顺序按「改得最勤的放最前」：站点身份 → 导航 → 封面 → 阅读 → 图标 → 评论 → 账号 → 邮件 → 维护。
   // 每块都是独立表单，一处填错不会连累别处。
   const body = `${identitySection({ identity, csrf })}
 
 ${navSection({ nav, csrf })}
-
-${copySection({ copy, csrf })}
 
 ${heroSection}
 

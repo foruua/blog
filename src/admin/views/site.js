@@ -1,10 +1,9 @@
 import { esc, csrfField } from '../../util/text.js';
 import { IDENTITY_MAX } from '../../site/identity.js';
-import { COPY_MAX } from '../../site/copy.js';
 import { NAV_GROUP_LABEL, NAV_GROUPS, BUILTIN_KEYS } from '../../site/nav.js';
 import { COMMENT_RATE_RANGE } from '../../settings.js';
 
-// 设置页新增的几块表单：站点身份 / 导航菜单 / 页面文案 / 评论 / 账号安全。
+// 设置页新增的几块表单：站点身份 / 导航菜单 / 评论 / 账号安全。
 // 拆在这里而不是继续堆进 system.js：那一份已经两百多行，再多几块会变成没人愿意改的长文件。
 // 每块都是独立 <form>：改站名不该连带把导航顺序一起提交。
 //
@@ -111,30 +110,6 @@ ${rows || '        <p class="a-empty">还没有导航项。</p>'}
         <label for="navMore">「页面」下拉的名称</label>
         <input class="a-input" id="navMore" name="moreLabel" type="text" maxlength="8" value="${esc(nav.moreLabel)}" autocomplete="off">
       </div>
-${saveRow()}
-    </form>
-    </div>`;
-}
-
-/** 页面文案：首页统计行的量词、列表页刊头。字段少而固定，不做成整站文案系统。 */
-export function copySection({ copy, csrf }) {
-  return `    <h2 class="a-h2">页面文案</h2>
-    <div class="a-card a-panel">
-    <form method="post" action="/admin/site/copy">
-      ${csrfField(csrf)}
-      <div class="a-grid2">
-${field('c-hposts', '首页「文章」量词', text('c-hposts', 'heroPosts', copy.heroPosts, COPY_MAX.word))}
-${field('c-hnotes', '首页「笔记」量词', text('c-hnotes', 'heroNotes', copy.heroNotes, COPY_MAX.word))}
-      </div>
-      <div class="a-grid2">
-${field('c-recent', '「最近更新」标题', text('c-recent', 'recent', copy.recent, COPY_MAX.heading))}
-${field('c-ptitle', '文章页标题', text('c-ptitle', 'postsTitle', copy.postsTitle, COPY_MAX.title))}
-      </div>
-${field('c-pdesc', '文章页简介', text('c-pdesc', 'postsDesc', copy.postsDesc, COPY_MAX.desc))}
-      <div class="a-grid2">
-${field('c-ntitle', '笔记页标题', text('c-ntitle', 'notesTitle', copy.notesTitle, COPY_MAX.title))}
-      </div>
-${field('c-ndesc', '笔记页简介', text('c-ndesc', 'notesDesc', copy.notesDesc, COPY_MAX.desc))}
 ${saveRow()}
     </form>
     </div>`;

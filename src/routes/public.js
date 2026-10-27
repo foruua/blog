@@ -1,7 +1,6 @@
 import { Hono } from 'hono';
 import { SITE, FRIENDS_PER_PAGE, FRIENDS_PER_SOURCE, LINKS_PER_PAGE } from '../config.js';
 import { settings, heroImages, heroOverlay, commentsOpen } from '../settings.js';
-import { copyOf as siteCopyOf } from '../site/copy.js';
 import { layout, listBlock, emptyPage, masthead, entriesBlock, moreLink, defaultOgImage, heroToolsHtml } from '../render/layout.js';
 import { notesStream, splitImages } from '../render/notes.js';
 import { withLightbox } from '../render/lightbox.js';
@@ -178,8 +177,6 @@ export function publicRoutes(repo, { comments, crypt, media = null, feeds = null
     if (!(key in cache)) cache[key] = compute();
     return cache[key];
   };
-  // 页面文案（首页量词、最近更新标题、列表页刊头）——同样按请求缓存一次。
-  const copyOf = (c) => settingOf(c, 'copy', () => siteCopyOf((k) => repo.getSetting(k)));
   // 全站评论开关：关掉后只收撰写区（已有讨论照常显示），内页评论区与笔记抽屉共用同一条判断。
   const commentsOffIn = (c) => !settingOf(c, 'commentsOpen', () => commentsOpen(repo));
   const pageSizeOf = (c) => settingOf(c, 'pageSize', () => settings.pageSize(repo));
@@ -206,7 +203,6 @@ export function publicRoutes(repo, { comments, crypt, media = null, feeds = null
   const heroOverlayOf = (c) => settingOf(c, 'heroOverlay', () => heroOverlay(repo));
 
   function hero(c) {
-    const copy = copyOf(c);
     return heroBlock({
       stats: statsOf(c),
       imgs: heroImgsOf(c),
@@ -214,7 +210,6 @@ export function publicRoutes(repo, { comments, crypt, media = null, feeds = null
       mediaOf: (src) => mediaOf(c, src),
       recentHtml: recent(c),
       toolsHtml: heroToolsHtml(),
-      words: { posts: copy.heroPosts, notes: copy.heroNotes },
     });
   }
 
@@ -236,7 +231,7 @@ export function publicRoutes(repo, { comments, crypt, media = null, feeds = null
     const rows = recentOf(c);
     if (!rows.length) return '';
     return `    <section class="recent">
-      <h2 class="recent-head">${esc(copyOf(c).recent)}</h2>
+      <h2 class="recent-head">最近更新</h2>
 ${entriesBlock(rows, { relative: true })}
       <p class="pager-more"><a href="/archive/">全部 ${statsOf(c).reduce((n,p) => n+p.n, 0)} 篇 →</a></p>
     </section>`;
@@ -327,14 +322,11 @@ ${listHtml}
     }));
   });
 
-  app.get('/posts', (c) => {
-    const copy = copyOf(c);
-    return listPage(c, {
-      kind: 'post', title: copy.postsTitle, mark: 'Articles',
-      desc: copy.postsDesc,
-      active: 'posts', pathname: '/posts/',
-    });
-  });
+  app.get('/posts', (c) => listPage(c, {
+    kind: 'post', title: '文章', mark: 'Articles',
+    desc: '长文。偶尔写，写就写透。',
+    active: 'posts', pathname: '/posts/',
+  }));
 
   /** 笔记流评论抽屉内里。首屏与 ?partial=comments&panel=note 回刷必须走同一段代码，否则抽屉会被回刷成内页那套评论区。 */
   function notePanelFor(c, p, { groups = null, idSuffix = '', flash = '', perPage = commentsPerPageOf(c) } = {}) {
@@ -360,7 +352,8 @@ ${listHtml}
   }
 
   app.get('/notes', (c) => {
-    const copy = copyOf(c);
+    const notesTitle = '笔记';
+    const notesDesc = '还没长成文章的碎片、读书记录、临时想法。';
 
     const pageSize = pageSizeOf(c);
     const want = c.req.query('n');
@@ -371,7 +364,7 @@ ${listHtml}
     }
     const { list, more } = paginate(c, {
       fetchPage: (limit, cursor) => repo.notes({ limit, before: cursor }),
-      pathname: '/notes/', label: copy.notesTitle, before, size: pageSize,
+      pathname: '/notes/', label: notesTitle, before, size: pageSize,
     });
 
     // 评论抽屉不再随列表服务端渲染：每篇一次 pageThreadsOf + 一批头像解析，10 篇笔记就多出约 80KB
@@ -395,17 +388,17 @@ ${listHtml}
       };
     });
     const stream = notesStream(noteRows);
-    const notesMast = list.length ? masthead({ mark: 'Notes', title: copy.notesTitle, stats: sectionStats(c, 'note') }) : '';
+    const notesMast = list.length ? masthead({ mark: 'Notes', title: notesTitle, stats: sectionStats(c, 'note') }) : '';
 
     return c.html(layout({
-      title: copy.notesTitle, active: 'notes',
+      title: notesTitle, active: 'notes',
 
       canonical: '/notes/',
       page: 'notes',
       themeType: 'notes',
       themeData: {
         kind: 'note',
-        title: copy.notesTitle,
+        title: notesTitle,
         mark: 'Notes',
         notes: noteRows,
         // notes → list 的回退：给只读 data.posts 的模板留一个同义字段。
@@ -416,12 +409,12 @@ ${listHtml}
         stream_html: stream,
         empty: !list.length,
       },
-      desc: copy.notesDesc,
+      desc: notesDesc,
       main: list.length
         ? `${notesMast}
 ${stream}
     ${more}`
-        : emptyList('Notes', copy.notesTitle),
+        : emptyList('Notes', notesTitle),
     }));
   });
 

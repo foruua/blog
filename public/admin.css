@@ -2423,7 +2423,7 @@ article.a-preview-sheet > h1 { margin: 0; padding-bottom: 1.5rem; border-bottom:
   .a-theme-upload-foot .a-btn { width: 100%; }
 }
 
-/* —— 设置页：站点身份 / 导航 / 页脚 / 文案 / 图标 ——
+/* —— 设置页：站点身份 / 导航 / 页脚 / 图标 ——
    这几块都是「一行一项」的编辑器，原则同首页封面：能不用 JS 就不用（排序靠 ↑↓ 按钮整表提交），
    禁用脚本时也能改。 */
 

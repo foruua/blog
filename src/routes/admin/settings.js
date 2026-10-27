@@ -4,7 +4,6 @@ import { subscriberCount, clearSubscribers } from '../../comments/subscribers.js
 import { settingsFormState, saveSettings, KEYS, HERO_MAX, HERO_OVERLAY_MAX, HERO_LEGACY_KEYS, HERO_RETIRED_KEYS, heroImages, heroOverlay, commentsFormState } from '../../settings.js';
 import { siteIdentityOf } from '../../site/identity.js';
 import { navFormState } from '../../site/nav.js';
-import { copyOf } from '../../site/copy.js';
 import {
   KEYS as MAIL_KEYS, DEFAULTS as MAIL_DEFAULTS, TLS_MODES, TLS_LABEL, PRESETS,
   configSource, smtpConfig, ownerEmail, fromAddress,
@@ -166,7 +165,6 @@ export function registerSettingsRoutes(app, { repo, crypt, adminRepo, mutate = (
       unsub: unsubCount(),
       identity: siteIdentityOf(read),
       nav: navFormState(read, repo.pages()),
-      copy: copyOf(read),
       comments: commentsFormState(repo),
       configured: auth ? auth.configured() : true,
     })));
