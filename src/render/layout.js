@@ -266,17 +266,15 @@ const palettePickerHtml = (palDefault = '') => {
 };
 
 /** 首页 hero-meta 那一行的四枚图标：邮件 / RSS / GitHub / 配色。图标式入口，彼此等重，谁也不抢视线。
- *  两枚之间也是同一枚「·」（与行内其它分隔符同形同色），间距与行内其它分隔对齐 —— 图形和文字一视同仁。
+ *  图标之间不摆「·」：四个圆钮自己就是分隔，点只是噪声。间距由 flex 的 gap 一次给足，
+ *  数值等于原来「0.8rem + 点宽 7.83px + 0.8rem」= 33.43px（窄屏 26.71px），换了实现不改观感。
  *  邮件在没配博主邮箱时不渲染（空的 mailto: 比少一枚更难解释）；其余三枚恒定。
  *  顺序：订阅在前、GitHub 在后 —— 点进来的人多半想追更，主页地址是第二落点。
  *  配色面板锚在整行中间（见 style.css 的 .pal-hero）：锚在 24px 的图标上，窄屏会顶出视口。 */
 export const heroToolsHtml = (palDefault = sitePaletteDefault()) => `<span class="hero-tools">
-        ${SITE.email ? `<a class="hero-tool" href="mailto:${esc(SITE.email)}" aria-label="邮件联系" title="邮件联系">${MAIL_ICO}</a>
-        <span class="sep" aria-hidden="true">·</span>
-        ` : ''}<a class="hero-tool" href="/feed.xml" aria-label="RSS 订阅" title="RSS 订阅">${RSS_ICO}</a>
-        <span class="sep" aria-hidden="true">·</span>
+        ${SITE.email ? `<a class="hero-tool" href="mailto:${esc(SITE.email)}" aria-label="邮件联系" title="邮件联系">${MAIL_ICO}</a>` : ''}
+        <a class="hero-tool" href="/feed.xml" aria-label="RSS 订阅" title="RSS 订阅">${RSS_ICO}</a>
         <a class="hero-tool" href="${GITHUB_URL}" target="_blank" rel="me noopener" aria-label="我的 GitHub" title="我的 GitHub">${GITHUB_ICO}</a>
-        <span class="sep" aria-hidden="true">·</span>
         ${palettePickerHtml(palDefault)}
       </span>`;
 

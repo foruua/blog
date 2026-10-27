@@ -621,23 +621,21 @@ body.mnav-open .mnav-panel { transform: none; opacity: 1; }
   color: var(--muted);
 }
 .hero-meta > * { font-size: var(--info-size); margin-inline: .55rem; }
-/* 分隔符是装饰，用更浅的 --muted-soft。 */
+/* 分隔点已从图标行撤掉（圆钮自己就分得开），这条 .sep 规则随它一起删。 */
 .hero-meta span { color: var(--muted); }
-.hero-meta .sep { color: var(--muted-soft); }
 
 /* —— hero-meta 那一行的四枚图标（邮件 / GitHub / RSS / 样式）——
    它们原先在页脚是 34px 细线圆钮；搬进这行后收成 24px 的圆形命中区（WCAG 2.5.8 下限）。
    常态就铺一层软金底（--accent-soft）：整行只剩图标，不铺底时它们和封面下沿一样淡，
    读者看不出「这里能点」；底色只到 10% 浓度，不会比封面上那行字更抢眼。
    悬停 / 展开再把底色加重一档、图标转金 —— 有反馈，但不再是「从无到有」那一跳。
-   两枚之间是同一枚「·」，间距按 24px 圆钮的 6px 内缩补偿过：分隔符两侧留 .8rem，
-   图标组自身的外边距收到 .25rem，视觉空白一致。
+   图标之间不摆「·」：24px 圆钮自带边界，点只是噪声。间距交给 flex 的 gap ——
+   2.09rem = 原来的「0.8rem + 点宽 7.83px + 0.8rem」= 33.43px，去掉点是换了实现，不是收紧留白。
    那 .36em 曾经落在图标和组内分隔符各自身上（把图标中心对到「14」的中线）；整行只剩图标后，
    没有数字可对，这条补偿整条撤掉，改由 flex 的 align-items:center 在行盒里居中
    —— 留着它会让四枚图标整体上移 4.7px、连盒顶都溢出（实测 top 239.6 vs 行盒 243.9）。
    面板包含块的约束仍在：.pal-hero 与 .hero-tools 都得是 static，否则 left:50% 变成「以图标为轴」。 */
-.hero-tools { display: inline-flex; align-items: center; vertical-align: middle; margin-inline: .25rem; }
-.hero-tools .sep { margin-inline: .8rem; }
+.hero-tools { display: inline-flex; align-items: center; gap: 2.09rem; vertical-align: middle; margin-inline: .25rem; }
 .hero-meta .hero-tool,
 .hero-meta .pal-hero > summary {
   box-sizing: border-box;
@@ -668,11 +666,10 @@ body.mnav-open .mnav-panel { transform: none; opacity: 1; }
    只动图标本体，24px 圆钮和软金底不动（图标四周各留 2px 圆底）。 */
 .hero-meta .pal-hero .pal-ico { display: block; width: 20px; height: 20px; }
 
-/* 320px：整行贴边，四个文字间距各收 .1rem，图标组按同一口径重算（见上：留白一样，只是盒更窄）。 */
+/* 320px：整行贴边，图标组的外边距与组内间距按同一口径收紧（1.67rem = 原 26.71px）。 */
 @media (max-width: 340px) {
   .hero-meta > * { margin-inline: .45rem; }
-  .hero-tools { margin-inline: .14rem; }
-  .hero-tools .sep { margin-inline: .59rem; }
+  .hero-tools { margin-inline: .14rem; gap: 1.67rem; }
 }
 
 /* 最近更新：封面里的一块浅色铭牌 */
