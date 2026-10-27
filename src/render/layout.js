@@ -216,8 +216,8 @@ const LY_ICON = {
   paper: LY_ICO('<path d="M4 5.4h12M4 9.4h12M4 13.4h7.4"/>'),
   box: LY_ICO('<rect x="3" y="3.8" width="14" height="12.4" rx="2.2"/><path d="M6.6 8.2h6.8M6.6 11.2h6.8"/>'),
 };
-// 名称与悬停提示取自 settings.js 的 LAYOUTS（后台下拉用的是同一份），这里只建索引。
-const LAYOUT_LABEL = Object.fromEntries(LAYOUTS.map((l) => [l.key, l]));
+// 两格的名称与悬停提示直接取自 settings.js 的 LAYOUTS，顺序也跟着它走 ——
+// 面板、后台下拉读写同一份清单，默认那档自然排在左/前，不会出现两处顺序不一致。
 
 // 浓淡滑块的绝对彩度上限，与 public/palette.js 的 CHROMA_RANGE.max 必须一致 ——
 // test-palette 会拿生成器的常量跟这里渲染出来的 min/max 比对，漂了当场失败。
@@ -232,8 +232,7 @@ const palettePanelHtml = (cur) => `<div class="pal-panel">
         </div>
         <div class="pal-rule" role="separator"></div>
         <div class="pal-lyt" role="group" aria-label="版式">
-          <button type="button" class="pal-ly" data-layout-opt="paper" aria-pressed="false" title="${esc(LAYOUT_LABEL.paper.hint)}">${LY_ICON.paper}<span class="pal-ly-name">${esc(LAYOUT_LABEL.paper.name)}</span></button>
-          <button type="button" class="pal-ly" data-layout-opt="box" aria-pressed="false" title="${esc(LAYOUT_LABEL.box.hint)}">${LY_ICON.box}<span class="pal-ly-name">${esc(LAYOUT_LABEL.box.name)}</span></button>
+          ${LAYOUTS.map((l) => `<button type="button" class="pal-ly" data-layout-opt="${l.key}" aria-pressed="false" title="${esc(l.hint)}">${LY_ICON[l.key]}<span class="pal-ly-name">${esc(l.name)}</span></button>`).join('\n          ')}
         </div>
         <div class="pal-rule" role="separator"></div>
         ${PALETTES.map((p) => `<button type="button" class="pal-opt" data-palette="${p.key}" data-hue="${p.seed.hue}" data-chroma="${p.seed.chroma}" data-chroma-d="${p.seed.chromaD}" data-paper="${p.seed.paper}" data-paper-d="${p.seed.paperD}" data-ink-l="${p.seed.inkL}" data-ink-l-d="${p.seed.inkLD}" data-bg-l="${p.seed.bgL}" data-bg-l-d="${p.seed.bgLD}" aria-pressed="false"><i class="pal-sw" style="--sw-paper:${p.paper};--sw-ink:${p.ink}" aria-hidden="true"></i><span class="pal-name">${p.name}</span></button>`).join('\n        ')}

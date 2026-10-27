@@ -481,6 +481,9 @@ await test('面板版式两格：首帧对齐、点素匣挂 data-layout 并落�
   try {
     const btn = (k) => pickerOf(w).querySelector(`.pal-ly[data-layout-opt="${k}"]`);
     assert.ok(btn('paper') && btn('box'), '面板里应有纸面 / 素匣两格');
+    // 顺序跟着 LAYOUTS 走：默认那档在左，与后台下拉同一份清单（曾出现面板写死「纸面在前」的漂移）
+    assert.deepEqual([...pickerOf(w).querySelectorAll('.pal-ly')].map((b) => b.dataset.layoutOpt),
+      LAYOUTS.map((l) => l.key), '面板两格顺序应与清单一致');
     assert.equal(btn('paper').getAttribute('aria-pressed'), 'true', '默认选中纸面');
     assert.equal(btn('box').getAttribute('aria-pressed'), 'false');
     openPicker(w);
