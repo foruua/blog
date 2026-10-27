@@ -55,12 +55,12 @@ const varOf = (block, name) => {
 };
 
 // 行为测试的挂载：真 layout() 渲染整页 → 塞 localStorage → 跑 <head> 内联引导 → 跑 app.js。顺序与真实页面一致。
-function mount({ seed = {}, lazyPalette = false } = {}) {
+function mount({ seed = {}, lazyPalette = false, matchesMedia = false } = {}) {
   // 首页 hero-meta 那行带进真入口（#palettePickerH）：行为与访客点的那一枚完全同构。
   const html = layout({ title: '测试', main: `<div class="hero-meta">${heroToolsHtml()}</div>`, canonical: '/', active: 'home', page: 'home' });
   const dom = new JSDOM(html, { url: 'https://uua.me/', runScripts: 'outside-only', pretendToBeVisual: true });
   const w = dom.window;
-  w.matchMedia = () => ({ matches: false });
+  w.matchMedia = () => ({ matches: matchesMedia });
   w.Element.prototype.scrollIntoView = () => {};
   for (const [k, v] of Object.entries(seed)) w.localStorage.setItem(k, v);
   // <head> 里的内联主题引导（outside-only 不会自动跑内联脚本，手动 eval 一次）
@@ -152,9 +152,11 @@ await test('对比度：每套配色 × 明暗，accent 对纸面 / 纸片 ≥ 4
   }
 });
 
-await test('无 JS 回退与打印回退在位', () => {
+await test('无 JS 回退、打印回退、显式明暗的 color-scheme 在位', () => {
   assert.match(css, /html:not\(\.has-js\) \.pal \{ display: none; \}/);
   assert.match(css, /@media print \{\s*html\[data-palette\] \{/);
+  assert.match(css, /html\[data-theme="light"\] \{ color-scheme: light; \}/);
+  assert.match(css, /html\[data-theme="dark"\] \{ color-scheme: dark; \}/);
 });
 
 await test('THEME_BOOT 白名单与 PALETTES 一致（含恢复语句，白名单外不认）', () => {
@@ -209,16 +211,24 @@ await test('「配色」入口只在首页 hero-meta 一份（页脚/抽屉/导�
   // 自定义区只留三根滑块；三档、深浅、取色、对比度、重置与预览都已下线。
   // 面板首帧对齐的是**站点默认**那套（这里就是素笺），不是清单第一项。
   const p0 = PALETTES.find((p) => p.key === '') ?? PALETTES[0];
-  assert.match(tools, new RegExp(`<div class="pal-custom" data-hue="${p0.seed.hue}" data-chroma="${p0.seed.chroma}" data-chroma-d="${p0.seed.chromaD}" data-paper="${p0.seed.paper}" data-paper-d="${p0.seed.paperD}" data-ink-l="${p0.seed.inkL}" data-ink-l-d="${p0.seed.inkLD}" data-bg-l="${p0.seed.bgL}" data-bg-l-d="${p0.seed.bgLD}"`));
-  assert.match(tools, new RegExp(`<input type="range" class="pal-hue" min="0" max="359" step="1" value="${p0.seed.hue}"`));
+  assert.match(tools, new RegExp(`<details class="pal-custom" open data-hue="${p0.seed.hue}" data-chroma="${p0.seed.chroma}" data-chroma-d="${p0.seed.chromaD}" data-paper="${p0.seed.paper}" data-paper-d="${p0.seed.paperD}" data-ink-l="${p0.seed.inkL}" data-ink-l-d="${p0.seed.inkLD}" data-bg-l="${p0.seed.bgL}" data-bg-l-d="${p0.seed.bgLD}"`));
+  assert.match(tools, new RegExp(`<input id="palHue" type="range" class="pal-hue" min="0" max="359" step="1" value="${p0.seed.hue}"`));
   // 浓淡 / 纸色的范围必须与生成器的常量同源，否则滑块又能拖进「色域压回」的死区。
-  assert.match(tools, new RegExp(`<input type="range" class="pal-chroma" min="${lib.CHROMA_RANGE.min}" max="${lib.CHROMA_RANGE.max}" step="0.001" value="${p0.seed.chroma}"`));
-  assert.match(tools, new RegExp(`<input type="range" class="pal-paper" min="${lib.PAPER_RANGE.min}" max="${lib.PAPER_RANGE.max}" step="0.01" value="${p0.seed.paper}"`));
+  assert.match(tools, new RegExp(`<input id="palChroma" type="range" class="pal-chroma" min="${lib.CHROMA_RANGE.min}" max="${lib.CHROMA_RANGE.max}" step="0.001" value="${p0.seed.chroma}"`));
+  assert.match(tools, new RegExp(`<input id="palPaper" type="range" class="pal-paper" min="${lib.PAPER_RANGE.min}" max="${lib.PAPER_RANGE.max}" step="0.01" value="${p0.seed.paper}"`));
   assert.ok(tools.includes(`class="pal-chroma" min="${lib.CHROMA_RANGE.min}" max="${lib.CHROMA_RANGE.max}"`), '浓淡滑块范围与生成器不一致');
   assert.ok(tools.includes(`class="pal-paper" min="${lib.PAPER_RANGE.min}" max="${lib.PAPER_RANGE.max}"`), '纸色滑块范围与生成器不一致');
   // 浓淡读数现在是「绝对彩度 / 上限」—— 素笺该读 69%，不是 100%。
   assert.ok(tools.includes(`>${Math.round(p0.seed.chroma / lib.CHROMA_RANGE.max * 100)}%</output>`), '浓淡读数没按绝对彩度折成百分比');
   assert.ok(tools.includes(`>${Math.round(p0.seed.paper * 100)}%</output>`), '纸色读数没按强度折成百分比');
+  // 可访问性：预设成组、色相条有可读值、output 与滑块关联。
+  assert.match(tools, /<div class="pal-presets" role="group" aria-label="配色">/);
+  assert.match(tools, /<summary class="pal-head">[\s\S]*?<output class="pal-hue-out" for="palHue"/);
+  assert.match(tools, /<output class="pal-chroma-out" for="palChroma"/);
+  assert.match(tools, /<output class="pal-paper-out" for="palPaper"/);
+  assert.match(tools, new RegExp(`aria-valuetext="${p0.seed.hue} 度"`));
+  assert.match(tools, /aria-valuetext="浓淡 \d+%"/);
+  assert.match(tools, /aria-valuetext="纸色 \d+%"/);
   for (const gone of ['pal-lv', 'pal-ink', 'pal-pick', 'pal-reset', 'pal-contrast', 'pal-levels', 'pal-inks', 'pal-tools', 'pal-preview']) {
     assert.doesNotMatch(tools, new RegExp(`class="${gone}"`), `${gone} 应该已经下线`);
   }
@@ -547,11 +557,13 @@ await test('后台「站点与阅读」有默认版式下拉，选项与清单�
 
 // ———— 自定义配色（色相滑块）——————————————
 
-await test('生成器：360 色相 × 三档浓度 × 明暗，五类对比度全部 ≥ 4.5:1', () => {
+await test('生成器：360 色相 × 三档浓度 × 明暗，正文 / 强调 / 代码对比度全部 ≥ 4.5:1', () => {
   const worst = {};
   const pairs = (t) => [
     ['accent/bg', t.accent, t.bg],
     ['accent/bg-elev', t.accent, t['bg-elev']],
+    ['muted/bg', t.muted, t.bg],
+    ['muted/bg-soft', t.muted, t['bg-soft']],
     ['code-fg/code-bg', t['code-fg'], t['code-bg']],
     ...lib.TOKENS.filter((n) => n.startsWith('hl-')).map((n) => [`${n}/code-bg`, t[n], t['code-bg']]),
   ];
@@ -566,7 +578,7 @@ await test('生成器：360 色相 × 三档浓度 × 明暗，五类对比度�
       }
     }
   }
-  assert.deepEqual(Object.keys(worst).length, 11, '扫描项数不对');
+  assert.deepEqual(Object.keys(worst).length, 13, '扫描项数不对');
   for (const [name, v] of Object.entries(worst)) {
     assert.ok(v.r >= 4.5, `${name} 最低 ${v.r.toFixed(2)}:1 @ ${v.where}`);
   }
@@ -592,11 +604,13 @@ await test('生成器：三段结构与 css 预设那套同形（浅色 / 显式
   const midC = lib.LEGACY_CHROMA_SCALE;
   assert.ok(built.includes(`--seed-c:${midC.toFixed(3)}`) && built.includes('--seed-p:0.500') && built.includes('--seed-k:0.00'), '新种子没写进 CSS');
   assert.ok(built.includes(`--seed-v:${lib.SEED_VERSION}`), '新种子没带版本号');
+  assert.ok(built.includes(`--seed-g:${lib.GEN_VERSION}`), '新种子没带生成器版本');
+  assert.ok(built.includes('@media (prefers-contrast:more)'), '更高对比的强调色块没生成');
   // 没有预设底子时不该写骨架明度 —— 那六个字段是「从预设拖进来」才有的料。
   assert.ok(!/--seed-(il|id|bl|bd):/.test(built), '手调时不该写预设明度种子');
 });
 
-await test('生成器：浓度 / 纸色 / 深浅的边界组合仍守住 11 组对比度', () => {
+await test('生成器：浓度 / 纸色 / 深浅的边界组合仍守住 13 组对比度', () => {
   // 浓度是绝对彩度：从纯灰到上限取五个点；纸色是 0—1 的强度。
   const chromas = [lib.CHROMA_RANGE.min, 0.04, 0.08, 0.12, lib.CHROMA_RANGE.max];
   const papers = [lib.PAPER_RANGE.min, 0.3, 0.6, lib.PAPER_RANGE.max];
@@ -610,6 +624,8 @@ await test('生成器：浓度 / 纸色 / 深浅的边界组合仍守住 11 组�
             const pairs = [
               ['accent/bg', t.accent, t.bg],
               ['accent/bg-elev', t.accent, t['bg-elev']],
+              ['muted/bg', t.muted, t.bg],
+              ['muted/bg-soft', t.muted, t['bg-soft']],
               ['code-fg/code-bg', t['code-fg'], t['code-bg']],
               ...lib.TOKENS.filter((n) => n.startsWith('hl-')).map((n) => [`${n}/code-bg`, t[n], t['code-bg']]),
             ];
@@ -624,7 +640,7 @@ await test('生成器：浓度 / 纸色 / 深浅的边界组合仍守住 11 组�
       }
     }
   }
-  assert.deepEqual(Object.keys(worst).length, 11, '扫描项数不对');
+  assert.deepEqual(Object.keys(worst).length, 13, '扫描项数不对');
   for (const [name, v] of Object.entries(worst)) {
     assert.ok(v.r >= 4.5, `${name} 最低 ${v.r.toFixed(2)}:1 @ ${v.where}`);
   }
@@ -639,7 +655,9 @@ await test('生成器：新参数钳制与种子格式', () => {
   // 旧倍率种子（存量 localStorage）要被认出来并换算，不能当成一个巨大的绝对彩度。
   const legacy = lib.customCss(210, { chroma: 1.2, paper: 0.5, ink: -1 });
   assert.ok(legacy.includes(`--seed-c:${(1.2 * lib.LEGACY_CHROMA_SCALE).toFixed(3)}`), '旧倍率没换算成绝对彩度');
-  assert.ok(legacy.includes('--seed-p:0.278'), '旧纸色倍率没换算成强度');
+  // 旧纸色倍率 0.5 → 旧强度 0.278 → 按新上限 0.036 折回 0.170；绝对彩度不变。
+  const legacyPaper = (0.5 / lib.LEGACY_PAPER_SCALE * lib.PAPER_C_MAX_V4 / lib.PAPER_C_MAX).toFixed(3);
+  assert.ok(legacy.includes(`--seed-p:${legacyPaper}`), '旧纸色倍率没换算成强度');
   assert.ok(legacy.includes('--seed-k:-1.00'), '合法种子没原样写入');
   // 新量纲要带版本号，否则纸色 0.5 会被当成旧倍率再除一次 1.8。
   const fine = lib.customCss(210, { v: lib.SEED_VERSION, chroma: 0.08, paper: 0.5, ink: -1 });
@@ -648,6 +666,89 @@ await test('生成器：新参数钳制与种子格式', () => {
   assert.equal(lib.levelOfChroma(0.016), 'soft', '0.016 是近灰，该归 soft');
   const near = lib.hexToOklch('#2f5a86');
   assert.ok(near && Math.abs(near.H - 251) < 2 && near.C > 0.08, 'hex → OKLCH 取色结果不对');
+});
+
+await test('清单里每套预设的深色种子也能还原深色纸色 / 墨色（改令牌后要重跑 palette-seeds）', () => {
+  const d = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  // 深色容差 6/255：同一套配色的深色令牌色相与浅色不完全一致，种子里只有一个 hue。
+  const near = (a, b) => d(a).every((v, i) => Math.abs(v - d(b)[i]) <= 6);
+  for (const p of PALETTES) {
+    const sel = p.key ? `html[data-theme="dark"][data-palette="${p.key}"] {` : 'html[data-theme="dark"] {';
+    const block = blockOf(css, sel);
+    const built = lib.tokensOf(p.seed.hue, { ...p.seed, v: lib.SEED_VERSION }, true);
+    for (const [name, token] of [['bg', '--bg'], ['accent', '--accent']]) {
+      const want = varOf(block, token);
+      assert.ok(near(built[name], want), `${p.key || '素笺'} 的深色 ${name} 还原不出（${want} → ${built[name]}）`);
+    }
+  }
+});
+
+await test('v2 种子折算：旧上限 / 旧斜率一起折回，当前纸色不跳', () => {
+  const v2 = { hue: 77, chroma: 0.1, chromaD: 0.106, paper: 0.26, paperD: 0.193, bgL: 0.983, bgLD: 0.149, v: 2 };
+  const done = lib.normalizeSeed(77, v2);
+  const ratio = lib.PAPER_C_MAX_V4 / lib.PAPER_C_MAX;
+  assert.equal(done.v, lib.SEED_VERSION, '折算后应标成当前版本');
+  assert.ok(Math.abs(done.paper - v2.paper * ratio) < 1e-9, '纸色强度没按上限比例折回');
+  assert.ok(Math.abs(done.paperD - v2.paperD * ratio) < 1e-9, '深色纸色强度没按上限比例折回');
+  assert.ok(Math.abs(done.bgL - (v2.bgL + done.paper * lib.PAPER_L_DROP - v2.paper * lib.PAPER_L_DROP_V3)) < 1e-9,
+    '浅色纸骨架明度没按旧斜率折回');
+  assert.ok(Math.abs(done.bgLD - (v2.bgLD + v2.paperD * lib.PAPER_L_RISE_V2 - done.paperD * lib.PAPER_L_RISE)) < 1e-9,
+    '深色纸骨架明度没按旧斜率折回');
+  // 折回前后，同一张纸的亮 / 暗纸面明度必须一致 —— 这就是「存量自定义拖动时不跳」。
+  assert.ok(Math.abs((done.bgL - done.paper * lib.PAPER_L_DROP) - (v2.bgL - v2.paper * lib.PAPER_L_DROP_V3)) < 1e-9,
+    '折回后浅色纸面明度对不上');
+  assert.ok(Math.abs((done.bgLD + done.paperD * lib.PAPER_L_RISE) - (v2.bgLD + v2.paperD * lib.PAPER_L_RISE_V2)) < 1e-9,
+    '折回后深色纸面明度对不上');
+  // 当前版本的种子不参与折回，否则每次重新归一都会把强度越改越小。
+  assert.equal(lib.normalizeSeed(77, { ...v2, v: lib.SEED_VERSION }).bgLD, v2.bgLD);
+});
+
+await test('v3 种子折算：旧上限 + 新浅色斜率一起折回，当前纸色不跳', () => {
+  const v3 = { hue: 77, chroma: 0.1, chromaD: 0.106, paper: 0.26, paperD: 0.193, bgL: 0.983, bgLD: 0.145, v: 3 };
+  const done = lib.normalizeSeed(77, v3);
+  const ratio = lib.PAPER_C_MAX_V4 / lib.PAPER_C_MAX;
+  assert.equal(done.v, lib.SEED_VERSION, '折算后应标成当前版本');
+  assert.ok(Math.abs(done.paper - v3.paper * ratio) < 1e-9, '纸色强度没按上限比例折回');
+  assert.ok(Math.abs(done.bgL - (v3.bgL + done.paper * lib.PAPER_L_DROP - v3.paper * lib.PAPER_L_DROP_V3)) < 1e-9,
+    '浅色纸骨架明度没按旧斜率折回');
+  // 折回前后，同一张纸的浅色纸面明度必须一致。
+  assert.ok(Math.abs((done.bgL - done.paper * lib.PAPER_L_DROP) - (v3.bgL - v3.paper * lib.PAPER_L_DROP_V3)) < 1e-9,
+    '折回后浅色纸面明度对不上');
+  // v3 的深色斜率已经与当前一致，但强度仍要按新上限折回；纸面明度不变。
+  assert.ok(Math.abs(done.bgLD - (v3.bgLD + v3.paperD * lib.PAPER_L_RISE - done.paperD * lib.PAPER_L_RISE)) < 1e-9,
+    '深色纸骨架明度不该被二次改斜率');
+  assert.ok(Math.abs((done.bgLD + done.paperD * lib.PAPER_L_RISE) - (v3.bgLD + v3.paperD * lib.PAPER_L_RISE)) < 1e-9,
+    '折回后深色纸面明度对不上');
+});
+
+await test('存量 v4 无生成器版本：首帧自动升级到 v5，纸色不跳', async () => {
+  const q = PALETTES.find((p) => p.key === 'qingci').seed;
+  // v4 存量（C_MAX 还是 0.022）的青瓷种子；迁移后应正好回到当前设置的 q。
+  const old = { paper: 0.341, paperD: 0.468, bgL: 0.971, bgLD: 0.153 };
+  const currentCss = lib.customCss(q.hue, { ...q, v: lib.SEED_VERSION });
+  const v4css = currentCss
+    .replace(`--seed-v:${lib.SEED_VERSION}`, '--seed-v:4')
+    .replace(/--seed-g:\d+;/, '')
+    .replace(/--seed-p:[0-9.]+/, `--seed-p:${old.paper}`)
+    .replace(/--seed-pd:[0-9.]+/, `--seed-pd:${old.paperD}`)
+    .replace(/--seed-bl:[0-9.]+/, `--seed-bl:${old.bgL}`)
+    .replace(/--seed-bd:[0-9.]+/, `--seed-bd:${old.bgLD}`);
+  const { dom, w } = mount({ seed: { palette: 'custom', palCustom: v4css } });
+  try {
+    const el = w.document.documentElement;
+    assert.equal(el.dataset.seedV, String(lib.SEED_VERSION), '旧版本没自动升到当前版本');
+    assert.equal(el.dataset.seedG, String(lib.GEN_VERSION), '生成器版本没补上');
+    assert.ok(Math.abs(Number(el.dataset.seedP) - q.paper) < 0.002, `--seed-p 没折回：${el.dataset.seedP} ≠ ${q.paper}`);
+    assert.ok(Math.abs(Number(el.dataset.seedPd) - q.paperD) < 0.002, `--seed-pd 没折回：${el.dataset.seedPd} ≠ ${q.paperD}`);
+    assert.ok(Math.abs(Number(el.dataset.seedBl) - q.bgL) < 0.002, `--seed-bl 没折回：${el.dataset.seedBl} ≠ ${q.bgL}`);
+    assert.ok(Math.abs(Number(el.dataset.seedBd) - q.bgLD) < 0.002, `--seed-bd 没折回：${el.dataset.seedBd} ≠ ${q.bgLD}`);
+    const paper = pickerOf(w).querySelector('.pal-paper');
+    assert.ok(Math.abs(Number(paper.value) - q.paper) < 0.002, '滑块没停到换算后的强度上');
+    const wantBg = lib.tokensOf(q.hue, { ...q, v: lib.SEED_VERSION }, true).bg;
+    const text = w.document.getElementById('palCustom').textContent;
+    const at = text.indexOf('html[data-theme="dark"][data-palette="custom"]{');
+    assert.ok(text.slice(at, text.indexOf('}', at)).includes(`--bg:${wantBg}`), '折回后的暗色纸面没生成');
+  } finally { dom.window.close(); }
 });
 
 await test('生成器输出全部通过 boot 的校验闸（放宽闸或改格式都会在这里炸）', () => {
@@ -834,6 +935,167 @@ await test('拖纸色滑块：0 = 中性纸，令牌与种子一起变', async (
   } finally { dom.window.close(); }
 });
 
+await test('从预设拖进自定义：暗色那套按比例跟随浓淡 / 纸色（不再有死滑块）', async () => {
+  const qingci = PALETTES.find((p) => p.key === 'qingci').seed;
+  const { dom, w } = mount({ seed: { palette: 'qingci' } });
+  try {
+    openPicker(w);
+    w.document.querySelector('#palettePickerH .pal-tm[data-theme-opt="dark"]').click();
+    const picker = pickerOf(w);
+    const styleText = () => w.document.getElementById('palCustom')?.textContent ?? '';
+    const darkBlock = () => {
+      const at = styleText().indexOf('html[data-theme="dark"][data-palette="custom"]{');
+      assert.notEqual(at, -1, '还没生成深色块');
+      return styleText().slice(at, styleText().indexOf('}', at));
+    };
+    // 青瓷的深色浓度 / 浅色浓度 = .082 / .067；拖到 0.1 后深色应同步到约 0.122。
+    const nextC = 0.1;
+    const wantC = nextC * (qingci.chromaD / qingci.chroma);
+    const chroma = picker.querySelector('.pal-chroma');
+    chroma.value = String(nextC);
+    chroma.dispatchEvent(new w.Event('input', { bubbles: true }));
+    await sleep(60);
+    const el = w.document.documentElement;
+    assert.equal(el.dataset.palette, 'custom');
+    assert.ok(Math.abs(Number(el.dataset.seedCd) - wantC) < 0.002, `深色浓度没跟随：${el.dataset.seedCd} ≠ ${wantC}`);
+    const dark1 = lib.tokensOf(qingci.hue, { ...qingci, chroma: nextC, chromaD: wantC, v: lib.SEED_VERSION }, true);
+    assert.ok(darkBlock().includes(`--accent:${dark1.accent}`), '深色 accent 没按新浓度重算');
+    // 纸色同理：青瓷的深色纸色 / 浅色纸色 = .468 / .341；拖到 0 后两边都该是中性纸。
+    const paper = picker.querySelector('.pal-paper');
+    paper.value = '0';
+    paper.dispatchEvent(new w.Event('input', { bubbles: true }));
+    await sleep(60);
+    assert.equal(Number(el.dataset.seedP), 0);
+    assert.ok(!el.dataset.seedPd || Number(el.dataset.seedPd) === 0, '深色纸色没跟着落到 0');
+    const dark2 = lib.tokensOf(qingci.hue, { ...qingci, chroma: nextC, chromaD: wantC, paper: 0, paperD: 0, v: lib.SEED_VERSION }, true);
+    assert.notEqual(dark2.bg, dark1.bg, '深色纸面没跟着纸色滑块变');
+    assert.ok(darkBlock().includes(`--bg:${dark2.bg}`), '深色纸面令牌没重算');
+  } finally { dom.window.close(); }
+});
+
+await test('色相轨道：用 OKLCH 色标（HSL 只做兜底），亮 / 暗各一条', () => {
+  assert.match(css, /@supports \(color: oklch\(/);
+  assert.ok(css.includes('--hue-strip-light'));
+  assert.ok(css.includes('--hue-strip-dark'));
+  assert.ok(css.includes('oklch(0.62 0.10 0)'), '亮色轨道没有 OKLCH 0° 色标');
+  assert.ok(css.includes('oklch(0.76 0.09 0)'), '暗色轨道没有 OKLCH 0° 色标');
+  assert.match(css, /\.pal-custom input\[type="range"\]::-webkit-slider-runnable-track \{[^}]*background: var\(--hue-track\);/,
+    '通用轨道还写死了 HSL 彩虹');
+  assert.match(css, /html\[data-theme="dark"\] \.pal-custom \{ --hue-track: var\(--hue-strip-dark\); \}/,
+    '显式暗色没有切到深色轨道');
+  assert.match(css, /@media \(prefers-color-scheme: dark\) \{\s*html:not\(\[data-theme="light"\]\):not\(\[data-theme="dark"\]\) \.pal-custom \{ --hue-track: var\(--hue-strip-dark\); \}/,
+    '系统深色没有切到深色轨道');
+});
+
+await test('自定义 CSS 带生成器版本：缺失时用当前种子重算，存量算法自动升级', async () => {
+  const built = lib.customCss(210, 'mid');
+  const noGen = built.replace(/--seed-g:\d+;/, '');
+  const { dom, w } = mount({ seed: { palette: 'custom', palCustom: noGen } });
+  try {
+    const el = w.document.documentElement;
+    assert.equal(el.dataset.seedG, String(lib.GEN_VERSION), '缺失的 --seed-g 没补上');
+    assert.ok(w.document.getElementById('palCustom').textContent.includes(`--seed-g:${lib.GEN_VERSION}`));
+    assert.ok(w.localStorage.getItem('palCustom')?.includes(`--seed-g:${lib.GEN_VERSION}`), '升级后的 CSS 没落盘');
+  } finally { dom.window.close(); }
+});
+
+await test('滑轨端点：浓淡 / 纸色画完整范围，不随当前值伸缩', async () => {
+  const p0 = PALETTES.find((p) => p.key === '') ?? PALETTES[0];
+  const { dom, w } = mount();
+  try {
+    const box = pickerOf(w).querySelector('.pal-custom');
+    const track = lib.trackOf(p0.seed.hue, { ...p0.seed, v: lib.SEED_VERSION }, false);
+    assert.equal(box.style.getPropertyValue('--chroma-end'), track.accentMax, '浓淡端点不是当前色相的最大值');
+    assert.equal(box.style.getPropertyValue('--paper-0'), track.paper0, '纸色 0% 端点不对');
+    assert.equal(box.style.getPropertyValue('--paper-1'), track.paper1, '纸色 100% 端点不对');
+    pickerOf(w).querySelector('.pal-tm[data-theme-opt="dark"]').click();
+    await sleep(0);
+    const darkTrack = lib.trackOf(p0.seed.hue, { ...p0.seed, v: lib.SEED_VERSION }, true);
+    assert.equal(box.style.getPropertyValue('--chroma-end'), darkTrack.accentMax, '暗色没换滑轨端点');
+  } finally { dom.window.close(); }
+});
+
+await test('面板可访问性：aria-valuetext 跟手、自定义 aria-current、预设分组', async () => {
+  const { dom, w } = mount();
+  try {
+    openPicker(w);
+    const picker = pickerOf(w);
+    const box = picker.querySelector('.pal-custom');
+    assert.match(w.document.body.innerHTML, /class="pal-presets" role="group" aria-label="配色"/);
+    assert.equal(picker.querySelector('.pal-hue').getAttribute('aria-valuetext'), '77 度');
+    const chroma = picker.querySelector('.pal-chroma');
+    chroma.value = '0.1';
+    chroma.dispatchEvent(new w.Event('input', { bubbles: true }));
+    assert.equal(chroma.getAttribute('aria-valuetext'), '浓淡 69%');
+    const paper = picker.querySelector('.pal-paper');
+    paper.value = '0';
+    paper.dispatchEvent(new w.Event('input', { bubbles: true }));
+    assert.equal(paper.getAttribute('aria-valuetext'), '纸色 无');
+    const hue = picker.querySelector('.pal-hue');
+    hue.value = '300';
+    hue.dispatchEvent(new w.Event('input', { bubbles: true }));
+    assert.equal(hue.getAttribute('aria-valuetext'), '300 度');
+    await sleep(60);
+    assert.equal(box.getAttribute('aria-current'), 'true', '自定义选中态没暴露给读屏');
+    picker.querySelector('.pal-opt[data-palette=""]').click();
+    await sleep(0);
+    assert.equal(box.hasAttribute('aria-current'), false, '退出自定义后 aria-current 没撤掉');
+  } finally { dom.window.close(); }
+});
+
+await test('多标签页：storage 同步明暗 / 配色 / 版式 / 自定义 CSS', async () => {
+  const { dom, w } = mount();
+  try {
+    const el = w.document.documentElement;
+    w.dispatchEvent(new w.StorageEvent('storage', { key: 'theme', newValue: 'dark' }));
+    assert.equal(el.dataset.theme, 'dark', '明暗没跟随 storage');
+    w.dispatchEvent(new w.StorageEvent('storage', { key: 'palette', newValue: 'qingci' }));
+    assert.equal(el.dataset.palette, 'qingci', '预设没跟随 storage');
+    w.dispatchEvent(new w.StorageEvent('storage', { key: 'layout', newValue: 'box' }));
+    assert.equal(el.dataset.layout, 'box', '版式没跟随 storage');
+    const css = lib.customCss(200, 'mid');
+    w.localStorage.setItem('palette', 'custom');
+    w.dispatchEvent(new w.StorageEvent('storage', { key: 'palCustom', newValue: css }));
+    assert.equal(el.dataset.palette, 'custom');
+    assert.equal(el.dataset.seedH, '200', '自定义种子没跟随 storage');
+    assert.ok(w.document.getElementById('palCustom')?.textContent.includes('--seed-h:200'));
+  } finally { dom.window.close(); }
+});
+
+await test('palette.js 加载失败：显示提示并禁用滑块，不再静默', async () => {
+  const { dom, w } = mount({ lazyPalette: true });
+  try {
+    openPicker(w);
+    const hue = pickerOf(w).querySelector('.pal-hue');
+    hue.value = '300';
+    hue.dispatchEvent(new w.Event('input', { bubbles: true }));
+    await sleep(320);
+    const loader = w.document.querySelector('script[src*="palette.js"]');
+    assert.ok(loader, '没按需注入 palette.js');
+    loader.onerror?.();
+    await sleep(0);
+    const box = pickerOf(w).querySelector('.pal-custom');
+    assert.ok(box.hasAttribute('data-failed'), '失败状态没落到面板上');
+    assert.equal(box.querySelector('.pal-fail').hidden, false, '失败提示没显示');
+    assert.equal(hue.disabled, true, '失败后滑块仍可拖');
+    assert.equal(hue.getAttribute('aria-disabled'), 'true');
+  } finally { dom.window.close(); }
+});
+
+await test('小屏首次打开把自定义折起，桌面保持展开', () => {
+  let small;
+  let large;
+  try {
+    small = mount({ matchesMedia: true });
+    large = mount();
+    assert.equal(pickerOf(small.w).querySelector('.pal-custom').open, false, '小屏没折起自定义');
+    assert.equal(pickerOf(large.w).querySelector('.pal-custom').open, true, '桌面被误折起');
+  } finally {
+    small?.dom.window.close();
+    large?.dom.window.close();
+  }
+});
+
 await test('点预设：退出自定义（注入的 style 留着也不再生效），滑块回到那套的角度', async () => {
   const { dom, w } = mount({ seed: { palette: 'custom', palCustom: lib.customCss(200, 'bold') } });
   try {
@@ -872,7 +1134,7 @@ await test('站主不能把「自定义」设成站点默认（那份 CSS 只在
 await test('打印：配色回退压得住注入的自定义（同权重靠源码顺序，必须 !important）', () => {
   const printBlock = /@media print \{\s*html\[data-palette\] \{([\s\S]*?)\n\s{2}\}/.exec(css);
   assert.ok(printBlock, '打印回退块不见了');
-  for (const name of ['--bg', '--accent', '--gold', '--grain']) {
+  for (const name of ['--bg', '--accent', '--muted', '--gold', '--grain']) {
     assert.match(printBlock[1], new RegExp(`${name}: [^;]+ !important`), `${name} 没加 !important，自定义配色会被原样印出来`);
   }
 });

@@ -62,10 +62,30 @@
   // 旧版自定义 CSS 只有 --seed-lv（三档名）：回读时用它换算成旧倍率，再由下面的量纲闸换成绝对彩度。
   // 新面板不再展示三档，这段只为存量 localStorage 不炸。
   const LEVEL_CHROMA = { soft: 0.72, mid: 1, bold: 1.3 };
-  // 量纲闸：新版种子带 --seed-v:2（绝对彩度 0—0.145 / 纸色强度 0—1）。
-  // 没有这个标记的是旧版（倍率 0.55—1.45 / 纸色倍率 0—1.8）—— 纸色两条量纲在 0—1 之间重叠，
-  // 光看数值分不出来，只能认版本号。换算用旧尺子（0.105），别用新上限。
-  const SEED_VERSION = 2;
+  // 量纲闸：v2 起种子是绝对彩度（0—0.145）与纸色强度（0—1）；没有标记的是旧版倍率
+  // （0.55—1.45 / 纸色 0—1.8）—— 纸色两条量纲在 0—1 之间重叠，只能认版本号。
+  // v3 / v4 分别改了深色 / 浅色纸的明度斜率，量纲没变；normalizeSeed 会把旧版本的
+  // --seed-bd / --seed-bl 折回。这里只把 v0/v1 换成 v2 量纲，其余按 dataset 原版本交出去。
+  const DIM_VERSION = 2;
+  const SEED_VERSION = 5;
+  // 与 palette.js 的纸色常量同源：面板可能比生成器先就绪，旧种子的强度/骨架必须在这里
+  // 就换算到当前版本，否则滑块会先停在旧强度上、第一次拖动才跳。PAPER_DEFAULT_L/-LD 是
+  // 生成器骨架里的浅/深纸面明度（SHAPES.light.L.bg / dark.L.bg），手调种子没有
+  // --seed-bl/-bd 时用它当旧基线。改这些数必须同步 palette.js 与 scripts/test-palette.mjs。
+  const PAPER_C_MAX = 0.036;
+  const PAPER_C_MAX_V4 = 0.022;
+  const PAPER_L_DROP = 0.028;
+  const PAPER_L_DROP_V3 = 0.013;
+  const PAPER_L_RISE = 0.028;
+  const PAPER_L_RISE_V2 = 0.010;
+  const PAPER_DEFAULT_L = 0.962;
+  const PAPER_DEFAULT_LD = 0.19;
+  // 与 palette.js 的 GEN_VERSION 同源；--seed-g 对不上时用当前生成器重算存量 CSS。
+  const GEN_VERSION = 1;
+  // storage 同步发生在文章页时没有 .pal 面板可查，只能按这份白名单认预设 key。
+  // 与 src/settings.js 的 PALETTES 保持同步；白名单外一律不动。
+  const PALETTE_KEYS = ['xuanzhi', 'qingci', 'dailan', 'qian', 'ziteng'];
+  const SEED_FIELDS = ['v', 'g', 'h', 'lv', 'c', 'cd', 'p', 'pd', 'k', 'il', 'id', 'bl', 'bd'];
   const LEGACY_CHROMA_SCALE = 0.105;
   const LEGACY_PAPER_SCALE = 1.8;
   const LEGACY_CHROMA_SPLIT = 0.3;
@@ -76,6 +96,11 @@
   const chromaMaxOf = (picker) => {
     const max = Number(picker?.querySelector('.pal-chroma')?.max);
     return Number.isFinite(max) && max > 0 ? max : CHROMA_MAX_FALLBACK;
+  };
+  // 纸色上限同样以面板为准（当前恒为 1），别把 1 写死在换算里。
+  const paperMaxOf = (picker) => {
+    const max = Number(picker?.querySelector('.pal-paper')?.max);
+    return Number.isFinite(max) && max > 0 ? max : 1;
   };
   // 明暗三态：显式 light/dark 写在 data-theme 上，'auto' 就是不写（跟随系统）—— 首帧引导也只认那两个值。
   const modeNow = () => {
@@ -97,6 +122,29 @@
   const upChroma = (v, modern) => (modern || !(v > LEGACY_CHROMA_SPLIT) ? v : v * LEGACY_CHROMA_SCALE);
   const upPaper = (v, modern) => (modern ? v : v / LEGACY_PAPER_SCALE);
 
+  // v5 迁移：纸色上限 0.022→0.036 后，paper / paperD 是「相对上限的强度」，要按比例折回；
+  // bgL / bgLD 存的是按旧强度、旧斜率反算的基线，也要一起重算才能保持当前纸色不跳。
+  // 与 palette.js 的 normalizeSeed 同一套公式；面板要先于生成器就绪，所以这里保留一份。
+  const migratePaperSeed = (seed, version) => {
+    if (version >= SEED_VERSION) return seed;
+    const ratio = PAPER_C_MAX_V4 / PAPER_C_MAX;
+    const oldPaper = seed.paper;
+    const oldPaperD = seed.paperD ?? null;
+    const newPaper = oldPaper * ratio;
+    const newPaperD = oldPaperD === null ? null : oldPaperD * ratio;
+    const oldDrop = version >= 4 ? PAPER_L_DROP : PAPER_L_DROP_V3;
+    const oldRise = version >= 3 ? PAPER_L_RISE : PAPER_L_RISE_V2;
+    const bgL = seed.bgL === null
+      ? (version >= DIM_VERSION ? PAPER_DEFAULT_L + newPaper * PAPER_L_DROP - oldPaper * oldDrop : null)
+      : seed.bgL + newPaper * PAPER_L_DROP - oldPaper * oldDrop;
+    const oldEffectiveD = oldPaperD ?? oldPaper;
+    const newEffectiveD = newPaperD ?? newPaper;
+    const bgLD = seed.bgLD === null
+      ? (version >= DIM_VERSION ? PAPER_DEFAULT_LD + oldEffectiveD * oldRise - newEffectiveD * PAPER_L_RISE : null)
+      : seed.bgLD + oldEffectiveD * oldRise - newEffectiveD * PAPER_L_RISE;
+    return { ...seed, v: SEED_VERSION, paper: newPaper, paperD: newPaperD, bgL, bgLD };
+  };
+
   // 当前种子：自定义 → 读 THEME_BOOT 从注入 CSS 里抠出来挂在 dataset 上的那组值（不查
   // getComputedStyle：自定义属性会逼一次强制样式计算，拖动时每帧都做太贵）；其余 → 取当前生效
   // 预设自己标的那一组（同样由 base.css 反算，见 scripts/palette-seeds.mjs）。
@@ -110,10 +158,15 @@
       const hue = parseInt(d.seedH ?? '', 10);
       if (Number.isFinite(hue)) {
         const legacyLevel = d.seedLv || 'mid';
-        const modern = Number(d.seedV) >= SEED_VERSION;
+        // 只把 v0/v1 的倍率换算成 v2 量纲；v2 之后交给 migratePaperSeed 统一折到当前版本。
+        const version = Number(d.seedV) || 0;
+        const modern = version >= DIM_VERSION;
         const cRaw = numOr(d.seedC);
         const pRaw = numOr(d.seedP);
-        return {
+        const seed = {
+          // 交出去的版本是「这些数值实际属于哪一版」，不是 dataset 里的原值：
+          // v0/v1 已在上面换成 v2 量纲，所以最低标 v2；v2+ 原样带出去。
+          v: Math.min(SEED_VERSION, Math.max(DIM_VERSION, version)),
           hue,
           chroma: cRaw === null ? upChroma(LEVEL_CHROMA[legacyLevel] ?? 1, modern) : upChroma(cRaw, modern),
           paper: pRaw === null ? 0.5 : upPaper(pRaw, modern),
@@ -126,12 +179,17 @@
           bgL: numOr(d.seedBl),
           bgLD: numOr(d.seedBd),
         };
+        // 面板先于 palette.js 就绪也要把旧种子折到当前版本，否则滑块会先停在旧强度上，
+        // 第一次拖动才跳；migratePaperSeed 与生成器的 normalizeSeed 保持同一套公式。
+        return migratePaperSeed(seed, seed.v);
       }
     }
     const btn = picker?.querySelector(`.pal-opt[data-palette="${d.palette || ''}"]`);
     const hue = parseInt(btn?.dataset.hue ?? '', 10);
     const base = btn?.dataset ?? {};
     return {
+      // 预设按钮里的字段由服务端按当前生成器渲染，已经是当前版本。
+      v: SEED_VERSION,
       hue: Number.isFinite(hue) ? hue : 210,
       chroma: numOr(base.chroma) ?? max,
       paper: numOr(base.paper) ?? 0.26,
@@ -145,15 +203,47 @@
     };
   };
 
+  // 深色那套的浓度 / 纸色强度是预设自带的一对（见 palette.js 的 chromaD / paperD）：面板只有
+  // 一套滑块，拖动时按「当前深浅比例」同步。否则暗色访客拖浓淡 / 纸色，改的全是浅色令牌，
+  // 屏幕上一点变化都没有 —— 看起来像滑块坏了。比例用当前值现算，连续拖动时每帧都能接上。
+  const linkDark = (light, dark, next, max) => {
+    const l = Number(light);
+    const d = Number(dark);
+    const ratio = Number.isFinite(l) && l > 1e-4 && Number.isFinite(d) ? d / l : 1;
+    return Math.min(max, Math.max(0, next * ratio));
+  };
   // 拖动时控件的值比 dataset 新：读控件而不是读 dataset，否则两个滑块会互相拽回上一帧。
-  const readSeed = (picker) => {
+  // changed 只标记「这次动的是哪一项」：只有浓淡 / 纸色才重算深色那套，拖色相时保持原值 ——
+  // 旧数据里 chroma=0 / chromaD>0 的组合不能被顺手抹平。
+  const readSeed = (picker, changed = '') => {
     const base = seedNow(picker);
-    return {
-      ...base,
-      hue: num(picker?.querySelector('.pal-hue')?.value, base.hue),
-      chroma: num(picker?.querySelector('.pal-chroma')?.value, base.chroma),
-      paper: num(picker?.querySelector('.pal-paper')?.value, base.paper),
-    };
+    const hue = num(picker?.querySelector('.pal-hue')?.value, base.hue);
+    const chroma = num(picker?.querySelector('.pal-chroma')?.value, base.chroma);
+    const paper = num(picker?.querySelector('.pal-paper')?.value, base.paper);
+    const seed = { ...base, hue, chroma, paper };
+    if (changed === 'chroma') {
+      seed.chromaD = linkDark(base.chroma, base.chromaD ?? base.chroma, chroma, chromaMaxOf(picker));
+    } else if (changed === 'paper') {
+      seed.paperD = linkDark(base.paper, base.paperD ?? base.paper, paper, paperMaxOf(picker));
+    }
+    return seed;
+  };
+
+  // 滑轨端点：取当前色相下的最大浓淡 / 纸色 0→1，而不是当前值。生成器没到货时 CSS 回退
+  // 到当前值，至少不会空白；到货或换明暗后再写一次变量。
+  const themeIsDark = () => {
+    const t = modeNow();
+    return t === 'dark' || (t === 'auto' && (matchMedia?.('(prefers-color-scheme: dark)').matches ?? false));
+  };
+  const updateTracks = (picker) => {
+    const lib = window.PaletteLib;
+    const box = picker?.querySelector('.pal-custom');
+    if (!lib?.trackOf || !box) return;
+    const seed = seedNow(picker);
+    const track = lib.trackOf(seed.hue, seed, themeIsDark());
+    box.style.setProperty('--chroma-end', track.accentMax);
+    box.style.setProperty('--paper-0', track.paper0);
+    box.style.setProperty('--paper-1', track.paper1);
   };
 
   // palette.js（8.8KB 的 OKLCH 生成器）只有访客真去动「自定义」里任一控件时才用得上，
@@ -162,6 +252,32 @@
   let palLoad = null;
   let palWant = null;
   let palFailed = false;
+  // 生成器加载失败时不能只让滑块“点了没反应”：把自定义区打开并显示一句人话，同时禁用三根滑块。
+  const markPaletteUnavailable = () => {
+    for (const picker of pickers()) {
+      const box = picker.querySelector('.pal-custom');
+      if (!box) continue;
+      box.dataset.failed = '';
+      box.open = true;
+      box.querySelector('.pal-fail')?.removeAttribute('hidden');
+      for (const input of box.querySelectorAll('.pal-hue, .pal-chroma, .pal-paper')) {
+        input.disabled = true;
+        input.setAttribute('aria-disabled', 'true');
+      }
+    }
+  };
+  const clearPaletteUnavailable = () => {
+    for (const picker of pickers()) {
+      const box = picker.querySelector('.pal-custom');
+      if (!box) continue;
+      delete box.dataset.failed;
+      box.querySelector('.pal-fail')?.setAttribute('hidden', '');
+      for (const input of box.querySelectorAll('.pal-hue, .pal-chroma, .pal-paper')) {
+        input.disabled = false;
+        input.removeAttribute('aria-disabled');
+      }
+    }
+  };
   const loadPalette = () => {
     if (window.PaletteLib) return Promise.resolve(window.PaletteLib);
     if (palLoad) return palLoad;
@@ -185,14 +301,16 @@
         palLoad = null;
         const want = palWant;
         palWant = null;
-        if (!loaded) { palFailed = true; return; }
+        if (!loaded) { palFailed = true; markPaletteUnavailable(); return; }
         if (want) applyCustom(want.seed, want.persist, want.sync);
       });
       return;
     }
-    // 面板里读到的种子已经是新量纲（绝对彩度 / 强度），必须带上版本号 ——
-    // 不带的话生成器会把它当旧倍率再换算一次，纸色直接砍到 1/1.8。
-    const norm = lib.normalizeSeed(seed.hue, { ...seed, v: SEED_VERSION });
+    palFailed = false;
+    clearPaletteUnavailable();
+    // 种子必须带上它实际所属的版本：v2/v3 的深色 / 浅色纸骨架明度要由生成器按新斜率折回，
+    // 直接标成当前版本会让存量自定义配色在拖动时先跳一下；预设与已换算过的种子则是最新版。
+    const norm = lib.normalizeSeed(seed.hue, { ...seed, v: seed.v ?? SEED_VERSION });
     const css = lib.customCss(norm.hue, norm);
     let style = document.getElementById('palCustom');
     if (!style) {
@@ -206,6 +324,7 @@
     // dataset 与 customCss 写进 CSS 的那段种子必须逐字一致：面板从 dataset 读、首帧从 CSS 读，
     // 两份对不上就会「刷新一下滑块位置变了」。深色浓度同理 —— 与浅色相同就不写。
     root.dataset.seedV = String(SEED_VERSION);
+    root.dataset.seedG = String(GEN_VERSION);
     root.dataset.seedH = String(norm.hue);
     // --seed-lv 留作兼容：旧面板/旧测试认这一档；新面板优先读 --seed-c。
     root.dataset.seedLv = norm.level;
@@ -227,8 +346,19 @@
         localStorage.setItem('palette', 'custom');
         localStorage.setItem(PAL_CUSTOM_KEY, css);
       } catch {  }
+      // 状态栏颜色只在手指停下后更新；拖动时每帧 getComputedStyle 会强制样式计算。
+      syncThemeColor();
+      pickers().forEach(updateTracks);
     }
-    syncThemeColor();
+    // 拖动中 syncPaletteUI 会刻意跳过（避免把控件拽回旧值），但入口的 aria-label
+    // 应该跟手走；这里只改一个属性，不碰滑块。
+    for (const picker of pickers()) {
+      const max = chromaMaxOf(picker);
+      const box = picker.querySelector('.pal-custom');
+      box?.toggleAttribute('data-active', true);
+      box?.setAttribute('aria-current', 'true');
+      picker.querySelector(':scope > summary')?.setAttribute('aria-label', `样式（${norm.hue}°·${chromaText(norm.chroma, max)}）`);
+    }
     // 首次交互时 palette.js 可能还在异步加载：这次 apply 由 loadPalette 回调重放，
     // 必须等它真正生效后再对齐面板，否则 summary 会停在旧预设上。
     if (sync) syncPaletteUI(true);
@@ -292,28 +422,52 @@
     }
     for (const picker of pickers()) {
       const box = picker.querySelector('.pal-custom');
+      // 小屏首次打开时把「自定义」折起来，避免纸色滑块落到面板滚动区外；只做一次，
+      // 之后用户自己开合不被同步逻辑打断。
+      if (box && !box.dataset.foldInit) {
+        box.dataset.foldInit = '1';
+        if (matchMedia?.('(max-width: 620px), (max-height: 620px)').matches) box.open = false;
+      }
       box?.toggleAttribute('data-active', isCustom);
+      if (box) {
+        if (isCustom) box.setAttribute('aria-current', 'true');
+        else box.removeAttribute('aria-current');
+      }
       // 滑块始终停在当前生效的那套的种子上 —— 从「青瓷」滑进自定义观感才接得上。
       const seed = seedNow(picker);
       const max = chromaMaxOf(picker);
       const hueInput = picker.querySelector('.pal-hue');
-      if (hueInput) hueInput.value = String(seed.hue);
+      if (hueInput) {
+        hueInput.value = String(seed.hue);
+        hueInput.setAttribute('aria-valuetext', `${seed.hue} 度`);
+      }
       outText(picker, '.pal-hue-out', `${seed.hue}°`);
       const chromaInput = picker.querySelector('.pal-chroma');
-      if (chromaInput) chromaInput.value = String(seed.chroma);
-      outText(picker, '.pal-chroma-out', chromaText(seed.chroma, max));
+      if (chromaInput) {
+        chromaInput.value = String(seed.chroma);
+        chromaInput.setAttribute('aria-valuetext', `浓淡 ${chromaText(seed.chroma, max)}`);
+      }
+      const chromaOut = chromaText(seed.chroma, max);
+      outText(picker, '.pal-chroma-out', chromaOut);
       const paperInput = picker.querySelector('.pal-paper');
-      if (paperInput) paperInput.value = String(seed.paper);
+      if (paperInput) {
+        paperInput.value = String(seed.paper);
+        paperInput.setAttribute('aria-valuetext', `纸色 ${paperText(seed.paper)}`);
+      }
       outText(picker, '.pal-paper-out', paperText(seed.paper));
       // 入口文字恒为「配色」；当前是哪套进 aria-label（自定义没有名字，用「角度·浓度」代替）。
-      const summary = picker.querySelector('summary');
+      const summary = picker.querySelector(':scope > summary');
       if (summary) {
         const name = isCustom
-          ? `${seed.hue}°·${chromaText(seed.chroma, max)}`
+          ? `${seed.hue}°·${chromaOut}`
           : picker.querySelector(`.pal-opt[data-palette="${cur}"] .pal-name`)?.textContent ?? '';
         summary.setAttribute('aria-label', `样式（${name || '素笺'}）`);
       }
+      updateTracks(picker);
     }
+    // pjax 换页会重建入口：上一次失败留下的 data-failed/禁用状态在新 DOM 上不存在，
+    // 这里补一次，避免新面板看起来能拖、实际没有生成器。
+    if (palFailed) markPaletteUnavailable();
   };
   const setPalette = (key) => {
     // 点预设等于放弃未落盘的拖动：先把待写的种子作废，否则 250ms 后它会把自定义又写回去。
@@ -326,7 +480,7 @@
     else document.documentElement.removeAttribute('data-palette');
     // 种子只在自定义生效时有意义，跟着一起撤掉 —— 否则下一套预设会带着上一套的角度。
     // 字段表与 THEME_BOOT 的那张表是同一份：加字段两边一起加。
-    for (const key of ['seedV', 'seedH', 'seedLv', 'seedC', 'seedCd', 'seedP', 'seedPd', 'seedK',
+    for (const key of ['seedV', 'seedG', 'seedH', 'seedLv', 'seedC', 'seedCd', 'seedP', 'seedPd', 'seedK',
       'seedIl', 'seedId', 'seedBl', 'seedBd']) {
       delete document.documentElement.dataset[key];
     }
@@ -354,16 +508,24 @@
     if (!input.matches?.('.pal-hue, .pal-chroma, .pal-paper')) return;
     const picker = pickerOf(input);
     if (!picker) return;
-    const seed = readSeed(picker);
-    if (input.classList.contains('pal-hue')) {
+    const kind = input.classList.contains('pal-hue') ? 'hue'
+      : input.classList.contains('pal-chroma') ? 'chroma' : 'paper';
+    const seed = readSeed(picker, kind);
+    if (kind === 'hue') {
       seed.hue = Number(input.value);
       outText(picker, '.pal-hue-out', `${seed.hue}°`);
-    } else if (input.classList.contains('pal-chroma')) {
+      input.setAttribute('aria-valuetext', `${seed.hue} 度`);
+      updateTracks(picker);
+    } else if (kind === 'chroma') {
       seed.chroma = Number(input.value);
-      outText(picker, '.pal-chroma-out', chromaText(seed.chroma, chromaMaxOf(picker)));
+      const text = chromaText(seed.chroma, chromaMaxOf(picker));
+      outText(picker, '.pal-chroma-out', text);
+      input.setAttribute('aria-valuetext', `浓淡 ${text}`);
     } else {
       seed.paper = Number(input.value);
-      outText(picker, '.pal-paper-out', paperText(seed.paper));
+      const text = paperText(seed.paper);
+      outText(picker, '.pal-paper-out', text);
+      input.setAttribute('aria-valuetext', `纸色 ${text}`);
     }
     queueCustom(seed);
   });
@@ -644,7 +806,12 @@
   syncThemeColor();
   (window.__pjaxHooks = window.__pjaxHooks || []).push(syncThemeColor);
   // 没手动选过主题时纸色跟着系统偏好走，系统那头变了也要跟上。
-  try { matchMedia('(prefers-color-scheme:dark)').addEventListener('change', syncThemeColor); } catch {  }
+  try {
+    matchMedia('(prefers-color-scheme:dark)').addEventListener('change', () => {
+      syncThemeColor();
+      pickers().forEach(updateTracks);
+    });
+  } catch {  }
 
   /* —— 明暗主题：唯一一份状态机，「配色」浮层里那三格与它一一对应 ——
      'auto' 不是第三个 data-theme 值，而是「不写 data-theme」：<head> 的引导只认 light/dark，
@@ -702,6 +869,94 @@
     area.remove();
     return ok;
   };
+  /* —— 跨标签页同步 ——
+     localStorage 的 storage 事件只在「另一个文档」写入时触发，所以这里不会自激。
+     预设 key 在文章页没有 .pal 按钮可查，只能靠 PALETTE_KEYS 白名单；脏值一律不动。
+     自定义 CSS 仍要过生成器的 sanitize 再注入，不能因为「同源」就直接信。 */
+  const seedDataKey = (key) => 'seed' + key.charAt(0).toUpperCase() + key.slice(1);
+  const clearSeedDataset = () => {
+    for (const key of SEED_FIELDS) delete document.documentElement.dataset[seedDataKey(key)];
+  };
+  const applyStoredCustom = (cssText) => {
+    const run = (lib) => {
+      if (!lib) { palFailed = true; markPaletteUnavailable(); return; }
+      const css = lib.sanitize(String(cssText ?? ''));
+      if (!css) return;
+      let style = document.getElementById('palCustom');
+      if (!style) {
+        style = document.createElement('style');
+        style.id = 'palCustom';
+        document.head.appendChild(style);
+      }
+      style.textContent = css;
+      const root = document.documentElement;
+      clearSeedDataset();
+      for (const key of SEED_FIELDS) {
+        const m = new RegExp(`--seed-${key}:(-?[0-9.]+|[a-z]+)`).exec(css);
+        if (m) root.dataset[seedDataKey(key)] = m[1];
+      }
+      root.dataset.palette = 'custom';
+      clearPaletteUnavailable();
+      syncThemeColor();
+      syncPaletteUI(true);
+    };
+    if (window.PaletteLib) run(window.PaletteLib);
+    else loadPalette().then((lib) => { palLoad = null; run(lib); });
+  };
+  const applyThemeExternal = (mode) => {
+    const root = document.documentElement;
+    if (mode === 'light' || mode === 'dark') root.dataset.theme = mode;
+    else delete root.dataset.theme;
+    syncThemeColor();
+    syncPaletteUI(true);
+  };
+  const applyPaletteExternal = (value) => {
+    const root = document.documentElement;
+    if (value === 'custom') {
+      const css = localStorage.getItem(PAL_CUSTOM_KEY);
+      if (css) applyStoredCustom(css);
+      return;
+    }
+    if (value === '') {
+      root.removeAttribute('data-palette');
+    } else if (PALETTE_KEYS.includes(value)) {
+      root.dataset.palette = value;
+    } else {
+      return;
+    }
+    clearSeedDataset();
+    syncThemeColor();
+    syncPaletteUI(true);
+  };
+  window.addEventListener('storage', (event) => {
+    if (event.storageArea && event.storageArea !== localStorage) return;
+    const root = document.documentElement;
+    if (event.key === 'theme') {
+      applyThemeExternal(event.newValue);
+    } else if (event.key === LAYOUT_KEY) {
+      if (event.newValue === 'box') root.dataset.layout = 'box';
+      else if (event.newValue === 'paper') root.removeAttribute('data-layout');
+      else return;
+      syncPaletteUI(true);
+    } else if (event.key === 'palette') {
+      applyPaletteExternal(event.newValue);
+    } else if (event.key === PAL_CUSTOM_KEY && localStorage.getItem('palette') === 'custom') {
+      applyStoredCustom(event.newValue);
+    }
+  });
+
+  // 生成器算法升级（不是种子量纲升级）不会自动反映到已存的整段 CSS 上：
+  // --seed-g 对不上时，用同一组种子按当前生成器重算一次。没有 .pal 的文章页也要跑。
+  const maybeUpgradeCustom = () => {
+    const root = document.documentElement;
+    if (root.dataset.palette !== 'custom') return;
+    if (Number(root.dataset.seedG) >= GEN_VERSION) return;
+    // 连 --seed-h 都没有的旧 CSS 不知道原色相，重算会把它换成默认色；宁可不动。
+    if (!Number.isFinite(parseInt(root.dataset.seedH ?? '', 10))) return;
+    applyCustom(seedNow(pickers()[0] ?? null), true, true);
+  };
+  maybeUpgradeCustom();
+
   window.__copyText = copyText;
   window.__ui = { open, confirm, busy, loadImage, clearImage, copyText };
 })();

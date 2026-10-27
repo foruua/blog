@@ -78,9 +78,9 @@ export const THEME_BOOT = "document.documentElement.classList.add('has-js');"
   // 种子顺便挂到 dataset 上：面板要读它把滑块摆回原位。从 CSS 里正则抠出来，就不必再开一个
   // localStorage 键 —— 单键存储不会出现「种子和值对不上」的半截状态。--seed-lv 是旧版字段，
   // 新面板优先读 --seed-c / --seed-p / --seed-k。
-  // 十二个字段用一张表循环抠，别铺成十二行 —— 加字段时只动这张表（ui.js 的 seedNow 读的是同名的 dataset 键）。
-  // 首个 v 是种子量纲版本：没有它的一律按旧倍率换算（见 palette.js 的 SEED_VERSION）。
-  + "['v','h','lv','c','cd','p','pd','k','il','id','bl','bd'].forEach(function(k){"
+  // 十三个字段用一张表循环抠，别铺成十三行 —— 加字段时只动这张表（ui.js 的 seedNow 读的是同名的 dataset 键）。
+  // v 是种子量纲版本；g 是生成器版本，ui.js 用它决定要不要在空闲时重算存量自定义 CSS。
+  + "['v','g','h','lv','c','cd','p','pd','k','il','id','bl','bd'].forEach(function(k){"
   + "var m=new RegExp('--seed-'+k+':(-?[0-9.]+|[a-z]+)').exec(css);"
   + "if(m)document.documentElement.dataset['seed'+k.charAt(0).toUpperCase()+k.slice(1)]=m[1];});"
   + "document.documentElement.dataset.palette='custom';}}"
@@ -235,24 +235,27 @@ const palettePanelHtml = (cur) => `<div class="pal-panel">
           ${LAYOUTS.map((l) => `<button type="button" class="pal-ly" data-layout-opt="${l.key}" aria-pressed="false" title="${esc(l.hint)}">${LY_ICON[l.key]}<span class="pal-ly-name">${esc(l.name)}</span></button>`).join('\n          ')}
         </div>
         <div class="pal-rule" role="separator"></div>
-        ${PALETTES.map((p) => `<button type="button" class="pal-opt" data-palette="${p.key}" data-hue="${p.seed.hue}" data-chroma="${p.seed.chroma}" data-chroma-d="${p.seed.chromaD}" data-paper="${p.seed.paper}" data-paper-d="${p.seed.paperD}" data-ink-l="${p.seed.inkL}" data-ink-l-d="${p.seed.inkLD}" data-bg-l="${p.seed.bgL}" data-bg-l-d="${p.seed.bgLD}" aria-pressed="false"><i class="pal-sw" style="--sw-paper:${p.paper};--sw-ink:${p.ink}" aria-hidden="true"></i><span class="pal-name">${p.name}</span></button>`).join('\n        ')}
-        <div class="pal-custom" data-hue="${cur.seed.hue}" data-chroma="${cur.seed.chroma}" data-chroma-d="${cur.seed.chromaD}" data-paper="${cur.seed.paper}" data-paper-d="${cur.seed.paperD}" data-ink-l="${cur.seed.inkL}" data-ink-l-d="${cur.seed.inkLD}" data-bg-l="${cur.seed.bgL}" data-bg-l-d="${cur.seed.bgLD}">
-          <div class="pal-head">
-            <span class="pal-lb">自定义</span>
-            <output class="pal-hue-out">${cur.seed.hue}°</output>
-          </div>
-          <input type="range" class="pal-hue" min="0" max="359" step="1" value="${cur.seed.hue}" aria-label="色相">
-          <div class="pal-row">
-            <span class="pal-lb">浓淡</span>
-            <output class="pal-chroma-out">${Math.round(cur.seed.chroma / CHROMA_MAX * 100)}%</output>
-          </div>
-          <input type="range" class="pal-chroma" min="0" max="${CHROMA_MAX}" step="0.001" value="${cur.seed.chroma}" aria-label="浓淡">
-          <div class="pal-row">
-            <span class="pal-lb">纸色</span>
-            <output class="pal-paper-out">${Math.round(cur.seed.paper * 100)}%</output>
-          </div>
-          <input type="range" class="pal-paper" min="0" max="1" step="0.01" value="${cur.seed.paper}" aria-label="纸色">
+        <div class="pal-presets" role="group" aria-label="配色">
+          ${PALETTES.map((p) => `<button type="button" class="pal-opt" data-palette="${p.key}" data-hue="${p.seed.hue}" data-chroma="${p.seed.chroma}" data-chroma-d="${p.seed.chromaD}" data-paper="${p.seed.paper}" data-paper-d="${p.seed.paperD}" data-ink-l="${p.seed.inkL}" data-ink-l-d="${p.seed.inkLD}" data-bg-l="${p.seed.bgL}" data-bg-l-d="${p.seed.bgLD}" aria-pressed="false"><i class="pal-sw" style="--sw-paper:${p.paper};--sw-ink:${p.ink}" aria-hidden="true"></i><span class="pal-name">${p.name}</span></button>`).join('\n          ')}
         </div>
+        <details class="pal-custom" open data-hue="${cur.seed.hue}" data-chroma="${cur.seed.chroma}" data-chroma-d="${cur.seed.chromaD}" data-paper="${cur.seed.paper}" data-paper-d="${cur.seed.paperD}" data-ink-l="${cur.seed.inkL}" data-ink-l-d="${cur.seed.inkLD}" data-bg-l="${cur.seed.bgL}" data-bg-l-d="${cur.seed.bgLD}">
+          <summary class="pal-head">
+            <span class="pal-lb">自定义</span>
+            <output class="pal-hue-out" for="palHue">${cur.seed.hue}°</output>
+          </summary>
+          <input id="palHue" type="range" class="pal-hue" min="0" max="359" step="1" value="${cur.seed.hue}" aria-label="色相" aria-valuetext="${cur.seed.hue} 度">
+          <div class="pal-row">
+            <label class="pal-lb" for="palChroma">浓淡</label>
+            <output class="pal-chroma-out" for="palChroma">${Math.round(cur.seed.chroma / CHROMA_MAX * 100)}%</output>
+          </div>
+          <input id="palChroma" type="range" class="pal-chroma" min="0" max="${CHROMA_MAX}" step="0.001" value="${cur.seed.chroma}" aria-label="浓淡" aria-valuetext="浓淡 ${Math.round(cur.seed.chroma / CHROMA_MAX * 100)}%">
+          <div class="pal-row">
+            <label class="pal-lb" for="palPaper">纸色</label>
+            <output class="pal-paper-out" for="palPaper">${Math.round(cur.seed.paper * 100)}%</output>
+          </div>
+          <input id="palPaper" type="range" class="pal-paper" min="0" max="1" step="0.01" value="${cur.seed.paper}" aria-label="纸色" aria-valuetext="纸色 ${Math.round(cur.seed.paper * 100)}%">
+          <p class="pal-fail" role="status" hidden>自定义配色暂时不可用，请刷新重试。</p>
+        </details>
       </div>`;
 
 // 入口只有一枚，只出现在首页 hero-meta 那一行：当前是哪套不进入口，面板里那一行有 ✓。色名留给读屏（aria-label）。

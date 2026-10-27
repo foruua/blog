@@ -194,6 +194,12 @@ html[data-theme="dark"] {
   --img-dim: .88;
 }
 
+/* 原生控件 / 滚动条的配色跟随访客手动选的明暗，而不是系统：:root 的 light dark 只负责
+   「跟随系统」那一态；显式 light / dark 必须各自钉死，否则浅色站点在暗系统上会得到
+   深色 select / 滚动条。 */
+html[data-theme="light"] { color-scheme: light; }
+html[data-theme="dark"] { color-scheme: dark; }
+
 /* 下面这段与 html[data-theme="dark"] 逐字相同，是**故意**重复的：CSS 没法用一条规则同时 表达「显式深色」与「系统深色」。合并只能靠 light-dark()（Safari 17.5+ / Chrome 123+）， 不支持的浏览器上整段变量会失效（整个配色塌掉），不划算。改深色配色时两处必须一起改。 */
 @media (prefers-color-scheme: dark) {
   html:not([data-theme="light"]):not([data-theme="dark"]) {
@@ -779,6 +785,8 @@ html[data-theme="dark"][data-palette="xuanzhi"] {
     --bg: #fff !important; --bg-soft: #fff !important; --bg-elev: #fff !important;
     --accent: #000 !important; --accent-ink: #000 !important;
     --accent-soft: rgba(0, 0, 0, .06) !important; --accent-line: rgba(0, 0, 0, .4) !important;
+    /* 自定义配色会把 --muted 写进令牌层；打印时若沿用它，深色纸上的浅灰会落到白纸上。 */
+    --muted: #333 !important;
     --gold: none !important; --grain: 0 !important;
   }
 }

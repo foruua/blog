@@ -1,4 +1,4 @@
-/* 自定义配色生成器：色相 + 浓度 + 纸色 + 强调色深浅 → 18 个色彩令牌（浅色 / 深色各一套）。
+/* 自定义配色生成器：色相 + 浓度 + 纸色 + 强调色深浅 → 19 个色彩令牌（浅色 / 深色各一套）。
  *
  * 为什么用 OKLCH 而不是 HSL：HSL 的 L 不是感知亮度。实测固定 L=32 扫全色相，对比度从 4.34 到 11.18
  * （差 2.6 倍，黄色 H60 直接掉到 4.5 以下），这一个公式罩不住 360 度。OKLCH 固定 L 时是 5.07—5.73，
@@ -87,24 +87,39 @@
      倍率上限 1.45 换算出 0.152 —— 九成色相根本到不了，超出的部分被降 chroma 的二分静默吞掉，
      于是「浓淡」滑块后半程是一个颜色都不变的死区（宣纸只有 44% 行程有效，青蓝 25%）。
      改成绝对值 + 色域拟合（见 fitL）之后，滑块走多远，墨就浓多少。
-     纸色同理：强度 0—1，对应最大彩度 0.022，并顺带 ±0.013 的明度偏移
-     （纸是自己染的 —— 染得越浓，纸也略暗一点，这比只改彩度更像「换了一张纸」）。
+     纸色同理：强度 0—1，对应最大彩度 0.036；浅色纸压暗 0.028，深色纸提亮 0.028
+     （纸是自己染的 —— 染得越浓，纸也略暗/亮一点，这比只改彩度更像「换了一张纸」）。
+     两个明度斜率都从旧值（0.013 / 0.010）提到了 0.028；C_MAX 也从 0.022 提到 0.036 ——
+     否则 100% 的纸只比默认纸暖几个色阶，滑块后半程几乎没有颜色变化。
+     改 C_MAX 后预设的 paper / paperD 强度要重跑 scripts/palette-seeds.mjs（强度是相对上限的比例），
+     否则预设会在第一帧就变浓；存量自定义种子不迁移，同一强度会变浓，这是本次刻意的增强。
      深浅仍只给三档（轻 / 标准 / 重），±0.02 偏移后还要过对比度钳制。 */
   const CHROMA_RANGE = { min: 0, max: 0.145 };
   const PAPER_RANGE = { min: 0, max: 1 };
-  const PAPER_C_MAX = 0.022;
-  const PAPER_L_DROP = 0.013;
-  const PAPER_L_RISE = 0.010;
+  const PAPER_C_MAX = 0.036;
+  // v4 及更早的纸色彩度上限。paper / paperD 存的是「相对上限的强度」，换上限时必须按比例折回。
+  const PAPER_C_MAX_V4 = 0.022;
+  // 旧斜率：v3 的浅色纸是 0.013、v2 及更早的深色纸是 0.010。存量种子要按这两个值折回。
+  const PAPER_L_DROP = 0.028;
+  const PAPER_L_DROP_V3 = 0.013;
+  const PAPER_L_RISE = 0.028;
+  const PAPER_L_RISE_V2 = 0.010;
   const INK_KEYS = [-1, 0, 1];
   const INK_STEP = 0.02;
   // 超色域时最多允许压暗多少明度来换彩度。上限 0.09 是量出来的：
   // 最吃紧的黄色相（H≈80）要把 C 顶到 0.145，得从 L=0.48 压到约 0.39；再低就发黑不像墨了。
   const L_FIT_MAX = 0.09;
-  // 旧版浓淡是倍率（0.55—1.45），纸色是倍率（0—1.8）。新值是绝对彩度（0—0.145）与强度（0—1）。
-  // 浓淡两个量纲不重叠，能按值域认；纸色的旧范围 0—1.8 与新范围 0—1 在 0—1 之间**重叠**，
-  // 光看数值分不出来（旧的 1.0 = 新的一半）。所以新版种子带一个 --seed-v:2 ——
-  // 没有这个标记的一律按旧量纲换算。别把这条删掉，删了存量访客的纸色会突然加倍。
-  const SEED_VERSION = 2;
+  // 旧版浓淡是倍率（0.55—1.45），纸色是倍率（0—1.8）。v2 起是绝对彩度（0—0.145）与强度（0—1）；
+  // 纸色的旧范围 0—1.8 与新范围 0—1 在 0—1 之间**重叠**，光看数值分不出来，只能认版本号。
+  // v3 改了深色纸的明度斜率 PAPER_L_RISE，v4 改了浅色纸的 PAPER_L_DROP，
+  // v5 又把纸色彩度上限 PAPER_C_MAX 从 0.022 提到 0.036：
+  // 存量种子的 --seed-p/-pd 要按上限比例折算，--seed-bl/-bd 还要按折算前后的强度重算基线，
+  // 否则存量自定义配色一拖纸色就会先跳一下。当前版本写进 --seed-v，换算完立刻升到 v5。
+  const DIM_VERSION = 2;
+  const SEED_VERSION = 5;
+  // 生成器版本：种子迁移管不到「骨架/算法本身」的升级。存进 CSS 的 --seed-g 与这个数
+  // 不一致时，ui.js 会在空闲时用同一组种子重算一次，老 custom 不至于停在旧算法上。
+  const GEN_VERSION = 1;
   // 旧倍率 1.0 当年对应的是旧上限 0.105，不是现在这个 0.145 —— 换算要用旧尺子量旧值，
   // 否则旧用户的 mid 会悄悄变浓 40%。
   const LEGACY_CHROMA_SCALE = 0.105;
@@ -148,7 +163,7 @@
   const TOKENS = [
     'bg', 'bg-soft', 'bg-elev',
     'accent', 'accent-ink', 'accent-soft', 'accent-line',
-    'gold', 'code-bg', 'code-fg',
+    'gold', 'code-bg', 'code-fg', 'muted',
     'hl-comment', 'hl-keyword', 'hl-string', 'hl-number',
     'hl-title', 'hl-variable', 'hl-meta', 'hl-deletion',
   ];
@@ -186,15 +201,17 @@
     const legacy = typeof opts === 'string' ? LEVELS[opts] : undefined;
     const rawChroma = o.chroma ?? legacy;
     const rawPaper = o.paper;
-    // 带 --seed-v:2 的才是新量纲；旧 CSS / 旧 localStorage 没有这个标记，按旧倍率换算。
+    // 带 --seed-v:2 及以上的才是新量纲；旧 CSS / 旧 localStorage 没有这个标记，按旧倍率换算。
+    // 注意量纲版本（DIM_VERSION）与种子版本（SEED_VERSION）现在不是同一个数：
+    // v3 只改了深色纸的明度斜率，色相/浓淡的量纲仍是 v2 那套。
     // 内部复用（tokensOf 拿到 normalizeSeed 的输出）会带着 v，所以这条路是幂等的。
-    const modern = Number(o.v) >= SEED_VERSION;
+    const version = Number(o.v) || 0;
+    const modern = version >= DIM_VERSION;
+    const current = version >= SEED_VERSION;
     const chromaRaw = modern || !(rawChroma > LEGACY_CHROMA_SPLIT)
       ? rawChroma
       : rawChroma * LEGACY_CHROMA_SCALE;
-    const paperRaw = modern ? rawPaper : Number(rawPaper) / LEGACY_PAPER_SCALE;
     const chroma = clampRange(chromaRaw, CHROMA_RANGE.min, CHROMA_RANGE.max, CHROMA_RANGE.max);
-    const paper = clampRange(paperRaw, PAPER_RANGE.min, PAPER_RANGE.max, 0.5);
     const ink = clampRange(o.ink, -1, 1, 0);
     const keep = (v, fallback) => (Number.isFinite(Number(v)) && v !== null && v !== undefined ? Number(v) : fallback);
     // 深色那套的浓度 / 纸色强度可以独立于浅色：暗纸上同一支墨要更饱和才看得出，
@@ -202,7 +219,48 @@
     // 注意不能直接喂 clampRange：Number(null) 是 0，会把「没填」钳成一个合法的 0。
     const orNull = (v, range) => (v === null || v === undefined || v === '' ? null : clampRange(v, range.min, range.max, null));
     const chromaD = orNull(o.chromaD, CHROMA_RANGE);
-    const paperD = orNull(o.paperD, PAPER_RANGE);
+
+    // paper / paperD 是「相对 PAPER_C_MAX 的强度」：v5 把上限从 0.022 提到 0.036，
+    // 旧强度要乘 0.022 / 0.036 才能保持同一绝对彩度。缺省值 0.5 只在当前版本里代表
+    // 0.5；旧版本缺省时代表旧尺子上的 0.5，也要一起折回（无版本的老调用除外）。
+    const hasPaper = rawPaper !== undefined && rawPaper !== null && rawPaper !== '';
+    const paperOldRaw = modern ? Number(rawPaper) : Number(rawPaper) / LEGACY_PAPER_SCALE;
+    const paperOld = hasPaper ? clampRange(paperOldRaw, PAPER_RANGE.min, PAPER_RANGE.max, 0.5) : 0.5;
+    const paper = !current && (hasPaper || version >= DIM_VERSION)
+      ? clampRange(paperOld * PAPER_C_MAX_V4 / PAPER_C_MAX, PAPER_RANGE.min, PAPER_RANGE.max, 0.5)
+      : paperOld;
+    const paperDRaw = orNull(o.paperD, PAPER_RANGE);
+    const paperD = paperDRaw === null
+      ? null
+      : (!current
+          ? clampRange(paperDRaw * PAPER_C_MAX_V4 / PAPER_C_MAX, PAPER_RANGE.min, PAPER_RANGE.max, null)
+          : paperDRaw);
+
+    // 纸色骨架明度是按「旧上限 + 旧斜率」反算出来的：
+    //   bgL  = 纸面 L + strength × 旧 DROP
+    //   bgLD = 纸面 L − strength × 旧 RISE
+    // 换上限/斜率后，strength 和明度都要一起换，才能保持原 bg：
+    //   新 bgL  = 旧 bgL  + 新强度 × 新 DROP − 旧强度 × 旧 DROP
+    //   新 bgLD = 旧 bgLD + 新强度 × 新 RISE − 旧强度 × 旧 RISE
+    // v2 及更早的深色纸用 0.010，v3+ 用 0.028；浅色纸 v3 及更早用 0.013，v4+ 用 0.028。
+    // 手调种子没写 --seed-bl/-bd（旧基线就是生成器默认的纸面明度），v2+ 也按差值补一个，
+    // 不然老手调配色第一次拖纸色会从默认基线跳一下；无版本的老调用仍保持「不写骨架种子」。
+    const oldDrop = version >= 4 ? PAPER_L_DROP : PAPER_L_DROP_V3;
+    const bgLraw = keep(o.bgL, null);
+    const bgL = current
+      ? bgLraw
+      : (bgLraw === null && version < DIM_VERSION
+          ? null
+          : (bgLraw ?? SHAPES.light.L.bg) + paper * PAPER_L_DROP - paperOld * oldDrop);
+    const oldRise = version >= 3 ? PAPER_L_RISE : PAPER_L_RISE_V2;
+    const oldPaperD = paperDRaw ?? paperOld;
+    const newPaperD = paperD ?? paper;
+    const bgLDraw = keep(o.bgLD, null);
+    const bgLD = current
+      ? bgLDraw
+      : (bgLDraw === null && version < DIM_VERSION
+          ? null
+          : (bgLDraw ?? SHAPES.dark.L.bg) + oldPaperD * oldRise - newPaperD * PAPER_L_RISE);
     return {
       hue: Number.isFinite(h) ? h : 0,
       // 归一化后的种子自带版本号：再喂回 normalizeSeed 时走「新量纲」那条路，不会二次换算。
@@ -214,9 +272,35 @@
       ink,
       inkL: keep(o.inkL, null),
       inkLD: keep(o.inkLD, null),
-      bgL: keep(o.bgL, null),
-      bgLD: keep(o.bgLD, null),
+      bgL,
+      bgLD,
       level: levelOfChroma(chroma),
+    };
+  }
+
+  // 面板滑轨的端点：浓淡画到 CHROMA_MAX，纸色画到 0 / 1。只给 UI 用，别在拖动里每帧调
+  // tokensOf（这里只算两支色，最多三次 accent 尝试）。
+  function trackOf(hue, opts, dark) {
+    const seed = normalizeSeed(hue, opts);
+    const s = SHAPES[dark ? 'dark' : 'light'];
+    const paperBg = (k) => {
+      const c = k * PAPER_C_MAX;
+      const shift = k * (dark ? PAPER_L_RISE : -PAPER_L_DROP);
+      const L = (dark ? seed.bgLD ?? s.L.bg : seed.bgL ?? s.L.bg) + shift;
+      return oklchToHex(L, c, seed.hue);
+    };
+    const paperK = paperOf(seed, dark);
+    const bg = paperBg(paperK);
+    const elev = oklchToHex(
+      (dark ? seed.bgLD ?? s.L.bg : seed.bgL ?? s.L.bg) + paperK * (dark ? PAPER_L_RISE : -PAPER_L_DROP) + (s.L.elev - s.L.bg),
+      paperK * PAPER_C_MAX * (s.C.elev / s.C.bg),
+      seed.hue,
+    );
+    const maxSeed = { ...seed, chroma: CHROMA_RANGE.max, chromaD: CHROMA_RANGE.max };
+    return {
+      accentMax: accentOf(maxSeed, s, dark, bg, elev).hex,
+      paper0: paperBg(0),
+      paper1: paperBg(1),
     };
   }
 
@@ -256,6 +340,24 @@
     return { hex, L };
   }
 
+  // 正文灰是全局令牌（不跟预设走），纸色拉满时可能落到 bg-soft 上读不清。
+  // 以 base.css 的 --muted 为起点，只在对比度不足时沿提高对比的方向微调明度；
+  // 预设初始强度下通常不需要动，所以从预设拖进自定义不会发生正文跳色。
+  const MUTED_HEX = { light: '#6b665d', dark: '#928e85' };
+  function mutedOf(dark, bg, soft) {
+    const base = MUTED_HEX[dark ? 'dark' : 'light'];
+    const c = hexToOklch(base);
+    let L = c.L;
+    let hex = base;
+    const dir = dark ? 0.004 : -0.004;
+    for (let i = 0; i < 80; i++) {
+      if (contrast(hex, bg) >= 4.5 && contrast(hex, soft) >= 4.5) break;
+      L = fitL(L + dir, c.C, c.H);
+      hex = oklchToHex(L, c.C, c.H);
+    }
+    return hex;
+  }
+
   function tokensOf(hue, opts, dark) {
     const seed = normalizeSeed(hue, opts);
     const s = SHAPES[dark ? 'dark' : 'light'];
@@ -271,6 +373,7 @@
     const rel = (name) => bgL + (s.L[name] - s.L.bg);
     const cRel = (name) => bgC * (s.C[name] / s.C.bg);
     const bg = oklchToHex(bgL, bgC, seed.hue);
+    const soft = oklchToHex(rel('soft'), cRel('soft'), seed.hue);
     const elev = oklchToHex(rel('elev'), cRel('elev'), seed.hue);
     const accent = accentOf(seed, s, dark, bg, elev);
     const [r, g, b] = hexToRgb(accent.hex);
@@ -286,7 +389,7 @@
     const accentInkL = s.L.accentInk + (accent.L - s.L.accent);
     return {
       bg,
-      'bg-soft': oklchToHex(rel('soft'), cRel('soft'), seed.hue),
+      'bg-soft': soft,
       'bg-elev': elev,
       accent: accent.hex,
       'accent-ink': oklchToHex(accentInkL, ca * 1.05, seed.hue),
@@ -295,6 +398,7 @@
       gold: `linear-gradient(120deg, ${gold})`,
       'code-bg': oklchToHex(rel('codeBg'), cRel('code'), seed.hue),
       'code-fg': oklchToHex(s.L.codeFg, ca * (s.C.code / CHROMA_RANGE.max) * 1.5, seed.hue),
+      muted: mutedOf(dark, bg, soft),
       'hl-comment': oklchToHex(s.L.comment, dimC(0.12), seed.hue),
       'hl-keyword': oklchToHex(s.L.keyword, hlC, seed.hue),
       'hl-string': oklchToHex(s.L.string, hlC * 0.82, mixHue(seed.hue, 148, 0.78)),
@@ -331,12 +435,22 @@
       ['pd', seed.paperD !== seed.paper ? seed.paperD : null],
       ['il', seed.inkL], ['id', seed.inkLD], ['bl', seed.bgL], ['bd', seed.bgLD],
     ].filter(([, v]) => v !== null).map(([k, v]) => `;--seed-${k}:${v.toFixed(3)}`).join('');
-    const seeds = `--seed-v:${SEED_VERSION};--seed-h:${seed.hue};--seed-lv:${seed.level}`
+    const seeds = `--seed-v:${SEED_VERSION};--seed-g:${GEN_VERSION};--seed-h:${seed.hue};--seed-lv:${seed.level}`
       + `;--seed-c:${seed.chroma.toFixed(3)};--seed-p:${seed.paper.toFixed(3)};--seed-k:${seed.ink.toFixed(2)}`
       + extra;
+    // 更高对比：把自定义强调色往当前前景色掺一档（浅色变深、深色变浅），不另算一套
+    // 色相。/fg 是主题变量，同一条声明在亮暗两套里各自朝正确方向走；三段只是让
+    // 显式深色 / 系统深色用更高特异性的规则盖住各自的 --accent。
+    // 不要写 var(--accent) 到 --accent 自身：那会形成自定义属性循环。用同一支墨的
+    // 第二档 accent-ink 作为源色，再朝前景色掺；accent-ink 本身保持不动。
+    const hc = '--accent:color-mix(in srgb,var(--accent-ink) 78%,var(--fg))'
+      + ';--muted:color-mix(in srgb,var(--fg) 72%,var(--bg))';
     return `${SEL}{${decl(light)};${seeds}}`
       + `${SEL_DARK}{${darkDecl}}`
-      + `@media (prefers-color-scheme:dark){${SEL_AUTO}{${darkDecl}}}`;
+      + `@media (prefers-color-scheme:dark){${SEL_AUTO}{${darkDecl}}}`
+      + `@media (prefers-contrast:more){${SEL}{${hc}}}`
+      + `@media (prefers-contrast:more){${SEL_DARK}{${hc}}}`
+      + `@media (prefers-contrast:more) and (prefers-color-scheme:dark){${SEL_AUTO}{${hc}}}`;
   }
 
   // 相对亮度与对比度（WCAG），测试与 UI 提示共用。
@@ -369,8 +483,11 @@
     CHROMA_RANGE,
     PAPER_RANGE,
     PAPER_C_MAX,
+    PAPER_C_MAX_V4,
     PAPER_L_DROP,
+    PAPER_L_DROP_V3,
     PAPER_L_RISE,
+    PAPER_L_RISE_V2,
     L_FIT_MAX,
     INK_KEYS,
     INK_STEP,
@@ -378,10 +495,12 @@
     LEGACY_CHROMA_SPLIT,
     LEGACY_PAPER_SCALE,
     SEED_VERSION,
+    GEN_VERSION,
     normalizeSeed,
     levelOfChroma,
     hexToOklch,
     tokensOf,
+    trackOf,
     customCss,
     contrast,
     sanitize,

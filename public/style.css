@@ -648,6 +648,12 @@ body.mnav-open .mnav-panel { transform: none; opacity: 1; }
   cursor: pointer; list-style: none;
   transition: color var(--dur-2) var(--ease), background var(--dur-1) var(--ease);
 }
+/* 24px 是视觉尺寸，不是命中区：用一圈不可见伪元素把它扩到 44px 左右。
+   相邻图标中心距 57px，扩完仍不互相盖住；伪元素不参与布局，也不改面板的包含块。 */
+.hero-meta .pal-hero > summary { position: relative; }
+.hero-meta .pal-hero > summary::before {
+  content: ""; position: absolute; inset: -10px; border-radius: 50%;
+}
 .hero-meta .hero-tool:hover,
 .hero-meta .pal-hero > summary:hover,
 .hero-meta .pal-hero[open] > summary {
@@ -3121,11 +3127,14 @@ html:not(.has-js) .pal { display: none; }
     0 0 0 1px color-mix(in srgb, var(--rule-strong) 50%, transparent),
     var(--shadow-lg);
 }
-/* 两列只管色样那一段：其余四块通栏。少了这条，明暗三格会被挤进半栏、分隔线只画一半。 */
+/* 两列只管色样那一段：其余四块通栏。少了这条，明暗三格会被挤进半栏、分隔线只画一半。
+   色样自己是一层两列网格（role=group 需要一个真实容器），所以通栏的是 .pal-presets。 */
 .pal-panel > .pal-theme,
 .pal-panel > .pal-lyt,
 .pal-panel > .pal-rule,
+.pal-panel > .pal-presets,
 .pal-panel > .pal-custom { grid-column: 1 / -1; }
+.pal-presets { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; }
 /* 首页 hero-meta 那枚：入口样式在 .hero-meta 那一节（图标 + 24px 圆点命中区）。
    面板锚在整行中间向下展开 —— 锚在 24px 的图标上会贴到屏幕边缘，窄屏直接顶出去。
    居中分两段：① 整行在页面里居中（.hero 的 align-items: center）② 面板在整行里居中（下面的 50%）。
@@ -3145,7 +3154,7 @@ html:not(.has-js) .pal { display: none; }
 .pal-panel .pal-tm {
   display: flex; align-items: center; justify-content: center;
   flex: 1 1 0; min-width: 0;
-  margin: 0; padding: .5rem .2rem;
+  margin: 0; padding: .5rem .2rem; min-height: 2.5rem;
   border: 0; border-radius: var(--radius-sm);
   background: var(--bg-soft); color: var(--muted);
   font: inherit;
@@ -3164,7 +3173,7 @@ html:not(.has-js) .pal { display: none; }
 .pal-panel .pal-ly {
   display: flex; align-items: center; justify-content: center; gap: .38rem;
   flex: 1 1 0; min-width: 0;
-  margin: 0; padding: .5rem .3rem;
+  margin: 0; padding: .5rem .3rem; min-height: 2.5rem;
   border: 0; border-radius: var(--radius-sm);
   background: var(--bg-soft); color: var(--muted);
   font: inherit; font-size: .82rem; letter-spacing: .02em;
@@ -3182,7 +3191,7 @@ html:not(.has-js) .pal { display: none; }
 .pal-panel .pal-opt {
   display: flex; align-items: center; gap: .7rem;
   width: 100%;
-  margin: 0; padding: .62rem .7rem; border: 0; border-radius: var(--radius-sm);
+  margin: 0; padding: .62rem .7rem; min-height: 2.5rem; border: 0; border-radius: var(--radius-sm);
   background: none; color: var(--fg-soft);
   font: inherit; font-size: .9rem; letter-spacing: .02em; text-align: left;
   cursor: pointer;
@@ -3206,13 +3215,50 @@ html:not(.has-js) .pal { display: none; }
 }
 
 /* —— 自定义配色（色相 / 浓淡 / 纸色）—— 色相条是唯一一处彩虹：它是控件不是内容，
-   而色相必须能被眼睛直接读出来（拖到 200° 之前得先看见 200° 是什么颜色）。压低到 42% 饱和，
-   免得这条彩带在纸面里像贴纸；浓淡与纸色两条改用"当前强调色"的渐变，不抢色相条的注意力。 */.pal-custom {
-  display: grid; gap: .55rem;
+   必须和生成器用同一个色相坐标（OKLCH，见下面的 --hue-track）；浓淡与纸色两条只用
+   当前强调色，不抢色相条的注意力。 */
+.pal-custom {
+  display: grid; gap: .4rem;
   margin-top: .35rem;
   padding: .7rem .7rem .5rem;
   border-top: 1px solid var(--rule);
+  /* 色相条是唯一一处彩虹：它是控件不是内容，滑块的值又正好是 OKLCH 色相。
+     早先用 HSL 画轨道，两者不是同一个色相坐标 —— 素笺 H=77 的拇指落在黄绿段，
+     生成器给的却是金色 #926922（HSL 约 38°）。这里先用 HSL 兜底，支持 oklch()
+     的浏览器换成同坐标的色标；亮 / 暗各一条，暗色的轨道也随之提亮。 */
+  --hue-track: linear-gradient(to right, hsl(0 42% 52%), hsl(60 42% 52%), hsl(120 42% 52%), hsl(180 42% 52%), hsl(240 42% 52%), hsl(300 42% 52%), hsl(360 42% 52%));
+  /* 浓淡 / 纸色的端点由 palette.js 的 trackOf() 写到行内变量上：滑轨展示完整可调范围，
+     不随当前值伸缩。生成器还没到货时退回当前值，至少不空白。 */
+  --chroma-end: var(--accent);
+  --paper-0: var(--bg);
+  --paper-1: color-mix(in srgb, var(--accent) 22%, var(--bg));
 }
+@supports (color: oklch(0.62 0.1 0)) {
+  .pal-custom {
+    --hue-strip-light: linear-gradient(to right,
+      oklch(0.62 0.10 0), oklch(0.62 0.10 30), oklch(0.62 0.10 60),
+      oklch(0.62 0.10 90), oklch(0.62 0.10 120), oklch(0.62 0.10 150),
+      oklch(0.62 0.10 180), oklch(0.62 0.10 210), oklch(0.62 0.10 240),
+      oklch(0.62 0.10 270), oklch(0.62 0.10 300), oklch(0.62 0.10 330),
+      oklch(0.62 0.10 360));
+    --hue-strip-dark: linear-gradient(to right,
+      oklch(0.76 0.09 0), oklch(0.76 0.09 30), oklch(0.76 0.09 60),
+      oklch(0.76 0.09 90), oklch(0.76 0.09 120), oklch(0.76 0.09 150),
+      oklch(0.76 0.09 180), oklch(0.76 0.09 210), oklch(0.76 0.09 240),
+      oklch(0.76 0.09 270), oklch(0.76 0.09 300), oklch(0.76 0.09 330),
+      oklch(0.76 0.09 360));
+    --hue-track: var(--hue-strip-light);
+  }
+  html[data-theme="dark"] .pal-custom { --hue-track: var(--hue-strip-dark); }
+  @media (prefers-color-scheme: dark) {
+    html:not([data-theme="light"]):not([data-theme="dark"]) .pal-custom { --hue-track: var(--hue-strip-dark); }
+  }
+}
+.pal-custom > summary { cursor: pointer; list-style: none; }
+.pal-custom > summary::-webkit-details-marker { display: none; }
+.pal-custom > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--radius-sm); }
+.pal-fail { margin: .1rem 0 0; color: var(--danger); font-size: .8rem; line-height: 1.5; }
+.pal-fail[hidden] { display: none; }
 .pal-head {
   display: flex; align-items: baseline; justify-content: space-between; gap: .8rem;
   font-size: var(--label-size); letter-spacing: var(--label-track);
@@ -3233,31 +3279,36 @@ html:not(.has-js) .pal { display: none; }
 .pal-custom[data-active] .pal-head output { color: inherit; }
 .pal-custom input[type="range"] {
   -webkit-appearance: none; appearance: none;
-  display: block; width: 100%; height: 1.15rem; margin: 0;
+  display: block; width: 100%; height: 2rem; margin: 0;
   background: transparent; cursor: pointer;
+}
+@media (pointer: coarse) {
+  /* 触屏把滑块命中区补到 44px；鼠标端保持紧凑。 */
+  .pal-custom input[type="range"] { height: 2.75rem; }
 }
 .pal-custom input[type="range"]::-webkit-slider-runnable-track {
   height: .5rem; border-radius: var(--radius-pill);
-  background: linear-gradient(to right, hsl(0 42% 52%), hsl(60 42% 52%), hsl(120 42% 52%), hsl(180 42% 52%), hsl(240 42% 52%), hsl(300 42% 52%), hsl(360 42% 52%));
+  background: var(--hue-track);
   box-shadow: inset 0 0 0 1px var(--rule);
 }
 .pal-custom input[type="range"]::-moz-range-track {
   height: .5rem; border-radius: var(--radius-pill);
-  background: linear-gradient(to right, hsl(0 42% 52%), hsl(60 42% 52%), hsl(120 42% 52%), hsl(180 42% 52%), hsl(240 42% 52%), hsl(300 42% 52%), hsl(360 42% 52%));
+  background: var(--hue-track);
   box-shadow: inset 0 0 0 1px var(--rule);
 }
-/* 浓淡 / 纸色：同一条轨道语言，但只用当前强调色 —— 两条彩色渐变叠在一起会读成"两条色相条"。 */
+/* 浓淡 / 纸色：同一条轨道语言，但只用当前强调色 —— 两条彩色渐变叠在一起会读成"两条色相条"。
+   端点取「当前色相下的最大值」，不是当前值：拖到 30% 时右端仍画得出一路到 100% 的颜色。 */
 .pal-custom input.pal-chroma::-webkit-slider-runnable-track {
-  background: linear-gradient(to right, color-mix(in srgb, var(--accent) 10%, var(--bg-soft)), var(--accent));
+  background: linear-gradient(to right, color-mix(in srgb, var(--chroma-end) 10%, var(--bg-soft)), var(--chroma-end));
 }
 .pal-custom input.pal-chroma::-moz-range-track {
-  background: linear-gradient(to right, color-mix(in srgb, var(--accent) 10%, var(--bg-soft)), var(--accent));
+  background: linear-gradient(to right, color-mix(in srgb, var(--chroma-end) 10%, var(--bg-soft)), var(--chroma-end));
 }
 .pal-custom input.pal-paper::-webkit-slider-runnable-track {
-  background: linear-gradient(to right, var(--bg), color-mix(in srgb, var(--accent) 22%, var(--bg)));
+  background: linear-gradient(to right, var(--paper-0), var(--paper-1));
 }
 .pal-custom input.pal-paper::-moz-range-track {
-  background: linear-gradient(to right, var(--bg), color-mix(in srgb, var(--accent) 22%, var(--bg)));
+  background: linear-gradient(to right, var(--paper-0), var(--paper-1));
 }
 /* 滑块头套一圈强调色的环：这条彩虹是全站唯一一处"什么色都有"的地方，
    拇指落在哪一段常常和底色咬在一起，金环是唯一压得住它的记号。 */

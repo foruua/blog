@@ -23,7 +23,7 @@
     "test:only": "node scripts/test-all.mjs --only",
     "test:ui": "node scripts/ui-audit.mjs --isolate",
     "audit:ui": "node scripts/ui-audit.mjs",
-    "pretest": "npm run lint",
+    "pretest": "npm run lint && node scripts/palette-seeds.mjs --check",
     "lint": "eslint .",
     "preview:mail": "node --env-file-if-exists=.env scripts/preview-mail.mjs",
     "clear:demo": "node --env-file-if-exists=.env scripts/clear-demo.mjs",
