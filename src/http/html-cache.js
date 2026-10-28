@@ -20,8 +20,9 @@ const UNCACHEABLE_QUERY = new Set(['before', 'n', 'c', 'partial', 'panel', 'suff
 /**
  * 匿名 HTML 页面缓存 + 弱 ETag + 自带 br/gzip。
  *
- * 页面发 `Cache-Control: no-cache`（每次回源校验，避免引用旧指纹的 nav.js/style.css），
- * 但仍用内容修订号缓存匿名 HTML，命中时直接回；内容/评论/设置/媒体/主题任何一处变了修订号就变。
+ * 页面默认发 `public, max-age=15, s-maxage=15, stale-while-revalidate=60, no-transform`：
+ * 浏览器与 EdgeOne 可在 15 秒内直出，回访/前进后退不必回源；超时后仍用弱 ETag 校验。
+ * 服务端匿名 HTML 缓存命中时直接回；内容/评论/设置/媒体/主题任何一处变了修订号就变。
  * 两个必须一起处理的点：
  *   1. 评论时间戳令牌每次渲染都不同，会把正文哈希冲掉——只对「哈希」这一步归一到小时档；命中时重新签发。
  *   2. Cloudflare 会改写/重压 HTML 并丢掉源站 ETag；加 `no-transform` 才肯透传，而 Hono 的 compress()
@@ -151,10 +152,19 @@ export function createHtmlCache({
     return null;
   }
 
+  // 页面在浏览器/边缘（EdgeOne）可直出的秒数。匿名页内容变化会 bump revision，但客户端拿到的副本
+  // 在 max-age 内不会回源，所以别设大：默认 15 秒足够让回访与前进后退免掉一次 RTT。
+  // 超时后回源校验；stale-while-revalidate 允许网络慢时先给旧副本、后台再刷新（最多再旧 4×max-age）。
+  // 0 = 退回每次回源校验的 no-cache。静态资源仍由内容指纹 + immutable 长缓存。
+  const maxAge = envInt(process.env.HTML_MAX_AGE_S, 15, { min: 0, max: 3600 });
+  const pageCacheControl = maxAge > 0
+    ? `public, max-age=${maxAge}, s-maxage=${maxAge}, stale-while-revalidate=${maxAge * 4}, stale-if-error=300, no-transform`
+    : 'no-cache, no-transform';
+
   async function respond(c, entry, cacheStatus = '') {
     const headers = new Headers(entry.headers);
     headers.set('ETag', `W/${entry.tag}`);
-    headers.set('Cache-Control', 'no-cache, no-transform');
+    headers.set('Cache-Control', pageCacheControl);
     headers.set('Vary', 'Accept-Encoding');
     const requestId = c.get('requestId');
     if (requestId) headers.set('X-Request-Id', requestId);

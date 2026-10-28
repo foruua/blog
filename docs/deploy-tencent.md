@@ -141,6 +141,13 @@ server {
 
     listen 443 ssl; # managed by Certbot
     listen [::]:443 ssl ipv6only=on; # managed by Certbot
+    # HTTP/2：Nginx ≥ 1.25.1 用这一行；更老的版本删掉它，把上面两行改成 `listen 443 ssl http2;`
+    http2 on;
+    # 回访缩短 TLS 握手；OCSP stapling 让证书状态随握手一起下发（失败只记日志，不影响握手）
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 1d;
+    ssl_stapling on;
+    ssl_stapling_verify on;
     ssl_certificate /etc/letsencrypt/live/example.com/fullchain.pem; # managed by Certbot
     ssl_certificate_key /etc/letsencrypt/live/example.com/privkey.pem; # managed by Certbot
     include /etc/letsencrypt/options-ssl-nginx.conf; # managed by Certbot
@@ -168,6 +175,19 @@ sudo certbot renew --dry-run
 
 `client_max_body_size` 小于单文件上限时，后台上传大图会得到 Nginx 的 413，而不是应用的错误。
 
+### 3.1 EdgeOne 加速与 HTTP/3
+
+如果域名接在腾讯云 EdgeOne 后面，浏览器到边缘的 HTTP/3/QUIC、TLS 由 EdgeOne 负责，源站只需把回源这一段配好：
+
+1. **回源协议**：EdgeOne 控制台 → 站点加速 → 回源配置，回源协议选 HTTPS（或“协议跟随”），回源端口 443。源站 Nginx 保留 Let's Encrypt 证书；EdgeOne 的“源站证书校验”如开启，要信任 Let's Encrypt 根。
+2. **HTTP/3**：站点加速 → HTTPS 配置 → 开启 HTTP/3（QUIC）。边缘会自动向支持的浏览器协商 h3，源站不需要改 Node。
+3. **缓存跟随源站**：HTML 现在发 `Cache-Control: public, max-age=15, s-maxage=15, stale-while-revalidate=60, no-transform`，静态资源发 `immutable`。EdgeOne 的缓存规则选“遵循源站 Cache-Control”，不要再把 HTML 覆盖成 `no-store`，否则回访仍然要回源。后台 `/admin/*`、`/moderate/*` 是 `no-store`，不会被边缘缓存。
+4. **不要重复压缩**：源站已经发 Brotli/gzip 并带 `no-transform`；EdgeOne 的智能压缩保持关闭，避免二次压缩与 `Content-Length` 错位。
+5. **源站只信任边缘**：EdgeOne 回源 IP 段会变，`TRUSTED_PROXIES` 不要写成固定几个 IP；如果只允许 EdgeOne 回源，请在安全组/防火墙按 EdgeOne 官方回源 IP 段放行，并把 `TRUSTED_PROXIES` 设为实际回源网段。否则客户端 IP 会退化成边缘节点 IP，评论限流会把所有人算成同一个来源。
+6. **备案**：中国大陆加速域名必须先完成 ICP 备案，和源站主机是同一套要求。
+
+验证：`curl -sI https://example.com/ | grep -i cache-control` 应看到 `s-maxage=15`；`curl -sI https://example.com/style.css | grep -i cache-control` 应看到 `immutable`。浏览器开发者工具里协议列显示 `h3` 即表示 EdgeOne 的 HTTP/3 已生效。
+
 ## 4. 发布
 
 ```sh
@@ -193,7 +213,7 @@ sudo env BLOG_DEPLOY_APP_ROOT=/srv/blog \
 ## 5. DNS 与备案
 
 - 域名 NS 指向 DNSPod（或备案服务商要求的 DNS），添加 `A @ → 腾讯云公网 IP`。
-- ICP 备案期间和通过后，域名应解析到已备案的腾讯云主机；不要再用 Cloudflare 代理遮住源站。
+- ICP 备案期间和通过后，域名应解析到已备案的腾讯云主机；不要再用 Cloudflare 代理遮住源站（境外代理还会让备案/访问合规变复杂）。用 EdgeOne 加速时按 3.1 节配置，CNAME 指向 EdgeOne 分配的加速域名。
 - 备案号写进 `.env` 的 `SITE_ICP`，页脚会自动显示。需要公安备案的，按备案要求补充。
 - 可选：添加 `www` 记录后执行 `sudo certbot --nginx -d example.com -d www.example.com` 扩展证书，并在 Nginx 的 `server_name` 里加上 `www.example.com`。
 

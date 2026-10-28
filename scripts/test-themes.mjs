@@ -177,7 +177,8 @@ try {
     const home = await html('/');
     check('T3b 首页使用主题布局', home.includes('fx-main') && home.includes('class="fx-intro"') && !home.includes('class="hero"'));
     check('T3c 首页加载主题 CSS', home.includes('/theme-assets/fixture/theme.css?v='));
-    check('T3d 主题布局仍保留 #app / #main / 基础脚本', home.includes('id="app"') && home.includes('id="main"') && home.includes('/app.js?v='));
+    // 前台脚本可能被 build:assets 合成一个 site.js；开发/无构建时是五个标签。两种都算「基础脚本在位」。
+    check('T3d 主题布局仍保留 #app / #main / 基础脚本', home.includes('id="app"') && home.includes('id="main"') && (home.includes('/site.js?v=') || home.includes('/app.js?v=')));
     check('T3e 主题布局仍保留 head 元信息', home.includes('<link rel="canonical"') && home.includes('og:image'));
     check('T3f 主题布局仍输出主题引导脚本', home.includes("document.documentElement.classList.add('has-js')"));
 

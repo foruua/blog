@@ -14,7 +14,7 @@ npm run set-password
 npm start
 ```
 
-生产环境建议先跑一次 `npm run build:assets`：它把 CSS/JS 精简后生成 Brotli / gzip 预压缩文件到 `public/.build/`（该目录不进 Git）；没有构建产物时会自动退回运行时精简。
+生产环境建议先跑一次 `npm run build:assets`：它把 CSS/JS 精简后生成 Brotli / gzip 预压缩文件到 `public/.build/`（该目录不进 Git）；同时从 `style.css` 的 `@page-css` 标记切出 `style-lite.css` / `style-article.css`，并把前台 5 个脚本合并成 `site.js`。没有构建产物时自动退回运行时精简、全量 `style.css` 与 5 个脚本标签，行为不变。
 
 默认监听 `http://127.0.0.1:8787`，后台位于 `/admin`。已有数据目录可直接使用。生产环境配置 `SITE_URL`，反向代理部署时按实际情况配置可信代理。
 

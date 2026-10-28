@@ -826,23 +826,27 @@ try {
     const r = await fetch(`${BASE}/nav.js`);
     check('T36 /nav.js 可访问且类型正确', r.status === 200 && (r.headers.get('content-type') || '').includes('javascript'));
     const pageHead = await fetch(`${BASE}/`);
-    check('T36b 页面响应要求回源校验（否则会一直引用旧指纹的资源，改动到不了用户手里）',
-      (pageHead.headers.get('cache-control') || '').includes('no-cache'),
-      String(pageHead.headers.get('cache-control')));
-    const navV = /nav\.js\?v=([0-9a-f]+)/.exec(html)?.[1] ?? '';
-    const assetHead = await fetch(`${BASE}/nav.js?v=${navV}`);
+    const pageCache = pageHead.headers.get('cache-control') || '';
+    check('T36b 页面只做短缓存（15 秒后回源校验，不长期钉住旧指纹）',
+      /max-age=\d+/.test(pageCache) && /s-maxage=\d+/.test(pageCache) && pageCache.includes('no-transform'),
+      pageCache);
+    // 前台脚本可能是合并后的 site.js，也可能是未构建时的 nav.js；取页面实际引用的那一份。
+    const scriptMatch = /(site|nav)\.js\?v=([0-9a-f]+)/.exec(html) ?? [];
+    const scriptFile = scriptMatch[1] ? `${scriptMatch[1]}.js` : '';
+    const scriptV = scriptMatch[2] ?? '';
+    const assetHead = await fetch(`${BASE}/${scriptFile}?v=${scriptV}`);
     check('T36c 静态资源仍然长期缓存（指纹未变时不该重复下载）',
-      Boolean(navV) && (assetHead.headers.get('cache-control') || '').includes('immutable'),
+      Boolean(scriptV) && (assetHead.headers.get('cache-control') || '').includes('immutable'),
       String(assetHead.headers.get('cache-control')));
     // 裸 /nav.js（书签、外部引用）不能 immutable：部署后内容会变，带 ?v= 的才长期缓存（T36c）。
     check('T37 裸 /nav.js 只做短缓存', !(r.headers.get('cache-control') || '').includes('immutable')
       && (r.headers.get('cache-control') || '').includes('max-age=300'), String(r.headers.get('cache-control')));
-    check('T38 页面引用的资源版本号包含 nav.js 的内容', /nav\.js\?v=[0-9a-f]{10}/.test(html));
+    check('T38 页面引用的资源版本号包含前台脚本的内容', /(?:site|nav)\.js\?v=[0-9a-f]{10}/.test(html));
     const resourceUrls = [...html.matchAll(/(?:href|src)="(\/[^" ]+\?v=[0-9a-f]{10})"/g)].map((m) => m[1]);
     check('T39b 各资源使用自己的内容指纹', resourceUrls.length >= 4 && new Set(resourceUrls.map((url) => url.split('?v=')[1])).size > 1);
-    check('T38b nav.js 会记录自己的版本号，便于确认浏览器跑的是哪一份',
-      w.__navBuild === (/nav\.js\?v=([0-9a-f]+)/.exec(html) ?? [])[1],
-      `__navBuild=${w.__navBuild}`);
+    check('T38b 前台脚本会记录自己的版本号，便于确认浏览器跑的是哪一份',
+      w.__navBuild === scriptV,
+      `__navBuild=${w.__navBuild} scriptV=${scriptV}`);
   }
 
   // 按钮上的 formaction 优先于 form.action（HTML 规范）。后台「移除首页封面」「清除页面配置」靠它指向 /admin/hero/clear、/admin/mail/clear ——

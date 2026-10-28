@@ -1,3 +1,6 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import crypto from 'node:crypto';
 import { createAssetVersions } from './assets.js';
 import { SITE, PUBLIC_DIR } from '../config.js';
 import { esc, monthCn, cleanExcerpt, relativeDate, contentUrl, absUrl, dayParts, dayLabel } from '../util/text.js';
@@ -9,7 +12,7 @@ import { ICON_COPYRIGHT } from './icons.js';
 import { themeRequest } from '../themes/request.js';
 
 // 带内容指纹的静态资源；server.js 也 import 这份生成「可长期缓存」正则——两处必须同一份，否则新增资源必漏。
-export const VERSIONED_ASSETS = ['base.css', 'style.css', 'app.js', 'nav.js', 'admin.css', 'admin.js', 'admin-editor.js', 'media-picker.js', 'editor.js', 'favicon.svg', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png', 'og-default.jpg', 'police-badge.png', 'icp-badge.png', 'request.js', 'ui.js', 'search.js', 'palette.js'];
+export const VERSIONED_ASSETS = ['base.css', 'style.css', 'style-lite.css', 'style-article.css', 'site.js', 'app.js', 'nav.js', 'admin.css', 'admin.js', 'admin-editor.js', 'media-picker.js', 'editor.js', 'favicon.svg', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png', 'og-default.jpg', 'police-badge.png', 'icp-badge.png', 'request.js', 'ui.js', 'search.js', 'palette.js'];
 
 // —— 主题钩子 ——
 // server.js 在启动时注入「当前请求该用哪套主题」和「如何渲染主题模板」；测试或未启用主题时保持内置渲染。
@@ -423,6 +426,59 @@ function withMainContext(ctx, main) {
   };
 }
 
+// —— 页面级样式表：由 build:assets 从 style.css 切片生成 ——
+// 没有构建产物（开发/测试/刚 clone）或 style.css 在构建后又被改过时，回退到全量 style.css，
+// 绝不发半套样式。检查结果按进程缓存：改完 style.css 需要重跑构建并重启进程。
+const PAGE_CSS_LITE = new Set(['home', 'list', 'archive', 'friends', 'links', 'search', '404']);
+let pageCssReady;
+function hasPageCss() {
+  if (pageCssReady !== undefined) return pageCssReady;
+  pageCssReady = false;
+  try {
+    const stamp = JSON.parse(fs.readFileSync(path.join(PUBLIC_DIR, '.build', 'page-css.json'), 'utf8'));
+    const source = fs.readFileSync(path.join(PUBLIC_DIR, 'style.css'));
+    pageCssReady = stamp?.sourceHash === crypto.createHash('sha256').update(source).digest('hex')
+      && fs.existsSync(path.join(PUBLIC_DIR, 'style-lite.css'))
+      && fs.existsSync(path.join(PUBLIC_DIR, 'style-article.css'));
+  } catch { pageCssReady = false; }
+  return pageCssReady;
+}
+
+function styleFileFor(ctx) {
+  if (!hasPageCss()) return 'style.css';
+  // 内置 classic 主题与 builtinLayout 同构（模板只调用 chrome.*），可以安全使用页面变体；
+  // 其他主题可能自带列表页评论区/笔记流结构，别替它猜，一律回退全量样式。
+  try {
+    const theme = themeResolver();
+    if (theme && theme.id !== 'classic') return 'style.css';
+  } catch { /* 无请求上下文（测试直调）按无主题处理 */ }
+  if (PAGE_CSS_LITE.has(ctx.page)) return 'style-lite.css';
+  if (ctx.page === 'page' || ctx.themeType === 'post' || ctx.themeType === 'note') return 'style-article.css';
+  // /notes/ 同时要笔记流与评论区；审核页等未知页面也保守用全量。
+  return 'style.css';
+}
+
+// 前台五个脚本在 build:assets 里合成 site.js；源文件任一改动、或没跑过构建，就回退到五个标签。
+const SITE_SOURCES = ['request.js', 'ui.js', 'nav.js', 'search.js', 'app.js'];
+let siteBundleReady;
+function hasSiteBundle() {
+  if (siteBundleReady !== undefined) return siteBundleReady;
+  siteBundleReady = false;
+  try {
+    const stamp = JSON.parse(fs.readFileSync(path.join(PUBLIC_DIR, '.build', 'site-bundle.json'), 'utf8'));
+    const fresh = SITE_SOURCES.every((file) => stamp?.hashes?.[file]
+      === crypto.createHash('sha256').update(fs.readFileSync(path.join(PUBLIC_DIR, file))).digest('hex'));
+    siteBundleReady = fresh && fs.existsSync(path.join(PUBLIC_DIR, 'site.js'));
+  } catch { siteBundleReady = false; }
+  return siteBundleReady;
+}
+
+const styleLinksOf = (ctx) => {
+  const style = styleFileFor(ctx);
+  return `<link rel="stylesheet" href="/base.css?v=${assetVer('base.css')}">
+<link rel="stylesheet" href="/${style}?v=${assetVer(style)}">`;
+};
+
 /** <head> 内容（不含 head 标签本身）。主题布局必须原样输出它，SEO/分享/主题引导才不会丢。 */
 function headHtmlOf(ctx) {
   return `<meta charset="utf-8">
@@ -452,22 +508,22 @@ ${ctx.ogH ? `<meta property="og:image:height" content="${ctx.ogH}">` : ''}
 <link rel="icon" href="/favicon.svg?v=${assetVer('favicon.svg')}" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=${assetVer('apple-touch-icon.png')}">
 <link rel="manifest" href="/site.webmanifest">
-<link rel="stylesheet" href="/base.css?v=${assetVer('base.css')}">
-<link rel="stylesheet" href="/style.css?v=${assetVer('style.css')}">
+${styleLinksOf(ctx)}
 <meta name="palette-lib" content="/palette.js?v=${assetVer('palette.js')}">
 ${ctx.extraHead}
 ${jsonLdHtml(ctx.structuredData)}
 <script>${THEME_BOOT}</script>`;
 }
 
-// 警徽用公安备案那枚官方徽标（public/police-badge.png，62×67 带透明通道）。
-// 不内联 base64：11KB 塞进每一页的 HTML 不划算，而且每次响应都要重传、也进不了缓存；
+// 警徽用公安备案那枚官方徽标（public/police-badge.png，按显示尺寸 13×14 的 3 倍存 39×42 带透明通道）。
+// 不内联 base64：塞进每一页的 HTML 不划算，而且每次响应都要重传、也进不了缓存；
 // 走静态资源 + 内容指纹即可长缓存，换图自动换 URL。
-const policeBadgeImg = () => `<img class="foot-police-ico" src="/police-badge.png?v=${assetVer('police-badge.png')}" alt="" width="13" height="14" decoding="async">`;
+// 两枚徽标都在页脚、首屏之外：lazy 让它们不跟首屏抢带宽，滚动到页脚才请求；宽高已写死，不会引发布局位移。
+const policeBadgeImg = () => `<img class="foot-police-ico" src="/police-badge.png?v=${assetVer('police-badge.png')}" alt="" width="13" height="14" loading="lazy" fetchpriority="low" decoding="async">`;
 
-// ICP 徽标用备案 logo（public/icp-badge.png，白底原图经白底反推 alpha 抠成透明，42×40）。
-// 与警徽同一规矩：走静态资源 + 内容指纹长缓存，不内联 base64。
-const icpBadgeImg = () => `<img class="foot-icp-ico" src="/icp-badge.png?v=${assetVer('icp-badge.png')}" alt="" width="15" height="14" decoding="async">`;
+// ICP 徽标用备案 logo（public/icp-badge.png，白底原图经白底反推 alpha 抠成透明，按 15×14 的 3 倍存 45×42）。
+// 与警徽同一规矩：走静态资源 + 内容指纹长缓存，不内联 base64，且同样在页脚 lazy。
+const icpBadgeImg = () => `<img class="foot-icp-ico" src="/icp-badge.png?v=${assetVer('icp-badge.png')}" alt="" width="15" height="14" loading="lazy" fetchpriority="low" decoding="async">`;
 
 /**
  * 页脚的公安联网备案号。号码形如「冀公网安备13060202001368号」，其中末尾那串数字同时是
@@ -523,9 +579,11 @@ function chromeOf(ctx) {
   </footer>`,
     emoji: ctx.emojiTpl,
     lightbox: lightboxHtml,
-    scripts: `<script src="/request.js?v=${assetVer('request.js')}" defer></script>
+    scripts: hasSiteBundle()
+      ? `<script src="/site.js?v=${assetVer('site.js')}" data-site-build="${assetVer('site.js')}" defer></script>`
+      : `<script src="/request.js?v=${assetVer('request.js')}" defer></script>
 <script src="/ui.js?v=${assetVer('ui.js')}" defer></script>
-<script src="/nav.js?v=${assetVer('nav.js')}" defer></script>
+<script src="/nav.js?v=${assetVer('nav.js')}" data-site-build="${assetVer('nav.js')}" defer></script>
 <script src="/search.js?v=${assetVer('search.js')}" defer></script>
 <script src="/app.js?v=${assetVer('app.js')}" defer></script>`,
   };

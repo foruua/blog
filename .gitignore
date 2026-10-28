@@ -18,6 +18,11 @@ themes/.trash/
 themes/.install-*
 themes/.replace-*
 public/.build/
+# build:assets 从 style.css 切片生成的页面级样式表（部署时在服务器上重建）
+/public/style-lite.css
+/public/style-article.css
+# 前台 5 个脚本的构建期合并产物（部署时在服务器上重建）
+/public/site.js
 
 # —— 依赖与工具产物 ——
 node_modules/

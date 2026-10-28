@@ -230,7 +230,7 @@ try {
       && rows.filter((li) => !li.classList.contains('note')).every((li) => !li.querySelector('.kind'));
   })(), `${rows.filter((li) => li.classList.contains('note')).length} 条笔记`);
   check('M4 页头检索是常驻搜索框（不是链接、不是弹层），脚本仍在',
-    /class="nav-search"/.test(hit.html) && /\/search\.js\?v=/.test(hit.html)
+    /class="nav-search"/.test(hit.html) && (/\/site\.js\?v=/.test(hit.html) || /\/search\.js\?v=/.test(hit.html))
     && !/id="sBox"/.test(hit.html) && !/id="sPal"/.test(hit.html));
   check('M5 结果里没有固定页（页面不在检索范围）',
     rows.every((li) => !/\/fixture-page/.test(li.querySelector('a')?.getAttribute('href') ?? '')),

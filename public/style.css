@@ -1702,6 +1702,9 @@ article.post-empty.post-404 { padding-bottom: 1rem; }
   width: 100%; height: 100%;
   object-fit: cover;
 }
+/* @page-css comments:start —— 以下到 comments:end 只有内页/固定页的评论区用得到。
+   build:assets 会据此生成 style-lite.css（列表/归档/友链等页面不加载）与 style-article.css（去掉笔记流）。
+   标记必须留在源码里：切出来的版本与全量 style.css 逐字节同序，层叠行为不变。 */
 .c-main { min-width: 0; }
 /* 第一行：头像 + 昵称（+ 作者徽章 / 深层的「回复 @某人」），垂直居中 —— 并成一枚"落款"。 */
 .c-head {
@@ -1974,6 +1977,7 @@ html[data-theme="dark"] .c-flash-bad, html[data-theme="dark"] .c-flash-limited {
 @media (max-width: 380px) { .c-emoji-grid { --emoji-rows: 5; grid-template-columns: repeat(6, minmax(0, 1fr)); } }
 @media (pointer: coarse) { .c-emoji-grid { --emoji-row-height: 2.75rem; } .c-emoji-trigger, .c-emoji-head button, .c-emoji-grid button { min-height: 2.75rem; } .c-emoji-head button { width: 2.75rem; } }
 .c-preview { border: 1px solid var(--rule); border-radius: var(--radius); padding: .9rem; background: var(--bg-soft); }
+/* @page-css comments:end */
 
 /* 页脚 · 双端：左边只留法务细字（© / 备案号），右边 RSS 与配色两枚图标。
    页脚只承载"必须存在"的信息，入口收成 34px 的细线圆钮；手机端不再重复「回到顶部」。 */
@@ -2063,6 +2067,8 @@ footer.site .foot-icp-ico { height: 14px; width: auto; vertical-align: -.22em; m
   .to-top { display: none; }
 }
 
+/* @page-css notes:start —— 笔记流 + 笔记评论抽屉；只由 /notes/ 使用。
+   comments:start 之前那对头像规则不在此段内（友链页也用头像，必须留在核心样式里）。 */
 /* 笔记列 */
 
 /* —— 笔记流**不用** content-visibility —— 曾按「屏外行不参与布局/绘制」加过 `.notes > .nf { content-visibility: auto }`，
@@ -2485,6 +2491,7 @@ footer.site .foot-icp-ico { height: 14px; width: auto; vertical-align: -.22em; m
   transition: color var(--dur-2) var(--ease);
 }
 .ncp-fold:hover { color: var(--accent-read); }   /* 它坐在 --bg-soft 的抽屉底上，裸 accent 只有 4.25 */
+/* @page-css notes:end —— 到此为止。下面这条 .c-actions 与内页评论区共用，必须留在核心样式里。 */
 
 /* —— 条目：一条评论 = 头像列 + 内容列。整块**不**逐条画横线（面板已有边，再横线就是方块里套 两层框），条目本就短、靠间距分得开；串内回复另说，靠头像列左侧一条细线连起来。 */
 .ncp-list, .ncp-kids { list-style: none; margin: 0; padding: 0; }
@@ -2622,6 +2629,7 @@ html[data-theme="dark"] .ncp-flash-bad, html[data-theme="dark"] .ncp-flash-limit
 .ncp-go button:hover, .c-actions > button:hover { opacity: .9;  box-shadow: var(--shadow-sm); }
 .ncp-go button:disabled, .c-actions > button:disabled { opacity: .5; cursor: default; transform: none; box-shadow: none; }
 @media (pointer: coarse) { .ncp-actions .c-emoji-trigger, .c-actions .c-emoji-trigger, .ncp-go button, .c-actions > button { min-height: 2.75rem; } }
+/* @page-css notes:end */
 
 /* —— 弹层入场 —— 灯箱 / 检索台 / 确认框原本都是"啪"一下出现（实测打开瞬间 animations 为 0）。
    只做入场、不做退场：dialog.close() 会立刻撤掉 top layer，要淡出得靠 transition-behavior: allow-discrete

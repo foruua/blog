@@ -8,7 +8,7 @@ import { startIsolated } from './ui-audit.mjs';
 const fixtureDb = new DatabaseSync(process.env.DB_FILE);
 let fixturePostId;
 try {
-  fixtureDb.prepare("INSERT INTO feeds(url,title,sort_order,enabled,display_limit,created_at) VALUES(?,?,0,0,3,?)")
+  fixtureDb.prepare("INSERT INTO feeds(url,title,sort_order,enabled,created_at) VALUES(?,?,0,0,?)")
     .run('https://example.invalid/ui-fixture.xml', '弹窗测试订阅源', new Date().toISOString());
   const post = fixtureDb.prepare('SELECT id,title,body_md FROM posts WHERE kind = ? LIMIT 1').get('post');
   fixturePostId = post.id;

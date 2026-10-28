@@ -522,8 +522,11 @@
   window.__nav = { navigate: navigate, cache: cache, eligible: eligible, submitForm: submitForm, toast: toast, invalidate: invalidate, syncUrl: syncUrl };
 
   try {
-    var tag = document.querySelector('script[src*="nav.js"]');
-    window.__navBuild = tag ? (new URL(tag.getAttribute('src'), location.href).searchParams.get('v') || '') : '';
+    // bundle 模式下没有单独的 nav.js 标签：构建指纹挂在通用 data-site-build 上，回退模式则由 nav.js 自带。
+    var tag = document.querySelector('script[data-site-build]') || document.querySelector('script[src*="nav.js"]');
+    window.__navBuild = tag
+      ? (tag.getAttribute('data-site-build') || new URL(tag.getAttribute('src'), location.href).searchParams.get('v') || '')
+      : '';
   } catch (e) { window.__navBuild = ''; }
 
   var navigationIntent = 0;

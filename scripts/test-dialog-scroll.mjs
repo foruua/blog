@@ -12,7 +12,7 @@ fs.appendFileSync(path.join(process.env.CONTENT_DIR, 'posts', 'why-single-column
 const db = new DatabaseSync(process.env.DB_FILE);
 try {
   db.prepare('INSERT INTO media(path,width,height,mime,filename) VALUES(?,1,1,?,?)').run('/uploads/scroll-test.png', 'image/png', 'scroll-test.png');
-  db.prepare("INSERT INTO feeds(url,title,sort_order,enabled,display_limit,created_at) VALUES(?,?,0,0,3,?)")
+  db.prepare("INSERT INTO feeds(url,title,sort_order,enabled,created_at) VALUES(?,?,0,0,?)")
     .run('https://example.invalid/scroll-fixture.xml', '滚动锁测试源', new Date().toISOString());
 } finally { db.close(); }
 
