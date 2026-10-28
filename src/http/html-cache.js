@@ -10,10 +10,12 @@ const brotliAsync = promisify(brotliCompress);
 
 // 与 server.js 的静态资源清单解耦：调用方传入 isImmutableAsset 判定即可。
 const NON_HTML_PATH_RE = /^\/(?:admin|moderate|unsubscribe|healthz|api|avatar|uploads|theme-assets)(?:$|\/)|^\/(?:feed\.xml|atom\.xml|feed\.json|sitemap\.xml|robots\.txt|site\.webmanifest|favicon\.ico)$/;
-const HTML_CACHE_QUERY_KEYS = new Set([
-  'before', 'n', 'cpage', 'reply', 'c', 'partial', 'panel', 'suffix', 'q', 'kind', 'page',
-]);
-const TS_TOKEN_RE = /(name="ts" value=")([^"]*)(")/g;
+// 只缓存能可靠归一化的查询参数：page/cpage 是页码，reply 是评论 id，kind 是归档筛选。
+// q/before/n/partial/panel/suffix/c 等会改变正文且取值空间不设限，直接不缓存——
+// 以前任意 ?q=、?before=、?page=999999 都各开一条 key，200 条随机请求就能把整页缓存冲掉。
+const CACHEABLE_QUERY = new Set(['page', 'cpage', 'reply', 'kind']);
+// 这些参数会改变正文且取值不受限：带它们就完全不进共享缓存，避免随机 q/before/n 把 200 条缓存冲掉。
+const UNCACHEABLE_QUERY = new Set(['before', 'n', 'c', 'partial', 'panel', 'suffix', 'q']);
 
 /**
  * 匿名 HTML 页面缓存 + 弱 ETag + 自带 br/gzip。
@@ -26,7 +28,7 @@ const TS_TOKEN_RE = /(name="ts" value=")([^"]*)(")/g;
  *      见这条头就不压了，所以 HTML 的 br/gzip 在这里自己做。
  */
 export function createHtmlCache({
-  repo, themes, crypt, isImmutableAsset = () => false,
+  repo, themes, isImmutableAsset = () => false,
   ttlMs = envInt(process.env.HTML_CACHE_TTL_MS, 60_000, { min: 0, max: 60 * 60 * 1000 }),
   maxEntries = 200, maxChars = 8 * 1024 * 1024, maxBody = 2 * 1024 * 1024,
 }) {
@@ -40,7 +42,8 @@ export function createHtmlCache({
   function drop(key) {
     const entry = cache.get(key);
     if (!entry) return;
-    chars -= entry.body.length + encBytes(entry);
+    // body 是 JS 字符串，直接 length 在中文页面上只有实际 UTF-8 字节的 1/3；记账必须按字节。
+    chars -= (entry.bytes ?? Buffer.byteLength(entry.body, 'utf8')) + encBytes(entry);
     cache.delete(key);
   }
 
@@ -59,27 +62,40 @@ export function createHtmlCache({
   }
 
   function set(key, entry) {
-    if (!enabled || entry.body.length > maxBody) return;
+    entry.bytes = Buffer.byteLength(entry.body, 'utf8');
+    if (!enabled || entry.bytes > maxBody) return;
     drop(key);
-    while (cache.size >= maxEntries || chars + entry.body.length > maxChars) {
+    while (cache.size >= maxEntries || chars + entry.bytes > maxChars) {
       const first = cache.keys().next();
       if (first.done) break;
       drop(first.value);
     }
     cache.set(key, entry);
-    chars += entry.body.length;
+    chars += entry.bytes;
   }
 
-  // 缓存键只保留会改变正文的查询参数：任意 ?utm_/随机参数不应各开一份缓存把条目挤空。
+  // 缓存键只保留会改变正文、且能归一化到有限集合的查询参数。
   // 用 URL 原始 pathname 保留尾斜杠差异（Hono 的 c.req.path 会把 /posts/ 归一成 /posts）。
+  // 返回 null = 这条请求不缓存（含随机/深链参数），避免缓存被无限 key 冲掉。
   const keyOf = (c) => {
     let url;
     try { url = new URL(c.req.url); } catch { return c.req.path; }
     const parts = [];
-    for (const key of [...new Set(url.searchParams.keys())].sort()) {
-      if (!HTML_CACHE_QUERY_KEYS.has(key)) continue;
-      for (const value of url.searchParams.getAll(key)) parts.push(`${encodeURIComponent(key)}=${encodeURIComponent(value)}`);
+    for (const key of new Set(url.searchParams.keys())) {
+      if (UNCACHEABLE_QUERY.has(key)) return null;
+      if (!CACHEABLE_QUERY.has(key)) continue;   // UTM 等无关参数：共享同一条缓存，不另开 key
+      const raw = url.searchParams.get(key) ?? '';
+      if (key === 'page' || key === 'cpage') {
+        const n = Number.parseInt(raw, 10);
+        parts.push(`${key}=${Number.isFinite(n) ? Math.min(100000, Math.max(1, n)) : 1}`);
+      } else if (key === 'reply') {
+        const n = Number.parseInt(raw, 10);
+        if (Number.isFinite(n) && n > 0) parts.push(`reply=${n}`);
+      } else if (key === 'kind') {
+        if (raw === 'post' || raw === 'note') parts.push(`kind=${raw}`);
+      }
     }
+    parts.sort();
     return parts.length ? `${url.pathname}?${parts.join('&')}` : url.pathname;
   };
 
@@ -103,15 +119,6 @@ export function createHtmlCache({
     return rev;
   }
 
-  // 只刷新正文里的评论时间戳令牌；其它内容（包括 CSRF）原样返回。缓存 60 秒，令牌有效期 24 小时，安全边界不变。
-  function refreshTokens(text) {
-    return text.replace(TS_TOKEN_RE, (match, open, token, close) => {
-      const payload = crypt.verify(token);
-      if (!payload || payload.purpose !== 'comment-ts' || !Number.isInteger(payload.p)) return match;
-      return open + crypt.sign({ purpose: 'comment-ts', ts: Date.now(), p: payload.p }, 24 * 3600) + close;
-    });
-  }
-
   // 压缩结果缓存在条目上：没有评论表单的页面（首页/列表/友圈/友链/固定页）正文在 TTL 内逐字节不变，
   // 命中时可以直接复用压缩字节，省掉整页 Brotli。带 ts 令牌的页面不行——令牌每次都要重签，
   // 压缩字节也就跟着变，只能照旧每次重压。
@@ -124,19 +131,8 @@ export function createHtmlCache({
       : gzipAsync(body);
   }
 
-  // 现压（令牌刷新过、或条目里没有缓存）：优先 Brotli，失败再退 gzip，都失败就发原文。
-  async function compressNow(text, accepted) {
-    const body = Buffer.from(text, 'utf8');
-    if (body.length < MIN_COMPRESS_BYTES) return null;
-    for (const encoding of ENCODINGS) {
-      if (!acceptsEncoding(accepted, encoding)) continue;
-      try { return { body: await compressOnce(body, encoding), encoding }; } catch { /* 换下一种 */ }
-    }
-    return null;
-  }
-
   async function compressedFor(entry, accepted) {
-    if (entry.body.length < MIN_COMPRESS_BYTES) return null;
+    if ((entry.bytes ?? Buffer.byteLength(entry.body, 'utf8')) < MIN_COMPRESS_BYTES) return null;
     const body = Buffer.from(entry.body, 'utf8');
     for (const encoding of ENCODINGS) {
       if (!acceptsEncoding(accepted, encoding)) continue;
@@ -144,10 +140,9 @@ export function createHtmlCache({
       if (cached) return { body: cached, encoding };
       let out;
       try { out = await compressOnce(body, encoding); } catch { continue; }
-      // 有令牌的页面下次还得重签，缓存这份压缩字节没有意义。
       // 压缩副本也计入内存预算：set() 只按正文长度放行，若再无条件挂上 br+gzip，
       // 实际占用会越过 maxChars；超预算时本次照常返回，只是不落缓存。
-      if (!entry.hasTokens && chars + out.length <= maxChars) {
+      if (chars + out.length <= maxChars) {
         (entry.enc ??= {})[encoding] = out;
         chars += out.length;   // 压缩副本也要计入内存预算（见 encBytes）
       }
@@ -173,27 +168,28 @@ export function createHtmlCache({
       return;
     }
 
-    const text = cacheStatus === 'HIT' && entry.hasTokens ? refreshTokens(entry.body) : entry.body;
     // 与 hono/compress 同口径：小于 1KB 不压。优先 Brotli，不支持再回 gzip。
-    // 令牌刷新过的正文与条目里的那份不同，必须现压；否则直接吃条目里缓存好的压缩字节。
-    const fresh = text !== entry.body;
-    const compressed = fresh
-      ? await compressNow(text, c.req.header('accept-encoding') ?? '')
-      : await compressedFor(entry, c.req.header('accept-encoding') ?? '');
+    // 正文在 TTL 内逐字节不变（令牌也复用），直接吃条目里缓存好的压缩字节。
+    const compressed = await compressedFor(entry, c.req.header('accept-encoding') ?? '');
     if (compressed) {
       headers.set('Content-Encoding', compressed.encoding);
       headers.set('Content-Length', String(compressed.body.length));
       c.res = new Response(compressed.body, { status: 200, headers });
       return;
     }
-    const body = fresh ? Buffer.from(text, 'utf8') : Buffer.from(entry.body, 'utf8');
+    const body = Buffer.from(entry.body, 'utf8');
     headers.set('Content-Length', String(body.length));
     c.res = new Response(body, { status: 200, headers });
   }
 
   async function middleware(c, next) {
-    const canCache = cacheable(c);
-    const key = canCache ? keyOf(c) : '';
+    // 关闭缓存时必须完全透明：早期版本仍会在 next() 后重建 entry/重压正文/改 Cache-Control，
+    // 让 HTML_CACHE_TTL_MS=0 看起来关不掉缓存。
+    if (!enabled) return next();
+    let canCache = cacheable(c);
+    let key = canCache ? keyOf(c) : '';
+    // 含不可归一化参数的请求不进缓存（见 keyOf）；仍正常渲染，只是不写共享缓存。
+    if (key === null) { canCache = false; key = ''; }
     const revision = canCache ? revisionOf(c) : '';
     if (canCache) {
       const hit = get(key, revision);
@@ -213,6 +209,8 @@ export function createHtmlCache({
       return;
     }
     if (adminCookie) { c.header('Cache-Control', 'private, no-store'); return; }
+    // 不可归一化参数的匿名页：正常返回原响应，不重建/不压缩，也不写缓存。
+    if (!canCache) return;
     if ((c.res.headers.get('Cache-Control') ?? '').includes('no-store')) return;
     // 任何会种 cookie 的 HTML 都不进共享缓存；直接交回原响应，避免重建 headers 时把 Set-Cookie 丢掉。
     if (c.res.headers.has('Set-Cookie')) return;
@@ -230,8 +228,7 @@ export function createHtmlCache({
     const headers = { 'Content-Type': contentType };
     const language = c.res.headers.get('Content-Language');
     if (language) headers['Content-Language'] = language;
-    // hasTokens 决定压缩字节能不能在命中时复用（见 compressedFor）。
-    const entry = { at: Date.now(), revision, tag, body: text, headers, hasTokens, enc: null };
+    const entry = { at: Date.now(), revision, tag, body: text, headers, enc: null };
     const cacheStatus = canCache ? 'MISS' : '';
     if (cacheStatus) set(key, entry);
     return respond(c, entry, cacheStatus);

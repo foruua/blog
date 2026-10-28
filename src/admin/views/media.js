@@ -88,7 +88,7 @@ ${hero}${usage}
   });
 }
 
-export function mediaDetailContent({ item, isHero, usedBy }) {
+export function mediaDetailContent({ item, isHero, usedBy, heading = 'h3' }) {
   const now = new Date().toISOString();
   const srcset = previewSrcsetOf(item, 1920);
   const state = (p) => p.missing_file ? '文件缺失' : p.draft ? '草稿' : p.published_at > now ? '定时发布' : '已发布';
@@ -102,7 +102,7 @@ export function mediaDetailContent({ item, isHero, usedBy }) {
           <p class="a-dim">${dimensionOf(item)}${sizeOf(item) ? ` · ${Math.round(sizeOf(item) / 1024)} KB` : ''}</p>
           <code>${esc(item.path)}</code><button class="a-btn-ghost" type="button" data-copy="${esc(item.path)}">复制路径</button></div>
       </div>
-      <div class="a-media-ref-head"><h3>引用位置</h3><span>${usedBy.length} 篇正文${isHero ? ' · 首页封面' : ''}</span></div>
+      <div class="a-media-ref-head"><${heading}>引用位置</${heading}><span>${usedBy.length} 篇正文${isHero ? ' · 首页封面' : ''}</span></div>
       <ul class="a-media-refs">
         ${isHero ? '<li><a href="/admin/system"><span><b>首页封面</b><small>到设置页更换</small></span><span aria-hidden="true">↗</span></a></li>' : ''}
         ${usedBy.map((p) => `<li><a href="/admin/edit/${p.id}"><span><b>${esc(p.title || '(无标题)')}</b><small>${esc(kinds[p.kind] ?? p.kind)} · ${state(p)}</small></span><span aria-hidden="true">↗</span></a></li>`).join('')}
@@ -115,6 +115,6 @@ export function mediaDetailPage({ item, isHero, usedBy, csrf, badges }) {
   return adminLayout({
     title: '媒体引用详情', active: 'media', csrf, badges,
     actions: '<a class="a-back" href="/admin/media">← 回媒体库</a>',
-    body: `<div class="a-card a-panel">${mediaDetailContent({ item, isHero, usedBy })}</div>`,
+    body: `<div class="a-card a-panel">${mediaDetailContent({ item, isHero, usedBy, heading: 'h2' })}</div>`,
   });
 }

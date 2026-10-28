@@ -143,6 +143,8 @@ function getTransport(cfg) {
         });
       } catch (err) {
         console.warn(`[mail] nodemailer 不可用（${err.message}），邮件将只打印`);
+        // 瞬时加载失败不能永久缓存成 null：否则同一配置下后续所有投递都拿不到 transport。
+        if (cached.sig === sig) cached = { sig: '', promise: null };
         return null;
       }
     })(),

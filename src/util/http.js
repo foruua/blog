@@ -25,6 +25,47 @@ export function clientIp(c) {
   return remote;
 }
 
+// 把 IPv6 展开成 8 组 4 位十六进制，只取前 4 组（/64）。
+function expandIpv6(addr) {
+  const [head, tail] = addr.includes('::') ? addr.split('::') : [addr, null];
+  const groups = (part) => {
+    const out = [];
+    for (const g of part ? part.split(':') : []) {
+      if (!g.includes('.')) { out.push(g); continue; }
+      const [a, b, c, d] = g.split('.').map(Number);
+      out.push(((a << 8) | b).toString(16), ((c << 8) | d).toString(16));
+    }
+    return out;
+  };
+  const h = groups(head);
+  const t = tail === null ? [] : groups(tail);
+  const fill = Math.max(0, 8 - h.length - t.length);
+  return [...h, ...Array(fill).fill('0'), ...t].map((g) => g.padStart(4, '0')).join(':');
+}
+
+// IPv6 单地址限额没有意义：一个 /64 就有 2^64 个地址，换一个就能重置计数。
+// IPv4-mapped（::ffff:a.b.c.d）必须还原成 IPv4，否则所有直连 IPv4 会挤进同一个桶。
+export function ipBucket(ip) {
+  const raw = String(ip ?? '').trim();
+  if (!raw) return 'unknown';
+  if (net.isIPv4(raw)) return raw;
+  if (!net.isIPv6(raw)) return raw;
+  const addr = raw.toLowerCase().split('%')[0];
+  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(addr);
+  if (mapped) return mapped[1];
+  const full = expandIpv6(addr).split(':');
+  if (full.slice(0, 5).every((g) => g === '0000') && full[5] === 'ffff') {
+    const hi = Number.parseInt(full[6], 16);
+    const lo = Number.parseInt(full[7], 16);
+    return `${hi >> 8}.${hi & 255}.${lo >> 8}.${lo & 255}`;
+  }
+  return full.slice(0, 4).join(':');
+}
+
+/** 限流/指纹统一用 /64 归并后的键；拿不到地址时落到固定桶，不能直接放行。 */
+export const clientKey = (c) => ipBucket(clientIp(c) || 'unknown');
+
+
 // 后台会话 cookie 的公共属性；secure 仅站点为 https 时开，COOKIE_INSECURE=true 只作本机 https 调试。
 export const cookieBase = () => ({
   path: '/', httpOnly: true, sameSite: 'Lax',
@@ -167,6 +208,19 @@ export function bodyLimitFor({ path: p, contentType, isUpload = false, isThemeUp
   return 1024 * 1024;
 }
 
+// 请求体读取失败不能一律当 408：磁盘满/权限错误被误报成客户端超时，会诱发重试并掩盖真实故障。
+// 只有真正的超时、连接中断与客户端中止才回 408；其余记一条日志后回 500。
+function bodyReadFailure(c, error) {
+  const code = String(error?.code ?? error?.name ?? '');
+  if (code === 'TOO_LARGE') return c.json({ ok: false, error: '请求内容过大', status: 'too-large' }, 413);
+  if (code === 'TIMEOUT' || code === 'ECONNRESET' || code === 'ECONNABORTED'
+    || code === 'ERR_STREAM_PREMATURE_CLOSE' || code === 'ABORT_ERR' || /terminated|aborted/i.test(error?.message ?? '')) {
+    return c.json({ ok: false, error: '请求读取超时或中断' }, 408);
+  }
+  console.error(JSON.stringify({ event: 'body.read-failed', requestId: c.get('requestId') ?? '', code: code || 'INTERNAL' }));
+  return c.json({ ok: false, error: '读取请求失败' }, 500);
+}
+
 // 该中间件幂等：用过一次就把请求体标成 bodyBounded，后续实例直接短路。所以 server/admin/comment 各
 // 挂一份都安全——子应用可独立使用（测试就这么挂），分量限制按路径决定，与谁注册无关。
 export function boundedBody() {
@@ -196,10 +250,7 @@ export function boundedBody() {
       if (isUpload && (c.req.header('x-raw-upload') === '1' || !isMultipart)) {
         let temp;
         try { temp = await spoolRawUpload(c, { limit, timeoutMs }); }
-        catch (error) {
-          if (error.code === 'TOO_LARGE') return c.json({ ok: false, error: '请求内容过大', status: 'too-large' }, 413);
-          return c.json({ ok: false, error: '请求读取超时或中断' }, 408);
-        }
+        catch (error) { return bodyReadFailure(c, error); }
         c.set('uploadTemp', temp);
         c.set('bodyBounded', true);
         try { await next(); }
@@ -208,7 +259,10 @@ export function boundedBody() {
       }
       const reader = c.req.raw.body.getReader();
       let timer; let bytes = 0; const chunks = [];
-      const timeout = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('timeout')), timeoutMs); timer.unref?.(); });
+      const timeout = new Promise((_, reject) => {
+        timer = setTimeout(() => reject(Object.assign(new Error('timeout'), { code: 'TIMEOUT' })), timeoutMs);
+        timer.unref?.();
+      });
       try {
         while (true) {
           const { done, value } = await Promise.race([reader.read(), timeout]);
@@ -219,7 +273,7 @@ export function boundedBody() {
         }
         c.req.raw = new Request(c.req.raw, { body: Buffer.concat(chunks), duplex: 'half' });
         c.set('bodyBounded', true);
-      } catch { void reader.cancel().catch(() => {}); return c.json({ ok: false, error: '请求读取超时或中断' }, 408); }
+      } catch (error) { void reader.cancel().catch(() => {}); return bodyReadFailure(c, error); }
       finally { clearTimeout(timer); }
       await next();
     } finally {
@@ -249,7 +303,7 @@ export function publicWriteRateLimit({ max = 60, windowMs = 60000, capacity = 40
       for (const [key, value] of entries) if (now - value.time >= windowMs) entries.delete(key);
       sweptAt = now;
     }
-    const key = clientIp(c) || 'unknown';
+    const key = clientKey(c);
     let hit = entries.get(key);
     if (!hit) {
       // 容量满时淘汰最旧一条，而非把新访客 429（旧写法在高基数 IP 下会让新 IP 被拒一个窗口期）。time 只在

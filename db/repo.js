@@ -53,6 +53,8 @@ export function createRepo(db) {
 
     notePosition: db.prepare(`SELECT COUNT(*) AS position FROM posts
       WHERE kind = 'note' AND ${LIVE_ONLY} AND (published_at > ? OR (published_at = ? AND id > ?))`),
+    noteMeta: db.prepare(`SELECT id, published_at FROM posts
+      WHERE slug = ? AND kind = 'note' AND ${LIVE_ONLY}`),
     noteBoundary: db.prepare(`SELECT id, published_at FROM posts
       WHERE kind = 'note' AND ${LIVE_ONLY} ORDER BY published_at DESC, id DESC LIMIT 1 OFFSET ?`),
     noteFirst: db.prepare(`SELECT id, slug, kind, title, published_at, word_count, comments_on, body_html, ${COMMENT_COUNT}
@@ -194,7 +196,8 @@ export function createRepo(db) {
   }
 
   function noteCursor(slug, size) {
-    const target = q.pageBySlug.get(slug, 'note');
+    // 只需要定位用的 id/发布时间：以前用 pageBySlug 的 SELECT *，长笔记会把整篇正文拖出来。
+    const target = q.noteMeta.get(slug);
     if (!target) return undefined;
     const position = q.notePosition.get(target.published_at, target.published_at, target.id).position;
     const offset = Math.floor(position / size) * size - 1;
@@ -328,7 +331,9 @@ export function createRepo(db) {
       if (existing) {
         // 只有源文件哈希不变（纯重渲染）才保留 updated_at；内容真改了仍然走正常更新时间。
         const keepTime = preserveUpdatedAt && existing.file_hash === rec.fileHash;
-        version = (keepTime ? q.updatePostKeepTime : q.updatePost).get(...params, existing.id).version;
+        const updated = (keepTime ? q.updatePostKeepTime : q.updatePost).get(...params, existing.id);
+        if (!updated) throw Object.assign(new Error('文章在保存过程中被删除'), { status: 404 });
+        version = updated.version;
         id = existing.id;
         action = 'updated';
       } else {

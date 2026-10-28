@@ -119,6 +119,10 @@ export function formatDay(utcIso, timeZone = SITE_TIME_ZONE) {
   return formatter(timeZone, 'date').format(date);
 }
 
+/** 站内时区的 YYYY-MM-DD 拆成 [年, 月, 日]；列表、归档与友链共用同一口径。 */
+export const dayParts = (day) => [day.slice(0, 4), day.slice(5, 7), day.slice(8)];
+export const dayLabel = ([y, m, d]) => `${y} 年 ${Number(m)} 月 ${Number(d)} 日`;
+
 /** 中文长日期：与文章刊头的「2026 年 10 月 12 日」同一口径。 */
 export const formatDayCn = (utcIso, timeZone = SITE_TIME_ZONE) => {
   const day = formatDay(utcIso, timeZone);

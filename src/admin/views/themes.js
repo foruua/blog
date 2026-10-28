@@ -2,37 +2,41 @@ import { csrfField, esc } from '../../util/text.js';
 import { adminLayout } from '../layout.js';
 import { pickerDialog } from './picker.js';
 
-const optionField = (option, value) => {
-  const id = `opt-${option.key}`;
+const optionField = (themeId, option, value) => {
+  // 同一页会为每个主题各渲染一份设置表单；只用 option.key 做 id 会让同名选项重复 id，
+  // label[for] / 取色器 / 媒体库预览全部指向第一份表单。把主题 id 也带进来。
+  const id = `opt-${themeId}-${option.key}`;
   const name = `opt_${option.key}`;
-  const label = `<label class="a-field" for="${id}"><span>${esc(option.label)}</span>`;
   const desc = option.description ? `<small class="a-dim">${esc(option.description)}</small>` : '';
+  // label 只关联一个 labelable 控件：以前把文本框和取色器/按钮一起包进 <label>，
+  // 点击标签或按钮时焦点归属不稳定，读屏也会重复朗读。
+  const field = (control) => `<div class="a-field"><label for="${id}"><span>${esc(option.label)}</span></label>${control}</div>${desc}`;
   if (option.type === 'boolean') {
     return `<label class="a-check"><input type="checkbox" id="${id}" name="${name}" value="1"${value ? ' checked' : ''}><span>${esc(option.label)}</span></label>${desc}`;
   }
   if (option.type === 'textarea') {
-    return `${label}<textarea class="a-textarea" id="${id}" name="${name}" rows="4">${esc(value ?? '')}</textarea></label>${desc}`;
+    return field(`<textarea class="a-textarea" id="${id}" name="${name}" rows="4">${esc(value ?? '')}</textarea>`);
   }
   if (option.type === 'select') {
     const opts = option.options.map((item) => `<option value="${esc(item.value)}"${String(item.value) === String(value) ? ' selected' : ''}>${esc(item.label)}</option>`).join('');
-    return `${label}<select class="a-select" id="${id}" name="${name}">${opts}</select></label>${desc}`;
+    return field(`<select class="a-select" id="${id}" name="${name}">${opts}</select>`);
   }
   if (option.type === 'number') {
-    return `${label}<input class="a-input" id="${id}" name="${name}" type="number" value="${esc(value)}" min="${option.min}" max="${option.max}" step="${option.step}"></label>${desc}`;
+    return field(`<input class="a-input" id="${id}" name="${name}" type="number" value="${esc(value)}" min="${option.min}" max="${option.max}" step="${option.step}">`);
   }
   if (option.type === 'color') {
-    return `${label}<span class="a-color-row"><input class="a-input" id="${id}" name="${name}" type="text" value="${esc(value ?? '')}" placeholder="#926922" spellcheck="false"><input type="color" value="${esc(/^#[0-9a-f]{6}$/i.test(String(value ?? '')) ? value : '#926922')}" aria-label="${esc(option.label)}取色" data-color-for="${id}"></span></label>${desc}`;
+    return field(`<span class="a-color-row"><input class="a-input" id="${id}" name="${name}" type="text" value="${esc(value ?? '')}" placeholder="#926922" spellcheck="false"><input type="color" value="${esc(/^#[0-9a-f]{6}$/i.test(String(value ?? '')) ? value : '#926922')}" aria-label="${esc(option.label)}取色" data-color-for="${id}"></span>`);
   }
   if (option.type === 'image') {
     // 只接受站内路径（CSP 的 img-src 'self' 拦外站图）：文本框可手填，也可从媒体库挑。
-    return `${label}<span class="a-image-row">
+    return field(`<span class="a-image-row">
           <input class="a-input" id="${id}" name="${name}" type="text" value="${esc(value ?? '')}" placeholder="/uploads/…" spellcheck="false" autocomplete="off">
           <button type="button" class="a-btn-ghost" data-theme-image="${id}">媒体库</button>
           <button type="button" class="a-btn-ghost" data-theme-image-clear="${id}" aria-label="清空${esc(option.label)}">清空</button>
         </span>
-        <span class="a-image-preview" data-image-preview="${id}"${value ? '' : ' hidden'}><img${value ? ` src="${esc(value)}"` : ''} alt="" loading="lazy" decoding="async"></span></label>${desc}`;
+        <span class="a-image-preview" data-image-preview="${id}"${value ? '' : ' hidden'}><img${value ? ` src="${esc(value)}"` : ''} alt="" loading="lazy" decoding="async"></span>`);
   }
-  return `${label}<input class="a-input" id="${id}" name="${name}" type="text" value="${esc(value ?? '')}"></label>${desc}`;
+  return field(`<input class="a-input" id="${id}" name="${name}" type="text" value="${esc(value ?? '')}">`);
 };
 
 const optionsForm = (theme, csrf) => {
@@ -42,7 +46,7 @@ const optionsForm = (theme, csrf) => {
         <form method="post" action="/admin/themes/options">
           ${csrfField(csrf)}
           <input type="hidden" name="id" value="${esc(theme.id)}">
-${theme.options.map((option) => `          ${optionField(option, theme.optionValues?.[option.key])}`).join('\n')}
+${theme.options.map((option) => `          ${optionField(theme.id, option, theme.optionValues?.[option.key])}`).join('\n')}
           <p class="a-actions"><button class="a-btn" type="submit">保存设置</button></p>
         </form>
       </details>`;
@@ -68,7 +72,7 @@ const card = (theme, { csrf, active, preview, canDelete }) => {
       <div class="a-theme-shot-wrap">${shot(theme)}${isActive ? '<span class="a-theme-on">使用中</span>' : ''}${isPreview ? '<span class="a-theme-preview">预览中</span>' : ''}</div>
       <div class="a-theme-body">
         <div class="a-theme-heading">
-          <h2 class="a-theme-name">${esc(theme.name)}</h2>
+          <h3 class="a-theme-name">${esc(theme.name)}</h3>
           ${theme.version ? `<span class="a-theme-ver">v${esc(theme.version)}</span>` : ''}
         </div>
         <p class="a-theme-meta">${esc(theme.author || '未署名')}</p>

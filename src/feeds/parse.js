@@ -160,11 +160,12 @@ function textOf(node, depth = 0) {
 const CONTROL_RE = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g;
 
 export function cleanText(input, max = 200) {
-  return String(input ?? '')
+  const text = String(input ?? '')
     .replace(CONTROL_RE, ' ')
     .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, max);
+    .trim();
+  // 按码点截断：UTF-16 slice 切在 emoji/代理对中间会留下孤立代理项。
+  return [...text].slice(0, max).join('');
 }
 
 /* 花括号短代码：Typecho/WordPress 主题会把 `{mx_post_card type="local" cid="178"}`、`{mx_photo}` 写进正文，

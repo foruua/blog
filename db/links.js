@@ -94,6 +94,14 @@ export function createLinkRepo(db) {
       FROM (${LIVE_CTE}) AS live
       ORDER BY (checked_at IS NULL) DESC, checked_at ASC, host ASC`),
     adminList: db.prepare(`SELECT * FROM (${LIVE_CTE}) AS live ORDER BY n DESC, last_at DESC, host ASC`),
+    adminPage: db.prepare(`SELECT * FROM (${LIVE_CTE}) AS live
+      ORDER BY n DESC, last_at DESC, host ASC LIMIT ? OFFSET ?`),
+    adminCount: db.prepare(`SELECT COUNT(*) AS n FROM (${LIVE_CTE}) AS live`),
+    adminGroupCounts: db.prepare(`SELECT
+        SUM(CASE WHEN IFNULL(hidden, 0) = 0 AND IFNULL(alive, 1) <> 0 THEN 1 ELSE 0 END) AS live,
+        SUM(CASE WHEN IFNULL(hidden, 0) = 0 AND IFNULL(alive, 1) = 0 THEN 1 ELSE 0 END) AS dead,
+        SUM(CASE WHEN IFNULL(hidden, 0) = 1 THEN 1 ELSE 0 END) AS hidden
+      FROM (${LIVE_CTE}) AS live`),
 
     markOk: db.prepare(`INSERT INTO link_sites(host, url, title, alive, fail_count, checked_at, last_ok_at, created_at)
       VALUES(?, ?, ?, 1, 0, ?, ?, ?)
@@ -150,6 +158,12 @@ export function createLinkRepo(db) {
     publicStats: () => q.publicStats.get(),
     publicRecent: (since) => q.publicRecent.get(sqliteTime(since)).n,
     adminList: () => q.adminList.all(),
+    adminPage: ({ limit = 60, offset = 0 } = {}) => q.adminPage.all(limit, offset),
+    adminCount: () => q.adminCount.get().n,
+    adminGroupCounts: () => {
+      const row = q.adminGroupCounts.get() ?? {};
+      return { live: Number(row.live) || 0, dead: Number(row.dead) || 0, hidden: Number(row.hidden) || 0 };
+    },
 
     listSites: () => q.allSites.all(),
 

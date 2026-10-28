@@ -830,29 +830,6 @@
   };
   window.__theme = theme;
 
-  /* 灯箱关闭时把图片这条线彻底停住：还在飞的 loader 不能再把 <img> 顶回可见。 */
-  const clearImage = (dialog) => {
-    const state = imageLoads.get(dialog);
-    if (state) {
-      cancelImage(dialog, state);
-      // 顺带把图片缩放器复位：否则放大按钮仍可点，操作的却是隐藏的 <img>。
-      state.viewer?.reset();
-    }
-    const image = dialog.querySelector('.lb-img');
-    if (image) {
-      image.hidden = true;
-      image.removeAttribute('src');
-      image.style.width = '';
-      image.style.removeProperty('--lb-ar');
-      image.style.transform = '';
-      image.classList.remove('is-zoomed');
-    }
-    const feedback = dialog.querySelector('.lb-feedback');
-    if (feedback) {
-      const status = feedback.querySelector('p'); if (status) status.textContent = '';
-      const retry = feedback.querySelector('button'); if (retry) retry.hidden = true;
-    }
-  };
   /* 复制文本：Clipboard API 优先，失败退回「选区 + execCommand」（HTTP 页面或旧浏览器）。
      前台代码块复制与后台 [data-copy] 共用这一份，别再各写一套降级路径。 */
   const copyText = async (text) => {
@@ -958,5 +935,5 @@
   maybeUpgradeCustom();
 
   window.__copyText = copyText;
-  window.__ui = { open, confirm, busy, loadImage, clearImage, copyText };
+  window.__ui = { open, confirm, busy, loadImage, copyText };
 })();

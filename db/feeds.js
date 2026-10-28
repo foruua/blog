@@ -39,10 +39,10 @@ export function createFeedRepo(db) {
     get: db.prepare('SELECT * FROM feeds WHERE id = ?'),
     getByUrl: db.prepare('SELECT * FROM feeds WHERE url = ?'),
     count: db.prepare('SELECT COUNT(*) AS n FROM feeds'),
-    insert: db.prepare(`INSERT INTO feeds(url, site_url, title, sort_order, enabled, display_limit, created_at)
-      VALUES(?, ?, ?, ?, 1, ?, ?)`),
+    insert: db.prepare(`INSERT INTO feeds(url, site_url, title, sort_order, enabled, created_at)
+      VALUES(?, ?, ?, ?, 1, ?)`),
     update: db.prepare(`UPDATE feeds SET url = ?, title = ?, sort_order = ?,
-      display_limit = COALESCE(?, display_limit), version = version + 1 WHERE id = ?`),
+      version = version + 1 WHERE id = ?`),
     resetSource: db.prepare(`UPDATE feeds SET site_url = '', etag = NULL, last_modified = NULL,
       resolved_url = NULL, last_fetch_at = NULL, last_ok_at = NULL, fail_count = 0, last_error = NULL WHERE id = ?`),
     remove: db.prepare('DELETE FROM feeds WHERE id = ?'),
@@ -173,14 +173,13 @@ export function createFeedRepo(db) {
     countSince: (from) => q.countSince.get(from).n,
 
     add: ({ url, title = '', sortOrder = 0 }) => {
-      const info = q.insert.run(url, '', title, sortOrder, FRIENDS_PER_SOURCE, nowIso());
+      const info = q.insert.run(url, '', title, sortOrder, nowIso());
       return q.get.get(Number(info.lastInsertRowid));
     },
     update: (id, { url, title = '', sortOrder = 0 }) => {
       return tx(() => {
         const previous = q.get.get(Number(id));
-        // display_limit 当前没有后台入口，保留旧值，别每次编辑都重置回全局常量。
-        q.update.run(url, title, sortOrder, null, Number(id));
+        q.update.run(url, title, sortOrder, Number(id));
         // title 是本次表单的明确配置；新源的站点地址与健康记录必须重新取得。
         if (previous && previous.url !== url) {
           q.clearItemsOf.run(Number(id));

@@ -1,7 +1,8 @@
 import { Hono } from 'hono';
+import crypto from 'node:crypto';
 import { SITE } from '../config.js';
 import { cleanExcerpt, esc, rfc822, formatDay, utcDate, decodeHtmlAttribute, pageUrl, postUrl, absUrl } from '../util/text.js';
-import { ifNoneMatch, clientIp } from '../util/http.js';
+import { ifNoneMatch, clientKey } from '../util/http.js';
 import { createAntispam } from '../comments/antispam.js';
 
 const cdata = (s) => `<![CDATA[${String(s ?? '').replace(/]]>/g, ']]]]><![CDATA[>')}]]>`;
@@ -80,7 +81,7 @@ export function feedRoutes(repo) {
     if (c.req.method !== 'GET') return next();
     const p = c.req.path;
     if (!['/feed.xml', '/atom.xml', '/feed.json', '/sitemap.xml'].includes(p)) return next();
-    if (feedLimit.rateLimited(clientIp(c) || 'unknown')) {
+    if (feedLimit.rateLimited(clientKey(c))) {
       c.header('Retry-After', '60');
       return c.text('请求过于频繁，请稍后再试。', 429);
     }
@@ -93,6 +94,13 @@ export function feedRoutes(repo) {
     if (fresh && fresh.stamp === stamp) {
       if (fresh.etag && ifNoneMatch(c, fresh.etag)) return c.body(null, 304, { ETag: fresh.etag });
       return c.body(fresh.body, 200, { 'Content-Type': fresh.type, ETag: fresh.etag });
+    }
+    // 冷缓存（进程刚重启/条目过期）不能直接让路由走 304：那会把 304 发回客户端却不填充缓存，
+    // 之后每个带旧 ETag 的请求仍然 304，缓存可能永远热不起来。先摘掉条件头渲染一份 200 存进去。
+    if (c.req.header('if-none-match')) {
+      const headers = new Headers(c.req.raw.headers);
+      headers.delete('if-none-match');
+      c.req.raw = new Request(c.req.raw, { headers });
     }
     await next();
     if (c.res.status !== 200) return;
@@ -122,7 +130,12 @@ export function feedRoutes(repo) {
   ));
   const recent = (limit = 20) => repo.feed({ limit });
   // 内容没改但渲染结果可能变（渲染器升级、媒体变体重建）时，也要让 Feed 的 ETag 失效。
-  const renderStamp = () => `${repo.getSetting('content_pipeline_version') ?? ''}:${repo.getSetting('media_revision') ?? ''}`;
+  // 站点身份/域名也参与：后台改站名、描述、作者或 SITE_URL 后，正文变了但文章时间戳没变，
+  // 不把它们算进 ETag 会让带旧校验值的客户端一直 304，Feed 永远停在旧内容。
+  const siteStamp = () => crypto.createHash('sha1')
+    .update([SITE.url, SITE.identity, SITE.desc, SITE.lang, SITE.author].join('\n'))
+    .digest('base64url');
+  const renderStamp = () => `${repo.getSetting('content_pipeline_version') ?? ''}:${repo.getSetting('media_revision') ?? ''}:${siteStamp()}`;
 
   app.get('/feed.xml', (c) => {
     const posts = recent(limitOf(c));
@@ -210,7 +223,7 @@ ${entries}
     // 一次查询同时拿到最近更新时间与全部已发布内容。
     const all = repo.allPublished();
     const pages = repo.pages();
-    const etag = `"sitemap-${stampOf(all)}-${stampOf(pages)}-${all.length}-${pages.length}"`;
+    const etag = `"sitemap-${stampOf(all)}-${stampOf(pages)}-${all.length}-${pages.length}-${siteStamp()}"`;
     if (notModified(c, etag)) return c.body(null, 304, { ETag: etag });
 
     const newest = (rows) => stampOf(rows);

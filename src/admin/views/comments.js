@@ -20,7 +20,7 @@ export function commentReplyPage({ comment, notice = '', csrf = '', badges = {} 
             comment.email ? ` · <a class="a-value-link" href="mailto:${esc(mailtoAddress(comment.email))}">${esc(comment.email)}</a>` : ''}</span>
         </p>
         <div class="a-quote-body">${renderComment(comment.body_md)}</div>
-        <p class="a-quote-foot">来自《<a class="a-link" href="${esc(url)}" target="_blank">${esc(post.title ?? '')}</a>》</p>
+        <p class="a-quote-foot">来自《<a class="a-link" href="${esc(url)}" target="_blank" rel="noopener">${esc(post.title ?? '')}</a>》</p>
       </div>
 
       <form method="post" action="/admin/comments/${comment.id}/reply">

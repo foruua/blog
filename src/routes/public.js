@@ -18,27 +18,34 @@ import { threadOf } from '../../db/comments.js';
 import { emailMd5 } from '../avatar/md5.js';
 import { decryptEmail } from '../auth.js';
 import { createAntispam } from '../comments/antispam.js';
-import { clientIp } from '../util/http.js';
+import { clientKey } from '../util/http.js';
 
 
 const shape = (p) => ({ ...p, day: formatDay(p.published_at) });
 
 // 主题模板用的内容摘要：只给模板需要的纯数据，预渲染 HTML 留在 main / 各 *_html 字段里。
-const themePost = (p) => ({
-  id: p.id,
-  slug: p.slug,
-  kind: p.kind,
-  title: p.title,
-  url: contentUrl(p),
-  datetime: p.published_at,
-  date: formatDay(p.published_at),
-  date_cn: formatDayCn(p.published_at),
-  relative: relativeDate(p.published_at),
-  excerpt: cleanExcerpt(p.body_head ?? p.body_html ?? '', 120),
-  comments: Number(p.comments ?? 0),
-  draft: Boolean(p.draft),
-  lang: p.lang || '',
-});
+// date_cn / relative / excerpt 用惰性 getter：内置布局根本不读 themeData，列表页每条都先算一遍
+// 日期与摘要纯属白烧；模板读到哪个字段才算哪个。
+const themePost = (p) => {
+  const row = {
+    id: p.id,
+    slug: p.slug,
+    kind: p.kind,
+    title: p.title,
+    url: contentUrl(p),
+    datetime: p.published_at,
+    date: formatDay(p.published_at),
+    comments: Number(p.comments ?? 0),
+    draft: Boolean(p.draft),
+    lang: p.lang || '',
+  };
+  Object.defineProperties(row, {
+    date_cn: { enumerable: true, get: () => formatDayCn(p.published_at) },
+    relative: { enumerable: true, get: () => relativeDate(p.published_at) },
+    excerpt: { enumerable: true, get: () => cleanExcerpt(p.body_head ?? p.body_html ?? '', 120) },
+  });
+  return row;
+};
 
 // 结构化数据/OG 只认 ISO 8601；SQLite 的 datetime() 是 "YYYY-MM-DD HH:MM:SS"，
 // 直接塞进 article:modified_time 会被部分抓取工具当成非法日期。解析失败就不输出该字段。
@@ -597,7 +604,7 @@ ${friendsStream({ items, sources: sources.length, nextHref })}`;
   /** 「友链」：评论填过网址且通过审核的邻居，按留言条数排。名单是 comments 的派生态（approved + 有网址 + 非博主），故「谁在友链页上」永远与评论区对得上账——没有同步钩子就没有会漏的写入路径；唯一落库的是站点可达性（link_sites）。前台只读缓存，抓取/探测由定时器或后台触发；未接入模块则 404。 */
   app.get('/links', (c) => {
     if (!links) return notFound(c);
-    const ip = clientIp(c) || 'unknown';
+    const ip = clientKey(c);
     if (linksLimiter.rateLimited(crypt?.ipHash ? crypt.ipHash(ip) : ip)) {
       return c.text('友链页请求过于频繁，请稍后再试。', 429, { 'Retry-After': '60' });
     }
@@ -728,7 +735,7 @@ ${linksBlock({ links: rows, nextHref: page < pages ? `/links/?page=${page + 1}` 
 
   /** 全站检索：GET /search 独立检索页（零 JS 可用）。必须注册在下面的 /:slug 之前：它是单段路径，排后面会被固定页通配吃掉，/search 会去查一个叫 "search" 的固定页然后 404。 */
   app.get('/search', (c) => {
-    const ip = clientIp(c) || 'unknown';
+    const ip = clientKey(c);
     const key = crypt?.ipHash ? crypt.ipHash(ip) : ip;
     if (searchLimiter.rateLimited(key)) {
       return c.text('检索过于频繁，请稍后再试。', 429, { 'Retry-After': '60' });
@@ -798,15 +805,8 @@ ${emptyPage('这一年还没有内容', `换一年看看，或者去 <a href="/a
       if (post.kind === 'page') return c.redirect(pageUrl(post.slug), 301);
       return c.redirect(post.kind === 'note' ? noteHref(post.slug) : postUrl(post), 301);
     }
-    const goMain = emptyPage('还没有这一篇', `<a href="/">首页</a>`);
-    return c.html(layout({
-      title: `未找到：${name}`, noindex: true, canonical: '/go/',
-      desc: '这个链接指向的内容还不存在。',
-      page: 'go',
-      themeType: 'go',
-      themeData: { name, go_html: goMain },
-      main: goMain,
-    }), 404);
+    // 与其它 404 共用同一份页面与 60 秒负缓存：以前这里为每个随机 /go/<name> 都完整渲染一次布局。
+    return notFound(c);
   });
 
 

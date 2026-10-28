@@ -1,4 +1,5 @@
 import { esc, csrfField } from '../../util/text.js';
+import { field, textInput, saveRow } from './form.js';
 import { IDENTITY_MAX } from '../../site/identity.js';
 import { NAV_GROUP_LABEL, NAV_GROUPS, BUILTIN_KEYS, NAV_LABEL_MAX, NAV_MORE_LABEL_MAX, LINK_HREF_MAX } from '../../site/nav.js';
 import { COMMENT_RATE_RANGE } from '../../settings.js';
@@ -10,18 +11,6 @@ import { COMMENT_RATE_RANGE } from '../../settings.js';
 // 只留字段名与按钮，不写解释性小字：这些项本身就是自解释的（站名就是站名），
 // 一屏十来个提示句只会把表单撑成说明书。唯一例外是「加一条外链」——三个输入框需要一句话说明它们是一组。
 
-const field = (id, label, input) => `        <div class="a-field">
-          <label for="${id}">${label}</label>
-          ${input}
-        </div>`;
-
-const text = (id, name, value, maxlength) => `<input class="a-input" id="${id}" name="${name}" type="text"
-                 maxlength="${maxlength}" value="${esc(value ?? '')}" autocomplete="off">`;
-
-const saveRow = () => `      <div class="a-actions">
-        <button type="submit" class="a-btn">保存</button>
-      </div>`;
-
 /** 站点身份：站名 / 简介 / 作者 / 邮箱 / 印章字 / 备案号 / 语言。 */
 export function identitySection({ identity, csrf }) {
   return `    <h2 class="a-h2 a-h2-first">站点身份</h2>
@@ -29,19 +18,19 @@ export function identitySection({ identity, csrf }) {
     <form method="post" action="/admin/site/identity">
       ${csrfField(csrf)}
       <div class="a-grid2">
-${field('i-title', '站名', text('i-title', 'title', identity.title, IDENTITY_MAX.title))}
-${field('i-mark', '印章字', text('i-mark', 'mark', identity.mark, IDENTITY_MAX.mark))}
+${field('i-title', '站名', textInput('i-title', 'title', identity.title, IDENTITY_MAX.title))}
+${field('i-mark', '印章字', textInput('i-mark', 'mark', identity.mark, IDENTITY_MAX.mark))}
       </div>
-${field('i-desc', '站点简介', text('i-desc', 'desc', identity.desc, IDENTITY_MAX.desc))}
+${field('i-desc', '站点简介', textInput('i-desc', 'desc', identity.desc, IDENTITY_MAX.desc))}
       <div class="a-grid2">
-${field('i-author', '作者', text('i-author', 'author', identity.author, IDENTITY_MAX.author))}
-${field('i-email', '博主邮箱', text('i-email', 'email', identity.email, IDENTITY_MAX.email))}
+${field('i-author', '作者', textInput('i-author', 'author', identity.author, IDENTITY_MAX.author))}
+${field('i-email', '博主邮箱', textInput('i-email', 'email', identity.email, IDENTITY_MAX.email))}
       </div>
       <div class="a-grid2">
-${field('i-icp', '备案号', text('i-icp', 'icp', identity.icp, IDENTITY_MAX.icp))}
-${field('i-lang', '语言标记', text('i-lang', 'lang', identity.lang, IDENTITY_MAX.lang))}
+${field('i-icp', '备案号', textInput('i-icp', 'icp', identity.icp, IDENTITY_MAX.icp))}
+${field('i-lang', '语言标记', textInput('i-lang', 'lang', identity.lang, IDENTITY_MAX.lang))}
       </div>
-${field('i-police', '公安备案号', text('i-police', 'police', identity.police, IDENTITY_MAX.police))}
+${field('i-police', '公安备案号', textInput('i-police', 'police', identity.police, IDENTITY_MAX.police))}
 ${saveRow()}
     </form>
     </div>`;

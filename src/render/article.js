@@ -26,11 +26,12 @@ ${[neighbour(older, '上一篇'), neighbour(newer, '下一篇')].filter(Boolean)
 /** 正文页主体：刊头 + 目录 + 正文 + 翻页 + 评论区。 */
 export function articleMain({ post, words, mins, dayCn, toc, pager, commentBlock, bodyHtml }) {
   const note = post.kind === 'note';
+  const day = formatDay(post.published_at);
   return `    <article class="post" data-kind="${note ? 'note' : 'post'}"${post.lang ? ` lang="${esc(post.lang)}"` : ''}>
       <header class="post-mast">
         <p class="pm-mark"><span class="pm-kind">${note ? '笔记' : '文章'}</span><span class="pm-sep" aria-hidden="true">·</span><time datetime="${esc(post.published_at)}">${esc(dayCn)}</time></p>
         <h1>${esc(post.title)}</h1>
-        <p class="meta" title="${esc(formatDay(post.published_at))}" data-day="${esc(formatDay(post.published_at))}">${esc(relativeDate(post.published_at))} · ${words} 字${mins ? ` · 约 ${mins} 分钟` : ''}</p>
+        <p class="meta" title="${esc(day)}" data-day="${esc(day)}">${esc(relativeDate(post.published_at))} · ${words} 字${mins ? ` · 约 ${mins} 分钟` : ''}</p>
       </header>
 ${toc}
       <div class="prose">

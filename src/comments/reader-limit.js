@@ -1,5 +1,5 @@
-import net from 'node:net';
 import { envInt } from '../util/env.js';
+import { ipBucket } from '../util/http.js';
 
 // 「邮箱 → 昵称/网址」自动填充查询是匿名、可重复的：不设上限就等于把评论区变成在线枚举接口。
 // 三层限额各挡一种打法：
@@ -16,42 +16,10 @@ const GLOBAL_MAX = envInt(process.env.READER_PROBE_GLOBAL, 300, { min: 1, max: 1
 const MAX_KEYS = 4096;
 const SWEEP_MS = 60 * 1000;
 
-// 把 IPv6 展开成 8 组 4 位十六进制，只取前 4 组（/64）。非法输入不会走到这里（net.isIPv6 先挡）。
-function expandIpv6(addr) {
-  const [head, tail] = addr.includes('::') ? addr.split('::') : [addr, null];
-  const groups = (part) => {
-    const out = [];
-    for (const g of part ? part.split(':') : []) {
-      if (!g.includes('.')) { out.push(g); continue; }
-      const [a, b, c, d] = g.split('.').map(Number);
-      out.push(((a << 8) | b).toString(16), ((c << 8) | d).toString(16));
-    }
-    return out;
-  };
-  const h = groups(head);
-  const t = tail === null ? [] : groups(tail);
-  const fill = Math.max(0, 8 - h.length - t.length);
-  return [...h, ...Array(fill).fill('0'), ...t].map((g) => g.padStart(4, '0')).join(':');
-}
-
 // IPv6 单地址限额没有意义：一个 /64 就有 2^64 个地址，换一个就能重置计数，上限形同虚设。
 // 但 IPv4-mapped（::ffff:a.b.c.d，双栈监听的常见形态）必须还原成 IPv4，否则所有直连 IPv4 会挤进同一个桶。
-export function ipBucket(ip) {
-  const raw = String(ip ?? '').trim();
-  if (!raw) return 'unknown';
-  if (net.isIPv4(raw)) return raw;
-  if (!net.isIPv6(raw)) return raw;
-  const addr = raw.toLowerCase().split('%')[0];
-  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(addr);
-  if (mapped) return mapped[1];
-  const full = expandIpv6(addr).split(':');
-  if (full.slice(0, 5).every((g) => g === '0000') && full[5] === 'ffff') {
-    const hi = Number.parseInt(full[6], 16);
-    const lo = Number.parseInt(full[7], 16);
-    return `${hi >> 8}.${hi & 255}.${lo >> 8}.${lo & 255}`;
-  }
-  return full.slice(0, 4).join(':');
-}
+// 实现已收敛到 src/util/http.js，所有限流器共用；这里保留导出供既有测试与调用方使用。
+export { ipBucket };
 
 export function createReaderProbeLimiter({
   windowMs = WINDOW_MS,

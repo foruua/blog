@@ -59,12 +59,15 @@ export function createSearch(db) {
   const TEXT_CACHE_MAX_CHARS = 8 * 1024 * 1024;
   const textCache = new Map();
   let textCacheChars = 0;
+  // 条目里同时存 text 与 hay（标题+正文的小写串），后者几乎和正文一样大。只按 text 记账会让
+  // 实际内存约为预算的两倍，8MB 的额度悄悄变成 16MB+。
+  const entryChars = (entry) => entry.text.length + entry.hay.length;
   const evictOldest = () => {
     const first = textCache.keys().next();
     if (first.done) return;
     const old = textCache.get(first.value);
     textCache.delete(first.value);
-    textCacheChars -= old?.text.length ?? 0;
+    textCacheChars -= old ? entryChars(old) : 0;
   };
   const entryKey = (row) => `${row.version}:${row.updated_at ?? ''}:${row.file_hash ?? ''}`;
   const entryOf = (row, cachedBody) => {
@@ -75,9 +78,9 @@ export function createSearch(db) {
     if (cached && cached.key === key) return cached;
     const text = plainText(cachedBody !== undefined ? cachedBody : qBody.get(row.id)?.body_html);
     const entry = { key, version: row.version, text, hay: `${row.title}\n${text}`.toLowerCase() };
-    if (cached) { textCacheChars -= cached.text.length; textCache.delete(row.id); }
+    if (cached) { textCacheChars -= entryChars(cached); textCache.delete(row.id); }
     textCache.set(row.id, entry);
-    textCacheChars += text.length;
+    textCacheChars += entryChars(entry);
     while (textCache.size > TEXT_CACHE_MAX || textCacheChars > TEXT_CACHE_MAX_CHARS) evictOldest();
     return entry;
   };
@@ -129,7 +132,7 @@ export function createSearch(db) {
         if (!live.has(id)) {
           const old = textCache.get(id);
           textCache.delete(id);
-          textCacheChars -= old?.text.length ?? 0;
+          textCacheChars -= old ? entryChars(old) : 0;
         }
       }
     }

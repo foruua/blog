@@ -1,6 +1,6 @@
 import { createAssetVersions } from './assets.js';
 import { SITE, PUBLIC_DIR } from '../config.js';
-import { esc, monthCn, cleanExcerpt, relativeDate, contentUrl, absUrl } from '../util/text.js';
+import { esc, monthCn, cleanExcerpt, relativeDate, contentUrl, absUrl, dayParts, dayLabel } from '../util/text.js';
 import { PALETTES, CUSTOM_PALETTE, LAYOUTS } from '../settings.js';
 import { navItemsOf, visibleNavOf } from '../site/nav.js';
 import { lightboxHtml } from './lightbox.js';
@@ -645,11 +645,6 @@ const leading = (p, lines = 2) => {
   const text = cleanExcerpt(head, lines >= 3 ? 132 : 88);
   return text ? `    <p class="excerpt">${esc(text)}</p>` : '';
 };
-
-/** 站内时区的 YYYY-MM-DD 拆成 [年, 月, 日]；列表、归档与检索共用同一口径。 */
-const dayParts = (day) => [day.slice(0, 4), day.slice(5, 7), day.slice(8)];
-
-const dayLabel = ([y, m, d]) => `${y} 年 ${Number(m)} 月 ${Number(d)} 日`;
 
 /** 编年日期徽记（大字日 + 月份/年份两行小字）：文章列表、笔记折叠行与检索命中三处同构，别再各拼一份。 */
 export function dateBadge(day, datetime = day) {

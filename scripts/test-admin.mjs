@@ -166,7 +166,7 @@ let slug = `${PREFIX}hello`;
 {
   const page = await html(`/admin/edit/${postId}`);
   check('T4j 编辑页 body 挂 page-is-editor（手机端让开自己的吸顶保存条）',
-    /<body class="admin page-is-editor">/.test(page), '');
+    /<body class="admin page-is-editor"/.test(page), '');
   const csrf = csrfOf(page);
   const r = await req('/admin/api/autosave', {
     method: 'POST',

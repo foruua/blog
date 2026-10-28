@@ -97,6 +97,29 @@ try {
   check('T12 离线超过 7 天的待发信直接作废，不再补发旧审核链接',
     db5.prepare('SELECT status, last_error FROM mail_outbox WHERE id = ?').get(old.id)?.last_error === 'expired');
 
+  // 收件人为空的行不能占住每轮的前 20 个名额：以前它们被「留在 pending 等配置」原地跳过，
+  // 同一条 due 查询每轮又捞回来，攒够 20 条就再也发不出后面的正常邮件。
+  {
+    const dbBlank = freshDb();
+    const blankDelivered = [];
+    const blankBox = createMailOutbox({
+      db: dbBlank,
+      deliver: async (msg) => { blankDelivered.push(msg); return { sent: true }; },
+      log: () => {},
+    });
+    for (let i = 0; i < 25; i++) blankBox.enqueue({ to: '', subject: `blank-${i}`, text: 'x' }, { autoFlush: false });
+    blankBox.enqueue({ to: 'owner@example.com', subject: 'after-blanks', text: 'x' }, { autoFlush: false });
+    await blankBox.flush();
+    check('T12b 空收件人行不会饿死后面的正常邮件',
+      blankDelivered.length === 1 && blankDelivered[0].subject === 'after-blanks',
+      `delivered=${JSON.stringify(blankDelivered.map((m) => m.subject))}`);
+    const stillPending = dbBlank.prepare("SELECT COUNT(*) AS n FROM mail_outbox WHERE to_addr = '' AND status = 'pending'").get().n;
+    check('T12c 空收件人行被延后而不是终态丢弃', stillPending === 25, String(stillPending));
+    await blankBox.flush({ force: true });
+    check('T12d 强制重试不会反复捞空收件人行', blankDelivered.length === 1, String(blankDelivered.length));
+    dbBlank.close();
+  }
+
   // 收件人加密：队列表会随备份/异地副本走，明文邮箱等于把读者地址摊在备份里。
   {
     const db6 = freshDb();

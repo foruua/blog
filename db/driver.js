@@ -20,10 +20,12 @@ export function open(file) {
 
   try {
     fs.chmodSync(file, 0o600);
+    // busy_timeout 必须排在 journal_mode 之前：切 WAL 要短暂独占锁，备份 worker/另一个进程
+    // 正持锁时若 busy handler 还没生效，open() 会直接抛 SQLITE_BUSY。
     db.exec(`
+      PRAGMA busy_timeout = 5000;
       PRAGMA journal_mode = WAL;
       PRAGMA foreign_keys = ON;
-      PRAGMA busy_timeout = 5000;
       PRAGMA synchronous = NORMAL;
       PRAGMA mmap_size = 268435456;
       PRAGMA cache_size = -16000;

@@ -93,8 +93,8 @@ export function linksProgress(progress) {
   });
 }
 
-export function linksAdminPage({ rows = [], csrf, notice = '', progress = null }) {
-  const total = rows.length;
+export function linksAdminPage({ rows = [], csrf, notice = '', progress = null, page = 1, hasMore = false, total = rows.length, counts = null }) {
+  const pageCounts = counts ?? { live: 0, dead: 0, hidden: 0 };
   // 一轮跑着时按钮得禁用：后端会把并发的强制轮排队，点第二次只会白等；客户端照片段里的 data-running 同步它。
   const running = Boolean(progress?.running);
 
@@ -103,7 +103,10 @@ export function linksAdminPage({ rows = [], csrf, notice = '', progress = null }
 
   // 计数卡三档永远都在，哪怕某档是 0（「0 个已撤下」本身有用：说明没有邻居关站）。零那档只调暗数字、不淡化整张卡，否则对比度审计会亮红灯。
   const tally = GROUPS
-    .map(([key, label]) => `        <li${buckets[key].length ? '' : ' data-zero'}><b>${buckets[key].length}</b> <span>${label}</span></li>`)
+    .map(([key, label]) => {
+      const n = counts ? pageCounts[key] ?? 0 : buckets[key].length;
+      return `        <li${n ? '' : ' data-zero'}><b>${n}</b> <span>${label}</span></li>`;
+    })
     .join('\n');
 
   // 卡片顶行：左三格账目、右「立即检查全部」。名单为空时没有站可查，左边只留一格、右边不放（按不动的按钮只是噪音）。
@@ -128,11 +131,20 @@ ${buckets[key].map((v) => linkRow(v, csrf)).join('\n')}
     .join('\n');
 
 
+  const pager = total > rows.length || page > 1
+    ? `      <nav class="a-pager" aria-label="友链分页">
+        ${page > 1 ? `<a class="a-pager-btn" href="/admin/links?page=${page - 1}">上一页</a>` : '<span class="a-pager-btn is-off">上一页</span>'}
+        <span class="a-pager-now">第 ${page} 页</span>
+        ${hasMore ? `<a class="a-pager-btn" href="/admin/links?page=${page + 1}">下一页</a>` : '<span class="a-pager-btn is-off">下一页</span>'}
+      </nav>`
+    : '';
+
   const body = `    <div class="a-card a-panel">
 ${tools}${linksProgress(progress)}
 ${total ? groups : `      <ul class="a-links">
         <li class="a-empty">有人在评论区留下网址、且那条评论通过审核之后，他的站就会出现在这里。</li>
       </ul>`}
+${pager}
     </div>`;
 
   return adminLayout({

@@ -153,19 +153,29 @@ export function createStaticFiles({ repo, assetVer }) {
     return buf;
   }
 
-  async function sendFile(c, urlPath, { root = PUBLIC_DIR, prefix = '', minify = false } = {}) {
+  async function sendFile(c, urlPath, { root = PUBLIC_DIR, prefix = '', minify = false, resolveFile = null, cacheControl = null, weakEtag = false } = {}) {
     const rel = prefix && urlPath.startsWith(prefix) ? urlPath.slice(prefix.length) : urlPath;
-    const resolved = path.resolve(root, `.${path.posix.normalize(rel)}`);
-    if (!resolved.startsWith(root + path.sep)) return c.notFound();
-    // 附件库的增删会 bump media_revision：代际一变就整表失效（settings 已快照，这次读不落库）。
-    if (root === UPLOADS_DIR) {
-      const rev = mediaRevision(repo);
-      if (rev !== statCacheRevision) { fileRealCache.clear(); statCacheRevision = rev; }
+    let resolved;
+    let real;
+    if (resolveFile) {
+      // 主题资源由 registry.assetPath() 完成 realpath/越界校验；这里直接复用它的结果，
+      // 不再重复做一套根目录判断。打开后仍用 fstat 保证长度与字节来自同一个 fd。
+      resolved = resolveFile(urlPath);
+      if (!resolved) return c.notFound();
+      real = resolved;
+    } else {
+      resolved = path.resolve(root, `.${path.posix.normalize(rel)}`);
+      if (!resolved.startsWith(root + path.sep)) return c.notFound();
+      // 附件库的增删会 bump media_revision：代际一变就整表失效（settings 已快照，这次读不落库）。
+      if (root === UPLOADS_DIR) {
+        const rev = mediaRevision(repo);
+        if (rev !== statCacheRevision) { fileRealCache.clear(); statCacheRevision = rev; }
+      }
+      const realRoot = await realRootOf(root);
+      if (!realRoot) return c.notFound();
+      real = await realFileOf(resolved, realRoot);
+      if (!real) return c.notFound();
     }
-    const realRoot = await realRootOf(root);
-    if (!realRoot) return c.notFound();
-    const real = await realFileOf(resolved, realRoot);
-    if (!real) return c.notFound();
 
     // open + fstat 用同一个 fd：长度与字节必然一致，部署期间也不会出现旧 Content-Length 配新文件。
     let fh;
@@ -177,16 +187,17 @@ export function createStaticFiles({ repo, assetVer }) {
       if (!stat.isFile()) return c.notFound();
       // 精简资源会按 Accept-Encoding 发不同字节（br/gzip/原文）。同一 ETag 跨表示容易让缓存把
       // 压缩体当成另一种编码的验证器；用弱 ETag 表示「语义相同、字节可能不同」。
-      const etag = `${minify ? 'W/' : ''}"${stat.size.toString(16)}-${stat.mtimeMs.toString(16)}"`;
+      const etag = `${minify || weakEtag ? 'W/' : ''}"${stat.size.toString(16)}-${stat.mtimeMs.toString(16)}"`;
       // 只有带当前指纹的 ?v= 才 immutable；任意 ?v= 或裸地址都只短缓存，避免外部链接把旧内容钉一年。
       // 上传文件路径本身就是内容哈希，始终安全。
       const requestedV = c.req.query('v');
       const versioned = root === UPLOADS_DIR
         || Boolean(requestedV && requestedV === assetVer(path.basename(urlPath)));
+      const cache = cacheControl ?? (versioned ? 'public, max-age=31536000, immutable' : 'public, max-age=300');
       const headers = {
         'Content-Type': MIME[path.extname(resolved).toLowerCase()] ?? 'application/octet-stream',
         ETag: etag,
-        'Cache-Control': versioned ? 'public, max-age=31536000, immutable' : 'public, max-age=300',
+        'Cache-Control': cache,
       };
       if (ifNoneMatch(c, etag)) {
         const extra = { ETag: etag, 'Cache-Control': headers['Cache-Control'] };

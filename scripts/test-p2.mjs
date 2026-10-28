@@ -764,15 +764,15 @@ const page = await (await fetch(`${BASE}/p/${SLUG}/`)).text();
     brotli.headers.get('content-encoding') === 'br' && /^W\/"[^"]+"$/.test(brotli.headers.get('etag') || ''),
     `${brotli.headers.get('content-encoding')} / ${brotli.headers.get('etag')}`);
 
-  // 取一篇老文章（相对日期按天走，不在分钟边界上抖）。令牌每次都变，但 ETag 把令牌归一化到小时档，
-  // 所以连续两次请求的 ETag 应一致、第二次能 304；正文里的令牌仍是当次新签发的。
+  // 取一篇老文章（相对日期按天走，不在分钟边界上抖）。缓存命中时正文（含令牌）原样复用，
+  // ETag 仍把令牌归一化到小时档，连续两次请求应一致、第二次能 304。
   const oldSlug = db.prepare("SELECT slug FROM posts WHERE kind='post' AND draft=0 ORDER BY published_at ASC LIMIT 1").get()?.slug;
   const first = await fetch(`${BASE}/p/${encodeURIComponent(oldSlug)}/`);
   const firstBody = await first.text();
   const second = await fetch(`${BASE}/p/${encodeURIComponent(oldSlug)}/`);
   const secondBody = await second.text();
-  check('T58c 正文里的时间戳令牌每次都是新的（防抖语义不变），但 ETag 相同',
-    /name="ts" value="([^"]+)"/.exec(firstBody)?.[1] !== /name="ts" value="([^"]+)"/.exec(secondBody)?.[1]
+  check('T58c 缓存命中复用同一份正文与令牌，ETag 相同',
+    /name="ts" value="([^"]+)"/.exec(firstBody)?.[1] === /name="ts" value="([^"]+)"/.exec(secondBody)?.[1]
     && Boolean(first.headers.get('etag')) && first.headers.get('etag') === second.headers.get('etag'),
     `${first.headers.get('etag')} / ${second.headers.get('etag')}`);
   const cachedArticle = await fetch(`${BASE}/p/${encodeURIComponent(oldSlug)}/`, { headers: { 'If-None-Match': first.headers.get('etag') ?? '' } });

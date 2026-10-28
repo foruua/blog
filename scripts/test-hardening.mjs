@@ -92,6 +92,17 @@ try {
     assert.throws(()=>deleteWithFiles({repo,files:[{file:a,trash:a+'.trash'},{file:b,trash:b+'.trash'}],remove:()=>{throw new Error('DB error')}}),/DB error/);
     assert.equal(fs.readFileSync(a,'utf8'),'a');assert.equal(fs.readFileSync(b,'utf8'),'b');fs.unlinkSync(a);fs.unlinkSync(b);
   });
+  await test('删除路径的移动日志在崩溃后把文件从回收站搬回', async () => {
+    const dir = path.join(process.env.DATA_DIR, '.write-journal'); fs.mkdirSync(dir, { recursive: true });
+    const file = path.join(process.env.UPLOADS_DIR, 'moves.png'), trash = file + '.trash';
+    fs.mkdirSync(process.env.UPLOADS_DIR, { recursive: true });
+    fs.writeFileSync(file, 'image-bytes'); fs.renameSync(file, trash);
+    fs.writeFileSync(path.join(dir, 'moves.json'), JSON.stringify({ key: 'write_journal:moves', moves: [{ file, trash }] }));
+    recoverWrites(repo);
+    assert.equal(fs.readFileSync(file, 'utf8'), 'image-bytes');
+    assert.ok(!fs.existsSync(trash));
+    fs.unlinkSync(file);
+  });
   await test('启动恢复未提交写入日志，已提交日志不回滚', async () => {
     const dir=path.join(process.env.DATA_DIR,'.write-journal');fs.mkdirSync(dir,{recursive:true});const p=adminRepo.get(saved.id),old=fs.readFileSync(p.file_path);
     fs.writeFileSync(p.file_path,'partial');fs.writeFileSync(path.join(dir,'pending.json'),JSON.stringify({key:'write_journal:pending',entries:[{file:p.file_path,data:old.toString('base64')}]}));recoverWrites(repo);assert.deepEqual(fs.readFileSync(p.file_path),old);

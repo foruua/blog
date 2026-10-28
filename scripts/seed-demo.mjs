@@ -108,7 +108,7 @@ try {
         const id = comments.add({ postId: p.id, parentId, author, bodyMd, status, isAuthor,
           website: i % 3 === 0 ? 'https://example.com' : null,
           emailHash: email ? crypt.fingerprint(email) : null, emailEnc: email ? crypt.encrypt(email) : null,
-          ipHash: crypt.ipHash(`demo-${i}`) });
+        });
         db.prepare('UPDATE comments SET created_at = ? WHERE id = ?').run(new Date(baseTime + offset * 60000).toISOString(), id);
         manifest.comments.push(id); return id;
       };

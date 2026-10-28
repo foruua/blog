@@ -9,6 +9,15 @@ export function syncDirectory(dir) {
   try { fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
 }
 
+// 写文件并把数据本身刷到存储介质（目录项由调用方 syncDirectory 负责）。
+export function writeFileDurable(file, data, mode = 0o600) {
+  const fd = fs.openSync(file, 'w', mode);
+  try {
+    fs.writeFileSync(fd, data);
+    fs.fsyncSync(fd);
+  } finally { fs.closeSync(fd); }
+}
+
 export function ensureDurableDirectory(dir, mode = 0o700) {
   const missing = [];
   for (let current = path.resolve(dir); !fs.existsSync(current); current = path.dirname(current)) missing.push(current);

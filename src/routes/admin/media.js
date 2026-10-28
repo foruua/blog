@@ -115,7 +115,7 @@ export function registerMediaRoutes(app, { repo, adminRepo, mutate = (fn) => fn(
     }
 
     const dup = adminRepo.mediaByHash(hash);
-    if (dup && mediaComplete(dup)) return mutate(() => finishUpload(c, adminRepo.mediaByHash(hash) ?? dup, bytes));
+    if (dup && mediaComplete(dup)) return mutate(() => finishUpload(c, dup, bytes));
 
     let normalized;
     try { normalized = await normalizeImage(input); }
@@ -173,13 +173,19 @@ export function registerMediaRoutes(app, { repo, adminRepo, mutate = (fn) => fn(
         return finishUpload(c, again, bytes);
       }
       // 记录还在但原图/缩略图/变体缺失：删掉坏行，按本次写好的文件重建。
-      if (again) adminRepo.mediaDelete(again.id);
+      // 删坏行、插入新行、bump 媒体修订号必须在同一事务里；否则插入失败会留下已删的旧行，
+      // 或插入成功但 revision 没变，存量正文继续引用旧渲染结果。
       try {
-        adminRepo.mediaAdd({
-          path: rel, thumbnail: thumbnailFile(rel), width: size?.width, height: size?.height, bytes: buf.length,
-          originalBytes: bytes,
-          mime, hash, filename, variants: variants.length ? serializeVariants(variants) : null,
-          animated: size?.animated === true,
+        repo.transaction(() => {
+          if (again) adminRepo.mediaDelete(again.id);
+          adminRepo.mediaAdd({
+            path: rel, thumbnail: thumbnailFile(rel), width: size?.width, height: size?.height, bytes: buf.length,
+            originalBytes: bytes,
+            mime, hash, filename, variants: variants.length ? serializeVariants(variants) : null,
+            animated: size?.animated === true,
+          });
+          // 新增一张图会改变「正文里已引用该路径的文章」的渲染结果；bump 一次让下次内容同步重渲染存量正文。
+          bumpMediaRevision(repo);
         });
       } catch (e) {
         cleanupOnError();
@@ -188,8 +194,6 @@ export function registerMediaRoutes(app, { repo, adminRepo, mutate = (fn) => fn(
       for (const v of size.variantErrors ?? []) {
         console.warn(JSON.stringify({ event: 'media.variant-failed', width: v.width, message: v.message, path: rel }));
       }
-      // 新增一张图会改变「正文里已引用该路径的文章」的渲染结果；bump 一次让下次内容同步重渲染存量正文。
-      bumpMediaRevision(repo);
       return c.json({ ok: true, url: rel, thumbnail: thumbnailFile(rel), width: size?.width, height: size?.height, bytes });
     });
   });

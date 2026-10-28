@@ -729,7 +729,6 @@ async function addFeed(url, extra = {}) {
   const id1 = feedIdOf(site('t1', '/series.xml?tag=T1&n=4'));
   const id2 = feedIdOf(site('t2', '/series.xml?tag=T2&n=3'));
   const shown = async (tag) => ((await friendsText()).match(new RegExp(`>${tag}-\\d+<`, 'g')) ?? []).length;
-  const limitOf = (id) => db.prepare('SELECT display_limit FROM feeds WHERE id = ?').get(id)?.display_limit;
 
   check('C1 固定 3 篇：4 条的那个源也只铺 3 条',
     (await shown('T1')) === 3 && (await shown('T2')) === 3, `T1=${await shown('T1')} T2=${await shown('T2')}`);
@@ -746,9 +745,9 @@ async function addFeed(url, extra = {}) {
     _csrf: csrf, url: site('t1', '/series.xml?tag=T1&n=4'), title: 'T1 的源', sort_order: '0', display_limit: '2',
   }));
   check('C2b 单源旧字段被忽略，仍固定显示 3 条',
-    noticeOf(save).startsWith('✓') && limitOf(id1) === 3 && (await shown('T1')) === 3, `${noticeOf(save)} / ${limitOf(id1)}`);
-  check('C2c 所有源入库值都是 3',
-    db.prepare('SELECT display_limit FROM feeds').all().every((r) => r.display_limit === 3), '');
+    noticeOf(save).startsWith('✓') && (await shown('T1')) === 3, `${noticeOf(save)}`);
+  check('C2c display_limit 列已被迁移删除',
+    !db.prepare('PRAGMA table_info(feeds)').all().some((c) => c.name === 'display_limit'), '');
 
   check('C4 只是不显示，库里并没有被删', itemCountOf(id1) === 4 && itemCountOf(id2) === 3, `${itemCountOf(id1)}/${itemCountOf(id2)}`);
   const metaRow = feedRowOf(await html('/admin/feeds'), id1);
@@ -1216,6 +1215,46 @@ async function addFeed(url, extra = {}) {
   await normalizedApp.request('/feed.xml?limit=20');
   await normalizedApp.request('/feed.xml?limit=+20');
   check('J5 limit 的不同写法共用同一条缓存', normalizedCalls === 1, `db calls=${normalizedCalls}`);
+
+  // 后台改站名/描述后，文章时间戳没变但 Feed 正文变了：ETag 必须跟着变，否则客户端一直 304。
+  const { SITE } = await import('../src/config.js');
+  const originalIdentity = SITE.identity;
+  const etagWith = async (identity) => {
+    SITE.identity = identity;
+    const feedApp = feedRoutes({
+      feed: () => [],
+      getSetting: () => null,
+      allPublished: () => [],
+      pages: () => [],
+    });
+    return (await feedApp.request('/feed.xml')).headers.get('etag');
+  };
+  let before, after;
+  try {
+    before = await etagWith(originalIdentity);
+    after = await etagWith(`${originalIdentity}·改名`);
+  } finally { SITE.identity = originalIdentity; }
+  check('J6 站名变化会让 Feed ETag 失效', Boolean(before) && Boolean(after) && before !== after, `${before} / ${after}`);
+
+  // 重启后缓存是空的：带旧 ETag 的请求必须先生成并缓存一份 200，而不是直接回 304 让缓存永远冷着。
+  let coldFills = 0;
+  const coldRepo = () => {
+    coldFills++;
+    return [{
+      id: 1, slug: 'cold', kind: 'post', title: '冷缓存', description: '',
+      body_html: '<p>冷缓存</p>', published_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
+    }];
+  };
+  const warmApp = feedRoutes({ feed: coldRepo, getSetting: () => null, allPublished: () => [], pages: () => [] });
+  const warm = await warmApp.request('/feed.xml');
+  const warmEtag = warm.headers.get('etag');
+  const coldApp = feedRoutes({ feed: coldRepo, getSetting: () => null, allPublished: () => [], pages: () => [] });
+  const refill = await coldApp.request('/feed.xml', { headers: { 'If-None-Match': warmEtag } });
+  const refilled = await refill.text();
+  const conditional = await coldApp.request('/feed.xml', { headers: { 'If-None-Match': warmEtag } });
+  check('J7 冷缓存遇到旧 ETag 先回 200 并填充缓存，随后才 304',
+    refill.status === 200 && refilled.includes('冷缓存') && conditional.status === 304 && coldFills === 2,
+    `${refill.status} → ${conditional.status}, fills=${coldFills}`);
 }
 
 close(db);

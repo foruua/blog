@@ -4,6 +4,7 @@ import { PALETTES, LAYOUTS, HERO_MAX, HERO_OVERLAY_MAX } from '../../settings.js
 import { TLS_MODES, TLS_LABEL } from '../../mail.js';
 import { pickerDialog } from './picker.js';
 import { identitySection, navSection, commentsSection, accountSection } from './site.js';
+import { field } from './form.js';
 
 export function systemPage({
   mail = {}, hero = {}, site = {}, history = {}, csrf, notice = '', badges, unsub = 0,
@@ -129,30 +130,15 @@ ${heroSection}
     <form method="post" action="/admin/settings">
       ${csrfField(csrf)}
       <div class="a-grid2">
-        <div class="a-field">
-          <label for="s-page">列表每页条数</label>
-          <input class="a-input" id="s-page" name="pageSize" type="number" min="5" max="100" value="${esc(site.pageSize ?? 20)}">
-        </div>
-        <div class="a-field">
-          <label for="s-recent">首页「最近更新」条数</label>
-          <input class="a-input" id="s-recent" name="homeRecent" type="number" min="0" max="30" value="${esc(site.homeRecent ?? 10)}">
-        </div>
-        <div class="a-field">
-          <label for="s-cpage">评论每页讨论串数</label>
-          <input class="a-input" id="s-cpage" name="commentsPerPage" type="number" min="5" max="100" value="${esc(site.commentsPerPage ?? 20)}">
-        </div>
-        <div class="a-field">
-          <label for="s-palette">访客默认配色</label>
-          <select class="a-select" id="s-palette" name="palette">
+        ${field('s-page', '列表每页条数', `<input class="a-input" id="s-page" name="pageSize" type="number" min="5" max="100" value="${esc(site.pageSize ?? 20)}">`)}
+        ${field('s-recent', '首页「最近更新」条数', `<input class="a-input" id="s-recent" name="homeRecent" type="number" min="0" max="30" value="${esc(site.homeRecent ?? 10)}">`)}
+        ${field('s-cpage', '评论每页讨论串数', `<input class="a-input" id="s-cpage" name="commentsPerPage" type="number" min="5" max="100" value="${esc(site.commentsPerPage ?? 20)}">`)}
+        ${field('s-palette', '访客默认配色', `<select class="a-select" id="s-palette" name="palette">
             ${paletteOptions}
-          </select>
-        </div>
-        <div class="a-field">
-          <label for="s-layout">访客默认版式</label>
-          <select class="a-select" id="s-layout" name="layoutDefault">
+          </select>`)}
+        ${field('s-layout', '访客默认版式', `<select class="a-select" id="s-layout" name="layoutDefault">
             ${layoutOptions}
-          </select>
-        </div>
+          </select>`)}
       </div>
       <div class="a-actions">
         <button type="submit" class="a-btn">保存</button>
@@ -170,46 +156,22 @@ ${accountSection({ csrf, configured })}
       ${csrfField(csrf)}
       <input type="hidden" name="verify" value="1">
       <div class="a-grid2">
-        <div class="a-field">
-          <label for="m-preset">服务商</label>
-          <select class="a-select" id="m-preset" data-mail-preset>
+        ${field('m-preset', '服务商', `<select class="a-select" id="m-preset" data-mail-preset>
             ${options}
-          </select>
-        </div>
-        <div class="a-field">
-          <label for="m-tls">加密方式</label>
-          <select class="a-select" id="m-tls" name="tls">
+          </select>`)}
+        ${field('m-tls', '加密方式', `<select class="a-select" id="m-tls" name="tls">
             ${tlsOptions}
-          </select>
-        </div>
+          </select>`)}
       </div>
       <div class="a-grid2">
-        <div class="a-field">
-          <label for="m-host">SMTP 主机</label>
-          <input class="a-input" id="m-host" name="host" value="${esc(mail.host ?? '')}" autocomplete="off" spellcheck="false">
-        </div>
-        <div class="a-field">
-          <label for="m-port">端口</label>
-          <input class="a-input" id="m-port" name="port" type="number" min="1" max="65535" value="${esc(mail.port ?? 465)}">
-        </div>
+        ${field('m-host', 'SMTP 主机', `<input class="a-input" id="m-host" name="host" value="${esc(mail.host ?? '')}" autocomplete="off" spellcheck="false">`)}
+        ${field('m-port', '端口', `<input class="a-input" id="m-port" name="port" type="number" min="1" max="65535" value="${esc(mail.port ?? 465)}">`)}
       </div>
-      <div class="a-field">
-        <label for="m-user">账号</label>
-        <input class="a-input" id="m-user" name="user" value="${esc(mail.user ?? '')}" autocomplete="off" spellcheck="false">
-      </div>
-      <div class="a-field">
-        <label for="m-pass">密码 / 授权码</label>
-        <input class="a-input" id="m-pass" name="pass" type="password" value="" autocomplete="new-password">
-      </div>
+      ${field('m-user', '账号', `<input class="a-input" id="m-user" name="user" value="${esc(mail.user ?? '')}" autocomplete="off" spellcheck="false">`)}
+      ${field('m-pass', '密码 / 授权码', `<input class="a-input" id="m-pass" name="pass" type="password" value="" autocomplete="new-password">`)}
       <div class="a-grid2">
-        <div class="a-field">
-          <label for="m-to">通知收件人</label>
-          <input class="a-input" id="m-to" name="to" value="${esc(mail.to ?? '')}">
-        </div>
-        <div class="a-field">
-          <label for="m-from">发信人显示名</label>
-          <input class="a-input" id="m-from" name="from" value="${esc(mail.from ?? '')}">
-        </div>
+        ${field('m-to', '通知收件人', `<input class="a-input" id="m-to" name="to" value="${esc(mail.to ?? '')}">`)}
+        ${field('m-from', '发信人显示名', `<input class="a-input" id="m-from" name="from" value="${esc(mail.from ?? '')}">`)}
       </div>
       <div class="a-actions">
         <button type="submit" class="a-btn">保存</button>

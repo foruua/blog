@@ -9,10 +9,11 @@ import { assertDatabaseClosed, sqliteVersion } from '../db/driver.js';
 import { DatabaseSync } from 'node:sqlite';
 import { DATA_DIR, DB_FILE, CONTENT_DIR, UPLOADS_DIR, THEMES_DIR } from './config.js';
 import { expandMediaPaths } from './media/variants.js';
-import { atomicWrite, syncDirectory } from './util/files.js';
+import { atomicWrite, syncDirectory, writeFileDurable } from './util/files.js';
 import { safeRelativeFsPath as safeRelative } from './util/safe-path.js';
 
 export const DEFAULT_DIR = path.resolve(process.env.BACKUP_DIR ?? path.join(DATA_DIR, 'backups'));
+const tempRoot = () => process.env.BLOG_TMP_DIR ?? process.env.TMPDIR ?? '/tmp';
 
 // 保留份数。默认值即唯一入口：常驻服务、脚本、maybeAutoBackup 全走它——以前只有脚本读 BACKUP_KEEP，
 // 服务里的定时自动备份永远用 7，配了也白配。
@@ -67,6 +68,12 @@ function countsOf(db) {
 // 上限与允许上传的体积对齐：此前 128MB 总量/32MB 单文件会让正常媒体站点的自动备份永久失败。
 const MAX_BACKUP_BYTES = Math.min(4 * 1024 * 1024 * 1024, Math.max(1024 * 1024, Number(process.env.MAX_BACKUP_BYTES) || 512 * 1024 * 1024));
 const MAX_BACKUP_FILE_BYTES = Math.min(MAX_BACKUP_BYTES, Math.max(1024 * 1024, Number(process.env.MAX_BACKUP_FILE_BYTES) || 256 * 1024 * 1024));
+// 写流关掉 fd 不等于数据已经落盘：清单里写着 verified 之前，归档文件本身也必须 fsync，
+// 否则断电后可能留下「清单完好、gz 截断」的半份备份。
+async function syncPath(file) {
+  const fh = await fs.promises.open(file, 'r');
+  try { await fh.sync(); } finally { await fh.close(); }
+}
 async function compress(source, destination) {
   const hash = crypto.createHash('sha256'); let bytes = 0;
   const measure = new Transform({ transform(chunk, _encoding, callback) {
@@ -75,7 +82,8 @@ async function compress(source, destination) {
     hash.update(chunk); callback(null, chunk);
   } });
   await pipeline(source, measure, zlib.createGzip({ level: 6 }), fs.createWriteStream(destination, { mode: 0o600 }));
-  return { sha256: hash.digest('hex'), bytes };
+  await syncPath(destination);
+  return { sha256: hash.digest('hex'), bytes, fileBytes: fs.statSync(destination).size };
 }
 // Finder / Windows 留下的元数据文件：不属于站点内容，却会被逐份备份进包、再推到异地。
 // 以前 content/.DS_Store、uploads/2026/.DS_Store 就混在里面，恢复时又被原样还原。
@@ -109,7 +117,7 @@ function inventory(root, skippedLinks = null) {
       }
     }
   };
-  walk(root); return files.sort((a,b) => a.path.localeCompare(b.path));
+  walk(root); return files.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
 }
 
 // 并发检测的廉价戳：文件内容变动由归档时逐文件 (bytes, mtime) 校验兜住（见 archive()），这里只捕捉
@@ -122,7 +130,7 @@ function dirStamp(root) {
       out.push(`${path.relative(root, dir)}:${fs.statSync(dir).mtimeMs}`);
       for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
         // 回收站、主题安装临时目录与覆盖安装的替换目录都不进备份，它们内部的变化也不该让备份失败。
-        if (entry.isDirectory() && entry.name !== '.trash' && !entry.name.startsWith('.install-') && !entry.name.startsWith('.replace-')) {
+        if (entry.isDirectory() && entry.name !== '.trash' && !entry.name.startsWith('.install-') && !entry.name.startsWith('.replace-') && !entry.name.startsWith('.upload-')) {
           walk(path.join(dir, entry.name));
         }
       }
@@ -227,8 +235,12 @@ export async function snapshot(db, { dir = DEFAULT_DIR, keep = DEFAULT_KEEP, lab
     const assets = await compress(Readable.from(archive()), assetsTmp);
     const assetsName = `${assets.sha256.slice(0, 32)}.assets.json.gz`;
     assetsFile = path.join(dir, assetsName);
-    if (fs.existsSync(assetsFile)) fs.rmSync(assetsTmp, { force: true });
-    else { fs.renameSync(assetsTmp, assetsFile); createdAssets = true; }
+    // 同名旧文件也校验一次大小：磁盘错误/手工覆盖留下的截断包若被直接复用，清单会指向永远
+    // 校验不过的资产，自动备份随后卡死，还很难看出原因。
+    let reusable = false;
+    try { reusable = fs.statSync(assetsFile).size === assets.fileBytes; } catch { /* 不存在就新建 */ }
+    if (reusable) fs.rmSync(assetsTmp, { force: true });
+    else { fs.rmSync(assetsFile, { force: true }); fs.renameSync(assetsTmp, assetsFile); createdAssets = true; }
     // 只校验「文件树」是否在快照期间变化。评论、设置、登录只写数据库：VACUUM INTO 已经给出一个
     // 一致的数据库时间点，没必要因为它们把整次备份判失败（那会逼着备份长时间持有全局写队列）。
     // 文章保存/上传/主题安装会改目录 mtime，仍必须重试，否则数据库里的 postFiles 可能与文件对不上。
@@ -427,7 +439,7 @@ export async function verifyBackupLite(name, { dir = DEFAULT_DIR } = {}) {
   const manifest = readManifestFile(mf);
   if (!manifest) return { ok: false, reasons: ['备份清单损坏'] };
 
-  const tmpRoot = process.env.BLOG_TMP_DIR ?? process.env.TMPDIR ?? '/tmp';
+  const tmpRoot = tempRoot();
   const tmp = fs.mkdtempSync(path.join(tmpRoot, 'blog-lite-verify-'));
   const dbOut = path.join(tmp, 'blog.db');
   const hashed = async (file, out = null, limit = MAX_BACKUP_BYTES) => {
@@ -495,7 +507,7 @@ export function verifyBackup(name, { dir = DEFAULT_DIR, workDir } = {}) {
     reasons.push(`大小不匹配（manifest ${manifest.dbBytes} ≠ 实际 ${raw.length}）`);
   }
 
-  const out = path.join(workDir ?? fs.mkdtempSync(path.join(process.env.TMPDIR ?? '/tmp', 'blog-verify-')), `${name}.db`);
+  const out = path.join(workDir ?? fs.mkdtempSync(path.join(tempRoot(), 'blog-verify-')), `${name}.db`);
   fs.mkdirSync(path.dirname(out), { recursive: true });
   const rawBytes = raw.length;
   fs.writeFileSync(out, raw, { mode: 0o600 });
@@ -631,7 +643,8 @@ function restoreUnlocked(verified, { dbFile, contentDir, uploadsDir, themesDir, 
       for (const file of group) {
         const dest = path.join(stages[index + 1], file.path);
         fs.mkdirSync(path.dirname(dest), { recursive: true });
-        fs.writeFileSync(dest, Buffer.from(file.data, 'base64'), { mode: 0o600 });
+        // 文件数据和目录项都要落盘：rename 只保证目录项，断电后可能留下空文件。
+        writeFileDurable(dest, Buffer.from(file.data, 'base64'));
       }
     }
     const db = new DatabaseSync(stagedDb);
@@ -682,7 +695,11 @@ function restoreUnlocked(verified, { dbFile, contentDir, uploadsDir, themesDir, 
     for (const stage of stages) fs.rmSync(stage, { recursive: true, force: true });
   }
   // 恢复成功后连旧写日志一起清：里面是旧文章的 base64 全文，留着只会永久占空间并多一份内容副本。
-  for (const entry of moved) if (entry.old) fs.rmSync(entry.old, { recursive: true, force: true });
+  // 清理失败不能反过来把已生效的恢复报成失败。
+  for (const entry of moved) if (entry.old) {
+    try { fs.rmSync(entry.old, { recursive: true, force: true }); }
+    catch (error) { console.warn(JSON.stringify({ event: 'restore.cleanup-failed', code: error?.code ?? 'INTERNAL' })); }
+  }
   return {
     dbFile: targets[0], contentDir: targets[1], uploadsDir: targets[2],
     ...(Array.isArray(verified.bundle.themes) ? { themesDir: targets[3] } : {}),

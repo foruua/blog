@@ -209,7 +209,7 @@ try {
     assert.equal((await pub.request('/p/reg-page/')).status, 404, '手写前缀拼出来的地址本来就是 404');
 
     const cid = comments.add({ postId: page.id, parentId: null, author: '凌云', emailHash: 'reg-page-hash',
-      emailEnc: null, website: null, bodyMd: '测试数据库和', status: 'approved', ipHash: null, isAuthor: false });
+      emailEnc: null, website: null, bodyMd: '测试数据库和', status: 'approved', isAuthor: false });
     const list = await (await app.request('/admin/comments', { headers: { Cookie: cookie } })).text();
     const href = /href="([^"]*reg-page[^"]*)"/.exec(list)?.[1] ?? '';
     assert.match(href, /^\/reg-page#c\d+$/, `后台「文章」列的链接是 ${href || '(没找到)'}`);

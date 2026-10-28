@@ -103,6 +103,8 @@ export function createBackupScheduler({
         void current.terminate();
       }, 15 * 60 * 1000);
       current.on('message', (message) => {
+        // stop() 之后 worker 可能还有在途消息：别再入队告警（outbox 已停、主库也快关了）。
+        if (closed) { releaseWrites(); return; }
         backupSummary.invalidate();
         if (message.event === 'backup.local-ready') releaseWrites();
         if (message.event === 'backup.completed') {

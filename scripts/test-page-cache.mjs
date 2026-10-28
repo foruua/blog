@@ -24,6 +24,14 @@ try {
   check('T3 第二次命中缓存', second.headers.get('x-page-cache') === 'HIT', String(second.headers.get('x-page-cache')));
   check('T4 命中的正文与首次一致', secondBody === firstBody, `${firstBody.length} → ${secondBody.length}`);
 
+  // UTM 等无关参数共享同一条缓存；q / before / n 等会改正文的参数不缓存，避免随机值冲掉整页缓存。
+  const tagged = await fetch(`${srv.base}/?utm_source=newsletter`);
+  check('T4b 无关查询参数复用同一条缓存', tagged.headers.get('x-page-cache') === 'HIT', String(tagged.headers.get('x-page-cache')));
+  const search = await fetch(`${srv.base}/search?q=${Date.now()}`);
+  check('T4c 内容相关查询参数不进共享缓存', !search.headers.get('x-page-cache'), String(search.headers.get('x-page-cache')));
+  const stillCached = await fetch(`${srv.base}/${probe}`);
+  check('T4d 检索请求不会把首页缓存挤掉', stillCached.headers.get('x-page-cache') === 'HIT', String(stillCached.headers.get('x-page-cache')));
+
   const etag = second.headers.get('etag');
   const cached = await fetch(`${srv.base}/${probe}`, { headers: { 'If-None-Match': etag ?? '' } });
   check('T5 条件请求命中 304 且无正文', cached.status === 304 && (await cached.text()).length === 0, String(cached.status));
@@ -55,9 +63,9 @@ try {
     const bh = await b.text();
     const ta = /name="ts" value="([^"]+)"/.exec(ah)?.[1];
     const tb = /name="ts" value="([^"]+)"/.exec(bh)?.[1];
-    check('T10 文章页命中缓存后，评论时间戳令牌仍每次重新签发',
-      Boolean(ta) && Boolean(tb) && ta !== tb, `${ta?.slice(0, 8)} / ${tb?.slice(0, 8)}`);
-    check('T11 令牌变化不影响 ETag（令牌只做哈希归一化）',
+    check('T10 文章页命中缓存后复用同一份正文（令牌不再逐次重签）',
+      Boolean(ta) && ta === tb, `${ta?.slice(0, 8)} / ${tb?.slice(0, 8)}`);
+    check('T11 令牌复用后 ETag 仍稳定',
       Boolean(a.headers.get('etag')) && a.headers.get('etag') === b.headers.get('etag'),
       `${a.headers.get('etag')} / ${b.headers.get('etag')}`);
   }

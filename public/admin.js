@@ -5,6 +5,30 @@
   const $ = (id) => document.getElementById(id);
 
   let ed = null;
+  let editorAssets = null;
+
+  // 编辑器脚本只在编辑器页首屏输出；pjax 从别的后台页切进编辑器时在这里补载。
+  // 顺序加载（先 admin-editor 再 editor），加载完由 setupPage() 重跑一次初始化。
+  function loadEditorAssets() {
+    if (window.__setupAdminEditor) return Promise.resolve();
+    const body = document.body;
+    const sources = [body?.dataset.adminEditorSrc, body?.dataset.editorSrc].filter(Boolean);
+    if (!sources.length) return Promise.reject(new Error('missing editor asset urls'));
+    if (!editorAssets) {
+      editorAssets = (async () => {
+        for (const src of sources) {
+          await new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = src;
+            script.onload = resolve;
+            script.onerror = () => reject(new Error(`load failed: ${src}`));
+            document.head.append(script);
+          });
+        }
+      })();
+    }
+    return editorAssets.catch((error) => { editorAssets = null; throw error; });
+  }
 
   const feedSnapshots = new WeakMap();
   const feedValue = (form) => JSON.stringify([...new FormData(form)]);
@@ -170,7 +194,22 @@
 
   function setupPage() {
     ed?.dispose();
-    // admin-editor.js 只在编辑器页加载；其余后台页别无条件调用，否则初始化会在这里抛错。
+    ed = null;
+    // 后台 pjax 只换 #app，不重载 <script>；进入编辑器页时若脚本还没到，先补载再初始化。
+    if (document.getElementById('editorForm') && !window.__setupAdminEditor) {
+      // 首屏编辑器页自己带了 defer 脚本，它们会在 admin.js 之后才执行：等 load 再初始化，
+      // 不要在这里动态插一份造成重复执行。
+      if (document.body.dataset.editorInline === '1') {
+        window.addEventListener('load', () => {
+          if (document.getElementById('editorForm') && window.__setupAdminEditor) setupPage();
+        }, { once: true });
+        return;
+      }
+      void loadEditorAssets()
+        .then(() => { if (document.getElementById('editorForm')) setupPage(); })
+        .catch(() => { /* 加载失败时保持普通页面，不阻断其它后台功能 */ });
+      return;
+    }
     ed = window.__setupAdminEditor ? window.__setupAdminEditor() : null;
   }
 

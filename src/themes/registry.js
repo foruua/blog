@@ -228,12 +228,19 @@ export function createThemeRegistry({
   // 主题资源地址按 (id, 路径) 缓存：一个页面会问好几次 theme.css / 截图，
   // 每次都要 existsSync + statSync 才能算指纹。TTL 内直接复用，扫描时整体作废。
   const urlCache = new Map();
+  // assetPath 每次都要 realpathSync + statSync；主题资源一页会问好几次，给一个几秒的短缓存。
+  // 扫描（安装/覆盖/删除主题）时整体作废，文件被删也只是最多 5 秒内打开失败返回 404。
+  const assetPathCache = new Map();
+  const versionCache = new Map();
+  const ASSET_PATH_TTL_MS = 5000;
   const optionsCache = new Map(); // theme id → { raw, value }
 
   function scan(force = false) {
     const at = now();
     if (!force && at - cache.at < scanTtlMs) return cache;
     urlCache.clear();
+    assetPathCache.clear();
+    versionCache.clear();
     const found = new Map();
     const errors = [];
     let entries = [];
@@ -341,19 +348,34 @@ export function createThemeRegistry({
     const rel = String(relative ?? '').replace(/^\/+/, '');
     // 点文件不对外：主题包误带的 .env / .git 配置不能被 /theme-assets/ 读走。
     if (rel.split('/').some((part) => part.startsWith('.'))) return null;
+    const key = `${theme.id}:${rel}`;
+    const hit = assetPathCache.get(key);
+    if (hit && now() - hit.at < ASSET_PATH_TTL_MS) return hit.file;
+    let file = null;
     if (theme.screenshot && rel === theme.screenshot.path) {
-      return realFileWithin(theme.dir, theme.screenshot.abs, theme.realDir);
+      file = realFileWithin(theme.dir, theme.screenshot.abs, theme.realDir);
+    } else {
+      const underAssets = safeJoin(theme.assetsAbs, rel);
+      file = underAssets ? realFileWithin(theme.dir, underAssets, theme.realDir) : null;
     }
-    const underAssets = safeJoin(theme.assetsAbs, rel);
-    return underAssets ? realFileWithin(theme.dir, underAssets, theme.realDir) : null;
+    if (file) {
+      if (assetPathCache.size >= 256) assetPathCache.delete(assetPathCache.keys().next().value);
+      assetPathCache.set(key, { at: now(), file });
+    }
+    return file;
   }
 
   function assetVersion(theme, relative, knownFile = null) {
     const file = knownFile ?? assetPath(theme, relative);
     if (!file) return 'missing';
+    const hit = versionCache.get(file);
+    if (hit && now() - hit.at < ASSET_PATH_TTL_MS) return hit.version;
     try {
       const stat = fs.statSync(file, { bigint: true });
-      return crypto.createHash('sha1').update(`${stat.ino}:${stat.size}:${stat.mtimeNs}`).digest('hex').slice(0, 10);
+      const version = crypto.createHash('sha1').update(`${stat.ino}:${stat.size}:${stat.mtimeNs}`).digest('hex').slice(0, 10);
+      if (versionCache.size >= 256) versionCache.delete(versionCache.keys().next().value);
+      versionCache.set(file, { at: now(), version });
+      return version;
     } catch { return 'missing'; }
   }
 

@@ -213,6 +213,8 @@ function requestPinned(url, addresses, { signal, headers }) {
     const client = url.protocol === 'https:' ? https : http;
     const req = client.get(url, {
       signal, headers, agent: url.protocol === 'https:' ? httpsAgent : httpAgent,
+      // 多地址时让 Node 在连接失败后自动换下一个（双栈机器上 IPv6 常排前面但未必有路由）。
+      autoSelectFamily: true,
       lookup(_host, options, callback) {
         // 地址在 resolveTarget 里已全部验证过；这里只按调用方要的 family 过滤，让 Node 拿到期望的地址族（不传则返回全部）。
         const list = options?.family ? addresses.filter((a) => a.family === options.family) : addresses;

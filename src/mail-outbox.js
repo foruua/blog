@@ -40,8 +40,13 @@ export function createMailOutbox({
       VALUES (?,?,?,?,?, 'pending', 0, ?, ?)`),
     due: db.prepare(`SELECT * FROM mail_outbox
       WHERE status = 'pending' AND next_attempt_at <= ? ORDER BY next_attempt_at, id LIMIT ?`),
+    // force 只用来跳过失败退避；收件人为空的行由普通 due 在延后时间到达后处理，
+    // 否则「立即重试」会反复捞到同一批空收件人行，把后面的正常邮件饿死。
     dueForce: db.prepare(`SELECT * FROM mail_outbox
-      WHERE status = 'pending' ORDER BY next_attempt_at, id LIMIT ?`),
+      WHERE status = 'pending' AND (to_addr <> '' OR next_attempt_at <= ?)
+      ORDER BY next_attempt_at, id LIMIT ?`),
+    setRecipient: db.prepare('UPDATE mail_outbox SET to_addr = ? WHERE id = ?'),
+    deferRecipient: db.prepare('UPDATE mail_outbox SET next_attempt_at = ? WHERE id = ?'),
     markSent: db.prepare(`UPDATE mail_outbox SET status = 'sent', sent_at = ?, last_error = NULL WHERE id = ?`),
     markSkipped: db.prepare(`UPDATE mail_outbox SET status = 'skipped', sent_at = ?, last_error = ? WHERE id = ?`),
     markFailed: db.prepare(`UPDATE mail_outbox SET status = 'failed', attempts = ?, next_attempt_at = ?, last_error = ? WHERE id = ?`),
@@ -56,6 +61,8 @@ export function createMailOutbox({
       SET status = 'pending', attempts = 0, next_attempt_at = ?, last_error = NULL WHERE status = 'failed'`),
     prune: db.prepare(`DELETE FROM mail_outbox
       WHERE status IN ('sent', 'skipped') AND sent_at IS NOT NULL AND sent_at < ?`),
+    pruneFailed: db.prepare(`DELETE FROM mail_outbox
+      WHERE status = 'failed' AND created_at < ?`),
   };
 
   let flushing = null;
@@ -79,6 +86,8 @@ export function createMailOutbox({
     if (now() - lastPrune < 3600_000) return;
     lastPrune = now();
     try { q.prune.run(nowIso(now() - 30 * 86400_000)); } catch { /* 清理失败不影响发信 */ }
+    // failed 以前永不清理，长期 SMTP 故障会让它随备份一起无限增长。保留 90 天供后台追查。
+    try { q.pruneFailed.run(nowIso(now() - 90 * 86400_000)); } catch { /* 同上 */ }
   }
 
   function payloadOf(row) {
@@ -131,19 +140,17 @@ export function createMailOutbox({
       for (;;) {
         const budget = maxPerHour - sentInLastHour();
         if (budget <= 0 || attempted >= 40) break;
-        const rows = first ? q.dueForce.all(20) : q.due.all(nowIso(now()), 20);
+        const rows = first ? q.dueForce.all(nowIso(now()), 20) : q.due.all(nowIso(now()), 20);
         first = false;
         if (!rows.length) break;
         for (const row of rows) {
-          if (sent >= budget || attempted >= 40) break;
-          attempted++;
+          if (sent >= budget) break;
           const createdAt = Date.parse(row.created_at);
           if (!Number.isFinite(createdAt) || now() - createdAt > MAX_AGE_MS) {
             q.markSkipped.run(nowIso(now()), 'expired', row.id);
             log(JSON.stringify({ event: 'mail.expired', id: row.id }));
             continue;
           }
-          let result;
           const payload = payloadOf(row);
           if (!payload.to) {
             if (row.to_addr) {
@@ -152,9 +159,20 @@ export function createMailOutbox({
               log(JSON.stringify({ event: 'mail.unreadable-recipient', id: row.id }));
               continue;
             }
-            // 入队时站主还没配收件人（to 为空串）：留在 pending 等配置好后的下一轮补发，不计失败也不终态。
-            continue;
+            // 入队时站主还没配收件人：先取一次当前配置（后台可能刚填好），仍然为空就把这一行推到
+            // 一小时后。不能原地 continue：同一条查询每轮都会重新捞到它，20 条这样的行就能饿死整个队列。
+            const current = headerValue(ownerEmail());
+            if (!current) {
+              q.deferRecipient.run(nowIso(now() + 3600_000), row.id);
+              log(JSON.stringify({ event: 'mail.awaiting-recipient', id: row.id }));
+              continue;
+            }
+            q.setRecipient.run(seal(current), row.id);
+            payload.to = current;
           }
+          if (attempted >= 40) break;
+          attempted++;
+          let result;
           try { result = await deliver(payload); }
           catch (error) { result = { sent: false, reason: error?.message ?? 'deliver-failed' }; }
           if (result?.sent) {

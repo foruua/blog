@@ -102,7 +102,9 @@ export function adminLayout({
   return `<!DOCTYPE html>
 <html lang="${esc(SITE.lang)}"${paletteAttr()}>
 ${headOf(`${title} · ${SITE.identity} 后台`)}
-<body class="admin${page ? ` page-${esc(page)}` : ''}">
+<body class="admin${page ? ` page-${esc(page)}` : ''}"
+      data-admin-editor-src="/admin-editor.js?v=${assetVer('admin-editor.js')}"
+      data-editor-src="/editor.js?v=${assetVer('editor.js')}"${page === 'is-editor' ? ' data-editor-inline="1"' : ''}>
 <div id="progress" aria-hidden="true"></div>
 <div id="app">
 ${mobileBar()}
@@ -155,13 +157,13 @@ ${tabbar(active, badges)}
 <script src="/request.js?v=${assetVer('request.js')}" defer></script>
 <script src="/ui.js?v=${assetVer('ui.js')}" defer></script>
 <script src="/nav.js?v=${assetVer('nav.js')}" defer></script>
-<!-- 这三个脚本（admin-editor / media-picker / admin / editor）不能按页面裁剪：后台导航走 pjax，只换内容不重载
-     <script>；从非编辑器页点进编辑器时 admin-editor.js 必须早已在文档里，否则 admin.js 的 setupPage()
-     拿不到 window.__setupAdminEditor，媒体选择器/slug 联动/快捷键都不生效。 -->
+<!-- media-picker 与 admin 全站加载；编辑器两件套只在编辑器页输出。后台导航走 pjax 时，
+     从非编辑器页进编辑器由 admin.js 按 body 上的 data-*-src 动态补载，再初始化，避免每个后台页
+     都白下载/解析约 20KB 编辑器脚本。 -->
 <script src="/media-picker.js?v=${assetVer('media-picker.js')}" defer></script>
-<script src="/admin-editor.js?v=${assetVer('admin-editor.js')}" defer></script>
 <script src="/admin.js?v=${assetVer('admin.js')}" defer></script>
-<script src="/editor.js?v=${assetVer('editor.js')}" defer></script>
+${page === 'is-editor' ? `<script src="/admin-editor.js?v=${assetVer('admin-editor.js')}" defer></script>
+<script src="/editor.js?v=${assetVer('editor.js')}" defer></script>` : ''}
 </body>
 </html>`;
 }

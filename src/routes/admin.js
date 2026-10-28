@@ -9,7 +9,7 @@ import { listPage, editorPage, revisionPage } from '../admin/views/content.js';
 import { morePage } from '../admin/views/more.js';
 import { planFilePath, readPostFront } from '../content/write.js';
 import { commitPost, deleteWithFile } from '../content/commit.js';
-import { boundedBody, publicWriteRateLimit, clientIp, sameOriginRequest } from '../util/http.js';
+import { boundedBody, publicWriteRateLimit, clientKey, sameOriginRequest } from '../util/http.js';
 import { externalWrite, bodyOf, val, formBody, checked, pageNumber, pagination, makeShared, notice, notFoundPage } from './admin/shared.js';
 import { registerSettingsRoutes } from './admin/settings.js';
 import { registerSiteRoutes } from './admin/site.js';
@@ -63,7 +63,7 @@ export function adminRoutes({ repo, comments, adminRepo, crypt, auth, renderer, 
     const form = await c.req.formData().catch(() => new FormData());
     const pw = String(form.get('password') ?? '');
     const to = String(form.get('to') ?? '/admin');
-    const r = await auth.attemptLogin(c, pw, crypt.ipHash(clientIp(c)));
+    const r = await auth.attemptLogin(c, pw, crypt.ipHash(clientKey(c)));
     if (r.ok) return c.redirect(adminRedirect(to), 303);
     return c.redirect(r.reason === 'rate-limited' ? '/admin/login?e=limited' : '/admin/login?e=bad', 303);
   });
@@ -72,7 +72,11 @@ export function adminRoutes({ repo, comments, adminRepo, crypt, auth, renderer, 
 
   async function savePost(c, { autosave = false } = {}) {
     const b = await bodyOf(c);
-    const id = Number(val(b, 'id', '0')) || 0;
+    // 空值=新建；其余必须是纯数字。以前 Number('12x') 会静默变成 0，把一次更新当成新建，
+    // 还绕过下面的版本冲突检查。
+    const rawId = val(b, 'id', '0').trim();
+    if (!/^\d*$/.test(rawId)) return { ok: false, error: '文章编号无效', code: 400 };
+    const id = Number(rawId) || 0;
     const action = val(b, 'action', autosave ? 'autosave' : 'save');
     const existing = id ? adminRepo.get(id) : null;
     if (id && !existing) return { ok: false, error: '文章不存在', code: 404 };

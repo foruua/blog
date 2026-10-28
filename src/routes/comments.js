@@ -1,4 +1,4 @@
-import { boundedBody, publicWriteRateLimit, clientIp, readBodyObject, sameOriginRequest } from '../util/http.js';
+import { boundedBody, publicWriteRateLimit, clientKey, readBodyObject, sameOriginRequest } from '../util/http.js';
 import { Hono } from 'hono';
 import { SITE } from '../config.js';
 import { esc, formatDateTime, contentUrl } from '../util/text.js';
@@ -69,7 +69,7 @@ export function commentRoutes({ repo, comments, crypt, auth = null, notifier = c
     }
     const hash = crypt.fingerprint(email);
     if (!hash) return c.json({ profile: null });
-    const ip = clientIp(c);
+    const ip = clientKey(c);
     const verdict = readerProbe.check(hash, ipBucket(ip));
     if (verdict.limited) {
       // 429 只看「这个键这个窗口查了几次」，与邮箱是否存在无关，所以它本身不构成新的判据。
@@ -92,7 +92,7 @@ export function commentRoutes({ repo, comments, crypt, auth = null, notifier = c
     if (!commentsOpen(repo)) return { code: 403, result: 'pause' };
     if (!post.comments_on) return { code: 403, result: 'off' };
 
-    const ipHash = crypt.ipHash(clientIp(c));
+    const ipHash = crypt.ipHash(clientKey(c));
 
     // 令牌必须带 purpose：签名器通用，审核/退订 token 若无命名空间就可能被交叉复用（这里强校验，防止拿别的 token 充当反机器人时间戳）。
     const rawToken = crypt.verify(payload.ts);
@@ -151,7 +151,7 @@ export function commentRoutes({ repo, comments, crypt, auth = null, notifier = c
       const id = comments.add({
         postId: post.id, parentId, author,
         emailHash: null, emailEnc: null, website: null,
-        bodyMd, status: 'approved', ipHash: null, isAuthor: true, submissionId,
+        bodyMd, status: 'approved', isAuthor: true, submissionId,
       });
       if (parentId) notifyCommenter(parentId, bodyMd, post.id);
       return { code: 200, result: 'ok', id, post };
@@ -170,7 +170,7 @@ export function commentRoutes({ repo, comments, crypt, auth = null, notifier = c
     const id = comments.add({
       postId: post.id, parentId, author,
       emailHash, emailEnc: crypt.encrypt(email),
-      website, bodyMd, status, ipHash, isAuthor: false, submissionId,
+      website, bodyMd, status, isAuthor: false, submissionId,
     });
 
     if (status === 'pending') {
@@ -363,7 +363,7 @@ export function commentRoutes({ repo, comments, crypt, auth = null, notifier = c
         const id = comments.add({
           postId: current.post_id, parentId: current.id, author: SITE.author || '博主',
           emailHash: null, emailEnc: null, website: null,
-          bodyMd: body.slice(0, 3000), status: 'approved', ipHash: null, isAuthor: true,
+          bodyMd: body.slice(0, 3000), status: 'approved', isAuthor: true,
         });
         comments.setStatus(current.id, current.status);
         return id;

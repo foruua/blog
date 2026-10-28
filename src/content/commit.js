@@ -69,8 +69,17 @@ export function recoverWrites(repo, { log = console } = {}) {
     let data;
     try {
       data = JSON.parse(fs.readFileSync(journal, 'utf8'));
-      if (!data || typeof data !== 'object' || typeof data.key !== 'string' || !Array.isArray(data.entries)) {
-        throw new Error('日志结构不完整');
+      const structured = data && typeof data === 'object' && typeof data.key === 'string'
+        && (Array.isArray(data.entries) || Array.isArray(data.moves));
+      if (!structured) throw new Error('日志结构不完整');
+      // moves 型（删除路径）只记录「原路径 ↔ 回收站路径」，不把大文件内容塞进日志；
+      // 恢复时把仍在回收站的文件搬回去即可。entries 型（保存路径）保持原语义。
+      if (Array.isArray(data.moves)) {
+        for (const move of data.moves) {
+          if (!move || typeof move.file !== 'string' || typeof move.trash !== 'string') throw new Error('日志结构不完整');
+          assertManagedPath(move.file);
+          assertManagedPath(move.trash);
+        }
       }
     } catch (error) {
       log.error(JSON.stringify({ event: 'journal.corrupt', file: name, code: error.code ?? 'PARSE' }));
@@ -78,23 +87,40 @@ export function recoverWrites(repo, { log = console } = {}) {
       continue;
     }
     if (repo.getSetting(data.key)) {
-      durableRemove(journal);            // 已提交：日志只是没来得及清掉
-      repo.deleteSetting(data.key);
+      try {
+        durableRemove(journal);            // 已提交：日志只是没来得及清掉
+        repo.deleteSetting(data.key);
+      } catch (error) {
+        // 清理失败（权限/磁盘错误）不应让启动 crash-loop；日志仍在，下次继续尝试。
+        log.error(JSON.stringify({ event: 'journal.cleanup-failed', file: name, code: error.code ?? 'CLEANUP' }));
+      }
       continue;
     }
     try {
-      restoreFiles(data.entries);
+      if (Array.isArray(data.moves)) {
+        // 删除提交前崩溃：把还在回收站的文件搬回原路径；原路径已被重建则保留现状，不覆盖。
+        for (const move of data.moves) {
+          if (fs.existsSync(move.trash) && !fs.existsSync(move.file)) moveFile(move.trash, move.file);
+        }
+      } else {
+        restoreFiles(data.entries);
+      }
       recovered++;
     } catch (error) {
       log.error(JSON.stringify({ event: 'journal.restore-failed', file: name, code: error.code ?? 'RESTORE' }));
       quarantine(journal, 'failed');
       continue;
     }
-    durableRemove(journal); repo.deleteSetting(data.key);
+    try {
+      durableRemove(journal); repo.deleteSetting(data.key);
+    } catch (error) {
+      log.error(JSON.stringify({ event: 'journal.cleanup-failed', file: name, code: error.code ?? 'CLEANUP' }));
+    }
   }
   // 原子写留下的半截临时文件（进程在 rename 前后被杀）永远是垃圾，直接清掉。
   for (const name of fs.readdirSync(journalDir).filter((n) => n.includes('.tmp-'))) {
-    fs.rmSync(path.join(journalDir, name), { force: true });
+    try { fs.rmSync(path.join(journalDir, name), { force: true }); }
+    catch { /* 清不掉留给下次启动，不阻断恢复 */ }
   }
   // crash 兜底：durableRemove(journal) 与 deleteSetting 之间被杀，会留下没有日志文件对应的孤儿键；
   // 上面的循环只按文件驱动，永远碰不到它们——随保存事故缓慢累积，这里顺带清掉。
@@ -153,14 +179,36 @@ export function moveFile(from, to, { overwrite = false } = {}) {
   }
 }
 export function deleteWithFiles({ repo, files, remove }) {
+  const moves = files
+    .filter(({ file }) => file && fs.existsSync(file))
+    .map(({ file, trash }) => ({ file, trash }));
+  if (!moves.length) return repo.transaction(remove);
+
+  // 删除也要有恢复日志：先记下「原路径 ↔ 回收站路径」，再移文件、删库。
+  // 只记路径不记内容，删除大图时不会在日志里复制一份几十 MB 的 base64。
+  ensureDurableDirectory(journalDir);
+  const key = `write_journal:${crypto.randomUUID()}`;
+  const journal = path.join(journalDir, key.split(':')[1] + '.json');
+  atomicWrite(journal, JSON.stringify({ key, moves }));
+
   const moved = [];
   try {
-    for (const { file, trash } of files) if (file && fs.existsSync(file)) { moveFile(file, trash); moved.push({ file, trash }); }
-    repo.transaction(remove);
-    return moved.length > 0;
+    for (const item of moves) { moveFile(item.file, item.trash); moved.push(item); }
+    const result = repo.transaction(() => {
+      const out = remove();
+      repo.setSetting(key, 'committed');
+      return out;
+    });
+    try { durableRemove(journal); repo.deleteSetting(key); }
+    catch (error) { console.warn(JSON.stringify({ event: 'journal.cleanup-failed', code: error.code ?? 'CLEANUP' })); }
+    return result ?? true;
   } catch (e) {
     // 回滚时原路径可能已被外部重新创建：宁可保留现有文件，也不要覆盖它。
-    for (const item of moved.reverse()) { try { moveFile(item.trash, item.file); } catch { /* 保留可恢复的回收站副本 */ } }
+    for (const item of moved.reverse()) {
+      try { if (!fs.existsSync(item.file)) moveFile(item.trash, item.file); }
+      catch { /* 保留可恢复的回收站副本 */ }
+    }
+    try { durableRemove(journal); repo.deleteSetting(key); } catch { /* 留给启动恢复 */ }
     throw e;
   }
 }

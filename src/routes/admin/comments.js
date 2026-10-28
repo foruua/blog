@@ -52,7 +52,7 @@ export function registerCommentRoutes(app, { repo, comments, adminRepo, crypt, n
         postId: current.post_id, parentId: current.id,
         author: SITE.author || '博主',
         emailHash: null, emailEnc: null, website: null,
-        bodyMd: body, status: 'approved', ipHash: null, isAuthor: true,
+        bodyMd: body, status: 'approved', isAuthor: true,
       });
     });
     if (replyId === null) return notice(c, '/admin/comments', '✗ 这条评论已经不在了');

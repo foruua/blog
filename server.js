@@ -5,9 +5,9 @@ import { acquireMaintenanceLock, createMutationQueue, createWriteBarrier } from 
 import { recoverWrites } from './src/content/commit.js';
 import { isExternalWrite } from './src/util/external-writes.js';
 import { logError } from './src/util/errors.js';
-import { boundedBody, ifNoneMatch, publicWriteRateLimit, clientIp } from './src/util/http.js';
+import { boundedBody, publicWriteRateLimit, clientKey } from './src/util/http.js';
 import { createAntispam } from './src/comments/antispam.js';
-import { createStaticFiles, MIME } from './src/http/static.js';
+import { createStaticFiles } from './src/http/static.js';
 import { createHtmlCache } from './src/http/html-cache.js';
 import { esc } from './src/util/text.js';
 import { Hono } from 'hono';
@@ -82,7 +82,8 @@ const CSP = [
 
 // 渲染抛错时给浏览器一张能读的错页。刻意不套 layout()：那要读库取导航，库坏了会二次抛错。
 // 接口（/admin/api、/moderate、fetch）仍回 JSON，见 onError。
-const ERROR_PAGE = `<!doctype html>
+// 用函数而不是模块级常量：后台改站名/语言后，500 页也要跟着变，不能一直显示 .env 里的旧值。
+const errorPage = () => `<!doctype html>
 <html lang="${SITE.lang}">
 <head>
 <meta charset="utf-8">
@@ -394,7 +395,7 @@ app.onError((error, c) => {
   const wantsHtml = (c.req.header('accept') ?? '').includes('text/html')
     && !path.startsWith('/admin/api')
     && !path.startsWith('/moderate/');
-  if (wantsHtml) return c.html(ERROR_PAGE, 500);
+  if (wantsHtml) return c.html(errorPage(), 500);
   return c.json({ ok: false, error: '操作失败，请重试', requestId: c.get('requestId') }, 500);
 });
 
@@ -481,7 +482,7 @@ function monitorAuthorized(c) {
   return given.length === expected.length && crypto.timingSafeEqual(given, expected);
 }
 app.get('/healthz', (c) => {
-  if (healthLimiter.rateLimited(clientIp(c) || 'unknown')) {
+  if (healthLimiter.rateLimited(clientKey(c))) {
     c.header('Retry-After', '60');
     return c.json({ ok: false, error: 'too-many-requests' }, 429);
   }
@@ -538,7 +539,9 @@ for (const file of VERSIONED_ASSETS) app.get('/' + file, (c) => sendFile(c, '/' 
 // 主题资源：/theme-assets/<id>/<相对路径>。只允许截图和 assets/ 下的文件，路径由 registry.assetPath 校验。
 // 激活主题对所有访客可用；未激活主题只有站主（预览/后台截图）能取，避免把半成品主题公开。
 app.get('/theme-assets/*', async (c) => {
-  const raw = c.req.path.slice('/theme-assets/'.length);
+  // 用原始 pathname 而不是 c.req.path：Hono 已经解码过一次，这里再 decodeURIComponent 会把
+  // 文件名里的字面 % 当成非法序列（100%.png 直接 404），也会把 %2F 二次展开。
+  const raw = new URL(c.req.url).pathname.slice('/theme-assets/'.length);
   const slash = raw.indexOf('/');
   if (slash <= 0) return c.notFound();
   let id, rel;
@@ -561,24 +564,13 @@ app.get('/theme-assets/*', async (c) => {
   if (!isSafeRelative(rel)) return c.notFound();
   const file = themes.assetPath(theme, rel);
   if (!file) return c.notFound();
-  let stat;
-  try { stat = await fs.promises.stat(file); } catch { return c.notFound(); }
-  if (!stat.isFile()) return c.notFound();
-  // 外层 compress() 会按 Accept-Encoding 改变字节；弱 ETag 才与「同一主题资源的不同编码」匹配。
-  const etag = `W/"${stat.size.toString(16)}-${stat.mtimeMs.toString(16)}"`;
   const requestedV = c.req.query('v');
   const versioned = Boolean(requestedV && requestedV === themes.assetVersion(theme, rel, file));
   const cacheControl = isActive
     ? (versioned ? 'public, max-age=31536000, immutable' : 'public, max-age=300')
     : 'private, no-store';
-  if (ifNoneMatch(c, etag)) return c.body(null, 304, { ETag: etag, 'Cache-Control': cacheControl });
-  const headers = {
-    'Content-Type': MIME[path.extname(file).toLowerCase()] ?? 'application/octet-stream',
-    ETag: etag,
-    'Cache-Control': cacheControl,
-  };
-  if (c.req.method === 'HEAD') return c.body(null, 200, headers);
-  return c.body(await fs.promises.readFile(file), 200, headers);
+  // 复用静态文件出口：Range/HEAD/304 与流式读取都只维护一份；主题资源不再整文件读进内存。
+  return sendFile(c, c.req.path, { resolveFile: () => file, cacheControl, weakEtag: true });
 });
 
 app.get('/uploads/*', (c) => sendFile(c, c.req.path, { root: UPLOADS_DIR, prefix: '/uploads' }));

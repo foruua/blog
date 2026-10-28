@@ -1,4 +1,4 @@
-import { clientIp } from '../../util/http.js';
+import { clientKey } from '../../util/http.js';
 import { externalWrite, bodyOf, val, checked, notice } from './shared.js';
 import { applySiteIdentity, saveSiteIdentity } from '../../site/identity.js';
 import { saveNav } from '../../site/nav.js';
@@ -84,7 +84,7 @@ export function registerSiteRoutes(app, { repo, auth, crypt }) {
 
     let result;
     try {
-      result = await auth.changePassword(c, current, next, crypt.ipHash(clientIp(c)));
+      result = await auth.changePassword(c, current, next, crypt.ipHash(clientKey(c)));
     } catch {
       return notice(c, '/admin/system', '✗ 保存失败，密码未改动（详情见服务端日志）');
     }

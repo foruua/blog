@@ -1,4 +1,5 @@
-import { externalWrite, bodyOf, val } from './shared.js';
+import { externalWrite, bodyOf, val, pageNumber } from './shared.js';
+import { ADMIN_PAGE_SIZE } from '../../config.js';
 import { linksAdminPage, linksProgress } from '../../admin/views/links.js';
 import { failureLabel } from '../../util/failure.js';
 import { logError } from '../../util/errors.js';
@@ -14,11 +15,19 @@ export function registerLinkRoutes(app, { links, linkChecker }, { ctx }) {
   const back = (c, message) => c.redirect(`/admin/links?w=${encodeURIComponent(message)}`, 303);
 
 
-  app.get('/admin/links', (c) => c.html(linksAdminPage(ctx(c, {
-    rows: links.adminList(),
-    notice: c.req.query('w') ? String(c.req.query('w')) : '',
-    progress: linkChecker.progress(),
-  }))));
+  app.get('/admin/links', (c) => {
+    const page = pageNumber(c);
+    const rows = links.adminPage({ limit: ADMIN_PAGE_SIZE + 1, offset: (page - 1) * ADMIN_PAGE_SIZE });
+    return c.html(linksAdminPage(ctx(c, {
+      rows: rows.slice(0, ADMIN_PAGE_SIZE),
+      hasMore: rows.length > ADMIN_PAGE_SIZE,
+      page,
+      total: links.adminCount(),
+      counts: links.adminGroupCounts(),
+      notice: c.req.query('w') ? String(c.req.query('w')) : '',
+      progress: linkChecker.progress(),
+    })));
+  });
 
   externalWrite(app, '/admin/links/check', async (c) => {
     const b = await bodyOf(c);

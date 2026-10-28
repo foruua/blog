@@ -19,8 +19,11 @@ export function createTx(db, prefix = 'tx') {
       db.exec(`RELEASE ${savepoint}`);
       return result;
     } catch (error) {
-      // ROLLBACK 本身也可能因 IOERR/FULL 失败；不能让它替换掉真正的业务错误。
-      try { db.exec(`ROLLBACK TO ${savepoint}; RELEASE ${savepoint}`); } catch { /* 保留原始错误 */ }
+      // ROLLBACK 本身也可能因 IOERR/FULL 失败；不能让它替换掉真正的业务错误，但要留下可排查的记录。
+      try { db.exec(`ROLLBACK TO ${savepoint}; RELEASE ${savepoint}`); }
+      catch (rollbackError) {
+        console.error(JSON.stringify({ event: 'tx.rollback-failed', savepoint, code: rollbackError?.code ?? 'INTERNAL' }));
+      }
       throw error;
     }
   };

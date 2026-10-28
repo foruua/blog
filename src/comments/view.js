@@ -39,8 +39,11 @@ export function emojiPicker() {
 }
 
 // 只有页面里真的存在表情触发键时才输出（layout 会先探测 main），首页/归档这类没有表单的页面不多背这 7KB。
+// 面板内容完全静态：模块级缓存一次，别在每次 layout() 里重新拼 80 个按钮。
+let emojiPanelCache = '';
 export function emojiPanelTemplate() {
-  return `<template data-emoji-tpl>
+  if (emojiPanelCache) return emojiPanelCache;
+  emojiPanelCache = `<template data-emoji-tpl>
           <div class="c-emoji-panel" popover="auto" data-emoji-panel aria-label="常用表情">
           <div class="c-emoji-head"><span>常用表情</span><button type="button" data-emoji-close aria-label="关闭表情面板">×</button></div>
           <div class="c-emoji-grid" role="group" aria-label="选择表情">
@@ -48,6 +51,7 @@ export function emojiPanelTemplate() {
           </div>
           </div>
         </template>`;
+  return emojiPanelCache;
 }
 
 export const FLASH = {

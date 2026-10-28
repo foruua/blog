@@ -2995,6 +2995,14 @@ body[data-page="search"] .s-input:focus-visible {
   border-bottom-color: var(--accent);
   box-shadow: 0 1px 0 var(--accent);
 }
+/* 结果行里的“N 条评论”在 .e-main 之外：上面的清零规则会连它一起抹掉，
+   这里补回可见焦点，别让键盘用户在这一环失去位置。 */
+body[data-page="search"] .list .e-comments:focus,
+body[data-page="search"] .list .e-comments:focus-visible {
+  outline: 2px solid var(--accent) !important;
+  outline-offset: 3px;
+  box-shadow: none !important;
+}
 body[data-page="search"] .list li > .e-main:focus h2,
 body[data-page="search"] .list li > .e-main:focus-visible h2 {
   text-decoration: none;
