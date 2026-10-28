@@ -81,6 +81,9 @@
   var serial = 0;
   var activeController = null;
   var prefetched = new Map();
+  var applySerial = 0;
+  // JSDOM 不加载外链样式，link 永远不会触发 load；测试里别为每次换页白等 1.5 秒。
+  var styleLoading = !(typeof navigator !== 'undefined' && /jsdom/i.test(navigator.userAgent || ''));
   var index = Number(history.state && history.state.blogIndex) || 0;
   var renderedUrl = location.href;
   var restoring = false;
@@ -268,6 +271,65 @@
     if (cNew && cOld) cOld.setAttribute('href', cNew.getAttribute('href'));
   }
 
+  /* —— pjax 换页后的样式表 ——
+     页面按类型只发 lite / article / 全量三档；#app 换了但 <head> 不换，
+     从首页点进笔记或文章时会缺评论区 / 笔记流规则。三档是包含关系（lite ⊂ article ⊂ full），
+     所以只补不删：把目标页缺的 <link> 追加进来，等 onload 再换 DOM，既不闪裸表单，也不用回退全量。 */
+  function stylesheetHrefs(root) {
+    return Array.prototype.map.call(root.querySelectorAll('link[rel="stylesheet"][href]'), function (link) {
+      return link.getAttribute('href');
+    });
+  }
+
+  function styleLinkOf(absolute) {
+    var links = document.head.querySelectorAll('link[rel="stylesheet"][href]');
+    for (var i = 0; i < links.length; i++) {
+      try { if (new URL(links[i].getAttribute('href'), location.href).href === absolute) return links[i]; } catch (e) { /* 坏地址忽略 */ }
+    }
+    return null;
+  }
+
+  function ensureStyles(doc) {
+    var wanted = stylesheetHrefs(doc);
+    if (!wanted.length) return null;
+    var target = [];
+    wanted.forEach(function (href) {
+      try { target.push(new URL(href, location.href).href); } catch (e) { /* 坏地址忽略 */ }
+    });
+    if (!target.length) return null;
+    var have = {};
+    stylesheetHrefs(document).forEach(function (href) {
+      try { have[new URL(href, location.href).href] = 1; } catch (e) { /* 坏地址忽略 */ }
+    });
+    var pending = [];
+    target.forEach(function (absolute, index) {
+      if (have[absolute]) return;
+      have[absolute] = 1;
+      pending.push(new Promise(function (resolve) {
+        var link = document.createElement('link');
+        var settle = function () { resolve(); };
+        link.rel = 'stylesheet';
+        link.href = absolute;
+        link.setAttribute('data-pjax-css', '');
+        link.addEventListener('load', settle);
+        link.addEventListener('error', settle);
+        // 按目标页的样式表顺序插入：主题 CSS 在变体之后加载时，变体不能甩到它后面去改变层叠。
+        var anchor = null;
+        for (var i = index + 1; i < target.length; i++) {
+          anchor = styleLinkOf(target[i]);
+          if (anchor) break;
+        }
+        if (anchor) document.head.insertBefore(link, anchor);
+        else document.head.appendChild(link);
+        // JSDOM 不加载样式表，onload 永远不会来：直接放行，别让测试每次换页多等 1.5 秒。
+        if (!styleLoading) { settle(); return; }
+        // 网络卡住时别把换页永远吊着：1.5s 后照常换，样式到了会自己生效。
+        setTimeout(settle, 1500);
+      }));
+    });
+    return pending.length ? Promise.all(pending) : null;
+  }
+
   function noticeIn(doc) {
     var el = doc.querySelector('.a-notice, .c-flash');
     if (!el) return '';
@@ -280,7 +342,10 @@
     var next = doc.getElementById(APP_ID);
     if (!next) { location.href = url; return; }
 
+    // 补样式是异步的：期间若又发生一次换页，这次就作废，别把旧内容盖到新页面上。
+    var token = ++applySerial;
     var run = function () {
+      if (token !== applySerial) return;
 
       document.title = doc.title || document.title;
 
@@ -351,7 +416,8 @@
 
     // 不用 View Transition：它把新旧两页截图交叉溶解，会被看成"上下跳一下"。容器也不做淡入（连页头一起呼吸更晃眼），
     // 换页就是一次硬切；页头里唯一会重播的动效（字标落印）由上面那句 html.pjax-swapped 按掉。
-    run();
+    var css = ensureStyles(doc);
+    if (css) css.then(run); else run();
   }
 
   /* —— 跟随服务端跳转：把最终地址当作真正的目标 —— */
@@ -594,7 +660,11 @@
       .then(function (res) {
         if (!res.ok || (res.headers.get('content-type') || '').indexOf('text/html') === -1) return null;
         var at = finalUrlOf(res, url);
-        return res.text().then(function (html) { return { html: html, url: at, fetchedAt: Date.now() }; });
+        return res.text().then(function (html) {
+          // 悬停预取时顺手把目标页的样式表也拉起来：三档是包含关系，提前套到当前页不会改变外观。
+          try { ensureStyles(new DOMParser().parseFromString(html, 'text/html')); } catch (e) { /* 预取失败不打扰 */ }
+          return { html: html, url: at, fetchedAt: Date.now() };
+        });
       })
       .then(function (item) { if (!item) return; if (cache.size >= CACHE_MAX) cache.delete(cache.keys().next().value); cache.set(url, item); })
       .catch(function () {}).finally(function () { clearTimeout(timer); prefetched.delete(url); });

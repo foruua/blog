@@ -189,6 +189,31 @@ try {
     w.__pjaxHooks.length >= 2, `注册了 ${w.__pjaxHooks.length} 个`);
 
   {
+    // 有构建产物时页面按类型只发 lite/article 变体；pjax 只换 #app、不换 <head>，
+    // 所以换到笔记/文章页必须把缺的样式补进 head，否则会看到原生 details 三角和裸评论表单。
+    const light = await mount(`${BASE}/`);
+    const lite = /style-lite\.css/.test(light.html);
+    await light.w.__nav.navigate(`${BASE}/notes/`);
+    const notesCss = [...light.w.document.querySelectorAll('link[rel="stylesheet"]')]
+      .map((link) => link.href || '');
+    check('T3c pjax 从轻量样式页换到笔记页会补全量样式',
+      !lite || notesCss.some((href) => /\/style\.css\?/.test(href)),
+      notesCss.join(' '));
+    check('T3d 换到笔记页后笔记流标记已在 DOM（不是只补了样式）',
+      Boolean(light.w.document.querySelector('.nf')));
+
+    const list = await mount(`${BASE}/posts/`);
+    const listLite = /style-lite\.css/.test(list.html);
+    await list.w.__nav.navigate(`${BASE}/p/why-single-column/`);
+    const postCss = [...list.w.document.querySelectorAll('link[rel="stylesheet"]')]
+      .map((link) => link.href || '');
+    check('T3e pjax 从轻量样式页换到文章页会补文章/评论区样式',
+      !listLite || postCss.some((href) => /\/style-article\.css\?/.test(href)),
+      postCss.join(' '));
+    check('T3f 换到文章页后评论表单已在 DOM', Boolean(list.w.document.querySelector('.c-form')));
+  }
+
+  {
     const mk = (attrs, href) => {
       const a = w.document.createElement('a');
       a.setAttribute('href', href);
