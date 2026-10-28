@@ -87,6 +87,66 @@ console.log('──────────────────────�
 
 
 {
+  // 邮箱查询限流：单 IP 不同邮箱、单邮箱跨 IP、全站新邮箱三层。独立实例，避免污染其他用例的计数桶。
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'comment-probe-'));
+  const dirs = { data: path.join(root, 'data'), content: path.join(root, 'content'), uploads: path.join(root, 'uploads') };
+  for (const d of Object.values(dirs)) fs.mkdirSync(d, { recursive: true });
+  fs.cpSync(process.env.CONTENT_DIR ?? 'content', dirs.content, { recursive: true });
+
+  const srv3 = await startServer({
+    isolateDb: true,
+    env: { DATA_DIR: dirs.data, CONTENT_DIR: dirs.content, UPLOADS_DIR: dirs.uploads, TRUST_PROXY: 'true' },
+  });
+  const lookup = async (email, ip) => {
+    const res = await fetch(`${srv3.base}/api/comments/reader`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-forwarded-for': ip },
+      body: JSON.stringify({ email }),
+    });
+    return { status: res.status, retryAfter: res.headers.get('retry-after'), body: await res.json().catch(() => ({})) };
+  };
+  const { ipBucket, createReaderProbeLimiter } = await import('../src/comments/reader-limit.js');
+  try {
+    const ip = '10.60.0.1';
+    let last = null;
+    for (let i = 0; i < 13; i++) last = await lookup(`probe-ip-${i}@example.com`, ip);
+    check('T20a 同一 IP 连续查不同邮箱，超出上限后 429', last.status === 429, String(last.status));
+    check('T20b 限流响应不泄露邮箱是否存在，并带 Retry-After',
+      last.body.profile === null && Number(last.retryAfter) > 0, JSON.stringify(last.body));
+    check('T20c 限流按 IP 隔离，换 IP 可继续查',
+      (await lookup('probe-ip-fresh@example.com', '10.60.0.2')).status === 200);
+
+    const ip2 = '10.60.0.3';
+    for (let i = 0; i < 5; i++) await lookup('probe-repeat@example.com', ip2);
+    let allOk = true;
+    for (let i = 0; i < 7; i++) {
+      if ((await lookup(`probe-more-${i}@example.com`, ip2)).status !== 200) allOk = false;
+    }
+    check('T20d 重复查同一邮箱不占单 IP 的新邮箱名额', allOk);
+
+    const target = 'probe-target@example.com';
+    let lastEmail = null;
+    for (let i = 0; i < 7; i++) lastEmail = await lookup(target, `10.61.0.${i + 1}`);
+    check('T20e 同一邮箱换 IP 也会被邮箱维度限流', lastEmail.status === 429, String(lastEmail.status));
+
+    check('T20f IPv6 按 /64 归桶，换地址绕不过限额',
+      ipBucket('2001:db8:1:2:aaaa::1') === ipBucket('2001:db8:1:2:bbbb::9'));
+    check('T20g IPv4-mapped 地址还原成 IPv4，避免所有直连 IPv4 挤进同一个桶',
+      ipBucket('::ffff:127.0.0.1') === '127.0.0.1' && ipBucket('::ffff:10.0.0.8') === '10.0.0.8');
+
+    const lim = createReaderProbeLimiter({ perEmail: 10, perIp: 10, globalMax: 2, windowMs: 60_000 });
+    check('T20h 全站新邮箱数封顶，挡住代理池分摊到大量 IP',
+      !lim.check('a@x', '1.1.1.1').limited && !lim.check('b@x', '1.1.1.2').limited
+      && lim.check('c@x', '1.1.1.3').limited);
+    check('T20i 窗口内已出现过的邮箱不受全站上限影响',
+      !lim.check('a@x', '1.1.1.4').limited);
+  } finally {
+    await srv3.stop();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
+{
   const { html, token } = await getPost();
   check('T1a 文章页渲染出评论表单', html.includes('data-comment-form'));
   check('T1b 带有签名的时间戳令牌', token.length > 40, `token 长度 ${token.length}`);

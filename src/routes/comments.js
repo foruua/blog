@@ -5,6 +5,7 @@ import { esc, formatDateTime, contentUrl } from '../util/text.js';
 import { safeHttpUrl, normalizeUserUrl } from '../util/url.js';
 import { layout, emptyPage } from '../render/layout.js';
 import { createAntispam, screenSubmission } from '../comments/antispam.js';
+import { createReaderProbeLimiter, ipBucket } from '../comments/reader-limit.js';
 import { renderComment } from '../comments/render.js';
 import { createCommentNotifier } from '../comments/notify.js';
 import { setMuted } from '../comments/subscribers.js';
@@ -31,8 +32,11 @@ export function commentRoutes({ repo, comments, crypt, auth = null, notifier = c
   const app = new Hono({ strict: false });
   // 阈值走设置读取函数：后台把「每 10 分钟几条」改完之后立刻生效，不用重启进程。
   const antispam = createAntispam({ maxPerWindow: () => commentsRateLimit(repo) });
+  // 邮箱查询按「单邮箱 / 单 IP 不同邮箱 / 全站新邮箱」三层限额，见 comments/reader-limit.js。
+  const readerProbe = createReaderProbeLimiter();
   // 「回头客自动填充」只凭邮箱查最近一条已通过评论的昵称/网址——这些本就是评论区公开的信息，
-  // 不再要求浏览器持有绑定同一邮箱的读者凭证。仍保留同源校验与按 IP 限流，挡住跨站调用和批量探测。
+  // 不再要求浏览器持有绑定同一邮箱的读者凭证。同源校验只挡浏览器跨站（curl 不带 Origin 照样进），
+  // 批量探测靠下面 readerProbe 的三层限额：单靠按 IP 限流挡不住换 IP 的代理池。
   // Hono 的 app.route() 会把子应用 use('*') 中间件提升成父应用全局（任意路径 POST 都会跑到它），故必须逐个端点声明，否则评论限流会顺带限住后台保存等 POST。
   // 独立挂载（测试、单模块）时自己带一层限流；server.js 已有一层覆盖同样路径的全局限流，那时传 rateLimited: false，
   // 否则同一条请求会过两个独立计数桶，实际阈值取决于较严的那个，既难解释也多一次判断。
@@ -65,6 +69,14 @@ export function commentRoutes({ repo, comments, crypt, auth = null, notifier = c
     }
     const hash = crypt.fingerprint(email);
     if (!hash) return c.json({ profile: null });
+    const ip = clientIp(c);
+    const verdict = readerProbe.check(hash, ipBucket(ip));
+    if (verdict.limited) {
+      // 429 只看「这个键这个窗口查了几次」，与邮箱是否存在无关，所以它本身不构成新的判据。
+      c.header('Retry-After', String(verdict.retryAfter));
+      console.log(`[comment] 邮箱查询限流 (${verdict.reason}) ip=${crypt.ipHash(ip)?.slice(0, 8) ?? '?'}`);
+      return c.json({ profile: null }, 429);
+    }
     return c.json({ profile: comments.readerProfile(hash) });
   });
 
