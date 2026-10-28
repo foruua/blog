@@ -17,12 +17,12 @@ const input = await sharp({ create: { width: 1200, height: 800, channels: 3, bac
 const normalized = await normalizeImage(input);
 assert.equal(normalized.previewReused, true);
 assert.ok(normalized.previewPixelBytes <= PREVIEW_REUSE_MAX_BYTES);
-assert.deepEqual(normalized.variants.map((v) => v.width), [240, 480, 640, 960, 1200]);
+assert.deepEqual(normalized.variants.map((v) => v.width), [240, 480, 640, 768, 960, 1200]);
 for (const v of normalized.variants) assert.equal((await sharp(v.data).metadata()).width, v.width);
 const small = await normalizeImage(await sharp(input).resize(120).toBuffer());
 assert.equal(small.variants.length, 1);
 assert.equal(small.variants[0].width, 120);
-assert.deepEqual(variantWidthsOf(4000), [240, 480, 640, 960, 1280, 1920, 2560]);
+assert.deepEqual(variantWidthsOf(4000), [240, 480, 640, 768, 960, 1280, 1920, 2560]);
 assert.equal((await sharp(small.thumbnail).metadata()).width, 120);
 const rotated = await normalizeImage(await sharp(input).jpeg().withMetadata({ orientation: 6 }).toBuffer());
 assert.equal(rotated.width, 800);

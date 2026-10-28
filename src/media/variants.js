@@ -1,6 +1,7 @@
 // 响应式图片变体：命名、存取与 srcset 拼装。变体跟原图同放，命名含策略版本（<原文件名>.v4-w1280.webp），
 // 路径可从原图推导；但仍要查库确认存在——浏览器可能选中一个 404 候选，命中就整张图不显示。
-const VARIANT_WIDTHS = [240, 480, 640, 960, 1280, 1920, 2560];
+// 640 → 960 之间补一档 768：手机 2x 屏（约 684px 需求）不再被迫跳到 960，首图能少一半字节。
+const VARIANT_WIDTHS = [240, 480, 640, 768, 960, 1280, 1920, 2560];
 export const thumbnailFile = (basePath) => `${basePath}.thumb-v3.webp`;
 
 export const variantFile = (basePath, width) => `${basePath}.v4-w${width}.webp`;
