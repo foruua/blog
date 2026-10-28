@@ -50,9 +50,13 @@ try {
   assert.equal(await opener.evaluate((el) => document.activeElement === el), true, '关闭后焦点回入口');
   await opener.click();
   assert.equal(await page.locator('.a-feed-editor[open] [name=title]').inputValue(), before, '放弃后恢复原值');
-  await page.waitForTimeout(300);
+  // 入场动画 a-pop 会把整个弹窗从 scale(.985) 放大到 1，44px 的按钮在动画途中只有 43.3px。
+  // 固定等 300ms 在慢机器上偶尔仍量到动画中途（CI 上就这样假失败过），直接等动画播完。
+  await page.locator('.a-feed-editor[open]').evaluate((el) =>
+    Promise.all(el.getAnimations({ subtree: true }).map((a) => a.finished)));
   const closeBox = await page.locator('.a-feed-editor[open] [data-feed-close]').first().boundingBox();
-  assert.ok(closeBox.width >= 44 && closeBox.height >= 44, '移动关闭键至少 44px');
+  assert.ok(closeBox.width >= 44 && closeBox.height >= 44,
+    `移动关闭键至少 44px（实际 ${closeBox.width}×${closeBox.height}）`);
   await page.keyboard.press('Escape');
   console.log('✓ 模态焦点、未保存改动确认、取消/放弃、焦点返回与移动点击尺寸');
 
