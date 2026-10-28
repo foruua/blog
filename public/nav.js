@@ -84,6 +84,9 @@
   var applySerial = 0;
   // JSDOM 不加载外链样式，link 永远不会触发 load；测试里别为每次换页白等 1.5 秒。
   var styleLoading = !(typeof navigator !== 'undefined' && /jsdom/i.test(navigator.userAgent || ''));
+  // 预取时已经开始加载、但还没 onload 的样式表。换页若只看到 <link> 已存在就放行，
+  // 会在 hover 后立刻点击时闪一下裸样式；这里让换页等同一张表加载完。
+  var stylePending = new Map();
   var index = Number(history.state && history.state.blogIndex) || 0;
   var renderedUrl = location.href;
   var restoring = false;
@@ -303,9 +306,10 @@
     });
     var pending = [];
     target.forEach(function (absolute, index) {
+      if (stylePending.has(absolute)) { pending.push(stylePending.get(absolute)); return; }
       if (have[absolute]) return;
       have[absolute] = 1;
-      pending.push(new Promise(function (resolve) {
+      var loading = new Promise(function (resolve) {
         var link = document.createElement('link');
         var settle = function () { resolve(); };
         link.rel = 'stylesheet';
@@ -325,7 +329,10 @@
         if (!styleLoading) { settle(); return; }
         // 网络卡住时别把换页永远吊着：1.5s 后照常换，样式到了会自己生效。
         setTimeout(settle, 1500);
-      }));
+      });
+      stylePending.set(absolute, loading);
+      loading.then(function () { stylePending.delete(absolute); });
+      pending.push(loading);
     });
     return pending.length ? Promise.all(pending) : null;
   }
