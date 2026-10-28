@@ -38,7 +38,7 @@
         btn.dataset.name = it.filename;
         const im = document.createElement('img');
         im.src = it.thumbnail || PLACEHOLDER;
-        im.alt = ''; im.loading = 'lazy'; im.decoding = 'async';
+        im.alt = ''; im.loading = it.width > 0 && it.height > 0 ? 'lazy' : 'eager'; im.decoding = 'async';
         if (it.previewSrcset) { im.srcset = it.previewSrcset; im.sizes = 'auto, 120px'; }
         if (it.width > 0 && it.height > 0) { im.width = it.width; im.height = it.height; im.style.aspectRatio = `${it.width}/${it.height}`; }
         btn.append(im);

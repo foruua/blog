@@ -25,7 +25,7 @@ export function mediaPage({ pagination = '', items, stats, csrf, badges, heroPat
     return `<figure class="a-media">
         <a class="a-media-shot" href="/admin/media/${m.id}" data-media-details aria-haspopup="dialog" aria-label="查看 ${esc(nameOf(m))} 的引用详情">
           ${isImage(m)
-            ? `<img src="${esc(previewSourceOf(m))}" alt="${esc(m.alt ?? '')}"${srcset ? ` srcset="${esc(srcset)}" sizes="auto, (max-width: 360px) calc(100vw - 32px), (max-width: 640px) calc((100vw - 44px) / 2), 260px"` : ''}${m.width > 0 && m.height > 0 ? ` width="${m.width}" height="${m.height}" style="aspect-ratio:${m.width}/${m.height}"` : ''} loading="lazy" decoding="async">`
+            ? `<img src="${esc(previewSourceOf(m))}" alt="${esc(m.alt ?? '')}"${srcset ? ` srcset="${esc(srcset)}" sizes="auto, (max-width: 360px) calc(100vw - 32px), (max-width: 640px) calc((100vw - 44px) / 2), 260px"` : ''}${m.width > 0 && m.height > 0 ? ` width="${m.width}" height="${m.height}" style="aspect-ratio:${m.width}/${m.height}"` : ''} loading="${m.width > 0 && m.height > 0 ? 'lazy' : 'eager'}" decoding="async">`
             : nonImageSlot}
           ${isHero ? '<span class="a-media-flag">首页封面</span>' : ''}
         </a>

@@ -90,8 +90,14 @@ const escapedLightbox = withLightbox('<img src="/uploads/a.gif?x=$&amp;" alt="a 
 assert.ok(escapedLightbox.includes('data-full="/uploads/a.gif?x=$&amp;"'));
 assert.ok(escapedLightbox.includes('data-alt="a $&amp; b"'));
 const renderer = createRenderer();
-assert.match(renderer.render('![开头](/a.png)\n\n![后面](/b.png)').html, /loading="eager" fetchpriority="high"/);
-assert.match(renderer.render('长'.repeat(500) + '\n\n![后面](/b.png)').html, /loading="lazy"/);
+const plain = renderer.render('![开头](/a.png)\n\n![后面](/b.png)').html;
+assert.match(plain, /fetchpriority="high"/);
+assert.match(plain, /loading="eager"/);
+// 没有尺寸信息时不 lazy：lazy + 无比例会在解码前撑开 0×0，审计判缺尺寸。
+assert.match(renderer.render('![无尺寸](/x.png)').html, /loading="eager"/);
+// 有尺寸信息时仍按「首图优先、后面的 lazy」走。
+const sized = createRenderer({ imageInfo: () => ({ width: 1200, height: 800, preview: '/p.webp' }) });
+assert.match(sized.render('长'.repeat(500) + '\n\n![后面](/b.png)').html, /loading="lazy"/);
 
 const gallery = notesStream([{ slug: 'test', title: 'test', day: '', text: '', images: [{ src: '/original.gif', thumb: '/preview.webp', previewSrcset: '/small.webp 240w', width: 1200, height: 800 }], commentsHtml: '' }]);
 assert.match(gallery, /data-full="\/original.gif"/);

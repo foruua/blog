@@ -98,7 +98,6 @@ export function createRenderer({ imageInfo } = {}) {
   const baseImage = md.renderer.rules.image;
   md.renderer.rules.image = (tokens, idx, opts, env, self) => {
     const token = tokens[idx];
-    if (!token.attrGet('loading')) token.attrSet('loading', token.meta?.priority ? 'eager' : 'lazy');
     if (token.meta?.priority) token.attrSet('fetchpriority', 'high');
     if (!token.attrGet('decoding')) token.attrSet('decoding', 'async');
     if (imageInfo) {
@@ -120,6 +119,8 @@ export function createRenderer({ imageInfo } = {}) {
     // 宽高之外再补行内 aspect-ratio：只靠 width/height 属性算出的比例带 auto 前缀，懒加载审计判成「没设比例」（CLS）；行内写死才是各浏览器/工具都认的写法。
     const w = token.attrGet('width'), h = token.attrGet('height');
     if (w && h && !token.attrGet('style')) token.attrSet('style', `aspect-ratio:${w}/${h}`);
+    // 没有尺寸的图不 lazy：lazy + 无比例一定会在加载时撑开布局，也会被审计判错。
+    if (!token.attrGet('loading')) token.attrSet('loading', token.meta?.priority || !(w && h) ? 'eager' : 'lazy');
     return baseImage(tokens, idx, opts, env, self);
   };
 

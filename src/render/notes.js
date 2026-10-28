@@ -48,7 +48,7 @@ const gallery = (images, slug, eager = false) => {
   const cells = shown.map((im, index) => {
     return `        <a class="gal-item" href="${esc(im.src)}" data-lightbox="${esc(slug)}"
            data-full="${esc(im.full ?? im.src)}"${im.alt ? ` data-alt="${esc(im.alt)}"` : ''}>
-          <img src="${esc(im.thumb ?? mediaFallback(im.src))}" alt="${esc(im.alt)}"${im.previewSrcset ? ` srcset="${esc(im.previewSrcset)}" sizes="${sizes}"` : ''}${im.width && im.height ? ` width="${esc(im.width)}" height="${esc(im.height)}"` : ''}${solo && im.width && im.height ? ` style="aspect-ratio: ${esc(im.width)} / ${esc(im.height)}"` : ''} loading="${eager && index === 0 ? 'eager' : 'lazy'}" decoding="async">
+          <img src="${esc(im.thumb ?? mediaFallback(im.src))}" alt="${esc(im.alt)}"${im.previewSrcset ? ` srcset="${esc(im.previewSrcset)}" sizes="${sizes}"` : ''}${im.width && im.height ? ` width="${esc(im.width)}" height="${esc(im.height)}"` : ''}${solo && im.width && im.height ? ` style="aspect-ratio: ${esc(im.width)} / ${esc(im.height)}"` : ''} loading="${(eager && index === 0) || !(im.width && im.height) ? 'eager' : 'lazy'}" decoding="async">
         </a>`;
   }).join('\n');
   /* 第 5 张起不占位，只把灯箱要的数据挂在空 span 上；用 <span hidden> 而非 .gal-item，因为它不该可交互（decorateLightbox() 只认 img[data-lightbox]）。 */

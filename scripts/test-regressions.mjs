@@ -248,7 +248,10 @@ try {
   await test('正文图片：开头图片优先加载、其余懒加载，Markdown 里不写属性', async () => {
 
     const { html } = renderer.render('![图](/uploads/x.png)');
-    assert.match(html, /<img src="\/uploads\/x\.png" alt="图" loading="eager" fetchpriority="high" decoding="async">/);
+    // 属性顺序不是契约：首图要 eager + high，且 Markdown 源码里的占位不落进 HTML。
+    assert.match(html, /<img src="\/uploads\/x\.png" alt="图"/);
+    assert.match(html, /loading="eager"/);
+    assert.match(html, /fetchpriority="high"/);
     assert.ok(!html.includes('{width='), html);
   });
 

@@ -212,8 +212,15 @@ export const PROBE = (options = {}) => {
     }
     if (el.tagName === 'IMG') {
       // CLS 只看 aspect-ratio（getComputedStyle().width 对图片返回已用宽度），有就不缺属性。
+      // 注意 `auto 13 / 14` 这种「只靠 width/height 属性推出来的固有比例」在解码前仍是 0×0，
+      // 懒加载审计会判成没设比例；必须有显式的 aspect-ratio（CSS 或行内）才算。
       const hasAttrs = el.getAttribute('width') && el.getAttribute('height');
-      if (!hasAttrs && cs.aspectRatio === 'auto') out.noDim.push({ sel: label(el), src: (el.getAttribute('src') ?? '').slice(0, 44) });
+      const ratio = cs.aspectRatio;
+      const hasRatio = Boolean(ratio) && ratio !== 'auto' && !ratio.startsWith('auto ');
+      const lazy = el.getAttribute('loading') === 'lazy';
+      if (!hasRatio && (!hasAttrs || lazy)) {
+        out.noDim.push({ sel: label(el), src: (el.getAttribute('src') ?? '').slice(0, 44), lazy, fail: lazy });
+      }
       if (!el.hasAttribute('alt')) out.noAlt.push({ sel: label(el), src: (el.getAttribute('src') ?? '').slice(0, 44) });
     }
     if (['A', 'BUTTON', 'SELECT', 'INPUT', 'SUMMARY'].includes(el.tagName) && el.type !== 'hidden' && !el.closest('.c-hp')) {
@@ -458,7 +465,7 @@ async function collectOne(browser, base, password, { group, tag = '', scheme, vp
       }
       for (const t of r.small) push({ kind: '点击目标', fail: true, ...t });
       for (const t of r.tiny) push({ kind: '字号', fail: false, ...t });
-      for (const d of r.noDim) push({ kind: '图片缺尺寸', fail: false, ...d });
+      for (const d of r.noDim) push({ kind: '图片缺尺寸', fail: Boolean(d.fail), ...d });
       for (const a of r.noAlt) push({ kind: '图片缺 alt', fail: true, ...a });
       for (const b of r.baseline) push({ kind: '基线不齐', fail: true, ...b });
       for (const row of r.rows) push({ kind: '控件高度不齐', fail: true, ...row });

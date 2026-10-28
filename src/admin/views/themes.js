@@ -34,7 +34,7 @@ const optionField = (themeId, option, value) => {
           <button type="button" class="a-btn-ghost" data-theme-image="${id}">媒体库</button>
           <button type="button" class="a-btn-ghost" data-theme-image-clear="${id}" aria-label="清空${esc(option.label)}">清空</button>
         </span>
-        <span class="a-image-preview" data-image-preview="${id}"${value ? '' : ' hidden'}><img${value ? ` src="${esc(value)}"` : ''} alt="" loading="lazy" decoding="async"></span>`);
+        <span class="a-image-preview" data-image-preview="${id}"${value ? '' : ' hidden'}><img${value ? ` src="${esc(value)}"` : ''} alt="" decoding="async"></span>`);
   }
   return field(`<input class="a-input" id="${id}" name="${name}" type="text" value="${esc(value ?? '')}">`);
 };
@@ -53,7 +53,7 @@ ${theme.options.map((option) => `          ${optionField(theme.id, option, theme
 };
 
 const shot = (theme) => theme.screenshot_url
-  ? `<img class="a-theme-shot" src="${esc(theme.screenshot_url)}" alt="${esc(theme.name)} 预览" loading="lazy" decoding="async">`
+  ? `<img class="a-theme-shot" src="${esc(theme.screenshot_url)}" alt="${esc(theme.name)} 预览" style="aspect-ratio:16/9" loading="lazy" decoding="async">`
   : `<div class="a-theme-shot a-theme-shot-empty" aria-hidden="true">无截图</div>`;
 
 const ago = (at) => {
