@@ -93,7 +93,8 @@ export function commentSection({ post, thread, count, flash, tsToken, replyTo = 
   const notice = flash && Object.hasOwn(FLASH, flash)
     ? `<p class="c-flash c-flash-${esc(flash)}">${esc(FLASH[flash])}</p>` : '';
 
-  if (!post.comments_on) {
+  // 与 notePanel 同一口径：只有显式 0/false 才算关闭；缺字段（老数据/主题数据）按默认开启。
+  if (post.comments_on === 0 || post.comments_on === false) {
     return `<section class="comments" id="comments${idSuffix}" data-comments-section>
       <header class="c-top"><h2><span class="c-label">评论</span><b class="c-count">${count}</b></h2></header>
       <p class="c-closed">本文的评论已关闭。</p>

@@ -22,6 +22,8 @@ export async function minifyJs(source) {
   const { acorn } = await loadMinifiers();
   // 浏览器脚本是经典脚本；万一有 ES module 语法（import/export、顶层 await）再按 module 解析一次。
   for (const sourceType of ['script', 'module']) {
+    // 每次解析都用新的数组：首次按 script 解析失败前可能已经写入部分注释区间，
+    // 复用同一数组会让 module 解析的区间与之重叠，拼出的 JS 错位/重复。
     const comments = [];
     let ok = false;
     try {

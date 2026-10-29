@@ -706,9 +706,21 @@
   }
   window.addEventListener('pagehide', function () { if (activeController) activeController.abort(); prefetched.forEach(function (controller) { controller.abort(); }); });
 
+  // 悬停预取加 100ms 去抖：长列表上快速扫过时不再为每个掠过的链接 new URL 并 abort/重发请求。
+  var hoverA = null, hoverTimer = 0;
   document.addEventListener('mouseover', function (ev) {
     var a = ev.target && ev.target.closest ? ev.target.closest('a') : null;
-    if (a) prefetch(a);
+    if (!a || a === hoverA) return;
+    hoverA = a;
+    clearTimeout(hoverTimer);
+    hoverTimer = setTimeout(function () { if (hoverA === a) prefetch(a); }, 100);
+  }, { passive: true });
+  document.addEventListener('mouseout', function (ev) {
+    var a = ev.target && ev.target.closest ? ev.target.closest('a') : null;
+    if (!a || a !== hoverA) return;
+    if (ev.relatedTarget && a.contains(ev.relatedTarget)) return;
+    clearTimeout(hoverTimer);
+    hoverA = null;
   }, { passive: true });
   // 触摸按下不等于导航意图：手指常只是准备滚动。延迟一小段，touchmove/scroll 时取消；
   // 以前一碰链接就预取整页，长列表上滚一圈会发出很多无谓请求。

@@ -241,7 +241,7 @@
     const body = e.target.closest?.('.nf-fold .nf-panel > .prose');
     // 交互元素（链接、代码复制按钮、代码块、表单、音频）不该触发“点正文收起”；
     // 以前只排除 a，点笔记里的「复制代码」会把整篇折叠掉。
-    if (!body || e.target.closest('a, button, input, textarea, select, summary, pre, code, audio, [contenteditable], [data-no-fold-close]')) return;
+    if (!body || e.target.closest('a, button, input, textarea, select, summary, pre, code, audio, [contenteditable]')) return;
     const sel = document.getSelection();
     if (sel && !sel.isCollapsed && sel.toString().trim()) return;
     const fold = body.closest('details.nf-fold');
@@ -787,10 +787,13 @@
     lbAt = (i + lbItems.length) % lbItems.length;
     const cur = lbItems[lbAt];
     const img = box.querySelector('.lb-img');
-    const src = cur.dataset.full || cur.href;
-    const alt = cur.dataset.alt || cur.getAttribute('alt') || '';
     // 被点的这张此刻多半已经在列表里加载好、在浏览器缓存里：拿它的实际地址当占位，点开先秒显，再换大图。
     const shown = cur.tagName === 'IMG' ? cur : cur.querySelector?.('img');
+    // 第三方主题/手写正文可能只有 <img data-lightbox>（没有 href/data-full）：回退到图片自身地址，
+    // 都取不到就别打开，避免请求 /undefined。
+    const src = cur.dataset.full || cur.getAttribute?.('href') || shown?.currentSrc || shown?.src || '';
+    if (!src) return;
+    const alt = cur.dataset.alt || cur.getAttribute?.('alt') || shown?.getAttribute?.('alt') || '';
     const placeholder = shown && !shown.hidden ? (shown.currentSrc || shown.src || '') : '';
     // 第 5 张起的占位 span 没有可见 <img>，尺寸要优先从 data-w/data-h 取，否则灯箱会先空白再跳。
     const width = Number(cur.dataset?.w) || Number(shown?.getAttribute?.('width')) || 0;
@@ -829,6 +832,8 @@
     if (e.key === 'Escape') {
       // 有 <dialog> 打开时先把 Esc 让给浏览器：在 keydown 上 preventDefault 会阻止灯箱/媒体选择器
       // 的原生 cancel，结果只关了后面的抽屉、模态不关，焦点还会落到模态背后。
+      // 前面的搜索框/配色面板已经处理过这次 Esc：一次按键只关一层。
+      if (e.defaultPrevented) return;
       if (document.querySelector('dialog[open]')) return;
       const picker = openPicker?.isConnected ? openPicker : null;
       if (picker) {

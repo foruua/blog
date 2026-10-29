@@ -79,6 +79,7 @@ export function createBackupScheduler({
       const opts = queuedOpts; queuedOpts = null;
       startedAt = Date.now();
       runFailed = false;
+      retryOffsite = false;   // 只有本轮确实失败在异地推送时，才把重试降级为 offsiteOnly
       let current;
       try { current = new Worker(new URL('./backup-worker.js', import.meta.url), { workerData: opts }); }
       catch (error) {
@@ -128,7 +129,7 @@ export function createBackupScheduler({
           const reason = message.reason ?? message.code ?? '备份失败';
           recordFailure(reason);
           // 本地快照已成功、只是异地推送失败：重试只补推最新备份，别再整轮 VACUUM + 打包。
-          if (/^异地备份失败/.test(String(reason))) retryOffsite = true;
+          retryOffsite = /^异地备份失败/.test(String(reason));
         } else if (message.event === 'backup.incomplete') {
           recordFailure(message.reason ?? '备份不完整', { retry: false });
         }

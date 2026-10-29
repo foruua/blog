@@ -213,7 +213,7 @@ export function adminRoutes({ repo, comments, adminRepo, crypt, auth, renderer, 
       kind, posts: rows.slice(0, ADMIN_PAGE_SIZE), counts: adminRepo.counts(kind), commentCounts, search, status,
       listPath: LIST_PATH[kind] ?? '/admin',
       pagination: pagination(LIST_PATH[kind] ?? '/admin', page, rows.length > ADMIN_PAGE_SIZE, search,
-        undefined, { hidePager: rows.length === 0, hideSearch: true, status }),
+        undefined, { hidePager: rows.length === 0 && page === 1, hideSearch: true, status }),
     })));
   };
 

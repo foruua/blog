@@ -118,13 +118,14 @@ export function createAvatarCache({
     if (!upstreams.length) return { kind: 'disabled' };
     // 启动探测还没落地：等它（最多 probeTimeoutMs），免得这次请求自己再去撞一遍连不通的那家。
     if (probing) await probing.catch(() => {});
-    const now = Date.now();
-    if (now - budget.at >= 60000) budget = { at: now, n: 0 };
-    if (budget.n >= maxFetchesPerMinute) return { kind: 'budget' };
-    budget.n++;
 
+    // 预算按实际出站请求扣：一次 resolve 可能依次问 2–3 家上游，按 hash 只扣 1 会把上限放大成 3 倍。
     let missing = 0;
     for (const base of candidates()) {
+      const now = Date.now();
+      if (now - budget.at >= 60000) budget = { at: now, n: 0 };
+      if (budget.n >= maxFetchesPerMinute) return { kind: 'budget' };
+      budget.n++;
       try {
         const res = await fetchImpl(`${base}/${hash}?s=${size}&d=404`, {
           signal: AbortSignal.timeout(timeoutMs), redirect: 'error',

@@ -34,7 +34,7 @@ const tagOf = (v) => {
   return '';
 };
 
-function linkRow(v, csrf) {
+function linkRow(v, csrf, page = 1) {
   const state = groupOf(v);
   const name = v.author || v.host;
   const url = safeHttpUrl(v.url) ?? safeHttpUrl(`https://${v.host}/`) ?? '#';
@@ -73,12 +73,14 @@ ${error}        <div class="a-fl-ops">
           <form method="post" action="/admin/links/check">
             ${csrfField(csrf)}
             <input type="hidden" name="host" value="${esc(v.host)}">
+            <input type="hidden" name="page" value="${page}">
             <button type="submit" class="a-btn-ghost">立即检查</button>
           </form>
           <form method="post" action="/admin/links/hide">
             ${csrfField(csrf)}
             <input type="hidden" name="host" value="${esc(v.host)}">
             <input type="hidden" name="on" value="${v.hidden ? '0' : '1'}">
+            <input type="hidden" name="page" value="${page}">
             <button type="submit" class="a-btn-ghost">${v.hidden ? '放回页面' : '从前台隐藏'}</button>
           </form>
         </div>
@@ -116,6 +118,7 @@ ${total ? tally : '        <li data-zero><b>0</b> <span>还没人留下网址</s
       </ul>
 ${total ? `      <form method="post" action="/admin/links/check-all" data-links-check-all>
         ${csrfField(csrf)}
+        <input type="hidden" name="page" value="${page}">
         <button type="submit" class="a-btn-ghost"${running ? ' disabled' : ''}>立即检查全部</button>
       </form>
 ` : ''}    </div>
@@ -125,7 +128,7 @@ ${total ? `      <form method="post" action="/admin/links/check-all" data-links-
     .filter(([key]) => buckets[key].length)
     .map(([key, label, band]) => `      <section class="a-links-group${band ? '' : ' a-links-group-lead'}">
 ${band ? `        <h2 class="a-links-band">${label}<em>${buckets[key].length}</em></h2>\n` : ''}        <ul class="a-links">
-${buckets[key].map((v) => linkRow(v, csrf)).join('\n')}
+${buckets[key].map((v) => linkRow(v, csrf, page)).join('\n')}
         </ul>
       </section>`)
     .join('\n');

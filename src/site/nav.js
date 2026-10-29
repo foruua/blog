@@ -150,8 +150,9 @@ export function saveNav({ keys, labels, groups, shows, hrefs = [], moreLabel, re
     rows.push({ key, label, group, show, custom });
   }
 
-  // 移除：只允许删自定义链接。内置项和固定页用「隐藏」表达，删掉会让下次渲染又按默认补回来，反而更迷惑。
-  const remaining = removeKey ? rows.filter((row) => row.key !== removeKey) : rows;
+  // 移除：只允许删自定义链接。内置项和固定页用「隐藏」表达，删掉会让下次渲染又按默认补回来。
+  const removable = new Set(rows.filter((row) => row.custom).map((row) => row.key));
+  const remaining = removeKey && removable.has(removeKey) ? rows.filter((row) => row.key !== removeKey) : rows;
   // 读取侧只取前 NAV_MAX 项；写入也必须同口径，别让一次伪造的长表单把整份 JSON 写进 settings。
   if (remaining.length > NAV_MAX) return `导航最多 ${NAV_MAX} 项`;
   // 上移/下移：一次一格，越界就原样不动。

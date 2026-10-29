@@ -38,7 +38,8 @@ export function createRoundRunner({ runRound, log = () => {}, tag = 'ROUND' }) {
     run(opts = {}) {
       if (inFlight) {
         if (!opts.force) return inFlight;
-        if (!forced) forced = inFlight.then(() => this.run(opts)).finally(() => { forced = null; });
+        // 当前轮失败时 then 会被跳过，手动刷新就被吞掉；先吞掉 rejection，保证补跑轮一定执行。
+        if (!forced) forced = inFlight.catch(() => {}).then(() => this.run(opts)).finally(() => { forced = null; });
         forced.catch((error) => log(JSON.stringify({ event: `${tag}.forced-round-failed`, code: error?.code ?? 'INTERNAL' })));
         return forced;
       }

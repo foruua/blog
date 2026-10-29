@@ -12,7 +12,9 @@ const RESULT = {
 };
 
 export function registerLinkRoutes(app, { links, linkChecker }, { ctx }) {
-  const back = (c, message) => c.redirect(`/admin/links?w=${encodeURIComponent(message)}`, 303);
+  const back = (c, message, page = '') => c.redirect(
+    `/admin/links?w=${encodeURIComponent(message)}${page ? `&page=${encodeURIComponent(page)}` : ''}`, 303
+  );
 
 
   app.get('/admin/links', (c) => {
@@ -33,38 +35,41 @@ export function registerLinkRoutes(app, { links, linkChecker }, { ctx }) {
 
   externalWrite(app, '/admin/links/check', async (c) => {
     const b = await bodyOf(c);
+    const page = val(b, 'page').trim();
     const host = val(b, 'host').trim();
-    if (!host) return back(c, '✗ 没认出是哪个站');
+    if (!host) return back(c, '✗ 没认出是哪个站', page);
     const r = await linkChecker.checkHost(host);
-    if (r.state === 'superseded') return back(c, '⚠ 站点已变更，本次旧结果已丢弃');
-    if (r.state === 'missing') return back(c, '✗ 这个站已经不在名单里了（那条评论可能被删了）');
+    if (r.state === 'superseded') return back(c, '⚠ 站点已变更，本次旧结果已丢弃', page);
+    if (r.state === 'missing') return back(c, '✗ 这个站已经不在名单里了（那条评论可能被删了）', page);
 
     const detail = r.state === 'ok'
       ? (r.ms ? `（${r.ms} ms）` : '')
       : (r.error ? `（${failureLabel(r.error)}）` : '');
-    return back(c, `${RESULT[r.state] ?? '⚠ 结果不明'}：${host}${detail}`);
+    return back(c, `${RESULT[r.state] ?? '⚠ 结果不明'}：${host}${detail}`, page);
   });
 
   app.post('/admin/links/hide', async (c) => {
     const b = await bodyOf(c);
+    const page = val(b, 'page').trim();
     const host = val(b, 'host').trim();
     const on = val(b, 'on') === '1';
-    if (!host) return back(c, '✗ 没认出是哪个站');
+    if (!host) return back(c, '✗ 没认出是哪个站', page);
     const site = links.getSite(host);
-    if (!site) return back(c, '✗ 这个站已经不在名单里了');
+    if (!site) return back(c, '✗ 这个站已经不在名单里了', page);
     links.setHidden(host, on);
     if (!on && site.alive === 0) {
       void linkChecker.checkHost(host).catch((error) => logError(error, c, 'links.check-one-failed'));
-      return back(c, `✓ 已取消 ${host} 的手动隐藏，正在复查；探通后会自动放回前台`);
+      return back(c, `✓ 已取消 ${host} 的手动隐藏，正在复查；探通后会自动放回前台`, page);
     }
-    return back(c, on ? `✓ 已把 ${host} 从前台撤下（评论还在，只是友链页不显示）` : `✓ 已把 ${host} 放回前台`);
+    return back(c, on ? `✓ 已把 ${host} 从前台撤下（评论还在，只是友链页不显示）` : `✓ 已把 ${host} 放回前台`, page);
   });
 
-  app.post('/admin/links/check-all', (c) => {
+  app.post('/admin/links/check-all', async (c) => {
+    const page = val(await bodyOf(c), 'page').trim();
     void linkChecker.checkAll({ force: true });
     // 进度条自己更新，不整页跳——整页跳会把「已完成 0 / N」定格，那正是过去「点了没反应」的原因。
     if (c.req.header('x-requested-with') === 'fetch') return c.body(null, 204);
-    return back(c, '✓ 已开始检查全部站点，刷新本页可查看完成数量');
+    return back(c, '✓ 已开始检查全部站点，刷新本页可查看完成数量', page);
   });
 
   // 本轮进度片段：与首屏同一份模板（views/links.js#linksProgress）。受 /admin/* 守卫，不需 csrf。

@@ -189,12 +189,22 @@ export function richText(s) {
   // 调用随机生成：固定哨兵一旦被评论正文原样写出就会被当代码占位，随机 token 避免碰撞。
   const codes = [];
   const token = `\uE000${crypto.randomUUID()}\uE000`;
+  // 链接先整体换成占位符再处理强调：否则 URL 里的 * 会被 <em> 包住，href 直接损坏。
+  const links = [];
+  const ltoken = `\uE001${crypto.randomUUID()}\uE001`;
   const out = escapedLines(s)
     .replace(/`([^`\n]+)`/g, (_, code) => `${token}${codes.push(code) - 1}${token}`)
+    .replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, (_, label, href) => {
+      links.push({ label, href });
+      return `${ltoken}${links.length - 1}${ltoken}`;
+    })
     .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
-    .replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>')
-    .replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, (_, label, href) => `<a class="accent" href="${href}" style="color:${C.accent};">${label}</a>`);
-  return out.replace(new RegExp(`${token}(\\d+)${token}`, 'g'), (_, i) =>
+    .replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
+  const withLinks = out.replace(new RegExp(`${ltoken}(\\d+)${ltoken}`, 'g'), (_, i) => {
+    const { label, href } = links[Number(i)];
+    return `<a class="accent" href="${href}" style="color:${C.accent};">${label}</a>`;
+  });
+  return withLinks.replace(new RegExp(`${token}(\\d+)${token}`, 'g'), (_, i) =>
     `<code class="code" style="font-family:${FAMILY.mono};font-size:.88em;color:#3b372e;background-color:#efece3;border-radius:4px;padding:1px 5px;">${codes[Number(i)]}</code>`);
 }
 

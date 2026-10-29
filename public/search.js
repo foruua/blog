@@ -87,6 +87,8 @@
     const typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
     // 模态打开时先把 Esc 让给原生 dialog；否则搜索框会 preventDefault，灯箱反而关不掉。
     if (document.querySelector('dialog[open]')) return;
+    // 配色面板等前面的处理器已经消费了这次 Esc：同一按键只关一层。
+    if (ev.key === 'Escape' && ev.defaultPrevented) return;
     if (ev.key === 'Escape' && isOpen(formOf())) { ev.preventDefault(); close({ clear: true }); return; }
     const own = document.getElementById('sQ');
     const form = formOf();

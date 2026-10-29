@@ -15,7 +15,7 @@ const optionField = (themeId, option, value) => {
     return `<label class="a-check"><input type="checkbox" id="${id}" name="${name}" value="1"${value ? ' checked' : ''}><span>${esc(option.label)}</span></label>${desc}`;
   }
   if (option.type === 'textarea') {
-    return field(`<textarea class="a-textarea" id="${id}" name="${name}" rows="4">${esc(value ?? '')}</textarea>`);
+    return field(`<textarea class="a-textarea" id="${id}" name="${name}" rows="4" maxlength="2000">${esc(value ?? '')}</textarea>`);
   }
   if (option.type === 'select') {
     const opts = option.options.map((item) => `<option value="${esc(item.value)}"${String(item.value) === String(value) ? ' selected' : ''}>${esc(item.label)}</option>`).join('');
@@ -36,7 +36,7 @@ const optionField = (themeId, option, value) => {
         </span>
         <span class="a-image-preview" data-image-preview="${id}"${value ? '' : ' hidden'}><img${value ? ` src="${esc(value)}"` : ''} alt="" decoding="async"></span>`);
   }
-  return field(`<input class="a-input" id="${id}" name="${name}" type="text" value="${esc(value ?? '')}">`);
+  return field(`<input class="a-input" id="${id}" name="${name}" type="text" value="${esc(value ?? '')}" maxlength="200">`);
 };
 
 const optionsForm = (theme, csrf) => {

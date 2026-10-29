@@ -24,8 +24,16 @@ try {
     parentPort.postMessage({ event: 'backup.local-ready' });
     const last = latestRecoverableBackup();
     if (!last) throw new Error('异地备份失败：没有可恢复的备份可补推');
-    const remote = await uploadBackup(last);
-    recordOffsiteResult(db, last, remote);
+    // latestRecoverableBackup() 来自 listBackups，只带 name/dir；uploadBackup/recordOffsiteResult 需要文件路径。
+    const assetsName = last.assetsName ?? `${last.name}.assets.json.gz`;
+    const backup = {
+      ...last,
+      gzFile: path.join(last.dir, `${last.name}.db.gz`),
+      assetsFile: path.join(last.dir, assetsName),
+      manifestFile: path.join(last.dir, `${last.name}.json`),
+    };
+    const remote = await uploadBackup(backup);
+    recordOffsiteResult(db, backup, remote);
     if (!remote.ok) throw new Error('异地备份失败：' + remote.reason);
     parentPort.postMessage({ event: 'backup.completed', bytes: last.gzBytes ?? 0, ms: 0, offsite: !remote.skipped });
   } else {

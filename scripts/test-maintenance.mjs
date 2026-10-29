@@ -245,11 +245,19 @@ await test('预取缓存：有效期内复用，边界和过期重新请求，�
     try {
       w.eval(fs.readFileSync(new URL('../public/ui.js', import.meta.url), 'utf8'));
       w.eval(fs.readFileSync(new URL('../public/nav.js', import.meta.url), 'utf8'));
-      const hover = () => w.document.querySelector('a').dispatchEvent(new w.MouseEvent('mouseover', { bubbles: true }));
-      hover(); await new Promise((resolve) => setImmediate(resolve));
+      // 悬停预取有 100ms 去抖：等过阈值并让 fetch 的微任务落地，再断言请求数。
+      const hover = async () => {
+        const a = w.document.querySelector('a');
+        a.dispatchEvent(new w.MouseEvent('mouseover', { bubbles: true }));
+        await new Promise((resolve) => setTimeout(resolve, 120));
+        await new Promise((resolve) => setImmediate(resolve));
+        // 离开再回来才算一次新的悬停；不派 mouseout 的话去抖会认为仍停在同一链接。
+        a.dispatchEvent(new w.MouseEvent('mouseout', { bubbles: true }));
+      };
+      await hover();
       assert.equal(requests, 1);
       now += age;
-      if (age === 60000) { hover(); await new Promise((resolve) => setImmediate(resolve)); }
+      if (age === 60000) await hover();
       await w.__nav.navigate('http://blog.invalid/posts/');
       assert.equal(requests, age < 30000 ? 1 : 2);
       assert.equal(w.document.querySelector('main').textContent, `版本 ${age < 30000 ? 1 : 2}`);

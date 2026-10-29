@@ -27,7 +27,7 @@ export function commentReplyPage({ comment, notice = '', csrf = '', badges = {} 
         ${csrfField(csrf)}
         <div class="a-field">
           <label for="reply-body">以作者身份回复</label>
-          <textarea id="reply-body" class="a-textarea" name="body" rows="6" required></textarea>
+          <textarea id="reply-body" class="a-textarea" name="body" rows="6" maxlength="3000" required></textarea>
         </div>
         <p class="a-bar"><button class="a-btn" type="submit">发布回复</button></p>
       </form>
@@ -99,7 +99,7 @@ export function commentsPage({
           <td colspan="4">
             <form class="a-reply-form" method="post" action="/admin/comments/${c.id}/reply">
               ${csrfField(csrf)}
-              <textarea class="a-textarea" name="body" rows="3" required
+              <textarea class="a-textarea" name="body" rows="3" maxlength="3000" required
                 aria-label="以作者身份回复 ${esc(c.author)}"></textarea>
               <p class="a-bar">
                 <button class="a-btn" type="submit">发布回复</button>

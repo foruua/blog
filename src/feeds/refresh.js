@@ -69,7 +69,9 @@ export function createRefresher({ feeds, keep = DEFAULT_KEEP, log = () => {}, no
       }
       const [candidate] = discoverFeeds(doc.text, doc.finalUrl || target);
       if (!candidate) throw new FeedParseError('这是网页，里面也没找到订阅地址', 'html');
-      const next = await fetchDoc(candidate, { timeoutMs, signal });
+      // 第二跳用新的超时预算：复用第一跳的 AbortSignal 时，慢主页会把剩余时间吃光，
+      // 自动发现的订阅地址还没发请求就被判定超时。
+      const next = await fetchDoc(candidate, { timeoutMs });
       const parsed = parseFeed(next.text, { baseUrl: next.finalUrl || candidate, maxItems });
       return {
         status: 'ok', parsed, etag: next.etag, lastModified: next.lastModified,

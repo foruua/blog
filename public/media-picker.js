@@ -70,8 +70,8 @@
         more.addEventListener('click', async () => {
           more.disabled = true; more.textContent = '正在加载…';
           try { await load(page + 1, true, sessionId); }
-          catch { if (sessionId === session && dialog.open) { more.disabled = false; more.textContent = '读取失败，重试'; } }
-        });
+          catch { if (sessionId === session && dialog.open && more.isConnected) { more.disabled = false; more.textContent = '读取失败，重试'; } }
+        }, { signal: listeners.signal });
         body.append(more);
         if (moreHadFocus) more.focus();
       } else if (moreHadFocus) {
@@ -122,6 +122,7 @@
       dispose: () => {
         cancel();
         listeners.abort();
+        body.innerHTML = '';
       },
     };
   };

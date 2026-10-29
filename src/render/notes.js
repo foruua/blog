@@ -22,15 +22,19 @@ export function splitImages(html) {
 
   // 剥掉 <img> 会留下空的 <a href></a> 或空段落——不可见却能被 Tab/读屏触及，这里一并清掉。
   text = text.replace(/<a\b[^>]*>\s*<\/a>/gi, '');
-  text = text.replace(/<p>\s*<\/p>/gi, '').replace(/\n{3,}/g, '\n\n').trim();
+  // 只折叠 <pre> 之外的连续空行：代码块里的空行是内容，不能被压掉。
+  text = text.split(/(<pre\b[\s\S]*?<\/pre>)/i)
+    .map((part, index) => (index % 2 ? part : part.replace(/\n{3,}/g, '\n\n')))
+    .join('');
+  text = text.replace(/<p>\s*<\/p>/gi, '').trim();
   return { text, images };
 }
 
 /* 列表最多铺 4 张；多的不占位，但必须在 DOM 里留数据——灯箱按 data-lightbox 在全文档收集同组节点，少一个就少一张（见 gallery() 的 offstage）。 */
 const GALLERY_MAX = 4;
 
-/* 图集。eager 只给首篇特写（第一张是 LCP 候选）；折叠行里的图一律 lazy。 */
-const gallery = (images, slug, eager = false) => {
+/* 图集。折叠行里的图一律 lazy；缺宽高的图没有固有尺寸，必须 eager 才能尽快拿到尺寸。 */
+const gallery = (images, slug) => {
   if (!images.length) return '';
   const shown = images.slice(0, GALLERY_MAX);
   const rest = images.slice(GALLERY_MAX);
@@ -45,10 +49,10 @@ const gallery = (images, slug, eager = false) => {
         : '(max-width: 620px) calc((100vw - 59px) / 2), (min-width: 832px) 188px, calc((100vw - 82px) / 4)';
   /* 单图把原始比例写行内：单图档 CSS 是 aspect-ratio:auto（别被多图 3/2 硬裁），而 auto 只用固有尺寸；折叠行的图 lazy、解码前无固有尺寸，盒子会塌成两条 1px 边框（实测 784×2），行内比例盖过 auto 先占住地方。 */
   const solo = n === 1;
-  const cells = shown.map((im, index) => {
+  const cells = shown.map((im) => {
     return `        <a class="gal-item" href="${esc(im.src)}" data-lightbox="${esc(slug)}"
            data-full="${esc(im.full ?? im.src)}"${im.alt ? ` data-alt="${esc(im.alt)}"` : ''}>
-          <img src="${esc(im.thumb ?? mediaFallback(im.src))}" alt="${esc(im.alt)}"${im.previewSrcset ? ` srcset="${esc(im.previewSrcset)}" sizes="${sizes}"` : ''}${im.width && im.height ? ` width="${esc(im.width)}" height="${esc(im.height)}"` : ''}${solo && im.width && im.height ? ` style="aspect-ratio: ${esc(im.width)} / ${esc(im.height)}"` : ''} loading="${(eager && index === 0) || !(im.width && im.height) ? 'eager' : 'lazy'}" decoding="async">
+          <img src="${esc(im.thumb ?? mediaFallback(im.src))}" alt="${esc(im.alt)}"${im.previewSrcset ? ` srcset="${esc(im.previewSrcset)}" sizes="${sizes}"` : ''}${im.width && im.height ? ` width="${esc(im.width)}" height="${esc(im.height)}"` : ''}${solo && im.width && im.height ? ` style="aspect-ratio: ${esc(im.width)} / ${esc(im.height)}"` : ''} loading="${(im.width && im.height) ? 'lazy' : 'eager'}" decoding="async">
         </a>`;
   }).join('\n');
   /* 第 5 张起不占位，只把灯箱要的数据挂在空 span 上；用 <span hidden> 而非 .gal-item，因为它不该可交互（decorateLightbox() 只认 img[data-lightbox]）。 */

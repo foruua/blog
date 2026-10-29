@@ -5,7 +5,8 @@ import { createAdminSearch } from './admin-search.js';
 
 export function createAdminRepo(db) {
   const tx = createTx(db, 'admin');
-  const searchApi = createAdminSearch(db);
+  // FTS 不可用时降级为 instr 查询是刻意设计，但失败原因必须出现在日志里，不能完全静默。
+  const searchApi = createAdminSearch(db, { log: (line) => console.warn(line) });
   const q = {
 
     getById: db.prepare('SELECT * FROM posts WHERE id = ?'),

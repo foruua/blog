@@ -13,10 +13,12 @@
     const cleanup = () => { clearTimeout(timer); signal?.removeEventListener('abort', abort); };
     try {
       const res = await fetch(url, { ...fetchOptions, signal: controller.signal });
+      // 非 2xx 的调用方常直接 throw、不读 body；此时定时器与 abort 监听没人清，会悬挂到超时。
+      if (!res.ok) cleanup();
       const read = (method) => async () => {
         try { return await res[method](); } finally { cleanup(); }
       };
-      return { ok: res.ok, status: res.status, json: read('json'), text: read('text') };
+      return { ok: res.ok, status: res.status, json: read('json'), text: read('text'), dispose: cleanup };
     } catch (error) { cleanup(); throw error; }
   };
 

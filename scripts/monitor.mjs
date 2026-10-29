@@ -53,11 +53,13 @@ async function main() {
     else result = { ...result, offsiteAgeSec: offsite.ageSec };
   }
   // 指纹不能直接 JSON.stringify(result)：offsiteAgeSec 每拍都在变，会把「状态未变」全判成翻转。
-  const fingerprint = stateFingerprint(url, result);
-  let previous;
-  try { previous = JSON.parse(fs.readFileSync(stateFile, 'utf8')); } catch { }
   const webhook = process.env.MONITOR_WEBHOOK_URL;
   const mail = process.env.MONITOR_MAIL === 'true';
+  // 渠道开关并入指纹：先跑了一段无渠道的监控（notified=true），事后才配邮件/webhook 时，
+  // 当前故障会被当成「已通知过」而永久静默；渠道变化应视为需要重新通知。
+  const fingerprint = `${stateFingerprint(url, result)}|${webhook ? 'w' : ''}${mail ? 'm' : ''}`;
+  let previous;
+  try { previous = JSON.parse(fs.readFileSync(stateFile, 'utf8')); } catch { }
   const changed = previous?.fingerprint !== fingerprint;
   let notified = (!webhook && !mail) || (!changed && previous?.notified === true);
   if ((webhook || mail) && !notified) {

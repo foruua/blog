@@ -283,10 +283,15 @@
     if (palLoad) return palLoad;
     const src = document.querySelector('meta[name="palette-lib"]')?.content || '/palette.js';
     palLoad = new Promise((resolve) => {
+      let done = false;
+      let timer = 0;
+      const finish = (value) => { if (done) return; done = true; clearTimeout(timer); resolve(value); };
       const s = document.createElement('script');
       s.src = src;
-      s.onload = () => resolve(window.PaletteLib ?? null);
-      s.onerror = () => resolve(null);
+      s.onload = () => finish(window.PaletteLib ?? null);
+      s.onerror = () => finish(null);
+      // 脚本请求挂住（不是 onerror）时也要收场：否则滑块可拖但页面永远没反应，也没有失败提示。
+      timer = setTimeout(() => finish(null), 5000);
       document.head.appendChild(s);
     });
     return palLoad;
@@ -613,6 +618,10 @@
       if (previous === null) form.removeAttribute('aria-busy'); else form.setAttribute('aria-busy', previous);
       controls.forEach(([el, disabled]) => { el.disabled = disabled; });
       if (button) button.innerHTML = label;
+      // 禁用当前提交键会让焦点掉到 body；提交失败时把焦点还回去，键盘用户不必重新 Tab 找位置。
+      if (button && (!document.activeElement || document.activeElement === document.body)) {
+        button.focus({ preventScroll: true });
+      }
     };
   };
   const imageLoads = new WeakMap();

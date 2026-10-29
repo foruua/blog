@@ -66,7 +66,11 @@ export function createBackgroundScheduler({
 
     // SQLite 长期运行维护：PRAGMA optimize 在没有过期统计时几乎零成本，每天跑一次让查询计划跟上数据变化。
     // 关闭时 db/driver.js 的 close() 也会再跑一次。定时器不阻止进程退出。
-    dbOptimizeTimer = setInterval(() => optimize(db), 24 * 3600 * 1000);
+    dbOptimizeTimer = setInterval(() => {
+      // PRAGMA optimize 是同步调用：异常若从 setInterval 回调里冒出会被当成未捕获异常，直接终止进程。
+      try { optimize(db); }
+      catch (error) { logError(error, null, 'db.optimize-failed'); }
+    }, 24 * 3600 * 1000);
     dbOptimizeTimer.unref();
   }
 

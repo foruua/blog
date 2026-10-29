@@ -259,7 +259,7 @@ export function registerMediaRoutes(app, { repo, adminRepo, mutate = (fn) => fn(
       { file: abs, trash },
       ...(thumbnail ? [{ file: thumbnail, trash: trash + '.derived-thumb.webp' }] : []),
       ...variants,
-    ], remove: () => adminRepo.mediaDelete(item.id) });
+    ], remove: () => { adminRepo.mediaDelete(item.id); bumpMediaRevision(repo); } });
   }
 
   app.post('/admin/media/delete/:id', (c) => {
@@ -279,8 +279,7 @@ export function registerMediaRoutes(app, { repo, adminRepo, mutate = (fn) => fn(
       logError(e, c, 'admin.media-delete-failed');
       return notice(c, '/admin/media', '✗ 删除失败，记录已保留，请稍后重试');
     }
-    // 删掉原图与派生文件后，存量正文的 srcset 会指向不存在的候选；bump 一次，下次同步重渲染时去掉 srcset/宽高。
-    bumpMediaRevision(repo);
+    // 删掉原图与派生文件后，存量正文的 srcset 会指向不存在的候选；修订号已在删除事务内 bump。
     const note = moved ? `✓ 已删除 ${item.path}（文件在 data/.trash/uploads/）` : `✓ 已删除记录 ${item.path}（磁盘上没找到这个文件）`;
     return notice(c, '/admin/media', note);
   });
