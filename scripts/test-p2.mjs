@@ -126,8 +126,8 @@ const page = await (await fetch(`${BASE}/p/${SLUG}/`)).text();
   const css = await (await fetch(`${BASE}/style.css`)).text();
   const js = await (await fetch(`${BASE}/app.js`)).text();
   const body = await (await fetch(`${BASE}/posts/`)).text();
-  check('T63 页脚界栏正中是回顶印钮（↑ + aria-label，指向保留片段 #top）',
-    /<a class="foot-seal" href="#top" aria-label="回到顶部"[^>]*><span aria-hidden="true">↑<\/span><\/a>/.test(body), '');
+  check('T63 页脚界栏断口里的金星是回顶入口（aria-label 指向保留片段 #top）',
+    /<a class="foot-seal" href="#top" aria-label="回到顶部"[^>]*><span class="foot-seal-star" aria-hidden="true"><\/span><\/a>/.test(body), '');
   check('T64 右下悬浮回顶钮整体撤掉（全站只留页脚这一处回顶）',
     !/class="to-top"/.test(body) && !/\.to-top/.test(css) && !/to-top/.test(js)
     && /footer\.site \.foot-seal/.test(css), '');

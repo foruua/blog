@@ -498,10 +498,10 @@ function chromeOf(ctx) {
   </div>
 </header>`,
     drawer: ctx.drawer,
-    // 页脚：界栏正中压一枚方印，方印就是「回到顶部」；左端版权，右端两条备案号。
-    // 页脚只承载"必须存在"的信息，入口收成 32px 的印钮 —— 原先的右下悬浮钮已撤掉，全站只此一处回顶。
+    // 页脚：第一行版权，第二行备案号；顶端界栏在正中断开 2.8rem，缺口里嵌一枚金星 —— 点金星回顶。
+    // 页脚只承载"必须存在"的信息，回顶收成星形命中区 —— 原先的右下悬浮钮已撤掉，全站只此一处回顶。
     footer: `<footer class="site">
-    <a class="foot-seal" href="#top" aria-label="回到顶部" title="回到顶部"><span aria-hidden="true">↑</span></a>
+    <a class="foot-seal" href="#top" aria-label="回到顶部" title="回到顶部"><span class="foot-seal-star" aria-hidden="true"></span></a>
     <div class="foot-inner">
       <div class="foot-legal">
         <span class="foot-copy"><span class="sr-only">©</span>${ICON_COPYRIGHT} ${new Date().getFullYear()}${SITE.author ? `<span class="sep">·</span>${esc(SITE.author)}` : ''}</span>
