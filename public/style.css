@@ -1976,7 +1976,7 @@ footer.site .foot-seal {
   border-radius: 50%;
 }
 footer.site .foot-seal-star {
-  width: 8px; height: 8px;
+  width: 10px; height: 10px;
   background: var(--accent);
   clip-path: polygon(
     50% 4.78%, 61.23% 39.32%, 97.55% 39.32%, 68.16% 60.68%, 79.39% 95.23%,
@@ -2152,7 +2152,9 @@ footer.site .foot-icp-ico { height: 14px; width: auto; vertical-align: -.22em; m
 }
 main#main { flex: 1 0 auto; min-width: 0; }
 main#main.home-main { display: flex; flex-direction: column; }
-body[data-page="home"] .hero { flex: 1 1 auto; }
+/* 首页的 hero 直接收在页脚上：它原来那条通栏底线会和页脚的断栏叠成两条（还把 2.8rem 的缺口填满）。
+   首页交给页脚那条断栏收尾，hero 自己不再画底线 —— 别把 border-bottom 加回去。 */
+body[data-page="home"] .hero { flex: 1 1 auto; border-bottom: 0; }
 body[data-page="home"] .wrap { flex: 0 0 auto; }
 body[data-page="home"] footer.site { margin-top: 0; }
 /* 首页页头与内页同构：左站名、右导航（窄屏是抽屉按钮），无脚本时也一样。 封面那行 .hero-mark 是落款，不是页头站名的替代。 */
