@@ -2439,7 +2439,7 @@ footer.site .foot-icp-ico { height: 14px; width: auto; vertical-align: -.22em; m
 .ncp-loading {
   margin: 0; padding: 1.05rem 1.15rem;
   border: 1px solid var(--rule); border-radius: var(--radius-lg);
-  background: var(--bg-soft);
+  background: var(--bg);
   color: var(--muted);
   font: var(--info-size)/1.6 var(--mono);
 }
@@ -2451,8 +2451,8 @@ footer.site .foot-icp-ico { height: 14px; width: auto; vertical-align: -.22em; m
   padding: 1.05rem 1.15rem 1.15rem;
   border: 1px solid var(--rule);
   border-radius: var(--radius-lg);
-  /* 直接取 --bg-soft：浅色下再混淡几乎等于纸面本色，一块这么长的面板看着像没铺满。 */
-  background: var(--bg-soft);
+  /* 和页面同一张纸：抽屉是笔记流的延伸，不该比站点底色深一档。 */
+  background: var(--bg);
   scroll-margin-top: 1.4rem;
   opacity: 0;
   transform: translateY(-5px);
@@ -2490,7 +2490,7 @@ footer.site .foot-icp-ico { height: 14px; width: auto; vertical-align: -.22em; m
   background: none; border: 0; cursor: pointer;
   transition: color var(--dur-2) var(--ease);
 }
-.ncp-fold:hover { color: var(--accent-read); }   /* 它坐在 --bg-soft 的抽屉底上，裸 accent 只有 4.25 */
+.ncp-fold:hover { color: var(--accent-read); }   /* 它坐在 --bg 的抽屉底上，裸 accent 对比度足够把悬停状态与正文区分开 */
 
 /* —— 条目：一条评论 = 头像列 + 内容列。整块**不**逐条画横线（面板已有边，再横线就是方块里套 两层框），条目本就短、靠间距分得开；串内回复另说，靠头像列左侧一条细线连起来。 */
 .ncp-list, .ncp-kids { list-style: none; margin: 0; padding: 0; }
