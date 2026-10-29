@@ -290,12 +290,17 @@ export function parseFeed(xml, { baseUrl = '', maxItems = MAX_ITEMS } = {}) {
   const src = String(xml ?? '').replace(/^\uFEFF/, '');
   if (!src.trim()) throw new FeedParseError('对方返回了空内容', 'empty');
 
+  // 先认网页、再解析 XML：装了 SEO 插件的 WordPress 首页 <meta>/<link> 动辄上千个，
+  // parseXml 会先撞上 MAX_NODES 抛 too-complex，于是永远走不到下面的 'html' 分支，
+  // 「填站点主页 → 自动发现订阅地址」在常见网站上直接失效。判据只看开头几个字节，代价为零。
+  if (looksLikeHtml(src)) throw new FeedParseError('这是网页，不是订阅源（可以改填站点主页）', 'html');
+
   const root = parseXml(src);
   const doc = (root.children ?? [])[0];
   if (!doc) throw new FeedParseError('不是有效的 XML', 'parse');
 
   const name = localName(doc.name);
-  if (name === 'html' || looksLikeHtml(src)) {
+  if (name === 'html') {
     throw new FeedParseError('这是网页，不是订阅源（可以改填站点主页）', 'html');
   }
 

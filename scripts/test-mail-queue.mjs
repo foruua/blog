@@ -71,6 +71,26 @@ try {
   await budget.flush();
   check('T9 预算用尽后再次 flush 也不会超发', budget.stats().sentLastHour === 1, JSON.stringify(budget.stats()));
 
+  // 回归（审查 H1）：积压 ≥ 40 封、每小时上限 30 时，flush 曾经永不返回 ——
+  // 每批开头算的 budget 已经扣掉了本轮已发数量，却拿**累计**的 sent 去比，第一批 20 封发完就 break；
+  // 而 rows.length === 20 又不退出外层循环，attempted 停在 20 碰不到 40 的保护线，
+  // 于是 for(;;) 全程没有 await 地同步空转，CPU 打满、整站无响应。
+  {
+    const dbBig = freshDb();
+    const bigBox = createMailOutbox({ db: dbBig, deliver: async () => ({ sent: true }), log: () => {}, maxPerHour: 30 });
+    for (let i = 0; i < 45; i++) bigBox.enqueue({ to: 'owner@example.com', subject: `big-${i}`, text: 'x' }, { autoFlush: false });
+    let timer;
+    const guard = new Promise((resolve) => { timer = setTimeout(() => resolve('timeout'), 5000); });
+    const sentCount = await Promise.race([bigBox.flush(), guard]);
+    clearTimeout(timer);
+    check('T9b 积压 45 封、上限 30：flush 能返回且只发 30 封',
+      sentCount === 30 && bigBox.stats().sentLastHour === 30,
+      `sent=${sentCount} stats=${JSON.stringify(bigBox.stats())}`);
+    check('T9c 预算耗尽后剩下的 15 封仍是 pending（留给下一轮，不丢）',
+      dbBig.prepare("SELECT COUNT(*) AS n FROM mail_outbox WHERE status = 'pending'").get().n === 15);
+    dbBig.close();
+  }
+
   const db4 = freshDb();
   let fail = true;
   const failThenSucceed = createMailOutbox({

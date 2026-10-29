@@ -6,6 +6,15 @@ on:
   pull_request:
   workflow_dispatch:
 
+# 同一分支连推几次时取消上一轮：排队等 45 分钟没有任何意义，还会拖慢后面的 PR。
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# 只读就够了：这份工作流不写仓库、不建 release。
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -14,9 +23,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - node: '22'
-            ui: '1'
+          # 生产跑的是 Node 24：浏览器审计要放在生产版本上才有意义（以前只在 22 上跑，
+          # 等于用非生产版本验证真实浏览器行为）。
           - node: '24'
+            ui: '1'
+          - node: '22'
             ui: '0'
     env:
       UI_AUDIT_REQUIRED: ${{ matrix.ui }}
@@ -30,9 +41,28 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
       - run: npm ci
+      # 浏览器二进制按 lock 指纹缓存：install --with-deps chromium 每次要下约 170MB。
+      - uses: actions/cache@v4
+        if: matrix.ui == '1'
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
       - run: npm run build:assets
       - run: npx playwright install --with-deps chromium
         if: matrix.ui == '1'
       - run: for f in scripts/*.sh; do bash -n "$f"; done
       - run: npm test
+
+  audit:
+    # 独立 job 而不是塞进矩阵：两路各跑一次纯属重复，而且原来排在 npm test 之后，
+    # 测试一失败就根本不执行 —— 依赖有漏洞反而永远看不到。
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
       - run: npm run audit:deps

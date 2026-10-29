@@ -13,7 +13,8 @@ const base = {
 export default [
   // docs/design 是设计沙盒（也进了 .gitignore）：里面的截图脚本、方案页不参与 lint —— 它们大多是
   // Playwright 的一次性脚本，page.evaluate 里全是浏览器全局。
-  { ignores: ['node_modules/**', 'data/**', '.workbuddy/**', 'output/**', 'design/**', 'docs/design/**', 'themes/**', 'scripts/fixtures/**', 'public/.build/**'] },
+  // 忽略路径与 .gitignore 保持同一口径：只有 docs/design/**，没有裸 'design/**'（那是残留）。
+  { ignores: ['node_modules/**', 'data/**', '.workbuddy/**', 'output/**', 'docs/design/**', 'themes/**', 'scripts/fixtures/**', 'public/.build/**'] },
   js.configs.recommended,
   // 服务端与数据层只给 Node 全局：误用 document / window 会当场被 lint 抓到。
   { ...base, files: ['server.js', 'src/**/*.js', 'db/**/*.js'], languageOptions: { ...base.languageOptions, globals: globals.node } },

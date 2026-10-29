@@ -196,12 +196,17 @@ export function createThemeEngine(registry, { cache } = {}) {
     const signature = theme.signature ?? templateSignature(theme);
     const key = `${theme.dir}:${theme.version}:${signature}`;
     let engine = engines.get(key);
-    if (!engine) {
-      // 每改一次模板就多一个引擎：只留最近几个，长跑的进程不会攒着旧解析树。
-      if (engines.size >= 8) engines.delete(engines.keys().next().value);
-      engine = registerFilters(makeEngine(theme, { cache }), theme, registry);
+    if (engine) {
+      // 命中就把这条挪到队尾（Map 插入序当 LRU）：后台安装/预览主题时会在缓存里留下临时目录的引擎，
+      // 纯 FIFO 下它们能把正在用的主题挤出去，然后每次渲染都重新解析整套模板。
+      engines.delete(key);
       engines.set(key, engine);
+      return engine;
     }
+    // 每改一次模板就多一个引擎：只留最近几个，长跑的进程不会攒着旧解析树。
+    if (engines.size >= 8) engines.delete(engines.keys().next().value);
+    engine = registerFilters(makeEngine(theme, { cache }), theme, registry);
+    engines.set(key, engine);
     return engine;
   };
 

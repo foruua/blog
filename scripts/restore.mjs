@@ -11,15 +11,28 @@ import { listBackups, isRecoverableBackup, verifyBackup, restoreBackup, snapshot
 
 const { argv, opt } = parseFlags();
 if (argv.includes('--help')) {
-  console.log('用法：npm run restore -- [--dir <目录>] [--from <备份名>] [--yes]\n恢复前须停止服务；默认选择最新完整备份。');
+  console.log('用法：npm run restore -- [--dir <目录>] [--from <备份名>] [--with-themes] [--allow-root] [--yes]\n'
+    + '恢复前须停止服务；默认选择最新完整备份。\n'
+    + '  默认只恢复数据库、内容与附件，不动 themes/（它是部署产物，且生产上归 root）。\n'
+    + '  --with-themes  连主题一起恢复（需要 themes/ 的父目录可写）。\n'
+    + '  --allow-root   允许以 root 执行（默认拒绝：还原出来的文件会全部归 root，服务随后读写不了）。');
   process.exit(0);
 }
 const DIR = opt('--dir') ?? process.env.BACKUP_DIR ?? DEFAULT_DIR;
 const FROM = opt('--from');
 const YES = argv.includes('--yes');
+const WITH_THEMES = argv.includes('--with-themes');
+
+// 以 root 恢复会把 db/内容/附件全部写成 root 所有，服务进程（blog 用户）随后读写失败，
+// 而且这种失败要到下一次写入才暴露。要这么做必须显式承认风险。
+if (process.getuid?.() === 0 && !argv.includes('--allow-root')) {
+  console.error('✗ 不要以 root 执行恢复：还原出来的数据库与文件会全部归 root，服务进程随后读写不了。\n'
+    + '  请用运行服务的账号执行；确实需要 root 时加 --allow-root，并在恢复后自行 chown。');
+  process.exit(2);
+}
 
 // 主题目录在应用根下，生产环境归 root 只读；恢复前已停服，DB 锁足够互斥。
-acquireMaintenanceLock([DB_FILE, CONTENT_DIR, UPLOADS_DIR], 'restore');
+acquireMaintenanceLock(WITH_THEMES ? [DB_FILE, CONTENT_DIR, UPLOADS_DIR, THEMES_DIR] : [DB_FILE, CONTENT_DIR, UPLOADS_DIR], 'restore');
 const backups = listBackups(DIR);
 if (!backups.length) {
   console.error(`✗ ${DIR} 里没有可用备份`);
@@ -63,7 +76,7 @@ if (!YES) {
     process.exit(2);
   }
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  const answer = await new Promise((r) => rl.question(`\n  将恢复数据库、内容与附件。当前状态会先另存一份。继续？(yes/no) `, r));
+  const answer = await new Promise((r) => rl.question(`\n  将恢复数据库、内容与附件${WITH_THEMES ? '与主题' : ''}。当前状态会先另存一份。继续？(yes/no) `, r));
   rl.close();
   if (answer.trim().toLowerCase() !== 'yes') { console.log('  已取消。'); process.exit(0); }
 }
@@ -102,8 +115,9 @@ try {
   }
 }
 
-restoreBackup(v, { dbFile: DB_FILE, contentDir: CONTENT_DIR, uploadsDir: UPLOADS_DIR, themesDir: THEMES_DIR, lockHeld: true });
+const restored = restoreBackup(v, { dbFile: DB_FILE, contentDir: CONTENT_DIR, uploadsDir: UPLOADS_DIR, themesDir: THEMES_DIR, lockHeld: true, withThemes: WITH_THEMES });
 console.log('  ✓ Markdown 和上传文件已还原');
+if (!restored.themesDir && Array.isArray(v.bundle.themes)) console.log('  · 主题未恢复（默认不动 themes/；需要时加 --with-themes）');
 console.log(`  ✓ 已写入 ${DB_FILE}（${(fs.statSync(DB_FILE).size / 1024).toFixed(1)}KB）`);
 
 const check = open(DB_FILE);

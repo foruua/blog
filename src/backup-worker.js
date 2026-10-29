@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { parentPort } from 'node:worker_threads';
-import { open, close } from '../db/driver.js';
+import { open } from '../db/driver.js';
 import { DB_FILE } from './config.js';
 import { maybeAutoBackup, verifyBackupLite, finalizeBackup, recordOffsiteResult } from './backup.js';
 import { uploadBackup } from './util/process.js';
@@ -38,4 +38,8 @@ try {
     }
   } else parentPort.postMessage({ event: 'backup.skipped', reason: result.skipped });
 } catch (error) { parentPort.postMessage({ event: 'backup.failed', reason: error.message }); }
-finally { close(db); }
+finally {
+  // 直接关连接，不走 driver 的 close()：后者会跑 wal_checkpoint(TRUNCATE)，那要拿写锁并等主线程
+  // 的读者退出 —— 在 worker 里等于把主线程的写入卡住。checkpoint 交给主线程自己做。
+  try { db.close(); } catch { /* 关不掉也不影响 worker 退出 */ }
+}

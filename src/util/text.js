@@ -135,7 +135,8 @@ export const relativeOrDay = (utcIso, now = Date.now(), withinDays = 30, timeZon
   const t = utcDate(utcIso).getTime();
   if (Number.isNaN(t)) return '';
 
-  return (now - t) / 86400000 <= withinDays
+  // 严格小于：刚好 30 天前的那条已经算「一个月前」，该显示具体日期而不是「1 个月前」。
+  return (now - t) / 86400000 < withinDays
     ? relativeDate(utcIso, now, timeZone)
     : formatDay(utcIso, timeZone);
 };
@@ -242,15 +243,21 @@ export function recentStartIso(days = 30, nowIso = new Date().toISOString()) {
 
 // 摘要：从入库正文 HTML 取纯文本。script/style 整块丢；pre 也整块丢（半截代码读不懂还吃光字数预算，行内
 // <code> 不丢）；截断按码点而非 UTF-16 码元（切在 emoji 中间会留孤立代理项）。
-export const cleanExcerpt = (html, n = 96) => {
-  const text = htmlToPlainText(String(html ?? '').replace(/<[^>]*$/, ''), {
-    dropPre: true, decodePasses: 1,
-  })
-    .replace(/\s+/g, ' ')
-    .trim();
-  const chars = [...text];
-  return chars.length > n ? `${chars.slice(0, n).join('').trimEnd()}…` : text;
+/** HTML → 纯文本（与 cleanExcerpt 同一口径）。一页要几个不同长度的摘要时，先算这一次再切。 */
+export const plainTextOf = (html) => htmlToPlainText(String(html ?? '').replace(/<[^>]*$/, ''), {
+  dropPre: true, decodePasses: 1,
+})
+  .replace(/\s+/g, ' ')
+  .trim();
+
+/** 按码点截断并补省略号：切在 emoji 中间会留孤立代理项，所以不用 slice。 */
+export const excerptOfText = (text, n = 96) => {
+  const src = String(text ?? '');
+  const chars = [...src];
+  return chars.length > n ? `${chars.slice(0, n).join('').trimEnd()}…` : src;
 };
+
+export const cleanExcerpt = (html, n = 96) => excerptOfText(plainTextOf(html), n);
 
 // 检索词来自访客输入，一律当字面量：转义正则元字符，按大小写不敏感匹配。
 const regexOf = (term, global = false) => new RegExp(String(term).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), global ? 'gi' : 'i');

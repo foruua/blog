@@ -50,7 +50,7 @@ export function createCommentRepo(db) {
         UNION
         SELECT c.id FROM comments c JOIN tree t ON c.parent_id = t.id WHERE c.status = 'approved'
       )
-      SELECT c.* FROM comments c JOIN tree t ON t.id = c.id ORDER BY c.created_at, c.id`),
+      SELECT c.* FROM tree t CROSS JOIN comments c ON c.id = t.id ORDER BY c.created_at, c.id`),
     countThreads: db.prepare(`SELECT COUNT(*) AS n FROM comments c LEFT JOIN comments p ON p.id = c.parent_id
       WHERE c.post_id = ? AND c.status = 'approved'
         AND (c.parent_id IS NULL OR p.id IS NULL OR p.status <> 'approved')`),
@@ -126,7 +126,7 @@ export function createCommentRepo(db) {
         SELECT c.id,c.post_id FROM comments c JOIN tree t ON c.parent_id=t.id AND c.post_id=t.post_id
         WHERE c.status='approved'
       ) SELECT c.*, (SELECT MAX(thread_count) FROM roots r WHERE r.post_id=c.post_id) AS thread_count
-        FROM comments c JOIN tree t ON t.id=c.id ORDER BY c.created_at,c.id`;
+        FROM tree t CROSS JOIN comments c ON c.id=t.id ORDER BY c.created_at,c.id`;
       const stmt = ofPostsStmts.get(sql) ?? db.prepare(sql);
       ofPostsStmts.set(sql, stmt);
       const groups = new Map(ids.map((id) => [id, []]));

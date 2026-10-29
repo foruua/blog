@@ -51,6 +51,9 @@ const recovered = restoreBackup(v, {
   contentDir: path.join(work, 'recovered', 'content'),
   uploadsDir: path.join(work, 'recovered', 'uploads'),
   themesDir: path.join(work, 'recovered', 'themes'),
+  // 演练目标是临时目录，写权限没问题，所以这里连主题一起还原，尽量贴近生产恢复后的状态。
+  // 生产上的 npm run restore 默认不碰 themes/（见 backup.js 的 restoreBackup 注释）。
+  withThemes: true,
 });
 v.dbPath = recovered.dbFile;
 ok('数据库、Markdown、附件与主题已还原到独立空目录');

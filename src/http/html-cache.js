@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { envInt } from '../util/env.js';
 import { acceptsEncoding, ifNoneMatch } from '../util/http.js';
+import { parseReplyId } from '../util/validation.js';
 import { compressBuffer, MIN_COMPRESS_BYTES } from '../util/compress.js';
 import { ADMIN_COOKIE } from './cookies.js';
 import { mediaRevision } from '../media/revision.js';
@@ -23,7 +24,10 @@ const UNCACHEABLE_QUERY = new Set(['before', 'n', 'c', 'partial', 'panel', 'suff
  * 浏览器与 EdgeOne 可在 15 秒内直出，回访/前进后退不必回源；超时后仍用弱 ETag 校验。
  * 服务端匿名 HTML 缓存命中时直接回；内容/评论/设置/媒体/主题任何一处变了修订号就变。
  * 两个必须一起处理的点：
- *   1. 评论时间戳令牌每次渲染都不同，会把正文哈希冲掉——只对「哈希」这一步归一到小时档；命中时重新签发。
+ *   1. 评论时间戳令牌每次渲染都不同，会把正文哈希冲掉——只对「哈希」这一步归一到小时档。
+ *      命中时沿用条目里那枚令牌（不重签）：重签就必须逐请求重压正文，而压缩字节复用正是这套
+ *      缓存的主要收益。代价是「至少 3 秒才填完」这条启发式检查在 TTL 内可以用旧令牌绕过——
+ *      它本来也不是鉴权边界，机器人等 3 秒同样能过，不值得为它牺牲整页压缩复用。
  *   2. Cloudflare 会改写/重压 HTML 并丢掉源站 ETag；加 `no-transform` 才肯透传，而 Hono 的 compress()
  *      见这条头就不压了，所以 HTML 的 br/gzip 在这里自己做。
  */
@@ -31,6 +35,9 @@ export function createHtmlCache({
   repo, themes, isImmutableAsset = () => false,
   ttlMs = envInt(process.env.HTML_CACHE_TTL_MS, 60_000, { min: 0, max: 60 * 60 * 1000 }),
   maxEntries = 200, maxChars = 8 * 1024 * 1024, maxBody = 2 * 1024 * 1024,
+  // 页码只缓存到这个上限：路由会把超大页码 clamp 到最后一页，若每个页码都开一条键，
+  // 200 个 ?page=随机数 就能把整页缓存冲掉，还顺带放大 CPU（每次都完整渲染 + Brotli）。
+  maxPage = 200,
 }) {
   const enabled = ttlMs > 0;
   const cache = new Map();
@@ -76,11 +83,14 @@ export function createHtmlCache({
   }
 
   // 缓存键只保留会改变正文、且能归一化到有限集合的查询参数。
-  // 用 URL 原始 pathname 保留尾斜杠差异（Hono 的 c.req.path 会把 /posts/ 归一成 /posts）。
   // 返回 null = 这条请求不缓存（含随机/深链参数），避免缓存被无限 key 冲掉。
   const keyOf = (c) => {
     let url;
     try { url = c.get?.('requestUrl') ?? new URL(c.req.url); } catch { return c.req.path; }
+    // 路径也要归一：/p/%73lug/ 与 /p/slug/ 是同一个页面，用原始 pathname 会被编码出无数条键。
+    // decodeURI 只解非保留字符（%2F 等保持原样），不会把路径段切分改变。
+    let pathname = url.pathname;
+    try { pathname = decodeURI(pathname); } catch { /* 坏转义保留原样，交给路由 404 */ }
     const parts = [];
     for (const key of new Set(url.searchParams.keys())) {
       if (UNCACHEABLE_QUERY.has(key)) return null;
@@ -88,16 +98,21 @@ export function createHtmlCache({
       const raw = url.searchParams.get(key) ?? '';
       if (key === 'page' || key === 'cpage') {
         const n = Number.parseInt(raw, 10);
-        parts.push(`${key}=${Number.isFinite(n) ? Math.min(100000, Math.max(1, n)) : 1}`);
+        // 页码越界不缓存：路由会 clamp 到最后一页，为它单独开键只会挤掉真实页面。
+        if (!Number.isFinite(n) || n < 1 || n > maxPage) return null;
+        parts.push(`${key}=${n}`);
       } else if (key === 'reply') {
-        const n = Number.parseInt(raw, 10);
-        if (Number.isFinite(n) && n > 0) parts.push(`reply=${n}`);
+        // 与路由共用严格口径（见 util/validation.js 的 parseReplyId）：解析不出就整条不缓存。
+        // 绝不能「算成 0 就忽略」——那会让带非法 reply 的回复页落进裸路径键，污染所有读者。
+        const n = parseReplyId(raw);
+        if (n === null) return null;
+        parts.push(`reply=${n}`);
       } else if (key === 'kind') {
         if (raw === 'post' || raw === 'note') parts.push(`kind=${raw}`);
       }
     }
     parts.sort();
-    return parts.length ? `${url.pathname}?${parts.join('&')}` : url.pathname;
+    return parts.length ? `${pathname}?${parts.join('&')}` : pathname;
   };
 
   const cacheable = (c) => {
@@ -129,7 +144,7 @@ export function createHtmlCache({
     return compressBuffer(body, encoding);
   }
 
-  async function compressedFor(entry, accepted) {
+  async function compressedFor(entry, accepted, key) {
     if ((entry.bytes ?? Buffer.byteLength(entry.body, 'utf8')) < MIN_COMPRESS_BYTES) return null;
     const body = Buffer.from(entry.body, 'utf8');
     for (const encoding of ENCODINGS) {
@@ -140,7 +155,10 @@ export function createHtmlCache({
       try { out = await compressOnce(body, encoding); } catch { continue; }
       // 压缩副本也计入内存预算：set() 只按正文长度放行，若再无条件挂上 br+gzip，
       // 实际占用会越过 maxChars；超预算时本次照常返回，只是不落缓存。
-      if (chars + out.length <= maxChars) {
+      // 关键：await 期间条目可能已被修订号变化或 LRU 淘汰（甚至压根没被 set 进去），
+      // 这时挂副本等于把内存记在一个已经不在缓存里的对象上，chars 只增不减，
+      // 攒够 maxChars 之后每次 set() 都要清空整个缓存 —— HTML 缓存长期处于失效状态。
+      if (chars + out.length <= maxChars && cache.get(key) === entry) {
         (entry.enc ??= {})[encoding] = out;
         chars += out.length;   // 压缩副本也要计入内存预算（见 encBytes）
       }
@@ -158,7 +176,7 @@ export function createHtmlCache({
     ? `public, max-age=${maxAge}, s-maxage=${maxAge}, stale-while-revalidate=${maxAge * 4}, stale-if-error=300, no-transform`
     : 'no-cache, no-transform';
 
-  async function respond(c, entry, cacheStatus = '') {
+  async function respond(c, entry, cacheStatus = '', key = '') {
     const headers = new Headers(entry.headers);
     headers.set('ETag', `W/${entry.tag}`);
     headers.set('Cache-Control', pageCacheControl);
@@ -177,7 +195,7 @@ export function createHtmlCache({
 
     // 与 hono/compress 同口径：小于 1KB 不压。优先 Brotli，不支持再回 gzip。
     // 正文在 TTL 内逐字节不变（令牌也复用），直接吃条目里缓存好的压缩字节。
-    const compressed = await compressedFor(entry, c.req.header('accept-encoding') ?? '');
+    const compressed = await compressedFor(entry, c.req.header('accept-encoding') ?? '', key);
     if (compressed) {
       headers.set('Content-Encoding', compressed.encoding);
       headers.set('Content-Length', String(compressed.body.length));
@@ -198,9 +216,14 @@ export function createHtmlCache({
     // 含不可归一化参数的请求不进缓存（见 keyOf）；仍正常渲染，只是不写共享缓存。
     if (key === null) { canCache = false; key = ''; }
     const revision = canCache ? revisionOf(c) : '';
+    // 请求里带的 reply 与路由实际采用的回复不一致时（不存在、不属于本篇、未过审），
+    // 渲染出来其实是「没有回复目标」的普通页面，不能写进共享缓存 —— 否则每条
+    // ?reply=<任意数字> 都会占一个键，缓存瞬间被冲掉。
+    const rawReply = canCache ? c.req.query('reply') : undefined;
+    const requestedReply = rawReply === undefined ? undefined : parseReplyId(rawReply);
     if (canCache) {
       const hit = get(key, revision);
-      if (hit) return respond(c, hit, 'HIT');
+      if (hit) return respond(c, hit, 'HIT', key);
     }
 
     await next();
@@ -218,6 +241,9 @@ export function createHtmlCache({
     if (adminCookie) { c.header('Cache-Control', 'private, no-store'); return; }
     // 不可归一化参数的匿名页：正常返回原响应，不重建/不压缩，也不写缓存。
     if (!canCache) return;
+    // 带 reply 但路由没采纳（见上面 requestedReply 的说明）：正文其实与裸页面等价，
+    // 不写共享缓存，也不发 public 缓存头，避免这条随机键被浏览器/边缘长期留着。
+    if (requestedReply !== undefined && c.get('commentReplyId') !== requestedReply) return;
     if ((c.res.headers.get('Cache-Control') ?? '').includes('no-store')) return;
     // 任何会种 cookie 的 HTML 都不进共享缓存；直接交回原响应，避免重建 headers 时把 Set-Cookie 丢掉。
     if (c.res.headers.has('Set-Cookie')) return;
@@ -238,7 +264,7 @@ export function createHtmlCache({
     const entry = { at: Date.now(), revision, tag, body: text, headers, enc: null };
     const cacheStatus = canCache ? 'MISS' : '';
     if (cacheStatus) set(key, entry);
-    return respond(c, entry, cacheStatus);
+    return respond(c, entry, cacheStatus, key);
   }
 
   return { middleware };

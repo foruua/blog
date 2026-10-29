@@ -253,7 +253,11 @@ export function commentRoutes({ repo, comments, crypt, auth = null, notifier = c
     const slug = c.req.param('slug');
     const r = await submit(c, slug, await readPayload(c));
     const flash = r.result === 'discarded' ? '' : r.result;
-    const back = prefix ? `/${prefix}/${encodeURIComponent(slug)}/` : `/${encodeURIComponent(slug)}`;
+    // 回跳地址用内容自己的 URL（contentUrl）：笔记有 /n/<slug>/ 与固定页那种无前缀路由，
+    // 按「URL 前缀 + slug」硬拼会对笔记 POST 拼出 404 页。拿不到 post 时才退回前缀拼法。
+    const back = r.post
+      ? contentUrl(r.post)
+      : (prefix ? `/${prefix}/${encodeURIComponent(slug)}/` : `/${encodeURIComponent(slug)}`);
     return c.redirect(`${back}${flash ? `?c=${encodeURIComponent(flash)}` : ''}#comments`, 303);
   };
   app.post('/p/:slug/comment', formComment('p'));

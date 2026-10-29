@@ -11,7 +11,7 @@ import { pageMain } from '../render/about.js';
 import { searchMain } from '../render/search.js';
 import { friendsStream } from '../render/friends.js';
 import { linksBlock } from '../render/links.js';
-import { esc, formatDay, formatWordCount, formatDayCn, readingMinutes, postUrl, pageUrl, contentUrl, kindPrefix, noteHref, cleanExcerpt, relativeDate, recentStartIso, utcDate, decodeHtmlAttribute, htmlAttr, absUrl } from '../util/text.js';
+import { esc, formatDay, formatWordCount, formatDayCn, readingMinutes, postUrl, pageUrl, contentUrl, kindPrefix, noteHref, cleanExcerpt, plainTextOf, excerptOfText, relativeDate, recentStartIso, utcDate, decodeHtmlAttribute, htmlAttr, absUrl } from '../util/text.js';
 import { commentSection } from '../comments/view.js';
 import { notePanel } from '../comments/panel.js';
 import { threadOf } from '../../db/comments.js';
@@ -19,6 +19,7 @@ import { emailMd5 } from '../avatar/md5.js';
 import { decryptEmail } from '../auth.js';
 import { createAntispam } from '../comments/antispam.js';
 import { clientKey } from '../util/http.js';
+import { parseReplyId } from '../util/validation.js';
 
 
 const shape = (p) => ({ ...p, day: formatDay(p.published_at) });
@@ -421,9 +422,13 @@ ${stream}
     const pages = Math.max(1, Math.ceil(comments.threadCount(post.id) / perPage));
 
     // 回复目标按 id 直接取，不要求正好在当前页——否则回复别页的评论时 prefill 不出对象，禁 JS 时点了没反应。
-    const wantReply = Number(c.req.query('reply'));
-    const target = Number.isInteger(wantReply) && wantReply > 0 ? comments.get(wantReply) : null;
+    // 与缓存键共用 parseReplyId：口径不同会让「非法 reply 的回复页」被写进裸路径缓存（见 html-cache.js）。
+    const wantReply = parseReplyId(c.req.query('reply'));
+    const target = wantReply === null ? null : comments.get(wantReply);
     const replyTo = target && target.post_id === post.id && target.status === 'approved' ? target : null;
+    // 把「实际采纳的回复目标」写回请求上下文：HTML 缓存据此判断请求里的 reply 是否真的影响了正文，
+    // 不一致（不存在/不属于本篇/未过审）就不写共享缓存，避免 ?reply=<任意数字> 撑爆键空间。
+    c.set('commentReplyId', replyTo ? replyTo.id : null);
 
     let page = Math.min(pages, Math.max(1, Number.parseInt(c.req.query('cpage'), 10) || 1));
     if (replyTo) {
@@ -499,10 +504,12 @@ ${stream}
     const publishedIso = isoOf(post.published_at);
     const modifiedIso = isoOf(post.updated_at);
     const og = ogImageOf(post) ?? defaultOgImage();
-    const jsonLd = articleJsonLd({ post, pathname, og, commentCount: countOfPost(c, post.id), publishedIso, modifiedIso });
+    // 整篇正文转纯文本只做一次：og:description（100 字）与 JSON-LD（160 字）用的是同一段文本。
+    const plain = plainTextOf(post.body_html);
+    const jsonLd = articleJsonLd({ post, pathname, og, commentCount: countOfPost(c, post.id), publishedIso, modifiedIso, plainText: plain });
     return c.html(layout({
       title: post.title,
-      desc: post.description || cleanExcerpt(post.body_html, 100),
+      desc: post.description || excerptOfText(plain, 100),
       main,
       active: post.kind === 'note' ? 'notes' : 'posts',
       canonical: pathname,

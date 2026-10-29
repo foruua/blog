@@ -652,7 +652,17 @@
       .catch(() => {
         if (!slot.isConnected) return;
         const page = slot.dataset.commentsPage || url;
-        box.innerHTML = `<p class="ncp-loading ncp-error" role="status">评论载入失败，<a href="${page}">去笔记页查看</a>。</p>`;
+        // 用 DOM 构造而不是拼 innerHTML：page 来自 data-comments-page（slug），
+        // 带引号的 slug 拼进属性里会把链接截断，甚至注入额外属性。
+        const note = document.createElement('p');
+        note.className = 'ncp-loading ncp-error';
+        note.setAttribute('role', 'status');
+        note.append('评论载入失败，');
+        const link = document.createElement('a');
+        link.href = page;
+        link.textContent = '去笔记页查看';
+        note.append(link, '。');
+        box.replaceChildren(note);
         delete slot.dataset.loading;
       });
   }

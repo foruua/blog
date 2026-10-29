@@ -347,7 +347,7 @@ app.use('*', async (c, next) => {
 
 
 // 匿名 HTML 缓存 / 弱 ETag / 自带 br+gzip 统一在 src/http/html-cache.js。
-const htmlCache = createHtmlCache({ repo, themes, crypt, isImmutableAsset: isImmutablePath });
+const htmlCache = createHtmlCache({ repo, themes, isImmutableAsset: isImmutablePath });
 app.use('*', htmlCache.middleware);
 
 // 后台写请求在鉴权守卫之前整块读入请求体：先挡掉未登录请求，避免匿名客户端用大请求体
@@ -364,7 +364,21 @@ app.use('*', async (c, next) => {
 });
 // 公开写路径的限流必须先于 boundedBody：否则一个注定 429 的评论请求仍会先被读进 32KB 内存、
 // 再排进全局写队列。登录单独一份 30 次/分钟（scrypt 比评论贵得多）。
+// 这份白名单同时是下面「只接受白名单写请求」守卫的判据，所以提到守卫之前声明。
 const PUBLIC_WRITE_RE = /^(?:\/api\/comments(?:\/reader)?|\/(?:p|n)\/[^/]+\/comment|\/(?!admin(?:\/|$)|api(?:\/|$)|moderate(?:\/|$)|unsubscribe(?:\/|$))[^/]+\/comment|\/moderate\/[^/]+|\/unsubscribe\/[^/]+)$/;
+
+// 不是后台、不在公开写白名单、也不是外部写入的写请求：根本没有任何路由会处理它，直接 405。
+// 以前这类请求会先被 boundedBody 整块读进最多 1MB 请求体，再排进全局写队列串行执行，
+// 最后才 404 —— 一个注定失败的匿名请求就能占住写队列，拖慢所有真实写入。
+app.use('*', async (c, next) => {
+  const method = c.req.method;
+  if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return next();
+  const p = c.get('pathKey');
+  if (p.startsWith('/admin') || PUBLIC_WRITE_RE.test(p) || isExternalWrite(p)) return next();
+  c.header('Allow', 'GET, HEAD, OPTIONS');
+  return c.text('Method Not Allowed', 405);
+});
+
 const publicWriteLimiter = publicWriteRateLimit();
 const loginWriteLimiter = publicWriteRateLimit({ max: 30 });
 app.use('*', async (c, next) => {

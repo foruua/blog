@@ -2491,7 +2491,6 @@ footer.site .foot-icp-ico { height: 14px; width: auto; vertical-align: -.22em; m
   transition: color var(--dur-2) var(--ease);
 }
 .ncp-fold:hover { color: var(--accent-read); }   /* 它坐在 --bg-soft 的抽屉底上，裸 accent 只有 4.25 */
-/* @page-css notes:end —— 到此为止。下面这条 .c-actions 与内页评论区共用，必须留在核心样式里。 */
 
 /* —— 条目：一条评论 = 头像列 + 内容列。整块**不**逐条画横线（面板已有边，再横线就是方块里套 两层框），条目本就短、靠间距分得开；串内回复另说，靠头像列左侧一条细线连起来。 */
 .ncp-list, .ncp-kids { list-style: none; margin: 0; padding: 0; }
@@ -2615,10 +2614,10 @@ html[data-theme="dark"] .ncp-flash-bad, html[data-theme="dark"] .ncp-flash-limit
   border-bottom-color: var(--accent);
   box-shadow: 0 1px 0 var(--accent);
 }
-.ncp-actions, .c-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: .65rem; margin: .85rem 0 0; }
-.ncp-actions .c-emoji, .c-actions .c-emoji { margin: 0; }
+.ncp-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: .65rem; margin: .85rem 0 0; }
+.ncp-actions .c-emoji { margin: 0; }
 .ncp-go { flex: 0 0 auto; margin: 0; }
-.ncp-go button, .c-actions > button {
+.ncp-go button {
   flex: 0 0 auto;
   height: 2.2rem; padding: 0 1.3rem;
   font: 600 .92rem/1 var(--sans); letter-spacing: .04em;
@@ -2626,10 +2625,27 @@ html[data-theme="dark"] .ncp-flash-bad, html[data-theme="dark"] .ncp-flash-limit
   border: 0; border-radius: var(--radius-pill); cursor: pointer;
   transition: opacity var(--dur-2) var(--ease), transform var(--dur-2) var(--ease), box-shadow var(--dur-2) var(--ease);
 }
-.ncp-go button:hover, .c-actions > button:hover { opacity: .9;  box-shadow: var(--shadow-sm); }
-.ncp-go button:disabled, .c-actions > button:disabled { opacity: .5; cursor: default; transform: none; box-shadow: none; }
-@media (pointer: coarse) { .ncp-actions .c-emoji-trigger, .c-actions .c-emoji-trigger, .ncp-go button, .c-actions > button { min-height: 2.75rem; } }
+.ncp-go button:hover { opacity: .9;  box-shadow: var(--shadow-sm); }
+.ncp-go button:disabled { opacity: .5; cursor: default; transform: none; box-shadow: none; }
+@media (pointer: coarse) { .ncp-actions .c-emoji-trigger, .ncp-go button { min-height: 2.75rem; } }
 /* @page-css notes:end */
+
+/* —— 评论区操作条 —— 内页评论区的 .c-actions 与审核页共用。它以前和 .ncp-actions 写在同一条规则里、
+   却落在 notes 段内部（靠上面那个提前闭合的标记漏进 lite/article）；修好标记后必须显式留在这里，
+   否则文章页的评论表单会丢掉按钮排版。 */
+.c-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: .65rem; margin: .85rem 0 0; }
+.c-actions .c-emoji { margin: 0; }
+.c-actions > button {
+  flex: 0 0 auto;
+  height: 2.2rem; padding: 0 1.3rem;
+  font: 600 .92rem/1 var(--sans); letter-spacing: .04em;
+  color: var(--bg); background: var(--accent);
+  border: 0; border-radius: var(--radius-pill); cursor: pointer;
+  transition: opacity var(--dur-2) var(--ease), transform var(--dur-2) var(--ease), box-shadow var(--dur-2) var(--ease);
+}
+.c-actions > button:hover { opacity: .9;  box-shadow: var(--shadow-sm); }
+.c-actions > button:disabled { opacity: .5; cursor: default; transform: none; box-shadow: none; }
+@media (pointer: coarse) { .c-actions .c-emoji-trigger, .c-actions > button { min-height: 2.75rem; } }
 
 /* —— 弹层入场 —— 灯箱 / 检索台 / 确认框原本都是"啪"一下出现（实测打开瞬间 animations 为 0）。
    只做入场、不做退场：dialog.close() 会立刻撤掉 top layer，要淡出得靠 transition-behavior: allow-discrete

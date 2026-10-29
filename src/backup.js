@@ -66,7 +66,13 @@ function countsOf(db) {
 }
 
 // 上限与允许上传的体积对齐：此前 128MB 总量/32MB 单文件会让正常媒体站点的自动备份永久失败。
-const MAX_BACKUP_BYTES = Math.min(4 * 1024 * 1024 * 1024, Math.max(1024 * 1024, Number(process.env.MAX_BACKUP_BYTES) || 512 * 1024 * 1024));
+// 384MB 而不是 512MB：资产包是一整个 base64 JSON，恢复时 JSON.parse 的字符串上限约 512M 字符，
+// base64 又膨胀 4/3，512MB 的原文件已经越过那条线 —— 备份能写出来、自检也说「可恢复」，
+// 真到要恢复时却抛 ERR_STRING_TOO_LONG。留出 JSON 结构与转义余量，把默认值压到 384MB。
+const MAX_BACKUP_BYTES = Math.min(4 * 1024 * 1024 * 1024, Math.max(1024 * 1024, Number(process.env.MAX_BACKUP_BYTES) || 384 * 1024 * 1024));
+// 资产包 JSON 文本的硬上限（字符数）。这是对上面那条内存/解析约束的直接护栏：即便站主把
+// MAX_BACKUP_BYTES 调大，超过这里也立刻失败并说清原因，而不是产出一份永远恢复不了的备份。
+const MAX_BUNDLE_CHARS = 400 * 1024 * 1024;
 const MAX_BACKUP_FILE_BYTES = Math.min(MAX_BACKUP_BYTES, Math.max(1024 * 1024, Number(process.env.MAX_BACKUP_FILE_BYTES) || 256 * 1024 * 1024));
 // 写流关掉 fd 不等于数据已经落盘：清单里写着 verified 之前，归档文件本身也必须 fsync，
 // 否则断电后可能留下「清单完好、gz 截断」的半份备份。
@@ -203,14 +209,25 @@ export async function snapshot(db, { dir = DEFAULT_DIR, keep = DEFAULT_KEEP, lab
     } finally { indexed.close(); }
     const database = await compress(fs.createReadStream(tmpDb), gzFile);
     // 一次只流一个文件：大文件（几十 MB）不再整块 readFile + base64 成两三份内存副本。
+    // 同时在这里数着资产包 JSON 的字符数：这是恢复端 JSON.parse 能不能吃下的唯一判据，
+    // 流式自检只校验 gzip 与 sha256，看不出「包完好但解析不了」。
     async function* archive() {
-      yield '{"version":1,"content":[';
+      let bundleChars = 0;
+      const emit = (text) => {
+        bundleChars += text.length;
+        if (bundleChars > MAX_BUNDLE_CHARS) {
+          throw new Error(`内容与附件超过单个资产包上限（约 ${Math.round(MAX_BUNDLE_CHARS / 1048576)}M 字符）：`
+            + '恢复时会因 JSON 解析长度上限而失败。请清理附件或拆分站点，不要依赖这份备份');
+        }
+        return text;
+      };
+      yield emit('{"version":1,"content":[');
       for (const [index, files, key] of [[0, content, 'content'], [1, uploads, 'uploads'], [2, themeFiles, 'themes']]) {
-        if (index) yield `],"${key}":[`;
+        if (index) yield emit(`],"${key}":[`);
         for (let i = 0; i < files.length; i++) {
           const file = files[i];
-          if (i) yield ',';
-          yield `{"path":${JSON.stringify(file.path)},"data":"`;
+          if (i) yield emit(',');
+          yield emit(`{"path":${JSON.stringify(file.path)},"data":"`);
           const hash = crypto.createHash('sha256');
           let bytes = 0;
           let carry = Buffer.alloc(0);
@@ -219,16 +236,16 @@ export async function snapshot(db, { dir = DEFAULT_DIR, keep = DEFAULT_KEEP, lab
             hash.update(chunk);
             const buf = carry.length ? Buffer.concat([carry, chunk]) : chunk;
             const complete = buf.length - (buf.length % 3);
-            if (complete) yield buf.subarray(0, complete).toString('base64');
+            if (complete) yield emit(buf.subarray(0, complete).toString('base64'));
             carry = buf.subarray(complete);
           }
-          if (carry.length) yield carry.toString('base64');
+          if (carry.length) yield emit(carry.toString('base64'));
           const stat = fs.statSync(file.file);
           if (bytes !== file.bytes || stat.mtimeMs !== file.mtime) throw new Error('备份期间内容文件发生变化，请重试');
-          yield `","sha256":"${hash.digest('hex')}"}`;
+          yield emit(`","sha256":"${hash.digest('hex')}"}`);
         }
       }
-      yield '],"postFiles":' + JSON.stringify(postFiles) + '}';
+      yield emit('],"postFiles":' + JSON.stringify(postFiles) + '}');
     }
     // 资产包按内容哈希命名：内容没变就复用旧文件，名字、大小、mtime 三者都不变，
     // rsync 才会真的跳过这 30 多 MB；换名之后每份备份都得整包重传。
@@ -589,12 +606,18 @@ function validateBundle(bundle) {
   }
 }
 
-export function restoreBackup(verified, { dbFile, contentDir = CONTENT_DIR, uploadsDir = UPLOADS_DIR, themesDir = THEMES_DIR, journalDir = path.join(path.resolve(dbFile) === path.resolve(DB_FILE) ? DATA_DIR : path.dirname(dbFile), '.write-journal'), lockHeld = false }) {
+export function restoreBackup(verified, { dbFile, contentDir = CONTENT_DIR, uploadsDir = UPLOADS_DIR, themesDir = THEMES_DIR, journalDir = path.join(path.resolve(dbFile) === path.resolve(DB_FILE) ? DATA_DIR : path.dirname(dbFile), '.write-journal'), lockHeld = false, withThemes = false }) {
   assertDatabaseClosed(dbFile);
+  // 主题默认不恢复：恢复要在 themesDir 的父目录（生产上是归 root 的 /srv/blog）里 mkdtemp 再整目录替换，
+  // 普通账号写不进去；改用 root 执行又会把还原出来的数据库/内容一并变成 root 所有，服务随后读写失败。
+  // 主题本来就是部署产物（随代码走），没必要每次恢复都动它 —— 需要时显式 --with-themes。
+  const restoreThemes = withThemes === true && Array.isArray(verified?.bundle?.themes);
   const resources = [dbFile, contentDir, uploadsDir];
-  if (Array.isArray(verified?.bundle?.themes)) resources.push(themesDir);
+  if (restoreThemes) resources.push(themesDir);
   const release = lockHeld ? () => {} : acquireMaintenanceLock(resources, 'restore');
-  try { return restoreUnlocked(verified, { dbFile, contentDir, uploadsDir, themesDir, journalDir }); } finally { release(); }
+  try {
+    return restoreUnlocked(verified, { dbFile, contentDir, uploadsDir, themesDir, journalDir, withThemes: restoreThemes });
+  } finally { release(); }
 }
 // 恢复用 mkdtemp 在各目标父目录旁暂存整棵副本；SIGKILL/断电时 finally 不会执行。
 // 启动/下次恢复时按 7 天保留期清掉这类孤儿，避免它们永久占盘并成为旧内容副本。
@@ -614,14 +637,14 @@ function cleanStaleRestoreTemps(targets, maxAgeMs = 7 * 86400000) {
   }
 }
 
-function restoreUnlocked(verified, { dbFile, contentDir, uploadsDir, themesDir, journalDir }) {
+function restoreUnlocked(verified, { dbFile, contentDir, uploadsDir, themesDir, journalDir, withThemes = false }) {
   if (!verified.ok) throw new Error(`备份校验失败：${verified.reasons.join('；')}`);
   if (verified.manifest?.complete === false || verified.manifest?.skippedLinks?.length) throw new Error('该保底备份缺失文件或跳过软链，只可用于提取原数据库与残存文件');
   if (!verified.bundle) throw new Error('旧备份不含 Markdown 和附件，不能完整恢复；请先补齐内容备份');
   validateBundle(verified.bundle);
-  // 主题是后加的分组：旧备份没有 themes 时不动现有主题目录。
+  // 主题是后加的分组：旧备份没有 themes、或调用方没要（默认）时，不动现有主题目录。
   const groups = [[contentDir, verified.bundle.content], [uploadsDir, verified.bundle.uploads]];
-  if (Array.isArray(verified.bundle.themes)) groups.push([themesDir, verified.bundle.themes]);
+  if (withThemes && Array.isArray(verified.bundle.themes)) groups.push([themesDir, verified.bundle.themes]);
   const targets = [dbFile, ...groups.map(([dir]) => dir), journalDir].map((p) => path.resolve(p));
   for (let i = 0; i < targets.length; i++) for (let j = i + 1; j < targets.length; j++) {
     if (targets[i] === targets[j] || targets[i].startsWith(targets[j] + path.sep) || targets[j].startsWith(targets[i] + path.sep)) {
@@ -702,6 +725,6 @@ function restoreUnlocked(verified, { dbFile, contentDir, uploadsDir, themesDir, 
   }
   return {
     dbFile: targets[0], contentDir: targets[1], uploadsDir: targets[2],
-    ...(Array.isArray(verified.bundle.themes) ? { themesDir: targets[3] } : {}),
+    ...(groups.length > 2 ? { themesDir: targets[3] } : {}),
   };
 }

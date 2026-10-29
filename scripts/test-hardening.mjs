@@ -141,9 +141,12 @@ try {
       let limited = false;
       for (let i = 0; i < 70 && !limited; i++) limited = (await hit('/api/comments')).status === 429;
       assert.ok(limited, '评论端点应在配额用尽后返回 429');
-      // 配额已经耗尽：如果限流器被 app.route() 提升成全局中间件，无关路径也会拿到 429
+      // 配额已经耗尽：如果限流器被 app.route() 提升成全局中间件，无关路径也会拿到 429。
+      // 这类写请求现在会在读请求体之前就被白名单守卫拦成 405（见 server.js），所以只要求「不是 429」，
+      // 并确认它确实是被路由层拒绝（404/405），而不是被评论限流器顺手带走。
       const unrelated = await hit('/definitely-not-a-route');
-      assert.equal(unrelated.status, 404, `无关路径被评论限流拦住了：${unrelated.status}`);
+      assert.notEqual(unrelated.status, 429, `无关路径被评论限流拦住了：${unrelated.status}`);
+      assert.ok([404, 405].includes(unrelated.status), `无关路径应 404 或 405，实际：${unrelated.status}`);
     } finally { await srv.stop(); }
   });
   await test('CSP 覆盖全部内联脚本，且 /healthz 可用于监控', async () => {

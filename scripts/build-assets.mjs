@@ -21,10 +21,13 @@ const MANIFEST = path.join(BUILD_DIR, 'manifest.json');
 const checkOnly = process.argv.includes('--check');
 
 const sha256 = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
+// 打包后前台只请求 site.js；五个源脚本只在 bundle 过期时回退。生产构建不再为它们各生成一份
+// 精简与 br/gzip（运行时 sendFile 仍能在回退时按需精简），少 5 个文件、少一份重复产物。
+// 例外：request.js / ui.js / nav.js 还被后台页面单独引用（不进 bundle），必须照常产出预压缩文件，
+// 否则后台每次都走运行时精简 + 现压；只有纯属 bundle 的 search.js / app.js 可以跳过。
+const BUNDLE_ONLY_SOURCES = ['search.js', 'app.js'];
 const files = VERSIONED_ASSETS.filter((name) => /\.(?:css|js)$/i.test(name))
-  // 打包后前台只请求 site.js；五个源脚本只在 bundle 过期时回退。生产构建不再为它们各生成一份
-  // 精简与 br/gzip（运行时 sendFile 仍能在回退时按需精简），少 5 个文件、少一份重复产物。
-  .filter((name) => !SITE_SOURCES.includes(name));
+  .filter((name) => !BUNDLE_ONLY_SOURCES.includes(name));
 
 // —— 页面级 CSS 变体 ——
 // public/style.css 里用 /* @page-css <name>:start|end */ 标出「只有某类页面才用」的段。
@@ -38,18 +41,29 @@ const PAGE_CSS_VARIANTS = {
 };
 const PAGE_CSS_STAMP = path.join(BUILD_DIR, 'page-css.json');
 
+// 标记必须严格配对：以前 style.css 里多出一个 notes:end，让笔记段提前闭合，`.ncp-*` 整套抽屉样式
+// 悄悄漏进 lite/article 两份变体（每页多约 4.4KB），而第二个 end 没有开头、被静默忽略。
+// 现在任何未闭合、重复闭合、嵌套都会让构建直接失败，而不是产出一份「看起来正常」的样式表。
 function stripPageCss(source, drop) {
   const out = [];
   let open = '';
-  for (const line of source.split('\n')) {
+  let openAt = 0;
+  source.split('\n').forEach((line, index) => {
     const marker = /^\/\* @page-css ([a-z-]+):(start|end)\b/.exec(line);
     if (marker) {
-      if (marker[2] === 'start') open = marker[1];
-      else if (open === marker[1]) open = '';
-      continue;
+      const [, name, kind] = marker;
+      if (kind === 'start') {
+        if (open) throw new Error(`style.css:${index + 1} 在 ${open} 段（第 ${openAt} 行）未闭合时又开了 ${name} 段`);
+        open = name; openAt = index + 1;
+        return;
+      }
+      if (open !== name) throw new Error(`style.css:${index + 1} 的 @page-css ${name}:end 没有对应的 start（当前打开：${open || '无'}）`);
+      open = '';
+      return;
     }
     if (!drop.includes(open)) out.push(line);
-  }
+  });
+  if (open) throw new Error(`style.css:${openAt} 的 @page-css ${open}:start 没有对应的 end`);
   return out.join('\n');
 }
 

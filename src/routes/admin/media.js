@@ -24,7 +24,8 @@ async function writeNewFileAsync(filePath, data, createdFiles) {
   createdFiles.push(filePath);
   try { await fh.writeFile(data); await fh.sync(); }
   finally { await fh.close(); }
-  syncDirectory(path.dirname(filePath));
+  // 目录项不在这里同步：一次上传会写原图 + 缩略图 + 最多 8 个变体，逐个 fsync 目录等于
+  // 在事件循环上连堵 10 次。调用方写完后统一 syncDirectory 一次即可（见下方上传处理）。
 }
 
 async function sameFileContent(filePath, data) {
@@ -173,6 +174,8 @@ export function registerMediaRoutes(app, { repo, adminRepo, mutate = (fn) => fn(
       await writeIfAbsentAsync(abs, buf, createdFiles);
       await writeIfAbsentAsync(thumbAbs, normalized.thumbnail, createdFiles);
       for (const v of variants) await writeIfAbsentAsync(v.absFile, v.data, createdFiles);
+      // 所有文件都写在同一目录：目录项只同步一次，别为每个变体各堵一次事件循环。
+      if (createdFiles.length) syncDirectory(dir);
     } catch (e) {
       cleanupOnError();
       throw e;

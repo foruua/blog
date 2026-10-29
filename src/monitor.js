@@ -47,7 +47,9 @@ export function stateFingerprint(url, result) {
 // 再落新清单，中间那几秒目录里可能一个 *.json 都没有 —— 这时判「异地备份目录为空」是假警报。
 // 锁超过 2 小时按残留处理（脚本下一轮会自己清掉），照常判新鲜度，不让坏锁把告警永久遮住。
 const OFFSITE_PULL_LOCK = '.pull-lock';
-export function pullInProgress(dir, now = Date.now()) {
+// 注意默认参数是函数本身而不是它的返回值：写成 `now = Date.now()` 会先求出数字，
+// 函数体再 now() 就抛 TypeError，被下面的 catch 吞掉后永远返回 false —— 生产上拉取锁等于不存在。
+export function pullInProgress(dir, now = Date.now) {
   try {
     const stat = fs.statSync(path.join(dir, OFFSITE_PULL_LOCK));
     return now() - stat.mtimeMs < 2 * 3600e3;

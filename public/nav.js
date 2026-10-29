@@ -292,6 +292,16 @@
     return null;
   }
 
+  /* 三档样式表是包含关系：lite ⊂ article ⊂ 全量 style.css。
+     只看文件名，不看指纹查询串（?v= 每次构建都会变）。返回 0 = 不参与包含关系判定。 */
+  function styleTier(absolute) {
+    var name = String(absolute).split('?')[0].split('#')[0].split('/').pop();
+    if (name === 'style.css') return 3;
+    if (name === 'style-article.css') return 2;
+    if (name === 'style-lite.css') return 1;
+    return 0;
+  }
+
   function ensureStyles(doc) {
     var wanted = stylesheetHrefs(doc);
     if (!wanted.length) return null;
@@ -301,14 +311,27 @@
     });
     if (!target.length) return null;
     var have = {};
+    var haveTier = 0;
     stylesheetHrefs(document).forEach(function (href) {
-      try { have[new URL(href, location.href).href] = 1; } catch (e) { /* 坏地址忽略 */ }
+      try {
+        var absolute = new URL(href, location.href).href;
+        have[absolute] = 1;
+        var tier = styleTier(absolute);
+        if (tier > haveTier) haveTier = tier;
+      } catch (e) { /* 坏地址忽略 */ }
     });
     var pending = [];
     target.forEach(function (absolute, index) {
       if (stylePending.has(absolute)) { pending.push(stylePending.get(absolute)); return; }
       if (have[absolute]) return;
+      var tier = styleTier(absolute);
+      // 已经有更高级的样式表就跳过：从 /notes/（全量）回首页时再补一份 lite，
+      // 既多下载约 12.5KB(br)，又因为子集排在全量之后，让同特异性规则的层叠顺序反过来。
+      // 同级不跳：同档但 ?v= 不同说明构建换了指纹（内容已更新），这份新的必须补上，
+      // 追加在同类规则之后正是「新版本覆盖旧版本」应有的顺序。
+      if (tier > 0 && tier < haveTier) return;
       have[absolute] = 1;
+      if (tier > haveTier) haveTier = tier;
       var loading = new Promise(function (resolve) {
         var link = document.createElement('link');
         var settle = function () { resolve(); };
@@ -560,11 +583,16 @@
         });
       }
       return res.text().then(function (html) {
+        // 响应体读完之前可能已经提交了另一个表单（serial 变了）：这时的 HTML 属于旧请求，
+        // 再换页就会把用户刚提交的结果覆盖掉。必须在解析/换页之前拦下来。
+        if (requestId !== serial) return { ok: false, stale: true };
         var doc = new DOMParser().parseFromString(html, 'text/html');
         var samePath = false;
         try { samePath = new URL(at, location.href).pathname === location.pathname; } catch (e) { /* 保持 false */ }
         applyDoc(doc, at, { push: true, replace: samePath, keepScroll: samePath, toast: noticeIn(doc) || savedText });
-        cache.clear();
+        // invalidate() 而不是 cache.clear()：前者还会中止进行中的预取，
+        // 否则预取回来仍会把旧 HTML 写回缓存，评论刚发布就可能命中旧页面。
+        invalidate();
         return { ok: res.ok, status: res.status, url: at };
       });
     }).catch(function (err) {

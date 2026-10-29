@@ -29,7 +29,9 @@ node_modules/
 .DS_Store
 .workbuddy/
 .workbuddy-ai/
-design/
+# 锚定到 docs/ 下：以前写成 design/，任何目录里叫 design 的文件夹（包括未来真的设计稿目录）
+# 都会被忽略，而 eslint 里那份对应的 'design/**' 又指向一个不存在的路径。
+/docs/design/
 
 # —— 编辑器 / 系统杂项 ——
 .vscode/

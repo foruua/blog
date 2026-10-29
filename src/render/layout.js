@@ -274,8 +274,13 @@ export const heroToolsHtml = (palDefault = sitePaletteDefault()) => `<span class
 // 全部 aria-hidden：链接的可访问名仍只有那两个字，读屏不会念出图形。
 // 标签是页面标题（用户内容），一律转义。
 // 图标在 <a> 里、文字包一层 .n-txt：图标不参与可访问名，链接读出来仍是「文章」，与加图标前一致。
-const navLink = (active) => ([href, label, key]) =>
-  `<a href="${esc(href)}"${key === active ? ' aria-current="page"' : ''}>${navIco(key)}<span class="n-txt">${esc(label)}</span></a>`;
+// 导航可以在后台填站外地址：外链补 rel，别把权重与 window.opener 一起交出去（nav.js 的注释一直这么承诺，
+// 但服务端渲染的这份才是首屏真正发出的 HTML）。
+const EXTERNAL_HREF_RE = /^https?:\/\//i;
+const navLink = (active) => ([href, label, key]) => {
+  const rel = EXTERNAL_HREF_RE.test(String(href ?? '')) ? ' rel="nofollow noopener"' : '';
+  return `<a href="${esc(href)}"${rel}${key === active ? ' aria-current="page"' : ''}>${navIco(key)}<span class="n-txt">${esc(label)}</span></a>`;
+};
 // 二级里若是当前页，触发器自己也高亮（data-current）——否则会「人在某页、导航却看不出」，不必再扫一眼才认出。
 // main/more 的划分与顺序都来自后台（site/nav.js），这里只负责标记；more 为空时整块下拉不出现。
 const navHtml = (active, { main = [], more = [], moreLabel = '页面' } = {}) => {

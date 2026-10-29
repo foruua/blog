@@ -78,6 +78,18 @@ try {
     check('T11 令牌复用后 ETag 仍稳定',
       Boolean(a.headers.get('etag')) && a.headers.get('etag') === b.headers.get('etag'),
       `${a.headers.get('etag')} / ${b.headers.get('etag')}`);
+
+    // 回归（审查 H2）：缓存键与渲染路由必须用同一套严格解析。以前缓存层 parseInt（`0x5` → 0，
+    // 不计入键）而路由用 Number()（`0x5` → 5，渲染「回复 #5」），于是回复页被写进裸路径缓存，
+    // 60 秒内所有匿名读者看到的都是回复表单。
+    const bogus = await fetch(`${url}?reply=0x5`);
+    await bogus.text();
+    check('T12 非法 reply 不进共享缓存', !bogus.headers.get('x-page-cache'), String(bogus.headers.get('x-page-cache')));
+    const bare = await fetch(url);
+    const bareBody = await bare.text();
+    check('T13 非法 reply 不会污染裸路径缓存',
+      bare.headers.get('x-page-cache') === 'HIT' && bareBody === ah,
+      `${bare.headers.get('x-page-cache')} / 正文${bareBody === ah ? '一致' : '被改写'}`);
   }
 } finally {
   close(db);

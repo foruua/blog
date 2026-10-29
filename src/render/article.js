@@ -1,7 +1,7 @@
 // 内容页（文章 / 笔记）的标记与结构化数据。纯函数：帖子、字数、目录、上下篇、评论区 HTML 都由调用方备好，
 // 这里只负责拼字符串 —— 路由层因此只剩取数与装配，标记本身能被单独测试。
 import { SITE } from '../config.js';
-import { esc, formatDay, postUrl, relativeDate, cleanExcerpt } from '../util/text.js';
+import { esc, formatDay, postUrl, relativeDate, cleanExcerpt, excerptOfText } from '../util/text.js';
 
 /** 目录：有 toc 才出，序号由 CSS 计数器补零（不写进 HTML）。 */
 export function tocHtml(toc) {
@@ -44,13 +44,14 @@ ${commentBlock}
 }
 
 /** BlogPosting + BreadcrumbList。只认 ISO 8601 的时间字段，解析失败就不写该键。 */
-export function articleJsonLd({ post, pathname, og, commentCount, publishedIso, modifiedIso }) {
+// plainText 可选：文章页已经为 og:description 转过一次纯文本，传进来就不必把整篇正文再解析一遍。
+export function articleJsonLd({ post, pathname, og, commentCount, publishedIso, modifiedIso, plainText }) {
   const note = post.kind === 'note';
   const articleLd = {
     '@context': 'https://schema.org',
     '@type': 'BlogPosting',
     headline: post.title,
-    description: cleanExcerpt(post.body_html, 160),
+    description: plainText == null ? cleanExcerpt(post.body_html, 160) : excerptOfText(plainText, 160),
     url: `${SITE.url}${pathname}`,
     mainEntityOfPage: { '@type': 'WebPage', '@id': `${SITE.url}${pathname}` },
     inLanguage: post.lang || SITE.lang,

@@ -305,6 +305,9 @@ export function publicWriteRateLimit({ max = 60, windowMs = 60000, capacity = 40
     }
     const key = clientKey(c);
     let hit = entries.get(key);
+    // 命中也要判过期。time 只在插入时写，若只靠上面摊还清理，一条记录最长能活两个窗口，
+    // 计数却在窗口之外继续累加 —— 实际限流窗口被拉长到 2 倍（最长 120 秒才放行）。
+    if (hit && now - hit.time >= windowMs) { hit.time = now; hit.count = 0; }
     if (!hit) {
       // 容量满时淘汰最旧一条，而非把新访客 429（旧写法在高基数 IP 下会让新 IP 被拒一个窗口期）。time 只在
       // 插入时写、命中不改，故 Map 插入序即时间序，第一个 key 就是最旧那条；旧写法每次都要全表扫描，现在 O(1)。

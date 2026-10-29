@@ -138,13 +138,19 @@ export function createMailOutbox({
       let attempted = 0;
       let first = force;
       for (;;) {
-        const budget = maxPerHour - sentInLastHour();
-        if (budget <= 0 || attempted >= 40) break;
+        // sentInLastHour() 已包含本轮已发出的数量，所以这里算的是「本轮还能再发几封」的剩余额度，
+        // 只能和本批计数比较。以前拿累计的 sent 跟它比，积压 ≥40 封、上限 30 时第一批发完就
+        // sent(20) >= budget(10) 立即 break，而 rows.length === 20 又不退出外层循环，
+        // attempted 也停在 20 碰不到 40 的保护线 —— for(;;) 全程无 await 同步空转，CPU 打满。
+        const remaining = maxPerHour - sentInLastHour();
+        if (remaining <= 0 || attempted >= 40) break;
         const rows = first ? q.dueForce.all(nowIso(now()), 20) : q.due.all(nowIso(now()), 20);
         first = false;
         if (!rows.length) break;
+        let batchSent = 0;
+        let budgetOut = false;
         for (const row of rows) {
-          if (sent >= budget) break;
+          if (batchSent >= remaining) { budgetOut = true; break; }
           const createdAt = Date.parse(row.created_at);
           if (!Number.isFinite(createdAt) || now() - createdAt > MAX_AGE_MS) {
             q.markSkipped.run(nowIso(now()), 'expired', row.id);
@@ -178,6 +184,7 @@ export function createMailOutbox({
           if (result?.sent) {
             q.markSent.run(nowIso(now()), row.id);
             sent++;
+            batchSent++;
             continue;
           }
           const reason = String(result?.reason ?? 'unknown').slice(0, 500);
@@ -195,6 +202,8 @@ export function createMailOutbox({
             log(JSON.stringify({ event: 'mail.retry', id: row.id, attempts, reason }));
           }
         }
+        // 本批因额度耗尽中断：外层再取一批也只会在第一封就退出，必须直接结束本轮。
+        if (budgetOut) break;
         if (rows.length < 20) break;
       }
       maybePrune();
