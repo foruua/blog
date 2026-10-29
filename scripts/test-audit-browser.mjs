@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { JSDOM } from 'jsdom';
-import { createChecker } from './_check.mjs';
+import { createChecker, sleep } from './_check.mjs';
 
 const { test, report } = createChecker();
 const source = fs.readFileSync('public/app.js', 'utf8');
@@ -17,7 +17,6 @@ function mount({ owner = false, request } = {}) {
   w.eval(source);
   return { dom, w, form: w.document.querySelector('form') };
 }
-const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 await test('作者模式提交保留浏览器中已有读者信息', async () => {
   const { dom, w, form } = mount({ owner: true });
   try {

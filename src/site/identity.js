@@ -43,7 +43,7 @@ export function siteIdentityOf(read) {
 
 /**
  * 把库里的值原地写回 SITE。SITE 是各处 import 的同一个对象引用，因此保存后下一次渲染立即生效
- * （页面缓存靠 repo.changeStamp() 失效，settings 写入的 total_changes 会让它变）。
+ * （页面缓存靠 repo.changeStamp() 失效，settings 写入会触发 042 的内容修订触发器。）
  */
 export function applySiteIdentity(read) {
   const v = siteIdentityOf(read);

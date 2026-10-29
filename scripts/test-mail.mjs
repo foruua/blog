@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import './_test-env.mjs';
 import { cookieJar, createClient, csrfOf, loginAdmin } from './_shared.mjs';
+import { sleep } from './_check.mjs';
 
 import net from 'node:net';
 import { open, close } from '../db/driver.js';
@@ -311,7 +312,6 @@ try {
     // 读者之间的回复：审核通过后才通知被回复的人
     {
       const crypt = createCrypto(db);
-      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       const addComment = (sql, ...args) => Number(db.prepare(sql).run(...args).lastInsertRowid);
       const insert = `INSERT INTO comments
         (post_id, parent_id, author, email_hash, email_enc, website, body_md, status, created_at, is_author, moderation_nonce)

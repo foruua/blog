@@ -97,7 +97,9 @@ export function createLinkRepo(db) {
     adminPage: db.prepare(`SELECT * FROM (${LIVE_CTE}) AS live
       ORDER BY n DESC, last_at DESC, host ASC LIMIT ? OFFSET ?`),
     adminCount: db.prepare(`SELECT COUNT(*) AS n FROM (${LIVE_CTE}) AS live`),
-    adminGroupCounts: db.prepare(`SELECT
+    // 后台一页同时要总数与三组计数：合并成一条，避免为同一份 LIVE_CTE 跑三遍。
+    adminSnapshot: db.prepare(`SELECT
+        COUNT(*) AS total,
         SUM(CASE WHEN IFNULL(hidden, 0) = 0 AND IFNULL(alive, 1) <> 0 THEN 1 ELSE 0 END) AS live,
         SUM(CASE WHEN IFNULL(hidden, 0) = 0 AND IFNULL(alive, 1) = 0 THEN 1 ELSE 0 END) AS dead,
         SUM(CASE WHEN IFNULL(hidden, 0) = 1 THEN 1 ELSE 0 END) AS hidden
@@ -160,8 +162,15 @@ export function createLinkRepo(db) {
     adminList: () => q.adminList.all(),
     adminPage: ({ limit = 60, offset = 0 } = {}) => q.adminPage.all(limit, offset),
     adminCount: () => q.adminCount.get().n,
+    adminSnapshot: () => {
+      const row = q.adminSnapshot.get() ?? {};
+      return {
+        total: Number(row.total) || 0,
+        counts: { live: Number(row.live) || 0, dead: Number(row.dead) || 0, hidden: Number(row.hidden) || 0 },
+      };
+    },
     adminGroupCounts: () => {
-      const row = q.adminGroupCounts.get() ?? {};
+      const row = q.adminSnapshot.get() ?? {};
       return { live: Number(row.live) || 0, dead: Number(row.dead) || 0, hidden: Number(row.hidden) || 0 };
     },
 

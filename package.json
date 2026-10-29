@@ -21,6 +21,7 @@
     "set-password": "node --env-file-if-exists=.env scripts/set-password.mjs",
     "test": "node scripts/test-all.mjs",
     "test:only": "node scripts/test-all.mjs --only",
+    "test:parallel": "TEST_CONCURRENCY=2 node scripts/test-all.mjs",
     "test:ui": "node scripts/ui-audit.mjs --isolate",
     "audit:ui": "node scripts/ui-audit.mjs",
     "pretest": "npm run lint && node scripts/palette-seeds.mjs --check",

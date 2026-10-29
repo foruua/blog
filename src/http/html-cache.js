@@ -1,15 +1,14 @@
 import crypto from 'node:crypto';
-import { gzip, brotliCompress, constants as zlibConstants } from 'node:zlib';
-import { promisify } from 'node:util';
 import { envInt } from '../util/env.js';
 import { acceptsEncoding, ifNoneMatch } from '../util/http.js';
+import { compressBuffer, MIN_COMPRESS_BYTES } from '../util/compress.js';
+import { ADMIN_COOKIE } from './cookies.js';
 import { mediaRevision } from '../media/revision.js';
-
-const gzipAsync = promisify(gzip);
-const brotliAsync = promisify(brotliCompress);
 
 // 与 server.js 的静态资源清单解耦：调用方传入 isImmutableAsset 判定即可。
 const NON_HTML_PATH_RE = /^\/(?:admin|moderate|unsubscribe|healthz|api|avatar|uploads|theme-assets)(?:$|\/)|^\/(?:feed\.xml|atom\.xml|feed\.json|sitemap\.xml|robots\.txt|site\.webmanifest|favicon\.ico)$/;
+// 后台会话 cookie 名与 admin/auth.js 同源；用正则判断「有没有这个 cookie」，不解析值。
+const ADMIN_COOKIE_RE = new RegExp(`(?:^|;\\s*)${ADMIN_COOKIE}=`);
 // 只缓存能可靠归一化的查询参数：page/cpage 是页码，reply 是评论 id，kind 是归档筛选。
 // q/before/n/partial/panel/suffix/c 等会改变正文且取值空间不设限，直接不缓存——
 // 以前任意 ?q=、?before=、?page=999999 都各开一条 key，200 条随机请求就能把整页缓存冲掉。
@@ -80,7 +79,7 @@ export function createHtmlCache({
   // 返回 null = 这条请求不缓存（含随机/深链参数），避免缓存被无限 key 冲掉。
   const keyOf = (c) => {
     let url;
-    try { url = new URL(c.req.url); } catch { return c.req.path; }
+    try { url = c.get?.('requestUrl') ?? new URL(c.req.url); } catch { return c.req.path; }
     const parts = [];
     for (const key of new Set(url.searchParams.keys())) {
       if (UNCACHEABLE_QUERY.has(key)) return null;
@@ -104,7 +103,7 @@ export function createHtmlCache({
     if (!enabled || c.req.method !== 'GET') return false;
     if (NON_HTML_PATH_RE.test(c.req.path) || isImmutableAsset(c.req.path)) return false;
     // 任何后台会话（包括伪造的）都不走缓存：作者表单、CSRF、主题预览只属于这个浏览器。
-    if (/(?:^|;\s*)blog_admin=/.test(c.req.header('cookie') ?? '')) return false;
+    if (ADMIN_COOKIE_RE.test(c.req.header('cookie') ?? '')) return false;
     return true;
   };
 
@@ -114,7 +113,7 @@ export function createHtmlCache({
     if (rev === undefined) {
       let theme = null;
       try { theme = themes.active(); } catch { /* 主题错误由渲染层兜底 */ }
-      rev = `${repo.changeStamp?.() ?? ''}|${mediaRevision(repo)}|${theme?.id ?? ''}:${theme?.signature ?? ''}`;
+      rev = `${repo.contentStamp?.() ?? repo.changeStamp?.() ?? ''}|${mediaRevision(repo)}|${theme?.id ?? ''}:${theme?.signature ?? ''}`;
       c.set('pageRevision', rev);
     }
     return rev;
@@ -123,13 +122,10 @@ export function createHtmlCache({
   // 压缩结果缓存在条目上：没有评论表单的页面（首页/列表/友圈/友链/固定页）正文在 TTL 内逐字节不变，
   // 命中时可以直接复用压缩字节，省掉整页 Brotli。带 ts 令牌的页面不行——令牌每次都要重签，
   // 压缩字节也就跟着变，只能照旧每次重压。
-  const MIN_COMPRESS_BYTES = 1024;
   const ENCODINGS = ['br', 'gzip'];
 
   function compressOnce(body, encoding) {
-    return encoding === 'br'
-      ? brotliAsync(body, { params: { [zlibConstants.BROTLI_PARAM_QUALITY]: 5 } })
-      : gzipAsync(body);
+    return compressBuffer(body, encoding);
   }
 
   async function compressedFor(entry, accepted) {
@@ -212,7 +208,7 @@ export function createHtmlCache({
     if (!contentType.includes('text/html')) return;
 
     const path = c.req.path;
-    const adminCookie = /(?:^|;\s*)blog_admin=/.test(c.req.header('cookie') ?? '');
+    const adminCookie = ADMIN_COOKIE_RE.test(c.req.header('cookie') ?? '');
     // 后台/审核/退订页永远不缓存，保持原行为：后台会话 private, no-store，公开 token 页由安全头兜 no-store。
     if (path.startsWith('/admin') || path.startsWith('/moderate/') || path.startsWith('/unsubscribe/')) {
       if (adminCookie && path.startsWith('/admin')) c.header('Cache-Control', 'private, no-store');

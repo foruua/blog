@@ -21,6 +21,8 @@ jobs:
     env:
       UI_AUDIT_REQUIRED: ${{ matrix.ui }}
       UI_AUDIT: ${{ matrix.ui == '1' && '1' || 'off' }}
+      # 功能套件各有独立 fixture；并行两个能明显缩短 CI，浏览器审计仍在其后串行。
+      TEST_CONCURRENCY: '2'
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5

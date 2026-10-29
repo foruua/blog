@@ -21,7 +21,7 @@ export class FeedParseError extends Error {
 }
 
 import { decodeEntities } from '../util/entities.js';
-import { stripTags } from '../util/text.js';
+import { stripHtmlTags } from '../util/html-text.js';
 
 /* 标签名与属性 */
 
@@ -187,9 +187,11 @@ function stripShortcodes(text) {
 }
 
 export function htmlToText(input, max = 220) {
-  let s = String(input ?? '');
-  for (let pass = 0; pass < 2; pass++) { s = stripTags(s); s = decodeEntities(s); }
-  return cleanText(s, max);
+  // 远端 feed 常见二次编码（&amp;lt;）：与旧实现一样「剥标签 → 解实体」两轮，
+  // 第二轮会把第一轮解出来的 <script> 再剥掉，而不是把它当纯文本留下。
+  let text = String(input ?? '');
+  for (let pass = 0; pass < 2; pass++) { text = stripHtmlTags(text); text = decodeEntities(text); }
+  return cleanText(text, max);
 }
 
 function httpUrl(raw, base) {

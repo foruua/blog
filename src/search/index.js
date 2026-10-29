@@ -1,5 +1,5 @@
 import { contentUrl, nowIso } from '../util/text.js';
-import { decodeEntities } from '../util/entities.js';
+import { htmlToPlainText } from '../util/html-text.js';
 
 // 全站检索：只搜已发布的文章与笔记。内容量小（个人博客几十到几百篇），索性不建索引、不切词：
 // 查询时现读现匹配——把标题与正文的纯文本取出来，按子串判断是否包含每个词。
@@ -12,17 +12,11 @@ export const SEARCH_LIMIT = 50;
 const LIVE = `draft = 0 AND published_at IS NOT NULL AND published_at <= ? AND kind IN ('post','note')`;
 
 // 块级标签变空格而非删掉：'</p><p>' 直接删会让前后两词黏成一个不存在的词。
-const BLOCK_END = /<\/(?:p|div|li|h[1-6]|tr|blockquote|section|article|dd|dt|pre|figcaption)>|<br\s*\/?>/gi;
-const DROPPED = /<(script|style|pre)[\s\S]*?<\/\1>/gi;
-
-// 入库 HTML → 纯文本（匹配用）。
+// 入库 HTML → 纯文本（匹配用）。具体规则集中在 util/html-text.js。
 export function plainText(html) {
-  return decodeEntities(String(html ?? '')
-    .replace(DROPPED, ' ')
-    .replace(BLOCK_END, ' ')
-    .replace(/<[^>]+>/g, ''))
-    .replace(/\s+/g, ' ')
-    .trim();
+  return htmlToPlainText(html, {
+    dropPre: true, blockBoundaries: true, tagReplacement: '', decodePasses: 1,
+  }).replace(/\s+/g, ' ').trim();
 }
 
 // 输入 → 词表：按空白切开、去掉引号、去重、小写。多个词是 AND（全部命中才算）。

@@ -374,7 +374,7 @@ try {
   });
 
   await test('V14 反代不改 CSP：站点仍然只放行 img-src self/data', () => {
-    const src = fs.readFileSync('server.js', 'utf8');
+    const src = fs.readFileSync('src/http/security.js', 'utf8');
     assert.match(src, /"img-src 'self' data:"/);
     assert.ok(!/img-src[^;]*gravatar/.test(src), '别为了头像去放开第三方图片域');
   });

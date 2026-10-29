@@ -9,11 +9,11 @@ import { boundedBody, publicWriteRateLimit, clientKey } from './src/util/http.js
 import { createAntispam } from './src/comments/antispam.js';
 import { createStaticFiles } from './src/http/static.js';
 import { createHtmlCache } from './src/http/html-cache.js';
-import { esc } from './src/util/text.js';
+import { securityHeaders, errorPage } from './src/http/security.js';
 import { Hono } from 'hono';
 import { compress } from 'hono/compress';
 import { serve } from '@hono/node-server';
-import { open, close, sqliteVersion, optimize } from './db/driver.js';
+import { open, close, sqliteVersion } from './db/driver.js';
 import { migrate } from './db/migrate.js';
 import { createRepo } from './db/repo.js';
 import { setNavPages, setPaletteDefault, setNavSource } from './src/render/layout.js';
@@ -40,6 +40,7 @@ import { createAvatarCache } from './src/avatar/cache.js';
 import { createKnownAvatars } from './src/avatar/known.js';
 import { normalizeAvatar } from './src/avatar/image.js';
 import { avatarRoutes } from './src/routes/avatar.js';
+import { registerAssetRoutes } from './src/routes/assets.js';
 import { DB_FILE, CONTENT_DIR, DATA_DIR, UPLOADS_DIR, PORT, HOST, SITE, configWarnings, AVATAR_DIR, AVATAR_UPSTREAMS, AVATAR_FETCH_SIZE, AVATAR_CACHE_MAX_FILES, THEMES_DIR, PUBLIC_DIR } from './src/config.js';
 import { pruneTrash, pruneTrashDirs, TRASH_DERIVED_RETENTION_DAYS } from './src/util/trash.js';
 import { envDurationMs } from './src/util/env.js';
@@ -51,10 +52,10 @@ import { createBackupSummaryCache, isRecoverableBackup } from './src/backup.js';
 import { createBackupScheduler } from './src/backup-scheduler.js';
 import { createHealthMonitor } from './src/health.js';
 import { createWatchdog } from './src/monitor.js';
-import { rotateLogsAsync, resolveLogDir } from './src/log-rotate.js';
-import { THEME_BOOT as PUBLIC_THEME_BOOT, VERSIONED_ASSETS, assetVer, setThemeResolver, setThemeRenderer, setThemeErrorLogger, setLayoutDefault } from './src/render/layout.js';
-import { THEME_BOOT as ADMIN_THEME_BOOT } from './src/admin/layout.js';
-import { createThemeRegistry, isSafeRelative } from './src/themes/registry.js';
+import { resolveLogDir } from './src/log-rotate.js';
+import { createBackgroundScheduler } from './src/bootstrap/background.js';
+import { VERSIONED_ASSETS, assetVer, setThemeResolver, setThemeRenderer, setThemeErrorLogger, setLayoutDefault } from './src/render/layout.js';
+import { createThemeRegistry } from './src/themes/registry.js';
 import { createThemeEngine } from './src/themes/engine.js';
 import { runWithThemeRequest, themeRequest, THEME_PREVIEW_COOKIE } from './src/themes/request.js';
 import { recordThemeError } from './src/themes/errors.js';
@@ -63,50 +64,6 @@ import { getCookie } from 'hono/cookie';
 // 「可长期缓存」的静态资源；清单直接 import 自 layout.js（与加 ?v= 的是同一数组，别再复制一份）。
 const IMMUTABLE_ASSET_RE = new RegExp(`^/(${VERSIONED_ASSETS.map((f) => f.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})$`);
 const isImmutablePath = (p) => IMMUTABLE_ASSET_RE.test(p) || p.startsWith('/uploads/') || p.startsWith('/theme-assets/');
-
-// CSP：script-src 只放行自身脚本与内联引导的 sha256（前台/后台共用同一常量，Set 去重）——主题/配色必须在 <head>（外链会闪白）；style-src 需 unsafe-inline。
-const INLINE_SCRIPT_HASHES = [...new Set([PUBLIC_THEME_BOOT, ADMIN_THEME_BOOT])]
-  .map((src) => `'sha256-${crypto.createHash('sha256').update(src, 'utf8').digest('base64')}'`);
-const CSP = [
-  "default-src 'self'",
-  "base-uri 'self'",
-  "object-src 'none'",
-  "img-src 'self' data:",
-  "font-src 'self'",
-  "style-src 'self' 'unsafe-inline'",
-  `script-src 'self' ${INLINE_SCRIPT_HASHES.join(' ')}`,
-  "connect-src 'self'",
-  "form-action 'self'",
-  "frame-ancestors 'none'",
-].join('; ');
-
-// 渲染抛错时给浏览器一张能读的错页。刻意不套 layout()：那要读库取导航，库坏了会二次抛错。
-// 接口（/admin/api、/moderate、fetch）仍回 JSON，见 onError。
-// 用函数而不是模块级常量：后台改站名/语言后，500 页也要跟着变，不能一直显示 .env 里的旧值。
-const errorPage = () => `<!doctype html>
-<html lang="${SITE.lang}">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="robots" content="noindex">
-<title>出了点问题 · ${esc(SITE.title || SITE.identity)}</title>
-<style>
-:root{color-scheme:light dark}
-body{margin:0;min-height:100vh;display:grid;place-items:center;padding:2rem;background:#faf8f4;color:#2b2b2b;
-  font:16px/1.75 ui-sans-serif,system-ui,-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
-main{max-width:32rem}
-h1{margin:0 0 .6rem;font-size:1.4rem;letter-spacing:.02em}
-p{margin:0 0 1.2rem;color:#6b6b6b}
-a{color:inherit}
-@media (prefers-color-scheme:dark){body{background:#151413;color:#e8e4dc}p{color:#9a948a}}
-</style>
-</head>
-<body><main>
-<h1>出了点问题</h1>
-<p>这一页暂时打不开，稍后刷新试试。</p>
-<p><a href="/">回到首页</a></p>
-</main></body>
-</html>`;
 
 const t0 = process.hrtime.bigint();
 
@@ -323,56 +280,22 @@ const logKeep = (() => {
   const n = Number(process.env.LOG_KEEP);
   return Number.isInteger(n) && n >= 1 ? n : 5;
 })();
-const logRotateTimer = logRotateMs > 0 ? setInterval(() => {
-  void rotateLogsAsync({ dir: logDir, maxBytes: logMaxMb * 1024 * 1024, keep: logKeep })
-    .then((result) => {
-      if (result.rotated.length) console.log(JSON.stringify({ event: 'logs.rotated', files: result.rotated.length, removed: result.removed.length }));
-    })
-    .catch((error) => console.error(JSON.stringify({ event: 'logs.rotate-failed', code: error?.code ?? 'INTERNAL' })));
-}, logRotateMs) : null;
-logRotateTimer?.unref();
-
-// SQLite 长期运行维护：PRAGMA optimize 在没有过期统计时几乎零成本，每天跑一次让查询计划跟上数据变化。
-// 关闭时 db/driver.js 的 close() 也会再跑一次。定时器不阻止进程退出。
-const dbOptimizeTimer = setInterval(() => optimize(db), 24 * 3600 * 1000);
-dbOptimizeTimer.unref();
-
-// 定时器回调里刷新/检查会在返回 Promise 前同步读库：DB 临时错误若直接抛出，会变成未捕获异常
-// 从 setInterval 回调里终止进程。统一接住同步异常与 Promise 拒绝。
-const kickFeedRefresh = (options) => {
-  try { void refresher.refreshAll(options).catch((error) => logError(error, null, 'feeds.background-failed')); }
-  catch (error) { logError(error, null, 'feeds.background-failed'); }
-};
-const kickLinkCheck = (options) => {
-  try { void linkChecker.checkAll(options).catch((error) => logError(error, null, 'links.background-failed')); }
-  catch (error) { logError(error, null, 'links.background-failed'); }
-};
-
-let feedInterval = null;
-let feedBoot = null;
-
-if (feedRefreshMs > 0) {
-  feedInterval = setInterval(() => kickFeedRefresh(), feedRefreshMs);
-  feedInterval.unref();
-  // 启动后等 20 秒再首刷：先让索引落定，刚部署完常有人在看，别让首刷抢带宽。
-  feedBoot = setTimeout(() => kickFeedRefresh({ force: parserChanged }), 20000);
-  feedBoot.unref();
-}
-
-let linkInterval = null;
-let linkBoot = null;
-if (linkCheckMs > 0) {
-  linkInterval = setInterval(() => kickLinkCheck({ intervalMs: linkCheckMs, limit: LINK_PER_ROUND }), linkCheckMs);
-  linkInterval.unref();
-
-  linkBoot = setTimeout(() => kickLinkCheck({ limit: LINK_PER_ROUND }), 40000);
-  linkBoot.unref();
-}
+const background = createBackgroundScheduler({
+  db, refresher, linkChecker, feedRefreshMs, linkCheckMs, linkPerRound: LINK_PER_ROUND,
+  parserChanged, logRotateMs, logDir, logMaxMb, logKeep, logError,
+});
+background.start();
 
 // 传输层压缩：自动补 Vary: Accept-Encoding，并把强 ETag 降为弱 ETag——压缩字节随编码变，强弱区分关乎缓存正确性。
 app.use('*', compress());
 
+// 请求级派生值只算一次：路径归一化、URL 解析与静态资源判定在下面 6 个中间件/路由里都要用。
 app.use('*', async (c, next) => {
+  const path = c.req.path;
+  c.set('requestPath', path);
+  c.set('pathKey', path.replace(/\/+$/, ''));
+  c.set('isImmutableAsset', isImmutablePath(path));
+  c.set('requestUrl', new URL(c.req.url));
   const id = crypto.randomUUID(); c.set('requestId', id); c.header('X-Request-Id', id);
   await next();
 });
@@ -380,8 +303,7 @@ app.use('*', async (c, next) => {
 // settings 快照在请求入口校验一次（见 db/repo.js 的 refreshSettings）：一次 pragma 换掉一页 4–6 次点查。
 // 静态资源不读 settings，跳过——一个页面十来个资源，别为它们各加一次往返。
 app.use('*', async (c, next) => {
-  const p = c.req.path;
-  if (!isImmutablePath(p)) repo.refreshSettings();
+  if (!c.get('isImmutableAsset')) repo.refreshSettings();
   await next();
 });
 app.onError((error, c) => {
@@ -399,24 +321,12 @@ app.onError((error, c) => {
   return c.json({ ok: false, error: '操作失败，请重试', requestId: c.get('requestId') }, 500);
 });
 
-// 基础安全头；供正常响应与 onError 共用。
-function securityHeaders(c) {
-  c.header('X-Content-Type-Options', 'nosniff');
-  c.header('Referrer-Policy', 'strict-origin-when-cross-origin');
-  c.header('X-Frame-Options', 'DENY');
-  c.header('Content-Security-Policy', CSP);
-  // 仅 https 时发 HSTS（否则首次访问可被 SSL-strip 降级）；不带 preload（上列表难撤回）。
-  if (SITE.url.startsWith('https')) c.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
-
-  c.header('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=()');
-}
-
+// 基础安全头统一在响应返回前设一次；onError 里另设一次，覆盖处理器抛错、中间件来不及返回的路径。
 app.use('*', async (c, next) => {
-  securityHeaders(c);   // 先设一次：boundedBody 提前返回的 413/408 也能带上
   await next();
-  securityHeaders(c);   // 再设一次：下游用 c.body(..., headers) 新建 Response 时不会被顶掉
+  securityHeaders(c);
 
-  const p = c.req.path;
+  const p = c.get('requestPath');
   if (p.startsWith('/moderate/') || p.startsWith('/unsubscribe/')) {
     c.header('Cache-Control', 'no-store');
     c.header('Referrer-Policy', 'no-referrer');
@@ -425,8 +335,7 @@ app.use('*', async (c, next) => {
     c.header('Cache-Control', 'no-store');
   }
   // 页面必须每次回源校验：被缓存后会一直引用旧指纹的 nav.js/style.css，改动到不了用户。
-  const isImmutableAsset = isImmutablePath(p);
-  if (!isImmutableAsset && !c.res.headers.has('Cache-Control')) {
+  if (!c.get('isImmutableAsset') && !c.res.headers.has('Cache-Control')) {
     c.header('Cache-Control', 'no-cache');
   }
 
@@ -443,7 +352,7 @@ app.use('*', htmlCache.middleware);
 // 打内存（普通表单 1MB、主题包 10MB；图片上传不限体积但走流式落盘）。登录 POST 例外
 // （上限 4KB，必须能到达登录校验）。
 app.use('*', async (c, next) => {
-  const p = c.req.path.replace(/\/+$/, '');
+  const p = c.get('pathKey');
   const write = !['GET', 'HEAD', 'OPTIONS'].includes(c.req.method);
   if (write && p.startsWith('/admin') && p !== '/admin/login' && !auth.session(c)) {
     if (p.startsWith('/admin/api/')) return c.json({ ok: false, error: 'unauthorized' }, 401);
@@ -453,11 +362,11 @@ app.use('*', async (c, next) => {
 });
 // 公开写路径的限流必须先于 boundedBody：否则一个注定 429 的评论请求仍会先被读进 32KB 内存、
 // 再排进全局写队列。登录单独一份 30 次/分钟（scrypt 比评论贵得多）。
-const PUBLIC_WRITE_RE = /^(?:\/api\/comments(?:\/reader)?|\/(?:p|n)\/[^/]+\/comment|\/[^/]+\/comment|\/moderate\/[^/]+|\/unsubscribe\/[^/]+)$/;
+const PUBLIC_WRITE_RE = /^(?:\/api\/comments(?:\/reader)?|\/(?:p|n)\/[^/]+\/comment|\/(?!admin(?:\/|$)|api(?:\/|$)|moderate(?:\/|$)|unsubscribe(?:\/|$))[^/]+\/comment|\/moderate\/[^/]+|\/unsubscribe\/[^/]+)$/;
 const publicWriteLimiter = publicWriteRateLimit();
 const loginWriteLimiter = publicWriteRateLimit({ max: 30 });
 app.use('*', async (c, next) => {
-  const p = c.req.path.replace(/\/+$/, '');
+  const p = c.get('pathKey');
   if (p === '/admin/login') return loginWriteLimiter(c, next);
   if (PUBLIC_WRITE_RE.test(p)) return publicWriteLimiter(c, next);
   return next();
@@ -466,7 +375,7 @@ app.use('*', boundedBody());
 app.use('*', async (c, next) => {
   // 外部 IO 与只读预览不占写队列；GET/HEAD/OPTIONS 直接放行，不必再匹配路径。
   const write = !['GET', 'HEAD', 'OPTIONS'].includes(c.req.method);
-  if (write && !isExternalWrite(c.req.path.replace(/\/+$/, ''))) return mutate(next);
+  if (write && !isExternalWrite(c.get('pathKey'))) return mutate(next);
   await next();
 });
 
@@ -490,8 +399,9 @@ app.get('/healthz', (c) => {
   c.header('Cache-Control', 'no-store');
   c.header('Vary', 'x-monitor-token');
   let ok = true;
+  let healthReason = null;
   let posts = null;
-  try { posts = repo.stats().published; } catch { ok = false; }
+  try { posts = repo.stats().published; } catch { ok = false; healthReason = '数据库读取失败'; }
   const uptimeSec = Math.round(process.uptime());
   // 篇数本来就在 Feed/sitemap 里公开；备份年龄与异地状态才是需要 token 的内部字段。
   // 匿名请求不跑 statfs / stat：监控与看门狗都会带 token，没必要让扫描器付这份成本。
@@ -501,7 +411,7 @@ app.get('/healthz', (c) => {
   // 授权请求只取一次磁盘快照，infraHealth 与 healthSnapshot 共用，别为同一页 statfs 两遍。
   const disk = diskStats();
   const infra = infraHealth(disk);
-  if (!infra.ok) ok = false;
+  if (!infra.ok) { ok = false; healthReason = infra.reason; }
   const health = healthSnapshot(disk);
   // 磁盘/WAL/备份卡住与数据库读失败同级：外网探针与看门狗看到 ok:false 就该告警。
   // （三项判定已收敛进 infraHealth，与 localHealth 共用口径。）
@@ -513,6 +423,9 @@ app.get('/healthz', (c) => {
   const body = {
     ...base,
     ...health,
+    // 只给带 token 的探针：磁盘/WAL/备份任务卡住时，邮件和 webhook 里要能直接读到原因，
+    // 而不是每封都只说「站点自检失败」。
+    healthReason,
     backupNextRetryInSec: health.backupNextRetryAt ? Math.max(0, Math.round((Date.parse(health.backupNextRetryAt) - Date.now()) / 1000)) : null,
     latestRecoverableBackupAgeSec: recoverable ? Math.max(0, Math.round((Date.now() - Date.parse(recoverable.createdAt)) / 1000)) : null,
     backupComplete: Boolean(last && isRecoverableBackup(last)),
@@ -536,72 +449,7 @@ const { sendFile } = createStaticFiles({ repo, assetVer });
 
 for (const file of VERSIONED_ASSETS) app.get('/' + file, (c) => sendFile(c, '/' + file, { minify: serveMinified && /\.(?:css|js)$/.test(file) }));
 
-// 主题资源：/theme-assets/<id>/<相对路径>。只允许截图和 assets/ 下的文件，路径由 registry.assetPath 校验。
-// 激活主题对所有访客可用；未激活主题只有站主（预览/后台截图）能取，避免把半成品主题公开。
-app.get('/theme-assets/*', async (c) => {
-  // 用原始 pathname 而不是 c.req.path：Hono 已经解码过一次，这里再 decodeURIComponent 会把
-  // 文件名里的字面 % 当成非法序列（100%.png 直接 404），也会把 %2F 二次展开。
-  const raw = new URL(c.req.url).pathname.slice('/theme-assets/'.length);
-  const slash = raw.indexOf('/');
-  if (slash <= 0) return c.notFound();
-  let id, rel;
-  try {
-    id = decodeURIComponent(raw.slice(0, slash));
-    rel = decodeURIComponent(raw.slice(slash + 1));
-  } catch { return c.notFound(); }
-  const theme = themes.get(id);
-  if (!theme) return c.notFound();
-  // 别在这里 list(true)：每张主题截图都会触发一次全量扫描（重新 walk 所有主题模板并 stat）。
-  // activeId()/defaultTheme() 都走 registry 的 TTL 缓存，扫描时机仍由后台页面控制。
-  const activeId = themes.activeId() || themes.defaultTheme()?.id || '';
-  const isActive = id === activeId;
-  // 未激活主题的资源只给站主看：公共缓存不能存，否则 CDN/浏览器可能把预览中的半成品主题
-  // 或后台截图当成公开资源发给匿名访客。
-  if (!isActive) {
-    const isOwner = Boolean(auth.session(c));
-    if (!isOwner) return c.notFound();
-  }
-  if (!isSafeRelative(rel)) return c.notFound();
-  const file = themes.assetPath(theme, rel);
-  if (!file) return c.notFound();
-  const requestedV = c.req.query('v');
-  const versioned = Boolean(requestedV && requestedV === themes.assetVersion(theme, rel, file));
-  const cacheControl = isActive
-    ? (versioned ? 'public, max-age=31536000, immutable' : 'public, max-age=300')
-    : 'private, no-store';
-  // 复用静态文件出口：Range/HEAD/304 与流式读取都只维护一份；主题资源不再整文件读进内存。
-  return sendFile(c, c.req.path, { resolveFile: () => file, cacheControl, weakEtag: true });
-});
-
-app.get('/uploads/*', (c) => sendFile(c, c.req.path, { root: UPLOADS_DIR, prefix: '/uploads' }));
-app.get('/favicon.ico', (c) => c.body(null, 204));
-
-// PWA 清单动态生成：图标 URL 带内容指纹，换图后 manifest 里的引用也跟着换；
-// 清单本身只发 no-cache（下方默认中间件也会这么兜），浏览器每次校验一次，几十字节。
-app.get('/site.webmanifest', (c) => {
-  const icon = (file) => `/${file}?v=${assetVer(file)}`;
-  const manifest = {
-    id: '/',
-    name: SITE.identity,
-    short_name: SITE.title || SITE.identity,
-    description: SITE.desc,
-    lang: SITE.lang,
-    start_url: '/',
-    scope: '/',
-    display: 'standalone',
-    background_color: '#faf8f4',
-    theme_color: '#faf8f4',
-    icons: [
-      { src: icon('icon-192.png'), sizes: '192x192', type: 'image/png' },
-      { src: icon('icon-512.png'), sizes: '512x512', type: 'image/png' },
-      { src: icon('icon-maskable-512.png'), sizes: '512x512', type: 'image/png', purpose: 'maskable' },
-    ],
-  };
-  return c.body(JSON.stringify(manifest), 200, {
-    'Content-Type': 'application/manifest+json; charset=utf-8',
-    'Cache-Control': 'no-cache',
-  });
-});
+registerAssetRoutes(app, { sendFile, themes, auth, assetVer });
 
 
 // 只给已审核评论出现过的邮箱 md5 回源；任意 hash 不再能消耗上游预算/做枚举。
@@ -680,12 +528,7 @@ for (const sig of ['SIGINT', 'SIGTERM']) {
   process.on(sig, () => {
     if (closing) return;
     closing = true;
-    if (feedInterval) clearInterval(feedInterval);
-    if (feedBoot) clearTimeout(feedBoot);
-    if (linkInterval) clearInterval(linkInterval);
-    if (linkBoot) clearTimeout(linkBoot);
-    if (logRotateTimer) clearInterval(logRotateTimer);
-    clearInterval(dbOptimizeTimer);
+    background.stop();
     watchdog.stop();
     outbox.stop();
     // 先把备份 worker 停掉并等它退出，再关主库/释放维护锁；否则另一个实例可能在 worker 仍写备份时启动。

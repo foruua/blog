@@ -67,9 +67,10 @@ sudo env BLOG_DEPLOY_APP_ROOT=/srv/blog \
 
 | 目录                                   | 用途                         |
 | ------------------------------------ | -------------------------- |
-| `server.js`                          | 启动、路由组装、安全头与定时任务（健康检查、备份调度已拆到 `src/`） |
+| `server.js`                          | 启动、路由组装与生命周期（安全头、定时任务、健康检查、备份调度已拆到 `src/`） |
 | `src/routes`                         | 前台、评论和后台 HTTP 接口           |
-| `src/http`                           | 静态文件、Range 分片响应与匿名 HTML 缓存 |
+| `src/http`                           | 静态文件、Range 分片响应、匿名 HTML 缓存、安全头与 cookie 常量 |
+| `src/bootstrap`                      | 后台定时轮次（友圈/友链/日志轮转/SQLite 维护）的生命周期 |
 | `src/render`、`src/admin/views`       | 前台与后台 HTML 渲染              |
 | `src/content`                        | Markdown 同步、原子写入与恢复日志      |
 | `src/feeds`、`src/media`、`src/avatar` | 订阅抓取解析、图片处理、头像缓存           |
@@ -120,7 +121,7 @@ npx playwright install chromium
 npm test
 ```
 
-`npm test` 先执行 ESLint，再运行隔离的功能回归与浏览器审计；不会读取 `.env` 或修改真实内容和上传目录。单跑一个套件用 `npm test -- --only test-comments`（套件清单只维护在 `scripts/_suites.mjs`，`package.json` 不再为每个套件保留别名）。浏览器审计缺少运行依赖时明确报告跳过，CI 可使用 `UI_AUDIT_REQUIRED=1 npm test` 要求它必须运行。`test-lifecycle` / `test-maintenance` 里有真实浏览器用例，也需要先装 Chromium；想在无浏览器的机器上只跑功能回归，可用 `UI_AUDIT=off npm test`（仍会执行不需要浏览器的套件）。
+`npm test` 先执行 ESLint，再运行隔离的功能回归与浏览器审计；不会读取 `.env` 或修改真实内容和上传目录。单跑一个套件用 `npm test -- --only test-comments`（套件清单只维护在 `scripts/_suites.mjs`，`package.json` 不再为每个套件保留别名）。功能套件各自有独立 fixture，可用 `npm run test:parallel`（`TEST_CONCURRENCY=2`，或 `--concurrency 3`）并行提速；浏览器审计仍串行。浏览器审计缺少运行依赖时明确报告跳过，CI 可使用 `UI_AUDIT_REQUIRED=1 npm test` 要求它必须运行。`test-lifecycle` / `test-maintenance` 里有真实浏览器用例，也需要先装 Chromium；想在无浏览器的机器上只跑功能回归，可用 `UI_AUDIT=off npm test`（仍会执行不需要浏览器的套件）。
 
 ## 备份与恢复
 

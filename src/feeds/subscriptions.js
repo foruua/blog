@@ -14,7 +14,7 @@ export function createLinkSubscriber({ feeds, links, refresher, mutate, repo = n
   // 弹窗每 1.5s 轮询一次；pendingCount 里的 links.adminList() 是整条 LIVE_CTE 聚合，短 TTL 即可省掉大部分重复计算。
   // 键里带上 repo.changeStamp()：评论/友链/订阅源一变就立刻失效，不能拿旧缓存把新邻居藏起来。
   let pendingCache = { at: 0, value: null, stamp: '' };
-  const changeStamp = () => (typeof repo?.changeStamp === 'function' ? repo.changeStamp() : '');
+  const changeStamp = () => (typeof repo?.contentStamp === 'function' ? repo.contentStamp() : (typeof repo?.changeStamp === 'function' ? repo.changeStamp() : ''));
   const candidates = () => links.adminList().filter((s) => !s.hidden && s.alive !== 0);
   const subscribed = (site, list = null) => subscribedSite(feeds, [site.source_url, site.url], null, list);
   function start() {

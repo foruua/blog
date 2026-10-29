@@ -27,16 +27,31 @@ async function writeNewFileAsync(filePath, data, createdFiles) {
   syncDirectory(path.dirname(filePath));
 }
 
+async function sameFileContent(filePath, data) {
+  let fh;
+  try { fh = await fs.promises.open(filePath, 'r'); } catch { return false; }
+  try {
+    const stat = await fh.stat();
+    if (!stat.isFile() || stat.size !== data.length) return false;
+    // 流式比较：重复上传大图时不要把已有文件整块读回内存，再和请求体各占一份。
+    const chunk = Buffer.allocUnsafe(Math.min(256 * 1024, Math.max(1, data.length)));
+    let offset = 0;
+    while (offset < data.length) {
+      const { bytesRead } = await fh.read(chunk, 0, Math.min(chunk.length, data.length - offset), offset);
+      if (!bytesRead) return false;
+      if (!chunk.subarray(0, bytesRead).equals(data.subarray(offset, offset + bytesRead))) return false;
+      offset += bytesRead;
+    }
+    return true;
+  } catch { return false; }
+  finally { await fh.close().catch(() => {}); }
+}
+
 async function writeIfAbsentAsync(filePath, data, createdFiles) {
   try { await writeNewFileAsync(filePath, data, createdFiles); }
   catch (e) {
     if (e.code !== 'EEXIST') throw e;
-    let same = false;
-    try {
-      const stat = await fs.promises.stat(filePath);
-      same = stat.isFile() && stat.size === data.length && (await fs.promises.readFile(filePath)).equals(data);
-    } catch { same = false; }
-    if (!same) throw e;
+    if (!await sameFileContent(filePath, data)) throw e;
   }
 }
 

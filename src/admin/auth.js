@@ -2,11 +2,12 @@ import crypto from 'node:crypto';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { promisify } from 'node:util';
 import { cookieBase, readBody } from '../util/http.js';
+import { ADMIN_COOKIE } from '../http/cookies.js';
 import { createAntispam } from '../comments/antispam.js';
 
 const PW_KEY = 'admin_password_hash';
 const EP_KEY = 'admin_session_epoch';
-const COOKIE = 'blog_admin';
+const COOKIE = ADMIN_COOKIE;
 const SESSION_TTL = 30 * 24 * 3600;
 
 const SCRYPT = { N: 32768, r: 8, p: 1, keylen: 64, maxmem: 256 * 1024 * 1024 };

@@ -71,7 +71,7 @@ export function createAvatarCache({
       // 写或改名中途失败会留下 .tmp 脏文件（prune 只在每 128 次写入后跑，未必删得到它）。
       await fs.promises.rm(tmp, { force: true }).catch(() => {});
     }
-    if (++writes % 128 === 0) void prune();   // 不 await：清理别落进用户请求路径
+    if (++writes % 128 === 0) void prune().catch(() => {});   // 不 await：清理别落进用户请求路径
   }
 
   async function prune() {

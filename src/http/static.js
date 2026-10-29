@@ -2,15 +2,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { Readable } from 'node:stream';
-import { gzip, brotliCompress, constants as zlibConstants } from 'node:zlib';
-import { promisify } from 'node:util';
 import { PUBLIC_DIR, UPLOADS_DIR } from '../config.js';
 import { mediaRevision } from '../media/revision.js';
 import { minifyAsset } from '../render/minify.js';
 import { ifNoneMatch, pickEncoding } from '../util/http.js';
-
-const gzipAsync = promisify(gzip);
-const brotliAsync = promisify(brotliCompress);
+import { compressBuffer, isCompressibleType, MIN_COMPRESS_BYTES } from '../util/compress.js';
 
 // 静态资源响应：public 下的指纹资源、主题资源之外的 /uploads、以及 Range 分片。
 // 从 server.js 抽出来，只保留一个出口 sendFile()；server 仍负责路由与安全头。
@@ -25,9 +21,21 @@ export const MIME = {
   '.webp': 'image/webp',
   '.avif': 'image/avif',
   '.ico': 'image/x-icon',
+  '.woff': 'font/woff',
   '.woff2': 'font/woff2',
+  '.ttf': 'font/ttf',
+  '.otf': 'font/otf',
   '.txt': 'text/plain; charset=utf-8',
   '.xml': 'application/xml; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.webmanifest': 'application/manifest+json; charset=utf-8',
+  '.mjs': 'text/javascript; charset=utf-8',
+  '.map': 'application/json; charset=utf-8',
+  '.wasm': 'application/wasm',
+  '.zip': 'application/zip',
+  '.pdf': 'application/pdf',
+  '.mp4': 'video/mp4',
+  '.webm': 'video/webm',
 };
 
 export function createStaticFiles({ repo, assetVer }) {
@@ -88,9 +96,7 @@ export function createStaticFiles({ repo, assetVer }) {
     const key = `${real}:${stat.ino}:${stat.size}:${stat.mtimeMs}:${stat.ctimeMs}:${encoding}`;
     const hit = compressedCache.get(key);
     if (hit) return hit;
-    const compressed = encoding === 'br'
-      ? await brotliAsync(buf, { params: { [zlibConstants.BROTLI_PARAM_QUALITY]: 5 } })
-      : await gzipAsync(buf);
+    const compressed = await compressBuffer(buf, encoding);
     if (compressedCache.size >= COMPRESSED_CACHE_MAX) compressedCache.delete(compressedCache.keys().next().value);
     compressedCache.set(key, compressed);
     return compressed;
@@ -153,7 +159,7 @@ export function createStaticFiles({ repo, assetVer }) {
     return buf;
   }
 
-  async function sendFile(c, urlPath, { root = PUBLIC_DIR, prefix = '', minify = false, resolveFile = null, cacheControl = null, weakEtag = false } = {}) {
+  async function sendFile(c, urlPath, { root = PUBLIC_DIR, prefix = '', minify = false, compress = false, resolveFile = null, cacheControl = null, weakEtag = false } = {}) {
     const rel = prefix && urlPath.startsWith(prefix) ? urlPath.slice(prefix.length) : urlPath;
     let resolved;
     let real;
@@ -185,9 +191,9 @@ export function createStaticFiles({ repo, assetVer }) {
     try {
       const stat = await fh.stat();
       if (!stat.isFile()) return c.notFound();
-      // 精简资源会按 Accept-Encoding 发不同字节（br/gzip/原文）。同一 ETag 跨表示容易让缓存把
+      // 精简/预压缩资源会按 Accept-Encoding 发不同字节（br/gzip/原文）。同一 ETag 跨表示容易让缓存把
       // 压缩体当成另一种编码的验证器；用弱 ETag 表示「语义相同、字节可能不同」。
-      const etag = `${minify || weakEtag ? 'W/' : ''}"${stat.size.toString(16)}-${stat.mtimeMs.toString(16)}"`;
+      const etag = `${minify || weakEtag || compress ? 'W/' : ''}"${stat.size.toString(16)}-${stat.ino.toString(16)}-${stat.mtimeMs.toString(16)}-${stat.ctimeMs.toString(16)}"`;
       // 只有带当前指纹的 ?v= 才 immutable；任意 ?v= 或裸地址都只短缓存，避免外部链接把旧内容钉一年。
       // 上传文件路径本身就是内容哈希，始终安全。
       const requestedV = c.req.query('v');
@@ -201,7 +207,7 @@ export function createStaticFiles({ repo, assetVer }) {
       };
       if (ifNoneMatch(c, etag)) {
         const extra = { ETag: etag, 'Cache-Control': headers['Cache-Control'] };
-        if (minify) extra.Vary = 'Accept-Encoding';
+        if (minify || compress) extra.Vary = 'Accept-Encoding';
         return c.body(null, 304, extra);
       }
       if (minify) {
@@ -222,7 +228,7 @@ export function createStaticFiles({ repo, assetVer }) {
         if (!buf) {
           // 没有构建产物（或构建过期）：退回运行时精简 + 压缩缓存，绝不为每个请求重新压一遍。
           buf = await minifiedBuffer(real, stat);
-          if (encoding && buf.length >= 1024) {
+          if (encoding && buf.length >= MIN_COMPRESS_BYTES) {
             try {
               buf = await compressedBuffer(real, stat, buf, encoding);
               headers['Content-Encoding'] = encoding;
@@ -232,6 +238,25 @@ export function createStaticFiles({ repo, assetVer }) {
         }
         headers['Content-Length'] = String(buf.length);
         return c.body(c.req.method === 'HEAD' ? null : buf, 200, headers);
+      }
+      // 主题资源等非精简文件也值得预压缩：带 ?v= 时是不可变资源，没必要让每个请求都走一遍流式 gzip。
+      // 只处理文本类型且体积适中的文件；大文件仍交给外层 compress() 流式处理，避免整块读进内存。
+      if (compress && isCompressibleType(headers['Content-Type'])
+          && stat.size >= MIN_COMPRESS_BYTES && stat.size <= 4 * 1024 * 1024) {
+        const accepted = c.req.header('accept-encoding') ?? '';
+        let encoding = pickEncoding(accepted, ['br', 'gzip']);
+        if (encoding) {
+          const source = await fh.readFile();
+          await fh.close(); fh = null;
+          let buf = source;
+          try {
+            buf = await compressedBuffer(real, stat, source, encoding);
+            headers['Content-Encoding'] = encoding;
+            headers.Vary = 'Accept-Encoding';
+          } catch { encoding = ''; }
+          headers['Content-Length'] = String(buf.length);
+          return c.body(c.req.method === 'HEAD' ? null : buf, 200, headers);
+        }
       }
       // 大文件（原图、归档）需要分片请求：只实现单区间：
       // 多区间按 RFC 允许忽略，直接回整份 200。

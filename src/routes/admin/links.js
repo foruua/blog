@@ -18,12 +18,13 @@ export function registerLinkRoutes(app, { links, linkChecker }, { ctx }) {
   app.get('/admin/links', (c) => {
     const page = pageNumber(c);
     const rows = links.adminPage({ limit: ADMIN_PAGE_SIZE + 1, offset: (page - 1) * ADMIN_PAGE_SIZE });
+    const snapshot = links.adminSnapshot();
     return c.html(linksAdminPage(ctx(c, {
       rows: rows.slice(0, ADMIN_PAGE_SIZE),
       hasMore: rows.length > ADMIN_PAGE_SIZE,
       page,
-      total: links.adminCount(),
-      counts: links.adminGroupCounts(),
+      total: snapshot.total,
+      counts: snapshot.counts,
       notice: c.req.query('w') ? String(c.req.query('w')) : '',
       progress: linkChecker.progress(),
     })));

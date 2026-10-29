@@ -68,7 +68,7 @@ export function publicRoutes(repo, { comments, crypt, media = null, feeds = null
   const SLASH_SECTIONS = new Set(['/posts', '/notes', '/friends', '/links', '/archive']);
   app.use('*', async (c, next) => {
     // c.req.path 会被 Hono 归一化成不带尾斜杠；要判断原始地址必须读 URL.pathname。
-    const url = new URL(c.req.url);
+    const url = c.get('requestUrl') ?? new URL(c.req.url);
     if ((c.req.method === 'GET' || c.req.method === 'HEAD') && SLASH_SECTIONS.has(url.pathname)) {
       return c.redirect(`${url.pathname}/${url.search}`, 301);
     }
@@ -815,11 +815,12 @@ ${emptyPage('这一年还没有内容', `换一年看看，或者去 <a href="/a
   let notFoundCache = null;
   const NOT_FOUND_TTL_MS = 60_000;
   function notFound(c) {
-    const stamp = typeof repo.changeStamp === 'function' ? repo.changeStamp() : '';
+    const stamp = typeof repo.contentStamp === 'function' ? repo.contentStamp() : (typeof repo.changeStamp === 'function' ? repo.changeStamp() : '');
     const hit = notFoundCache;
     // 命中也要走 c.html：c.body 默认 text/plain，会把缓存住的页面当纯文本渲染成裸 <pre>。
     // 除 TTL 外再看内容修订号：文章/评论/设置一改，404 页里的「最近更新」也应立刻跟上。
-    if (hit && hit.stamp === stamp && Date.now() - hit.at < NOT_FOUND_TTL_MS) return c.html(hit.body, 404);
+    // 站主/主题预览不走共享缓存：否则预览新主题时 404 仍是匿名缓存里的旧外壳。
+    if (!ownerOf(c) && hit && hit.stamp === stamp && Date.now() - hit.at < NOT_FOUND_TTL_MS) return c.html(hit.body, 404);
     // 404 不只是一个死胡同：给搜索框与最近更新，把误入的人接回内容里。
     const recentRows = repo.recentEntries(3);
     const recentCounts = recentRows.length ? comments.countsOf(recentRows.map((row) => row.id)) : new Map();

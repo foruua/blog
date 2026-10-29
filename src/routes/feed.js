@@ -87,7 +87,7 @@ export function feedRoutes(repo) {
     }
     const key = cacheKeyOf(c);
     // 有写入就必须重建：不能为了省一次查询让客户端 30 秒内一直收到旧 ETag。
-    const stamp = typeof repo.changeStamp === 'function' ? repo.changeStamp() : '';
+    const stamp = typeof repo.contentStamp === 'function' ? repo.contentStamp() : (typeof repo.changeStamp === 'function' ? repo.changeStamp() : '');
     const hit = responseCache.get(key);
     if (hit && Date.now() - hit.at >= FEED_CACHE_TTL) cacheDelete(key);
     const fresh = responseCache.get(key);
@@ -107,7 +107,7 @@ export function feedRoutes(repo) {
     try {
       const body = await c.res.clone().text();
       // 读库到响应生成之间若发生过写入，这份 body 可能已经旧了：丢弃，别把旧内容记到新版本号下。
-      const after = typeof repo.changeStamp === 'function' ? repo.changeStamp() : '';
+      const after = typeof repo.contentStamp === 'function' ? repo.contentStamp() : (typeof repo.changeStamp === 'function' ? repo.changeStamp() : '');
       if (after !== stamp) return;
       cacheSet(key, {
         at: Date.now(), body, etag: c.res.headers.get('ETag') ?? '',

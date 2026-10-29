@@ -132,6 +132,7 @@ export function createRepo(db) {
       MIN(published_at) AS first, MAX(published_at) AS last FROM posts
       WHERE ${LIVE_ANY} GROUP BY kind`),
     allSettings: db.prepare('SELECT key, value FROM settings'),
+    contentRevision: db.prepare('SELECT rev FROM content_revision WHERE id = 1'),
     setSetting: db.prepare(
       `INSERT INTO settings(key, value) VALUES(?, ?)
        ON CONFLICT(key) DO UPDATE SET value = excluded.value`),
@@ -147,8 +148,10 @@ export function createRepo(db) {
   const SETTINGS_TTL_MS = 60_000;
   const dataVersion = db.prepare('PRAGMA data_version');
   const totalChanges = db.prepare('SELECT total_changes() AS n');
-  // Feed 响应缓存用：本连接写入看 total_changes，别的连接写入看 data_version。
-  const changeStamp = () => `${dataVersion.get().data_version}:${totalChanges.get().n}`;
+  // 内容修订号单独由 042 的触发器维护：只统计 posts/comments/settings/media/aliases/feeds/feed_items/link_sites，
+  // 发信队列等后台写入不再让整站 HTML/Feed 缓存失效。
+  const contentStamp = () => String(q.contentRevision.get()?.rev ?? 0);
+  const changeStamp = contentStamp;
   let settingsMap = null;
   let settingsDataVersion = -1;
   let settingsChanges = 0;
@@ -380,7 +383,7 @@ export function createRepo(db) {
 
   return {
 
-    feed, list, notes, noteCursor, getPost, getPostMeta, getAnyLive, resolveWikiLink, allPublished, publishedInYear, changeStamp,
+    feed, list, notes, noteCursor, getPost, getPostMeta, getAnyLive, resolveWikiLink, allPublished, publishedInYear, changeStamp, contentStamp,
     archiveEntries: () => q.archiveAll.all(),
     recentEntries: (limit = 8) => q.recentEntries.all(limit),
     stats, neighbours, findAlias,

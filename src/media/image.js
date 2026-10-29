@@ -25,7 +25,7 @@ export async function normalizeImage(input) {
       .rotate().raw().toBuffer({ resolveWithObject: true });
   }
   // 缩略图与各档变体从同一条基准管线 clone：预算内复用已解码像素，预算外也共用同一输入，不逐尺寸重解码。
-  const base = pixels
+  let base = pixels
     ? sharp(pixels.data, { raw: { width: pixels.info.width, height: pixels.info.height, channels: pixels.info.channels } })
     : sharp(input, SHARP_INPUT_OPTIONS).rotate();
   const thumbnail = await base.clone().resize(480, 480, { fit: 'inside', withoutEnlargement: true })
@@ -39,7 +39,11 @@ export async function normalizeImage(input) {
       variantErrors.push({ width, message: String(error?.message ?? error).slice(0, 120) });
     }
   }
-  return { buffer, thumbnail, variants, variantErrors, previewReused: Boolean(pixels), previewPixelBytes: pixels?.data.length ?? 0, animated: (metadata.pages ?? 1) > 1, width: info.width, height: info.pageHeight ?? info.height };
+  // 基准管线与原始像素不再需要：先记下统计值，尽快释放大块 Buffer（原图编码结果仍要返回）。
+  const previewPixelBytes = pixels?.data.length ?? 0;
+  pixels = null;
+  base = null;
+  return { buffer, thumbnail, variants, variantErrors, previewReused: previewPixelBytes > 0, previewPixelBytes, animated: (metadata.pages ?? 1) > 1, width: info.width, height: info.pageHeight ?? info.height };
 }
 
 export const ALLOWED_MIME = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp']);

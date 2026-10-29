@@ -91,7 +91,7 @@ export function createBackupScheduler({
         worker = null;
         startedAt = null;
         logError(error, null, 'backup.barrier');
-        void current.terminate();
+        void current.terminate().catch(() => {});
         return;
       }
       let released = false;
@@ -100,7 +100,7 @@ export function createBackupScheduler({
       const timer = setTimeout(() => {
         console.error(JSON.stringify({ event: 'backup.timeout' }));
         recordFailure('备份超时（15 分钟）');
-        void current.terminate();
+        void current.terminate().catch(() => {});
       }, 15 * 60 * 1000);
       current.on('message', (message) => {
         // stop() 之后 worker 可能还有在途消息：别再入队告警（outbox 已停、主库也快关了）。

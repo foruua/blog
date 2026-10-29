@@ -1,4 +1,5 @@
 import { decodeEntities } from './entities.js';
+import { htmlToPlainText, stripHtmlTags } from './html-text.js';
 import { SITE } from '../config.js';
 
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => (
@@ -14,13 +15,7 @@ export const htmlAttr = (tag, name) => new RegExp(`\\b${name}="([^"]*)"`, 'i').e
 export const nowIso = () => new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
 
 // 去标签：块级标签换空格，script/style/template 整块丢、注释也丢。友圈摘要用它——语料是远端脏 HTML。
-export function stripTags(input) {
-  return String(input ?? '')
-    .replace(/<(script|style|template)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, ' ')
-    .replace(/<!--[\s\S]*?-->/g, ' ')
-    .replace(/<\/?[A-Za-z][^>]*>/g, ' ')
-    .replace(/<\/?[A-Za-z][^>]*/g, ' ');
-}
+export const stripTags = (input) => stripHtmlTags(input);
 
 export function slugify(s) {
   const out = String(s ?? '').trim().toLowerCase()
@@ -250,13 +245,10 @@ export function recentStartIso(days = 30, nowIso = new Date().toISOString()) {
 
 // 摘要：从入库正文 HTML 取纯文本。script/style 整块丢；pre 也整块丢（半截代码读不懂还吃光字数预算，行内
 // <code> 不丢）；截断按码点而非 UTF-16 码元（切在 emoji 中间会留孤立代理项）。
-const EXCERPT_BLOCKS = /<(script|style|pre)[\s\S]*?<\/\1>/gi;
 export const cleanExcerpt = (html, n = 96) => {
-  const text = decodeEntities(String(html ?? '')
-
-    .replace(/<[^>]*$/, '')
-    .replace(EXCERPT_BLOCKS, ' ')
-    .replace(/<[^>]+>/g, ' '))
+  const text = htmlToPlainText(String(html ?? '').replace(/<[^>]*$/, ''), {
+    dropPre: true, decodePasses: 1,
+  })
     .replace(/\s+/g, ' ')
     .trim();
   const chars = [...text];

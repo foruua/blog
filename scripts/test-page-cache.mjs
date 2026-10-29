@@ -27,6 +27,11 @@ try {
   // UTM 等无关参数共享同一条缓存；q / before / n 等会改正文的参数不缓存，避免随机值冲掉整页缓存。
   const tagged = await fetch(`${srv.base}/?utm_source=newsletter`);
   check('T4b 无关查询参数复用同一条缓存', tagged.headers.get('x-page-cache') === 'HIT', String(tagged.headers.get('x-page-cache')));
+  // 发信队列写入（退避/成功后 markSent）不属于页面内容：不能因此把整站 HTML 缓存冲掉。
+  db.prepare(`INSERT INTO mail_outbox(to_addr, subject, text_body, status, next_attempt_at, created_at)
+    VALUES(?,?,?,?,?,?)`).run('cache@example.com', 'cache', 'cache', 'pending', new Date().toISOString(), new Date().toISOString());
+  const afterMail = await fetch(`${srv.base}/${probe}`);
+  check('T4d1 发信队列写入不冲掉页面缓存', afterMail.headers.get('x-page-cache') === 'HIT', String(afterMail.headers.get('x-page-cache')));
   const search = await fetch(`${srv.base}/search?q=${Date.now()}`);
   check('T4c 内容相关查询参数不进共享缓存', !search.headers.get('x-page-cache'), String(search.headers.get('x-page-cache')));
   const stillCached = await fetch(`${srv.base}/${probe}`);

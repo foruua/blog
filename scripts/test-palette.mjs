@@ -8,7 +8,7 @@ import { THEME_BOOT, PALETTES, LAYOUTS, layout, setPaletteDefault, setLayoutDefa
 import { adminLayout } from '../src/admin/layout.js';
 import { systemPage } from '../src/admin/views/system.js';
 import { parsePaletteDefault, parseLayoutDefault, settings, saveSettings, KEYS } from '../src/settings.js';
-import { createChecker } from './_check.mjs';
+import { createChecker, sleep } from './_check.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // 令牌层（含配色预设块）在 base.css，前台组件在 style.css；页面里按这个顺序加载，断言也按这个顺序拼。
@@ -27,7 +27,6 @@ vm.runInContext(paletteSource, paletteCtx);
 const lib = paletteCtx.PaletteLib;
 
 const { test, report } = createChecker();
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // 对比度（WCAG）：只算纯 hex，不吃 color-mix 计算值
 const lum = (hex) => {

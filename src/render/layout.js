@@ -1,14 +1,11 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import crypto from 'node:crypto';
-import { createAssetVersions } from './assets.js';
+import { createAssetVersions, hasPageCss, hasSiteBundle } from './assets.js';
 import { SITE, PUBLIC_DIR } from '../config.js';
 import { esc, monthCn, cleanExcerpt, relativeDate, contentUrl, absUrl, dayParts, dayLabel } from '../util/text.js';
 import { PALETTES, CUSTOM_PALETTE, LAYOUTS } from '../settings.js';
 import { navItemsOf, visibleNavOf } from '../site/nav.js';
 import { lightboxHtml } from './lightbox.js';
 import { emojiPanelTemplate } from '../comments/view.js';
-import { ICON_COPYRIGHT } from './icons.js';
+import { ICON_COPYRIGHT, SEARCH_ICO, PAL_ICO, RSS_ICO, MAIL_ICO, GITHUB_ICO, TM_ICON, LY_ICON, navIco } from './icons.js';
 import { themeRequest } from '../themes/request.js';
 
 // 带内容指纹的静态资源；server.js 也 import 这份生成「可长期缓存」正则——两处必须同一份，否则新增资源必漏。
@@ -164,7 +161,6 @@ const themeLayoutAttr = () => (layoutDefaultOf() === 'box' ? ' data-layout=box' 
 // —— 检索入口 ——
 // 桌面：导航里一枚放大镜图标，点它**就地展开**搜索框；提交走 /search 结果页。手机：抽屉里一枚常驻搜索框。
 // 无 JS 时展开那套用不了，另给一枚真链接兜底（has-js 由 <head> 的引导脚本挂上，见 style.css 的两条 html.* 规则）。
-const SEARCH_ICO = '<svg class="so-ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="5.6"/><path d="M12.3 12.3 17 17"/></svg>';
 const searchNavForm = () => `<form class="nav-search" action="/search" method="get" role="search">
         <label class="sr-only" for="navSearchQ">检索</label>
         <button class="nav-search-btn" type="button" aria-label="检索" aria-expanded="false" aria-controls="navSearchQ">${SEARCH_ICO}</button>
@@ -191,37 +187,18 @@ const searchDrawerForm = () => `<form class="s-drawer-form" action="/search" met
 // 同一批候选做过 48 / 24 / 14 三档 + 明暗对照，记录在本地沙盒 docs/design/style-icon/round2.html
 // （design/ 在 .gitignore 里，不进仓库 —— 这里写明路径是给手边有这份文件的人看的）。
 // 20 格画布、1.6 描边，与检索、明暗三态同一套规格。
-const PAL_ICO = '<svg class="pal-ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="10" r="7.2"/><path d="M10 2.8a7.2 7.2 0 0 0 0 14.4z" fill="currentColor" stroke="none"/></svg>';
 // 订阅入口：点 + 两道弧。viewBox 收到 3.25 3.6 12.05 12.05，把图形撑到上面那枚同样的 12px，
 // 描边跟着收到 0.97（≈1.2px）；两枚图标的图形框、线宽、上下留白由此一致。
-const RSS_ICO = '<svg class="ico-rss" viewBox="3.25 3.6 12.05 12.05" fill="none" stroke="currentColor" stroke-width="0.97" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5.6" cy="13.3" r="1.15" fill="currentColor" stroke="none"/><path d="M4.5 9.3a5.1 5.1 0 0 1 5.1 5.1"/><path d="M4.5 4.8a9.6 9.6 0 0 1 9.6 9.6"/></svg>';
 // 邮件：信封 + 折角线。20 格画布、1.6 描边，与导航图标同一套规格（这一行里显示 15px）。
 // 折角线从内壁起笔、不碰到边框，缩到 15px 才不会和上下两条横线糊成一块色。
-const MAIL_ICO = '<svg class="ico-mail" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.9" y="5.1" width="14.2" height="9.8" rx="2"/><path d="m4.2 6.9 5.8 4.1 5.8-4.1"/></svg>';
 // GitHub：官方 mark，实心。这只猫的轮廓细节（耳、爪、尾）在 15px 只剩一团墨，只有实心版还认得出。
-const GITHUB_ICO = '<svg class="ico-github" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>';
 // 站主的 GitHub 主页：仓库地址已经固定是 github.com/foruua，这里不再多开一条配置项。
 const GITHUB_URL = 'https://github.com/foruua';
 
 // 明暗三态的三枚图标：面板内自成一套（20 格画布、1.6 描边），缩到 16px 仍是实心/空心的对比。
 // 名称不写进按钮里 —— 图标就是那一格的全部内容，名称只留给读屏（aria-label）与悬停（title）。
-const TM_ICO = (inner) => `<svg class="tm-ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
-const TM_ICON = {
-  auto: TM_ICO('<circle cx="10" cy="10" r="7.2"/><path d="M10 2.8a7.2 7.2 0 0 0 0 14.4z" fill="currentColor" stroke="none"/>'),
-  light: TM_ICO('<circle cx="10" cy="10" r="3.5"/><path d="M10 2.4v2M10 15.6v2M2.4 10h2M15.6 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M15.3 4.7 13.9 6.1M6.1 13.9 4.7 15.3"/>'),
-  dark: TM_ICO('<path d="M15.6 12.1A6.2 6.2 0 0 1 7.9 4.4a6.2 6.2 0 1 0 7.7 7.7z"/>'),
-};
-
 // 版式两格的图标（20 格画布、1.6 描边，与明暗三态同一套规格）：左边只有几行字 = 内容直接铺在纸上；
 // 右边一个圆角框 + 框内两行字 = 内容收进匣子。15px 下也读得出「有框 / 没框」这一件事。
-const LY_ICO = (inner) => `<svg class="ly-ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
-const LY_ICON = {
-  paper: LY_ICO('<path d="M4 5.4h12M4 9.4h12M4 13.4h7.4"/>'),
-  box: LY_ICO('<rect x="3" y="3.8" width="14" height="12.4" rx="2.2"/><path d="M6.6 8.2h6.8M6.6 11.2h6.8"/>'),
-};
-// 两格的名称与悬停提示直接取自 settings.js 的 LAYOUTS，顺序也跟着它走 ——
-// 面板、后台下拉读写同一份清单，默认那档自然排在左/前，不会出现两处顺序不一致。
-
 // 浓淡滑块的绝对彩度上限，与 public/palette.js 的 CHROMA_RANGE.max 必须一致 ——
 // test-palette 会拿生成器的常量跟这里渲染出来的 min/max 比对，漂了当场失败。
 // 这里不能 import 生成器：它是挂在 globalThis 上的经典脚本，服务端没有 window。
@@ -288,30 +265,6 @@ export const heroToolsHtml = (palDefault = sitePaletteDefault()) => `<span class
 // —— 导航图标 —— 20 格画布、1.6 描边、圆头圆角，与「检索」「配色」同一套规格，缩到 14px 仍是一块读得出的轮廓。
 // 按 key 取（导航项用它自己的 key，固定页用 slug）；认不出的落回「折角纸页」—— 站主新加一页不必改代码。
 // 全部 aria-hidden：链接的可访问名仍只有那两个字，读屏不会念出图形。
-const NAV_ICO_SVG = (inner) => `<svg class="n-ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
-
-const NAV_ICO = {
-  // 屋顶 + 山墙 + 门：屋脊比墙线宽出去一点，缩到 14px 才不会缩成一个「人」字。
-  home: NAV_ICO_SVG('<path d="M3.6 8.9 10 3.7l6.4 5.2"/><path d="M5.4 8.1v8.1h9.2V8.1"/><path d="M8.3 16.2v-4.1h3.4v4.1"/>'),
-  // 一页正文：外框 + 三行字（末行短），与「笔记」的铅笔、「归档」的盒子区分得开。
-  posts: NAV_ICO_SVG('<rect x="4.4" y="3.2" width="11.2" height="13.6" rx="1.8"/><path d="M7.4 7.4h5.2M7.4 10.4h5.2M7.4 13.4h3"/>'),
-  // 铅笔：斜杆 + 笔尖，「写下来」这件事不需要别的装饰。
-  notes: NAV_ICO_SVG('<path d="M13.7 3.1a1.8 1.8 0 0 1 2.5 2.5L5.9 15.9l-3.3.8.8-3.3z"/><path d="M12.4 4.4 15.4 7.4"/>'),
-  // 「页面」这枚是容器不是内容：用文件夹，说明点开是一组，而不是又要跳走。
-  pages: NAV_ICO_SVG('<path d="M3.2 6.6c0-.8.6-1.4 1.4-1.4h3l1.6 2h6.2c.8 0 1.4.6 1.4 1.4v6.8c0 .8-.6 1.4-1.4 1.4H4.6c-.8 0-1.4-.6-1.4-1.4z"/>'),
-  // 双人：前人画全（头 + 肩），后人只露半张脸（右弯的月牙）—— 14px 下多画一截肩只会变成一道飘着的短线。
-  friends: NAV_ICO_SVG('<circle cx="7.9" cy="7.5" r="2.5"/><path d="M3.5 16.4c0-2.4 2-4.4 4.4-4.4s4.4 2 4.4 4.4"/><path d="M13.4 5.6a2.3 2.3 0 0 1 0 4.5"/>'),
-  // 链环：两只开口相对的钩 + 中间一段，交叠处才不像一根实心斜棒。
-  links: NAV_ICO_SVG('<path d="M8.3 10.8a4.2 4.2 0 0 0 6.28.45l2.5-2.5a4.2 4.2 0 0 0-5.89-5.89l-1.43 1.43"/><path d="M11.7 9.2a4.2 4.2 0 0 0-6.28-.45l-2.5 2.5a4.2 4.2 0 0 0 5.89 5.89l1.43-1.43"/>'),
-  // 归档盒：盖 + 箱体 + 把手，一眼是「收起来」而不是「又一篇文章」。
-  archive: NAV_ICO_SVG('<rect x="3.4" y="4.4" width="13.2" height="3.6" rx="1.1"/><path d="M5.2 8v6.4c0 .9.7 1.6 1.6 1.6h6.4c.9 0 1.6-.7 1.6-1.6V8"/><path d="M8.5 11.2h3"/>'),
-  // 关于：圆里一个 i，与「文章」的外框页、「笔记」的铅笔都不撞。
-  about: NAV_ICO_SVG('<circle cx="10" cy="10" r="6.6"/><path d="M10 9.2v4.4"/><path d="M10 6.5h.01"/>'),
-  // 兜底：折角纸页。
-  page: NAV_ICO_SVG('<path d="M5.2 3.4h5.6l4.6 4.6v8.6H5.2z"/><path d="M10.8 3.4V8h4.6"/>'),
-};
-const navIco = (key) => NAV_ICO[key] ?? NAV_ICO.page;
-
 // 标签是页面标题（用户内容），一律转义。
 // 图标在 <a> 里、文字包一层 .n-txt：图标不参与可访问名，链接读出来仍是「文章」，与加图标前一致。
 const navLink = (active) => ([href, label, key]) =>
@@ -426,23 +379,8 @@ function withMainContext(ctx, main) {
   };
 }
 
-// —— 页面级样式表：由 build:assets 从 style.css 切片生成 ——
-// 没有构建产物（开发/测试/刚 clone）或 style.css 在构建后又被改过时，回退到全量 style.css，
-// 绝不发半套样式。检查结果按进程缓存：改完 style.css 需要重跑构建并重启进程。
+// 页面级样式表与脚本 bundle 的构建产物探测已收在 render/assets.js。
 const PAGE_CSS_LITE = new Set(['home', 'list', 'archive', 'friends', 'links', 'search', '404']);
-let pageCssReady;
-function hasPageCss() {
-  if (pageCssReady !== undefined) return pageCssReady;
-  pageCssReady = false;
-  try {
-    const stamp = JSON.parse(fs.readFileSync(path.join(PUBLIC_DIR, '.build', 'page-css.json'), 'utf8'));
-    const source = fs.readFileSync(path.join(PUBLIC_DIR, 'style.css'));
-    pageCssReady = stamp?.sourceHash === crypto.createHash('sha256').update(source).digest('hex')
-      && fs.existsSync(path.join(PUBLIC_DIR, 'style-lite.css'))
-      && fs.existsSync(path.join(PUBLIC_DIR, 'style-article.css'));
-  } catch { pageCssReady = false; }
-  return pageCssReady;
-}
 
 function styleFileFor(ctx) {
   if (!hasPageCss()) return 'style.css';
@@ -456,21 +394,6 @@ function styleFileFor(ctx) {
   if (ctx.page === 'page' || ctx.themeType === 'post' || ctx.themeType === 'note') return 'style-article.css';
   // /notes/ 同时要笔记流与评论区；审核页等未知页面也保守用全量。
   return 'style.css';
-}
-
-// 前台五个脚本在 build:assets 里合成 site.js；源文件任一改动、或没跑过构建，就回退到五个标签。
-const SITE_SOURCES = ['request.js', 'ui.js', 'nav.js', 'search.js', 'app.js'];
-let siteBundleReady;
-function hasSiteBundle() {
-  if (siteBundleReady !== undefined) return siteBundleReady;
-  siteBundleReady = false;
-  try {
-    const stamp = JSON.parse(fs.readFileSync(path.join(PUBLIC_DIR, '.build', 'site-bundle.json'), 'utf8'));
-    const fresh = SITE_SOURCES.every((file) => stamp?.hashes?.[file]
-      === crypto.createHash('sha256').update(fs.readFileSync(path.join(PUBLIC_DIR, file))).digest('hex'));
-    siteBundleReady = fresh && fs.existsSync(path.join(PUBLIC_DIR, 'site.js'));
-  } catch { siteBundleReady = false; }
-  return siteBundleReady;
 }
 
 const styleLinksOf = (ctx) => {

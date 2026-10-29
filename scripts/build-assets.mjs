@@ -11,6 +11,7 @@ import crypto from 'node:crypto';
 import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { VERSIONED_ASSETS } from '../src/render/layout.js';
+import { SITE_SOURCES } from '../src/render/assets.js';
 import { minifyAsset } from '../src/render/minify.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -20,7 +21,10 @@ const MANIFEST = path.join(BUILD_DIR, 'manifest.json');
 const checkOnly = process.argv.includes('--check');
 
 const sha256 = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
-const files = VERSIONED_ASSETS.filter((name) => /\.(?:css|js)$/i.test(name));
+const files = VERSIONED_ASSETS.filter((name) => /\.(?:css|js)$/i.test(name))
+  // 打包后前台只请求 site.js；五个源脚本只在 bundle 过期时回退。生产构建不再为它们各生成一份
+  // 精简与 br/gzip（运行时 sendFile 仍能在回退时按需精简），少 5 个文件、少一份重复产物。
+  .filter((name) => !SITE_SOURCES.includes(name));
 
 // —— 页面级 CSS 变体 ——
 // public/style.css 里用 /* @page-css <name>:start|end */ 标出「只有某类页面才用」的段。
@@ -86,7 +90,7 @@ const pageCssStale = syncPageCss(checkOnly);
 // —— 前台脚本 bundle ——
 // 五个 defer 脚本合成一个请求：省 4 次往返与每份独立的压缩头。开发/无构建时回退到 5 个标签，
 // 源文件仍是唯一真相（测试直接 eval public/*.js，不受影响）。顺序必须保持 request → ui → nav → search → app。
-const SITE_SOURCES = ['request.js', 'ui.js', 'nav.js', 'search.js', 'app.js'];
+// 清单沿用 render/assets.js 的 SITE_SOURCES，避免构建脚本与运行时回退各维护一份顺序。
 const SITE_BUNDLE = path.join(PUBLIC_DIR, 'site.js');
 const SITE_STAMP = path.join(BUILD_DIR, 'site-bundle.json');
 

@@ -13,15 +13,24 @@ if (onlyAt >= 0 && !only) { console.error('用法：npm test -- --only <suite>')
 if (only && !FUNCTIONAL_SUITES.includes(only) && !BROWSER_SUITES.includes(only)) {
   console.error(`未知套件：${only}`); process.exit(2);
 }
+// 功能套件各自有独立 fixture（_test-env 建临时 DATA_DIR/CONTENT_DIR），可以并行；默认仍为 1，
+// CI 可用 TEST_CONCURRENCY=2/3 提速。无头浏览器套件仍串行，避免多个 Chromium 抢同一份 fixtures。
+const concurrencyRaw = process.argv.includes('--concurrency')
+  ? process.argv[process.argv.indexOf('--concurrency') + 1]
+  : process.env.TEST_CONCURRENCY;
+const concurrency = Math.min(4, Math.max(1, Number.parseInt(concurrencyRaw, 10) || 1));
 if (only && BROWSER_SUITES.includes(only)) process.exit(await runSuite(only));
 // 功能套件各自创建私有 fixture；父进程只在最后跑真实浏览器审计时才需要共享库与登录口令。
 // 以前无论 UI_AUDIT=off 还是功能套件第一项就失败，都先花一份建库/同步成本。
 let fixtures = null;
 let status = 0;
 try {
-  for (const suite of (only ? [only] : FUNCTIONAL_SUITES)) {
-    const code = await runSuite(suite);
-    if (code !== 0) { status = code; break; }
+  if (concurrency > 1 && !only) status = await runFunctionalsInParallel(FUNCTIONAL_SUITES, concurrency);
+  else {
+    for (const suite of (only ? [only] : FUNCTIONAL_SUITES)) {
+      const code = await runSuite(suite);
+      if (code !== 0) { status = code; break; }
+    }
   }
 
   // playwright 与浏览器二进制都可选 —— 缺了就明确跳过并说明怎么装，绝不静默地看起来通过了。
@@ -32,6 +41,21 @@ try {
   }
 } finally { fixtures?.cleanup(); }
 process.exitCode = status;
+
+async function runFunctionalsInParallel(suites, limit) {
+  let next = 0;
+  let failed = 0;
+  const worker = async () => {
+    for (;;) {
+      const index = next++;
+      if (index >= suites.length || failed) return;
+      const code = await runSuite(suites[index]);
+      if (code !== 0) { failed = code; return; }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, suites.length) }, worker));
+  return failed;
+}
 
 async function uiAuditSuite() {
   console.log('\n── UI 细节审计（真实浏览器）');
