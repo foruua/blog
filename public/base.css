@@ -173,7 +173,7 @@ html[data-theme="dark"] {
   --code-bg: #222222;
   --code-fg: #ddd9cd;
   /* 与浅色同一套角色，只是换成墨面上够亮的几档（最差 5.2:1）。 */
-  --hl-comment: #948d7d;
+  --hl-comment: #9e9886;
   --hl-keyword: #e2b96b;
   --hl-string: #9ec9a4;
   --hl-number: #e29a6d;
@@ -222,7 +222,7 @@ html[data-theme="dark"] { color-scheme: dark; }
     --warn: #e0a86a;            /* 同显式深色块 */
     --code-bg: #222222;
     --code-fg: #ddd9cd;
-    --hl-comment: #948d7d;
+    --hl-comment: #9e9886;
     --hl-keyword: #e2b96b;
     --hl-string: #9ec9a4;
     --hl-number: #e29a6d;
@@ -488,7 +488,7 @@ html[data-theme="dark"][data-palette="dailan"] {
   --code-bg: #252525;
   --code-fg: #d3dce6;
   /* 代码高亮同色系（默认那组会串色）；实测最差 4.71:1（小字要 4.5）。 */
-  --hl-comment: #8c93a0;
+  --hl-comment: #939aa7;
   --hl-keyword: #9cc6ef;
   --hl-string: #9ecdb4;
   --hl-number: #e2b478;
@@ -510,7 +510,7 @@ html[data-theme="dark"][data-palette="dailan"] {
     --code-bg: #252525;
     --code-fg: #d3dce6;
     /* 代码高亮同色系（默认那组会串色）；实测最差 4.71:1（小字要 4.5）。 */
-    --hl-comment: #8c93a0;
+    --hl-comment: #939aa7;
     --hl-keyword: #9cc6ef;
     --hl-string: #9ecdb4;
     --hl-number: #e2b478;
@@ -622,7 +622,7 @@ html[data-theme="dark"][data-palette="ziteng"] {
   --code-bg: #232323;
   --code-fg: #d9d3e4;
   /* 代码高亮同色系（默认那组会串色）；实测最差 4.71:1（小字要 4.5）。 */
-  --hl-comment: #918ca0;
+  --hl-comment: #9994a8;
   --hl-keyword: #cbb0f2;
   --hl-string: #a3d3ad;
   --hl-number: #e6b478;
@@ -644,7 +644,7 @@ html[data-theme="dark"][data-palette="ziteng"] {
     --code-bg: #232323;
     --code-fg: #d9d3e4;
     /* 代码高亮同色系（默认那组会串色）；实测最差 4.71:1（小字要 4.5）。 */
-    --hl-comment: #918ca0;
+    --hl-comment: #9994a8;
     --hl-keyword: #cbb0f2;
     --hl-string: #a3d3ad;
     --hl-number: #e6b478;
