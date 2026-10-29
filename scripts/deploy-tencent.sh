@@ -86,7 +86,9 @@ run_npm() {
   runuser -u "$BLOG_DEPLOY_USER" -- env HOME="$user_home" \
     PATH="$node_dir:/usr/local/bin:/usr/bin:/bin" npm_config_cache="$npm_cache" "$@"
 }
-run_npm npm ci --include=dev --registry=https://registry.npmmirror.com
+# 默认用官方 npm 源：国内镜像同步新版本有延迟，曾在发布时 404（liquidjs 10.30.1）。
+# 需要镜像时可用 NPM_REGISTRY=https://registry.npmmirror.com 覆盖。
+run_npm npm ci --include=dev --registry="${NPM_REGISTRY:-https://registry.npmjs.org}"
 # 静态资源在构建期精简并预压成 .br/.gz；构建完再裁掉 devDependencies，生产进程不需要 css-tree/acorn。
 run_npm npm run build:assets
 run_npm npm prune --omit=dev
