@@ -46,7 +46,7 @@ export function registerAssetRoutes(app, { sendFile, themes, auth, assetVer, rep
   // 清单本身只发 no-cache（下方默认中间件也会这么兜），浏览器每次校验一次，几十字节。
   app.get('/site.webmanifest', (c) => {
     const icon = (file) => `/${file}?v=${assetVer(file)}`;
-    const paper = PALETTES.find((p) => p.key === settings.paletteDefault(repo))?.paper ?? '#faf8f4';
+    const paper = PALETTES.find((p) => p.key === settings.paletteDefault(repo))?.paper ?? '#f8f8f8';
     const manifest = {
       id: '/',
       name: SITE.identity,

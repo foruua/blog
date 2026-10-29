@@ -720,11 +720,16 @@ await test('v3 种子折算：旧上限 + 新浅色斜率一起折回，当前�
     '折回后深色纸面明度对不上');
 });
 
-await test('存量 v4 无生成器版本：首帧自动升级到 v5，纸色不跳', async () => {
+await test('存量 v4 无生成器版本：首帧自动升级到 v5，换算与生成器同一套', async () => {
   const q = PALETTES.find((p) => p.key === 'qingci').seed;
-  // v4 存量（C_MAX 还是 0.022）的青瓷种子；迁移后应正好回到当前设置的 q。
+  // v4 存量（C_MAX 还是 0.022）的种子：纸色强度按旧尺子取值，迁移后应折到当前尺子上。
   const old = { paper: 0.341, paperD: 0.468, bgL: 0.971, bgLD: 0.153 };
-  const currentCss = lib.customCss(q.hue, { ...q, v: lib.SEED_VERSION });
+  // 现在的预设纸色为无（paper=0），不能拿它当「迁移目标」；目标由生成器自己的 normalizeSeed 给出。
+  const want = lib.normalizeSeed(q.hue, {
+    v: 4, hue: q.hue, chroma: q.chroma, chromaD: q.chromaD,
+    inkL: q.inkL, inkLD: q.inkLD, paper: old.paper, paperD: old.paperD, bgL: old.bgL, bgLD: old.bgLD,
+  });
+  const currentCss = lib.customCss(q.hue, { ...q, paper: 0.1, paperD: 0.2, v: lib.SEED_VERSION });
   const v4css = currentCss
     .replace(`--seed-v:${lib.SEED_VERSION}`, '--seed-v:4')
     .replace(/--seed-g:\d+;/, '')
@@ -737,13 +742,13 @@ await test('存量 v4 无生成器版本：首帧自动升级到 v5，纸色不�
     const el = w.document.documentElement;
     assert.equal(el.dataset.seedV, String(lib.SEED_VERSION), '旧版本没自动升到当前版本');
     assert.equal(el.dataset.seedG, String(lib.GEN_VERSION), '生成器版本没补上');
-    assert.ok(Math.abs(Number(el.dataset.seedP) - q.paper) < 0.002, `--seed-p 没折回：${el.dataset.seedP} ≠ ${q.paper}`);
-    assert.ok(Math.abs(Number(el.dataset.seedPd) - q.paperD) < 0.002, `--seed-pd 没折回：${el.dataset.seedPd} ≠ ${q.paperD}`);
-    assert.ok(Math.abs(Number(el.dataset.seedBl) - q.bgL) < 0.002, `--seed-bl 没折回：${el.dataset.seedBl} ≠ ${q.bgL}`);
-    assert.ok(Math.abs(Number(el.dataset.seedBd) - q.bgLD) < 0.002, `--seed-bd 没折回：${el.dataset.seedBd} ≠ ${q.bgLD}`);
+    assert.ok(Math.abs(Number(el.dataset.seedP) - want.paper) < 0.002, `--seed-p 没折回：${el.dataset.seedP} ≠ ${want.paper}`);
+    assert.ok(Math.abs(Number(el.dataset.seedPd) - want.paperD) < 0.002, `--seed-pd 没折回：${el.dataset.seedPd} ≠ ${want.paperD}`);
+    assert.ok(Math.abs(Number(el.dataset.seedBl) - want.bgL) < 0.002, `--seed-bl 没折回：${el.dataset.seedBl} ≠ ${want.bgL}`);
+    assert.ok(Math.abs(Number(el.dataset.seedBd) - want.bgLD) < 0.002, `--seed-bd 没折回：${el.dataset.seedBd} ≠ ${want.bgLD}`);
     const paper = pickerOf(w).querySelector('.pal-paper');
-    assert.ok(Math.abs(Number(paper.value) - q.paper) < 0.002, '滑块没停到换算后的强度上');
-    const wantBg = lib.tokensOf(q.hue, { ...q, v: lib.SEED_VERSION }, true).bg;
+    assert.ok(Math.abs(Number(paper.value) - want.paper) < 0.002, '滑块没停到换算后的强度上');
+    const wantBg = lib.tokensOf(q.hue, want, true).bg;
     const text = w.document.getElementById('palCustom').textContent;
     const at = text.indexOf('html[data-theme="dark"][data-palette="custom"]{');
     assert.ok(text.slice(at, text.indexOf('}', at)).includes(`--bg:${wantBg}`), '折回后的暗色纸面没生成');
@@ -959,14 +964,17 @@ await test('从预设拖进自定义：暗色那套按比例跟随浓淡 / 纸�
     assert.ok(Math.abs(Number(el.dataset.seedCd) - wantC) < 0.002, `深色浓度没跟随：${el.dataset.seedCd} ≠ ${wantC}`);
     const dark1 = lib.tokensOf(qingci.hue, { ...qingci, chroma: nextC, chromaD: wantC, v: lib.SEED_VERSION }, true);
     assert.ok(darkBlock().includes(`--accent:${dark1.accent}`), '深色 accent 没按新浓度重算');
-    // 纸色同理：青瓷的深色纸色 / 浅色纸色 = .468 / .341；拖到 0 后两边都该是中性纸。
+    // 纸色同理：预设的纸色为无（0），从 0 往上拖时深浅两边按同一强度走（light=0 时 ratio 取 1），暗色纸面必须变。
+    const nextP = 0.5;
     const paper = picker.querySelector('.pal-paper');
-    paper.value = '0';
+    paper.value = String(nextP);
     paper.dispatchEvent(new w.Event('input', { bubbles: true }));
     await sleep(60);
-    assert.equal(Number(el.dataset.seedP), 0);
-    assert.ok(!el.dataset.seedPd || Number(el.dataset.seedPd) === 0, '深色纸色没跟着落到 0');
-    const dark2 = lib.tokensOf(qingci.hue, { ...qingci, chroma: nextC, chromaD: wantC, paper: 0, paperD: 0, v: lib.SEED_VERSION }, true);
+    assert.ok(Math.abs(Number(el.dataset.seedP) - nextP) < 0.002);
+    // 深浅两边强度相同时 --seed-pd 会被省略（省一个字段）；读回值等于浅色那档。
+    const pd = el.dataset.seedPd === undefined ? Number(el.dataset.seedP) : Number(el.dataset.seedPd);
+    assert.ok(Math.abs(pd - nextP) < 0.002, '深色纸色没跟着抬到同一强度');
+    const dark2 = lib.tokensOf(qingci.hue, { ...qingci, chroma: nextC, chromaD: wantC, paper: nextP, paperD: nextP, v: lib.SEED_VERSION }, true);
     assert.notEqual(dark2.bg, dark1.bg, '深色纸面没跟着纸色滑块变');
     assert.ok(darkBlock().includes(`--bg:${dark2.bg}`), '深色纸面令牌没重算');
   } finally { dom.window.close(); }

@@ -17,7 +17,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = path.join(ROOT, 'public', 'og-default.jpg');
 
 // —— 设计令牌：与 public/base.css 的素笺配色逐字对应 ——
-const PAPER = '#faf8f4';
+const PAPER = '#f8f8f8';
 const INK = '#17160f';
 const INK_SOFT = '#433f37';
 const MUTED = '#6b665d';

@@ -42,7 +42,7 @@ export const errorPage = () => `<!doctype html>
 <title>出了点问题 · ${esc(SITE.title || SITE.identity)}</title>
 <style>
 :root{color-scheme:light dark}
-body{margin:0;min-height:100vh;display:grid;place-items:center;padding:2rem;background:#faf8f4;color:#2b2b2b;
+body{margin:0;min-height:100vh;display:grid;place-items:center;padding:2rem;background:#f8f8f8;color:#2b2b2b;
   font:16px/1.75 ui-sans-serif,system-ui,-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
 main{max-width:32rem}
 h1{margin:0 0 .6rem;font-size:1.4rem;letter-spacing:.02em}

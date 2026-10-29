@@ -187,8 +187,8 @@ const page = await (await fetch(`${BASE}/p/${SLUG}/`)).text();
       for (const b of blocks) { const m = new RegExp(`${name}:\\s*(#[0-9a-fA-F]{6})`).exec(b); if (m) return m[1]; }
       return null;
     };
-    const light = block(':root {\n  --bg: #faf8f4;');
-    const dark = block('html[data-theme="dark"] {\n  --bg: #0b0b0d;');
+    const light = block(':root {\n  --bg: #f8f8f8;');
+    const dark = block('html[data-theme="dark"] {\n  --bg: #0b0b0b;');
     const cases = [['素笺·浅色', light, ''], ['素笺·深色', dark, '']];
     for (const p of PALETTES.filter((x) => x.key)) {
       cases.push([`${p.name}·浅色`, light, block(`\nhtml[data-palette="${p.key}"] {`)]);
@@ -732,7 +732,7 @@ const page = await (await fetch(`${BASE}/p/${SLUG}/`)).text();
     && manifest.icons.every((i) => /\.png\?v=[0-9a-f]{10}$/.test(i.src))
     && manifest.icons.some((i) => i.purpose === 'maskable'), '');
   check('T57c2 manifest 背景/主题色跟随默认配色的纸色',
-    manifest.background_color === '#faf8f4' && manifest.theme_color === '#faf8f4', JSON.stringify({ bg: manifest.background_color, theme: manifest.theme_color }));
+    manifest.background_color === '#f8f8f8' && manifest.theme_color === '#f8f8f8', JSON.stringify({ bg: manifest.background_color, theme: manifest.theme_color }));
 
   const robots = await (await fetch(`${BASE}/robots.txt`)).text();
   check('T57d robots 挡掉后台、审核与检索入口',
