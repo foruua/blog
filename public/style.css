@@ -2016,8 +2016,7 @@ footer.site .foot-copy > svg {
   vertical-align: -.14em;
   margin-right: .22em;
 }
-/* 署名前的金色中点：与文章 meta 行「4 天前 · 1654 字」同一个分隔符语言 */
-footer.site .foot-copy .sep { color: var(--accent); padding-inline: .35em; }
+/* 署名前的金色中点已去掉：© 号与年份、作者之间只留一个空格 */
 /* 第二行两条备案号同行排；320px 放不下时允许各自成行（仍居中），比溢出稳。 */
 footer.site .foot-beian {
   display: flex; flex-wrap: wrap; align-items: baseline;

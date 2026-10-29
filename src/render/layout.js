@@ -504,7 +504,7 @@ function chromeOf(ctx) {
     <a class="foot-seal" href="#top" aria-label="回到顶部" title="回到顶部"><span class="foot-seal-star" aria-hidden="true"></span></a>
     <div class="foot-inner">
       <div class="foot-legal">
-        <span class="foot-copy"><span class="sr-only">©</span>${ICON_COPYRIGHT} ${new Date().getFullYear()}${SITE.author ? `<span class="sep">·</span>${esc(SITE.author)}` : ''}</span>
+        <span class="foot-copy"><span class="sr-only">©</span>${ICON_COPYRIGHT} ${new Date().getFullYear()}${SITE.author ? ` ${esc(SITE.author)}` : ''}</span>
         <span class="foot-beian">
           ${SITE.icp ? `<a class="foot-icp" href="https://beian.miit.gov.cn/" rel="nofollow noopener">${icpBadgeImg()}${esc(SITE.icp)}</a>` : ''}
           ${policeHtml()}

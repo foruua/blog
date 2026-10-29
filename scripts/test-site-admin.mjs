@@ -98,7 +98,7 @@ check('S1b 设置页把「站点与阅读」改成了「阅读与外观」', pag
   check('S2n 号码文字在链接里', (policeLink?.[2] ?? '').includes('京公网安备11000000000001号'));
   // 页脚两行结构：第一行版权（foot-copy），第二行备案号（foot-beian）
   check('S2k 页脚拆成两行：版权行 + 备案号行',
-    /<span class="foot-copy"><span class="sr-only">©<\/span><svg [\s\S]{0,300}?> \d{4}<span class="sep">·<\/span>[^<]*测试作者<\/span>/.test(home) && /<span class="foot-beian">\s*<a class="foot-icp"/.test(home),
+    /<span class="foot-copy"><span class="sr-only">©<\/span><svg [\s\S]{0,300}?> \d{4}\s*测试作者<\/span>/.test(home) && /<span class="foot-beian">\s*<a class="foot-icp"/.test(home),
     '页脚两行结构不完整');
 
   // 校验：邮箱形状
