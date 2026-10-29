@@ -701,25 +701,8 @@ body[data-page="home"] .recent .entries a::before {
 }
 body[data-page="home"] .recent .entries a:hover { background: transparent; }
 body[data-page="home"] .recent .entries a:hover::before { transform: scaleY(1); }
-/* 首页「全部 25 篇」：右下角的文字链接，不是居中 pill。 */
+/* 首页「全部 N 篇」沿用原来的居中 pill（与列表页翻页同一个组件），这里只收紧上距。 */
 .recent .pager-more { margin-top: clamp(1.2rem, 2.6vw, 1.8rem); }
-body[data-page="home"] .recent .pager-more { margin: .95rem 0 0; padding-inline: .2rem; justify-content: flex-end; }
-body[data-page="home"] .recent .pager-more a {
-  position: relative;
-  /* 命中区补到 24px+（WCAG 2.5.8）：上下 .45rem，负外边距抵消，版面不变；下划线改由 ::after 画在文字底下 */
-  padding: .45rem 0; margin: -.45rem 0;
-  border: 0; border-radius: 0; background: none; box-shadow: none;
-  font: var(--label-size)/1.4 var(--mono); letter-spacing: var(--label-track);
-  text-transform: none; color: var(--muted-soft);
-}
-body[data-page="home"] .recent .pager-more a::after {
-  content: ""; position: absolute; left: 0; right: 0; bottom: .4rem; height: 1px;
-  background: var(--rule); transition: background var(--dur-2) var(--ease);
-}
-body[data-page="home"] .recent .pager-more a:hover { color: var(--accent-read); background: none; box-shadow: none; }
-body[data-page="home"] .recent .pager-more a:hover::after { background: var(--accent); }
-body[data-page="home"] .recent .pager-more .recent-arrow { display: inline-block; transition: transform var(--dur-2) var(--ease); }
-body[data-page="home"] .recent .pager-more a:hover .recent-arrow { transform: translateX(3px); }
 /* 首页账本标题只占一行（点线只有单行才成立，放不下就省略号）。标题要是块级 flex item （见 ledgerItem 的 .e-title-text），min-width:0 让它在 minmax(0,1fr) 列里能缩下去。 */
 .recent .e-title { min-width: 0; }
 .recent .e-title-text { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }

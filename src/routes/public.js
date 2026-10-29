@@ -230,7 +230,7 @@ export function publicRoutes(repo, { comments, crypt, media = null, feeds = null
     return `    <section class="recent">
       <h2 class="recent-head"><span>最近更新</span><span class="recent-line" aria-hidden="true"></span><span class="recent-num">${total} 篇</span></h2>
 ${entriesBlock(rows, { relative: true })}
-      <p class="pager-more recent-more"><a href="/archive/">全部 ${total} 篇 <span class="recent-arrow" aria-hidden="true">→</span></a></p>
+      <p class="pager-more"><a href="/archive/">全部 ${total} 篇 →</a></p>
     </section>`;
   }
 
