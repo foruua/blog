@@ -526,6 +526,11 @@ let uploadedRawUrl = '';
 
   check('T8k-1 媒体页每张卡片都有删除入口', listed.includes('href="/admin/media/delete/'), '');
 
+  // 超大页码先按 mediaStats 总数夹紧：不能拿巨大 OFFSET 去扫整张表，也不能落到空页。
+  const deepMedia = await html('/admin/media?page=999');
+  check('T8k-1b 媒体库超大页码收敛到最后一页，不落空页',
+    deepMedia.includes('class="a-media-shot"') && !deepMedia.includes('媒体库还是空的'), '');
+
   // 媒体库这一页不要搜索框（一屏缩略图靠眼睛找比打字快）；编辑器里选图弹窗的搜索照旧（走 /admin/api/media）。
   check('T8k-1a 媒体库没有搜索框了',
     !listed.includes('class="a-search"') && !listed.includes('name="q"'), '');

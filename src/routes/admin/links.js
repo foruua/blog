@@ -18,7 +18,10 @@ export function registerLinkRoutes(app, { links, linkChecker }, { ctx }) {
 
 
   app.get('/admin/links', (c) => {
-    const page = pageNumber(c);
+    // 先用便宜的总数夹紧页码：超大 ?page= 不该拿巨大的 OFFSET 去扫 LIVE_CTE。
+    const total = Number(links.adminCount()) || 0;
+    const lastPage = Math.max(1, Math.ceil(total / ADMIN_PAGE_SIZE));
+    const page = Math.min(pageNumber(c), lastPage);
     const snapshot = links.adminPageWithStats({
       limit: ADMIN_PAGE_SIZE + 1, offset: (page - 1) * ADMIN_PAGE_SIZE,
     });

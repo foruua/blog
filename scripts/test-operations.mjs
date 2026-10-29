@@ -110,6 +110,13 @@ try {
     assert.equal(mediaFile('/uploads/missing.png', path.join(root, 'missing-uploads')), path.join(root, 'missing-uploads', 'missing.png'));
     const plan = obsoleteMediaPlan(db, { uploadsDir: uploads, contentDir: content });
     assert.deepEqual(plan.map((item) => item.path), ['/uploads/sample.png.thumb.webp', '/uploads/sample.png.thumb-v2.webp', '/uploads/sample.png.v2-w1200.webp', '/uploads/sample.png.v3-w16.webp'].sort((a, b) => a.localeCompare(b)));
+    // 分批判扫（每批 200 行）：第 200 行之后的引用也必须保留，游标不能漏掉后半张表。
+    const insComment = db.prepare("INSERT INTO comments(post_id, author, body_md, status) VALUES(?, 'cursor', ?, 'approved')");
+    for (let i = 0; i < 249; i++) insComment.run(id, '无引用');
+    insComment.run(id, '![](/uploads/sample.png.w240.webp)');
+    const planAfterBatch = obsoleteMediaPlan(db, { uploadsDir: uploads, contentDir: content });
+    assert.ok(!planAfterBatch.some((item) => item.path === '/uploads/sample.png.w240.webp'),
+      '第 200 行之后的评论引用被分批判扫漏掉了');
     const env = { ...process.env, DB_FILE: dbFile, DATA_DIR: root, CONTENT_DIR: content, UPLOADS_DIR: uploads };
     const run = (script, ...args) => spawnSync(process.execPath, ['scripts/' + script + '.mjs', ...args], { env, encoding: 'utf8' });
     assert.equal(run('cleanup-media').status, 0); assert.ok(fs.existsSync(path.join(uploads, 'sample.png.thumb.webp')));

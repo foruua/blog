@@ -24,9 +24,16 @@ try {
   check('T3 第二次命中缓存', second.headers.get('x-page-cache') === 'HIT', String(second.headers.get('x-page-cache')));
   check('T4 命中的正文与首次一致', secondBody === firstBody, `${firstBody.length} → ${secondBody.length}`);
 
-  // UTM 等无关参数共享同一条缓存；q / before / n 等会改正文的参数不缓存，避免随机值冲掉整页缓存。
+  // UTM 等无关参数共享同一条缓存；q / before / c / partial 等会改正文的参数不缓存，避免随机值冲掉整页缓存。
   const tagged = await fetch(`${srv.base}/?utm_source=newsletter`);
   check('T4b 无关查询参数复用同一条缓存', tagged.headers.get('x-page-cache') === 'HIT', String(tagged.headers.get('x-page-cache')));
+  // 旧 /notes/?n=<slug> 必须每次回源（301 由路由决定）：命中已缓存的列表页就再也到不了正文页。
+  await (await fetch(`${srv.base}/notes/`)).text();
+  const note = db.prepare("SELECT slug FROM posts WHERE kind = 'note' AND draft = 0 ORDER BY id LIMIT 1").get();
+  const legacyNotes = await fetch(`${srv.base}/notes/?n=${encodeURIComponent(note?.slug ?? 'none')}`, { redirect: 'manual' });
+  check('T4e 旧 /notes/?n= 不吃列表页缓存，交给路由决定 301',
+    !legacyNotes.headers.get('x-page-cache'),
+    `${legacyNotes.status} ${legacyNotes.headers.get('x-page-cache')} ${legacyNotes.headers.get('location')}`);
   // 发信队列写入（退避/成功后 markSent）不属于页面内容：不能因此把整站 HTML 缓存冲掉。
   db.prepare(`INSERT INTO mail_outbox(to_addr, subject, text_body, status, next_attempt_at, created_at)
     VALUES(?,?,?,?,?,?)`).run('cache@example.com', 'cache', 'cache', 'pending', new Date().toISOString(), new Date().toISOString());

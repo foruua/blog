@@ -87,21 +87,23 @@ function commentBody(c, { replyBase = '', canReply = false, depth = 1, replyToAu
 </li>`;
 }
 
-export function commentSection({ post, thread, count, flash, tsToken, replyTo = null, idSuffix = '', replyBase = '', page = 1, pages = 1, asAuthor = false, csrf = '', submissionId = '', formOff = false }) {
+export function commentSection({ post, thread, count, flash, tsToken, replyTo = null, replyBase = '', page = 1, pages = 1, asAuthor = false, csrf = '', submissionId = '', formOff = false }) {
   // flash 来自查询串：用 hasOwn 挡住 constructor/__proto__ 这类原型链键（否则会把函数源码当提示渲染出来）。
   const notice = flash && Object.hasOwn(FLASH, flash)
     ? `<p class="c-flash c-flash-${esc(flash)}">${esc(FLASH[flash])}</p>` : '';
 
   // 关闭口径：只有显式 0/false 才算关闭；缺字段（老数据/主题数据）按默认开启。
   if (post.comments_on === 0 || post.comments_on === false) {
-    return `<section class="comments" id="comments${idSuffix}" data-comments-section>
+    return `<section class="comments" id="comments" data-comments-section>
       <header class="c-top"><h2><span class="c-label">评论</span><b class="c-count">${count}</b></h2></header>
       <p class="c-closed">本文的评论已关闭。</p>
     </section>`;
   }
 
+  // 全站关闭时表单不渲染，「回复」入口也得一起收：留着它会指向一个不存在的表单（?reply= 落空）。
+  const canReply = !formOff;
   const list = thread.length
-    ? `<ul class="c-list">${thread.map((c) => commentBody(c, { replyBase, canReply: true })).join('')}</ul>`
+    ? `<ul class="c-list">${thread.map((c) => commentBody(c, { replyBase, canReply })).join('')}</ul>`
     : '';
 
   const pager = pages > 1
@@ -125,7 +127,7 @@ export function commentSection({ post, thread, count, flash, tsToken, replyTo = 
   const form = formOff
     ? '<p class="c-closed">评论暂时关闭，已有讨论仍可阅读。</p>'
     : `      <form class="c-form${asAuthor ? ' is-author' : ''}" action="${commentAction(post)}" method="post" data-comment-form data-slug="${esc(post.slug)}" data-cpage="${page}">
-        <h3 id="reply${idSuffix}">
+        <h3 id="reply">
           <span data-reply-title>${replyTo ? `回复 ${esc(replyTo.author)}` : ''}</span>
           <a class="c-cancel-reply" href="${esc(cancelHref)}" data-cancel-reply data-no-pjax${replyTo ? '' : ' hidden'}>取消回复</a>
         </h3>
@@ -135,10 +137,10 @@ export function commentSection({ post, thread, count, flash, tsToken, replyTo = 
         <input type="hidden" name="parent" value="${replyTo ? replyTo.id : ''}" data-parent>
         ${asAuthor ? `<input type="hidden" name="as_author" value="1">${csrfField(csrf)}` : ''}
 
-${honeypot('        ')}${asAuthor ? '' : identityFields({ idSuffix, indent: '        ' })}
+${honeypot('        ')}${asAuthor ? '' : identityFields({ indent: '        ' })}
         <p class="c-field">
-          <label for="c-body${idSuffix}">内容</label>
-          <textarea id="c-body${idSuffix}" name="body" rows="5" required maxlength="3000"></textarea>
+          <label for="c-body">内容</label>
+          <textarea id="c-body" name="body" rows="5" required maxlength="3000"></textarea>
         </p>
         <div class="c-actions">
           ${emojiPicker()}
@@ -146,7 +148,7 @@ ${honeypot('        ')}${asAuthor ? '' : identityFields({ idSuffix, indent: '   
         </div>
       </form>`;
 
-  return `<section class="comments" id="comments${idSuffix}" data-comments-section>
+  return `<section class="comments" id="comments" data-comments-section>
       <header class="c-top">
         <h2><span class="c-label">评论</span><b class="c-count">${count}</b></h2>
 ${pager}

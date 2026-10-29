@@ -557,7 +557,10 @@ export function verifyBackup(name, { dir = DEFAULT_DIR, workDir } = {}) {
 }
 
 export async function maybeAutoBackup(db, { dir = DEFAULT_DIR, keep = DEFAULT_KEEP, minIntervalMs = 10 * 60 * 1000, maxBytes = 64 * 1024 * 1024, force = false } = {}) {
-  const size = fs.existsSync(dbFileOf(db)) ? fs.statSync(dbFileOf(db)).size : 0;
+  const dbFile = dbFileOf(db);
+  // WAL 模式下未 checkpoint 的写入还在 -wal 里：只量主库会漏掉这部分，大站上容易刚好卡在上限边缘。
+  const size = (fs.existsSync(dbFile) ? fs.statSync(dbFile).size : 0)
+    + (fs.existsSync(`${dbFile}-wal`) ? fs.statSync(`${dbFile}-wal`).size : 0);
   if (size > maxBytes) return { skipped: `数据库 ${(size / 1048576).toFixed(1)}MB 超过自动备份上限，请改用 cron` };
 
   // force 用于失败重试：刚生成的本地备份会让下面的最小间隔把重试判成 skipped，之后只能等下一轮 6 小时。

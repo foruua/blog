@@ -124,7 +124,8 @@
 
   // v5 迁移：纸色上限 0.022→0.036 后，paper / paperD 是「相对上限的强度」，要按比例折回；
   // bgL / bgLD 存的是按旧强度、旧斜率反算的基线，也要一起重算才能保持当前纸色不跳。
-  // 与 palette.js 的 normalizeSeed 同一套公式；面板要先于生成器就绪，所以这里保留一份。
+  // 与 palette.js 的 normalizeSeed 是同一个公式（面板要先于生成器就绪，所以这里保留一份实现）；
+  // 改常量或公式必须两边一起改，palette.js 的 v2/v3 折算用例只盯生成器那一份。
   const migratePaperSeed = (seed, version) => {
     if (version >= SEED_VERSION) return seed;
     const ratio = PAPER_C_MAX_V4 / PAPER_C_MAX;

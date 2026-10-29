@@ -34,16 +34,14 @@ const files = VERSIONED_ASSETS.filter((name) => /\.(?:css|js)$/i.test(name))
 // 这里按同一份源切出变体，规则顺序与全量逐字节一致，层叠行为不变：
 //   style-lite.css    首页/列表/归档/友圈/友链/检索/404：去掉评论区（笔记列表也是普通列表，走这一份）
 //   style-article.css 文章/笔记内页与固定页
-// notes 段已随笔记流一起删除；drop 里保留名字是为了兼容旧源码标记，没有标记时不起作用。
 // 无构建产物时服务端自动回退全量 style.css。
 const PAGE_CSS_VARIANTS = {
-  lite: { file: 'style-lite.css', drop: ['comments', 'notes'] },
-  article: { file: 'style-article.css', drop: ['notes'] },
+  lite: { file: 'style-lite.css', drop: ['comments'] },
+  article: { file: 'style-article.css', drop: [] },
 };
 const PAGE_CSS_STAMP = path.join(BUILD_DIR, 'page-css.json');
 
-// 标记必须严格配对：以前 style.css 里多出一个 notes:end，让笔记流段提前闭合，`.ncp-*` 整套抽屉样式
-// 悄悄漏进 lite/article 两份变体（每页多约 4.4KB），而第二个 end 没有开头、被静默忽略。
+// 标记必须严格配对：以前 style.css 里多出一个 notes:end，让已删除的笔记流段提前闭合、样式漏进两份变体。
 // 那段代码已经删除，但配对检查必须留着：任何未闭合、重复闭合、嵌套都会让构建直接失败，
 // 而不是产出一份「看起来正常」的样式表。
 function stripPageCss(source, drop) {

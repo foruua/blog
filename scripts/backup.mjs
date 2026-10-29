@@ -1,11 +1,10 @@
 import { parseFlags } from './_cli.mjs';
 import { acquireMaintenanceLock } from '../src/util/lock.js';
 
-import path from 'node:path';
 import { uploadBackup } from '../src/util/process.js';
 import { open, close } from '../db/driver.js';
 import { DB_FILE, CONTENT_DIR, UPLOADS_DIR } from '../src/config.js';
-import { snapshot, listBackups, verifyBackupLite, DEFAULT_DIR, DEFAULT_KEEP, recordOffsiteResult, isRecoverableBackup } from '../src/backup.js';
+import { snapshot, listBackups, DEFAULT_DIR, DEFAULT_KEEP, recordOffsiteResult, isRecoverableBackup } from '../src/backup.js';
 
 const { has, opt } = parseFlags();
 
@@ -54,10 +53,10 @@ console.log(`  ✓ 行数           文章 ${result.counts.posts} / 已发布 ${
 console.log(`  ✓ 文件            ${result.gzFile}`);
 console.log(`  ✓ 内容、附件与主题 ${result.assetsFile}（${result.assetFiles} 个文件，主题 ${result.themeFiles ?? 0} 个）`);
 
-// 手动备份也只做流式自检：整包 gunzip 进内存在大站点上会把进程顶到 GB 级。
-const v = await verifyBackupLite(path.basename(result.gzFile).replace(/\.db\.gz$/, ''), { dir: DIR });
-if (!v.ok || !result.complete) {
-  console.error(`  ✗ 备份自检失败：${v.reasons.join('；') || '归档跳过软链或缺失文件'}`);
+// snapshot 默认 verify:true：落盘后已经做过 sha256/大小/完整性自检并 prune；这里不再重复整包
+// 解压 + integrity_check（大站上等于双倍开销）。只保留「完整性」这一道：缺文件/跳过软链时退出码仍非 0。
+if (!result.complete) {
+  console.error('  ✗ 备份自检失败：归档跳过软链或缺失文件');
   process.exit(1);
 }
 console.log('  ✓ 自检通过        sha256 与大小一致，可解压');

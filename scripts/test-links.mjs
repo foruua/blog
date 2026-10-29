@@ -519,6 +519,11 @@ try {
   check('F30 行内不再挂五色徽标（状态改由"在哪一段里"承担）',
     !adminNow.includes('a-pill'), 'a-pill 仍在');
 
+  // 超大页码先按总数夹紧：不拿巨大 OFFSET 扫 LIVE_CTE，也不落到空页。
+  const adminOver = await html('/admin/links?page=999');
+  check('F30b 后台友链超大页码收敛到最后一页',
+    adminOver.includes('alpha.example') && !adminOver.includes('还没有人来过'), '');
+
   for (let i = 0; i < FAIL_LIMIT; i += 1) {
     links.markFail('gamma.example', { url: 'https://gamma.example/', message: '连不上', failLimit: FAIL_LIMIT });
   }

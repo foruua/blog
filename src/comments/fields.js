@@ -23,10 +23,10 @@ ${indent}  <label>传真号码 <input type="text" name="hp_fax" tabindex="-1" au
 ${indent}</div>`;
 
 /** 访客身份三栏（邮箱/昵称/网址）：默认走内页 c-grid/c-field。 */
-export function identityFields({ blockClass = 'c-grid', fieldClass = 'c-field', idSuffix = '', indent = '' } = {}) {
+export function identityFields({ blockClass = 'c-grid', fieldClass = 'c-field', indent = '' } = {}) {
   const field = (name, label, type, extra) => `${indent}  <p class="${fieldClass}">
-${indent}    <label for="c-${name}${idSuffix}">${label}</label>
-${indent}    <input id="c-${name}${idSuffix}" name="${name}" type="${type}" ${extra}>
+${indent}    <label for="c-${name}">${label}</label>
+${indent}    <input id="c-${name}" name="${name}" type="${type}" ${extra}>
 ${indent}  </p>`;
   return `${indent}<div class="${blockClass}">
 ${field('email', '邮箱', 'email', 'required maxlength="120" autocomplete="email"')}

@@ -360,28 +360,22 @@ try {
     w.matchMedia=()=>({matches:false});w.fetch=async(_url,opts)=>{payload=JSON.parse(opts.body);return{json:async()=>({ok:false,error:'try again'})}};
     try{w.eval(fs.readFileSync('public/ui.js', 'utf8'));w.eval(fs.readFileSync('public/request.js', 'utf8'));w.eval(fs.readFileSync('public/app.js','utf8'));const form=w.document.querySelector('form');form.querySelector('[name=author]').value='reader';form.querySelector('[name=email]').value='reader@example.com';form.querySelector('[name=body]').value='local';form.dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await new Promise(r=>setImmediate(r));assert.equal(payload.slug,'note-a');assert.equal(form.querySelector('[name=body]').value,'local');assert.equal(form.querySelector('button').disabled,false);assert.match(form.textContent,/try again/)}finally{w.close()}
   });
-  await test('评论局部刷新保留 id 后缀（同页第二个评论区的 label 不会指到别人家）', async () => {
-    // 同一页出现多份评论区时，服务端给内部 id 加 `-<slug>` 后缀；而 `?partial=comments` 回刷的是单独渲染、不带后缀的那份。
-    // 照搬会与其他评论区撞 id —— `<label for="c-author">` 会聚焦别人家的框。
+  await test('评论局部刷新换上的那一节仍是同一份评论区（id 不带后缀）', async () => {
+    // 生产里一页只有一处评论区（列表页不再就地展开），服务端与 partial 回刷都用同一组 id；
+    // 以前那套 `-<slug>` idSuffix 已随抽屉一起删除，这里钉住「回刷后 id 不变、label 仍指向本section」。
     const { commentSection } = await import('../src/comments/view.js');
-    const args = (slug) => ({
-      post: { id: 9, slug, kind: 'note', comments_on: 1 },
-      thread: [], count: 0, flash: '', tsToken: 't',
-      replyBase: `/n/${slug}/`, idSuffix: `-${slug}`,
-    });
     const dom = new JSDOM(
-      `<div id="app"><dialog>${commentSection(args('note-a'))}</dialog><dialog>${commentSection(args('note-b'))}</dialog></div>`,
-      { url: 'http://localhost/notes/', runScripts: 'outside-only' });
+      `<div id="app">${commentSection({ post: { id: 9, slug: 'note-a', kind: 'note', comments_on: 1 }, thread: [], count: 0, flash: '', tsToken: 't', replyBase: '/n/note-a/' })}</div>`,
+      { url: 'http://localhost/n/note-a/', runScripts: 'outside-only' });
     const w = dom.window;
     w.matchMedia = () => ({ matches: false });
-    // partial 那一份故意按真实行为渲染成**无后缀**
     w.fetch = async (url) => (String(url).includes('/api/comments')
       ? { json: async () => ({ ok: true, status: 'approved', count: 1 }) }
-      : { ok: true, text: async () => commentSection({ ...args('note-a'), idSuffix: '' }) });
+      : { ok: true, text: async () => commentSection({ post: { id: 9, slug: 'note-a', kind: 'note', comments_on: 1 }, thread: [], count: 0, flash: 'ok', tsToken: 't', replyBase: '/n/note-a/' }) });
     try {
       w.eval(fs.readFileSync('public/ui.js', 'utf8'));w.eval(fs.readFileSync('public/request.js', 'utf8'));w.eval(fs.readFileSync('public/app.js', 'utf8'));
-      const form = w.document.querySelector('#comments-note-a .c-form');
-      assert.ok(form, '第一个笔记的评论区应带 -note-a 后缀');
+      const form = w.document.querySelector('#comments .c-form');
+      assert.ok(form, '评论区 id 应为 comments');
       form.querySelector('[name=author]').value = '读者甲';
       form.querySelector('[name=email]').value = 'a@example.com';
       form.querySelector('[name=body]').value = '顶';
@@ -389,18 +383,13 @@ try {
       await new Promise((r) => setTimeout(r, 20));
 
       const ids = [...w.document.querySelectorAll('[id]')].map((el) => el.id);
-      assert.equal(new Set(ids).size, ids.length, `同页 id 不应重复：${ids.join(', ')}`);
-
-      const a = w.document.getElementById('comments-note-a');
-      assert.ok(a, '替换后仍应是原来那一节（id 不变）');
-      assert.equal(w.document.getElementById('c-author'), null, '不能再冒出一个无后缀的 c-author');
-      const author = a.querySelector('#c-author-note-a');
-      assert.ok(author, '内部 id 要补回后缀');
-      assert.equal(a.querySelector('label[for="c-author-note-a"]')?.getAttribute('for'), 'c-author-note-a',
-        'label 的 for 必须跟着改，否则点了聚焦不到');
-      assert.equal(w.document.getElementById('comments-note-b').querySelector('#reply-note-b')?.id, 'reply-note-b',
-        '另一个笔记的评论区不受影响');
-      assert.equal(a.querySelector('form').dataset.slug, 'note-a');
+      assert.equal(new Set(ids).size, ids.length, `id 不应重复：${ids.join(', ')}`);
+      const next = w.document.getElementById('comments');
+      assert.ok(next, '回刷后仍是 comments 这一节');
+      assert.ok(next.querySelector('#c-author'), '身份字段保持原 id');
+      assert.equal(next.querySelector('label[for="c-author"]')?.getAttribute('for'), 'c-author',
+        'label 的 for 必须跟着字段指向同一处');
+      assert.equal(next.querySelector('form').dataset.slug, 'note-a');
     } finally { w.close() }
   });
   await test('禁 JS 时正文图不是假按钮：可交互语义由 app.js 补', async () => {

@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { ADMIN_PAGE_SIZE, UPLOADS_DIR, DATA_DIR } from '../../config.js';
 import { mediaPage, mediaDeletePage, mediaDetailPage, mediaDetailContent } from '../../admin/views/media.js';
-import { variantFile, thumbnailFile, previewSrcsetOf, previewSourceOf, originalPathOf, parseVariants, serializeVariants } from '../../media/variants.js';
+import { variantFile, thumbnailFile, previewSrcsetOf, previewSourceOf, originalPathOf, parseVariants, serializeVariants, expandMediaPaths } from '../../media/variants.js';
 import { deleteWithFiles } from '../../content/commit.js';
 import { mediaFile } from '../../media/paths.js';
 import { MAX_UPLOAD } from '../../util/http.js';
@@ -79,7 +79,7 @@ export function registerMediaRoutes(app, { repo, adminRepo, mutate = (fn) => fn(
   // 去重命中的记录必须对应磁盘上真实存在的原图/缩略图/变体；否则重传同一内容永远返回一个 404 URL。
   function mediaComplete(media) {
     if (!media?.path) return false;
-    const paths = [media.path, media.thumbnail, ...parseVariants(media.variants).map((v) => v.path)].filter(Boolean);
+    const paths = expandMediaPaths(media);
     return paths.every((item) => {
       try { return fs.statSync(mediaFile(item)).isFile(); } catch { return false; }
     });
@@ -185,8 +185,8 @@ export function registerMediaRoutes(app, { repo, adminRepo, mutate = (fn) => fn(
       const again = adminRepo.mediaByHash(hash);
       if (again && mediaComplete(again)) {
         // 跨月并发等情况下我们可能新建了另一组文件；只保留最终记录引用的路径。
-        const keep = new Set([again.path, again.thumbnail, ...parseVariants(again.variants).map((v) => v.path)]
-          .filter(Boolean).map((p) => path.join(UPLOADS_DIR, p.replace(/^\/uploads\//, ''))));
+        const keep = new Set(expandMediaPaths(again)
+          .map((p) => path.join(UPLOADS_DIR, p.replace(/^\/uploads\//, ''))));
         for (const f of createdFiles) if (!keep.has(f)) fs.rmSync(f, { force: true });
         return finishUpload(c, again, bytes);
       }
@@ -217,10 +217,13 @@ export function registerMediaRoutes(app, { repo, adminRepo, mutate = (fn) => fn(
   });
 
   app.get('/admin/media', (c) => {
-    const page = pageNumber(c);
+    // 先用总数夹紧页码：超大 ?page= 不该用一个巨大的 OFFSET 去扫整张 media 表。
+    const stats = adminRepo.mediaStats();
+    const lastPage = Math.max(1, Math.ceil(Number(stats.n) / ADMIN_PAGE_SIZE));
+    const page = Math.min(pageNumber(c), lastPage);
     const rows = adminRepo.mediaPage({ page });
     const items = rows.slice(0, ADMIN_PAGE_SIZE);
-    return c.html(mediaPage(ctx(c, { items, usage: adminRepo.mediaUsage(items), stats: adminRepo.mediaStats(),
+    return c.html(mediaPage(ctx(c, { items, usage: adminRepo.mediaUsage(items), stats,
       heroPaths: [...heroPaths()], notice: c.req.query('w') ?? '',
 
       pagination: pagination('/admin/media', page, rows.length > ADMIN_PAGE_SIZE, '', '', { hideSearch: true }),
@@ -269,7 +272,7 @@ export function registerMediaRoutes(app, { repo, adminRepo, mutate = (fn) => fn(
       return notice(c, `/admin/media/delete/${item.id}`, '✗ 这是当前首页封面，先换掉或移除它');
     }
     // 正文可能引用的是旧变体/缩略图路径（手写 HTML、历史数据），不能只看原图。
-    const usedPaths = [item.path, item.thumbnail, ...parseVariants(item.variants).map((v) => v.path)].filter(Boolean);
+    const usedPaths = expandMediaPaths(item);
     if (usedPaths.some((p) => adminRepo.postsUsingPath(p).length)) {
       return notice(c, '/admin/media', '✗ 正文仍引用此图片（或其派生文件），请先移除引用');
     }

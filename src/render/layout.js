@@ -317,9 +317,11 @@ function layoutContext({
   ogType = 'website', noindex = false, extraHead = '', jsonLd = null,
   page = '', ogImage = null, lang = '', themeType = '', themeData = null,
 }) {
-  const fullTitle = title
-    ? (SITE.title ? `${esc(title)} · ${esc(SITE.title)}` : esc(title))
-    : esc(SITE.identity);
+  // 标题原文不做转义：写 <title> 时由 headHtmlOf 转一次；主题的 meta.full_title 也交原文，
+  // 由 Liquid 的 outputEscape 转一次。这里先转会被转两次（& 变 &amp;amp;）。
+  const fullTitleRaw = title
+    ? (SITE.title ? `${title} · ${SITE.title}` : String(title))
+    : SITE.identity;
   // 分享图：调用方给文章首图；没给就用站点默认图。宽高只在是正整数时输出，避免把 undefined 写进 meta。
   const og = ogImage ?? defaultOgImage();
   const ogW = Number(og.width) > 0 ? Math.round(Number(og.width)) : 0;
@@ -375,7 +377,7 @@ function layoutContext({
   return {
     title, main, desc, canonical, active, ogType, noindex, extraHead, jsonLd, page, ogImage, lang,
     themeType: themeType || page || '', themeData: themeData ?? {},
-    fullTitle, og, ogW, ogH, ogLocale, structuredData, navGroups, items, brandHtml, mainHtml, emojiTpl, drawer,
+    fullTitle: fullTitleRaw, og, ogW, ogH, ogLocale, structuredData, navGroups, items, brandHtml, mainHtml, emojiTpl, drawer,
   };
 }
 
@@ -418,7 +420,7 @@ function headHtmlOf(ctx) {
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#faf8f4" media="(prefers-color-scheme:light)">
 <meta name="theme-color" content="#0b0b0d" media="(prefers-color-scheme:dark)">
-<title>${ctx.fullTitle}</title>
+<title>${esc(ctx.fullTitle)}</title>
 <meta name="description" content="${esc(ctx.desc)}">
 <link rel="canonical" href="${esc(absUrl(ctx.canonical))}">
 ${ctx.noindex ? '<meta name="robots" content="noindex,follow">' : ''}
@@ -611,6 +613,7 @@ export const themeChrome = (opts) => {
     nav: ctx.items.map(([href, label, key]) => ({ href, label, key, active: key === ctx.active })),
     // 自行写 <head> 的主题也需要这些；内置 layoutContext 已经算好，别让主题再猜一遍。
     meta: {
+      // 原文，不在这里转义：模板输出 `{{ meta.full_title }}` 时 Liquid 的 outputEscape 会转一次。
       full_title: ctx.fullTitle,
       og_image: ctx.og?.url ?? '',
       og_locale: ctx.ogLocale,
@@ -646,7 +649,7 @@ export function dateBadge(day, datetime = day) {
   return `<time datetime="${esc(datetime)}" aria-label="${esc(dayLabel([y, m, d]))}"><b>${esc(d)}</b><small><span>${esc(monthCn(m))}</span><span>${esc(y)}</span></small></time>`;
 }
 
-/** 评论数文案：文章列表与笔记列表两处口径必须一致。 */
+/** 评论数文案：列表条目只此一处口径（文章与笔记共用同一套列表）。 */
 export const commentLabel = (n) => (n ? `${n} 条评论` : '暂无评论');
 
 /** 列表条目 = 编年轨 + 底部元信息行。底部元信息行是 .e-main 的兄弟（评论链接不能嵌进整行链接里）。结构约束：.excerpt 必须是 .e-main 的直接子节点——不许再包一层。
@@ -682,13 +685,17 @@ export const listBlock = (posts, { showKind = true, excerptOf = null } = {}) => 
 };
 
 export const ledgerItem = (p, { relative = false } = {}) => {
-  const [y, m, d] = dayParts(p.day);
+  const day = p.day ?? '';
+  const [y, m, d] = dayParts(day);
   const note = p.kind === 'note';
 
-  const shown = relative ? relativeDate(p.published_at) : d;
+  // 畸形日期经 formatDay() 会变成空串：与 dateBadge 同一条判断，别输出 datetime="" 和「0 月 / 空年」的 aria-label。
+  const stamp = day
+    ? `<time datetime="${esc(day)}" title="${esc(day)}" aria-label="${esc(dayLabel([y, m, d]))}">${esc(relative ? relativeDate(p.published_at) : d)}</time>`
+    : '';
 
   // 标题单独包一层：flex 里的裸文本是匿名 flex item，挂不了 text-overflow（.recent 会用到）；<a title> 是截断兜底；地址同样走 contentUrl()。
-  return `<li${note ? ' class="note"' : ''}><a href="${contentUrl(p)}" title="${esc(p.title)}"><time datetime="${esc(p.day)}" title="${esc(p.day)}" aria-label="${esc(dayLabel([y, m, d]))}">${esc(shown)}</time><span class="e-title"><span class="e-title-text">${esc(p.title)}</span></span><span class="e-kind">${note ? '笔记' : '文章'}</span></a></li>`;
+  return `<li${note ? ' class="note"' : ''}><a href="${contentUrl(p)}" title="${esc(p.title)}">${stamp}<span class="e-title"><span class="e-title-text">${esc(p.title)}</span></span><span class="e-kind">${note ? '笔记' : '文章'}</span></a></li>`;
 };
 
 

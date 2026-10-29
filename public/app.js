@@ -325,20 +325,6 @@
     }
   };
 
-  // 这 6 个 id 每个评论区各一份：服务端渲染加 `-<slug>` 后缀，`?partial=comments` 回刷的那份不带，直接换上会与别的评论区撞 id。
-  const SECTION_IDS = new Set(['comments', 'reply', 'c-author', 'c-email', 'c-website', 'c-body']);
-  // 评论条目自身的 id（`c34`）是锚点落点，一律不许动：必须按白名单精确匹配，不能用前缀规则。
-  function adoptIdSuffix(root, suffix) {
-    if (!suffix) return;
-    for (const el of root.querySelectorAll('[id]')) {
-      if (SECTION_IDS.has(el.id)) el.id += suffix;
-    }
-    for (const el of root.querySelectorAll('label[for]')) {
-      const to = el.getAttribute('for');
-      if (SECTION_IDS.has(to)) el.setAttribute('for', to + suffix);
-    }
-  }
-
   /* 发完评论只换评论区：不跳页、不丢滚动位置；失败退回无刷新换页 */
   async function refreshComments(form, flash) {
     const section = form.closest ? form.closest('[data-comments-section]') : null;
@@ -363,9 +349,6 @@
       box.innerHTML = html;
       const next = box.querySelector('[data-comments-section]') || box.firstElementChild;
       if (section && next) {
-        // 后缀取自原来那一节的 id
-        adoptIdSuffix(next, section.id.startsWith('comments') ? section.id.slice('comments'.length) : '');
-        if (section.id && next.id !== section.id) next.id = section.id;
         section.replaceWith(next);
         fillWho(next);
         // 替换后原提交按钮/表单已不在 DOM，焦点会掉到 body；把它交给新的评论区标题。

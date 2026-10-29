@@ -40,11 +40,6 @@ export function createMailOutbox({
       VALUES (?,?,?,?,?, 'pending', 0, ?, ?)`),
     due: db.prepare(`SELECT * FROM mail_outbox
       WHERE status = 'pending' AND next_attempt_at <= ? ORDER BY next_attempt_at, id LIMIT ?`),
-    // force 只用来跳过失败退避；收件人为空的行由普通 due 在延后时间到达后处理，
-    // 否则「立即重试」会反复捞到同一批空收件人行，把后面的正常邮件饿死。
-    dueForce: db.prepare(`SELECT * FROM mail_outbox
-      WHERE status = 'pending' AND (to_addr <> '' OR next_attempt_at <= ?)
-      ORDER BY next_attempt_at, id LIMIT ?`),
     setRecipient: db.prepare('UPDATE mail_outbox SET to_addr = ? WHERE id = ?'),
     deferRecipient: db.prepare('UPDATE mail_outbox SET next_attempt_at = ? WHERE id = ?'),
     markSent: db.prepare(`UPDATE mail_outbox SET status = 'sent', sent_at = ?, last_error = NULL WHERE id = ?`),
@@ -127,7 +122,8 @@ export function createMailOutbox({
     }
   }
 
-  /** 发送到点的邮件；force 会无视 next_attempt_at（后台「立即重试」用）。单飞，避免并发重复投递。 */
+  /** 发送到点的邮件。force 只用于「后台立即重试」：它先由 retryFailed() 把失败行改回 pending 并把
+   *  next_attempt_at 设成当前时间，所以照样走 due —— 仍在退避中的 pending 不会被强推出去。 */
   function flush({ force = false } = {}) {
     if (flushing) {
       if (force) pendingWake = true;   // 在跑的这轮结束后，以 force 语义补跑一轮
@@ -136,7 +132,6 @@ export function createMailOutbox({
     flushing = (async () => {
       let sent = 0;
       let attempted = 0;
-      let first = force;
       for (;;) {
         // sentInLastHour() 已包含本轮已发出的数量，所以这里算的是「本轮还能再发几封」的剩余额度，
         // 只能和本批计数比较。以前拿累计的 sent 跟它比，积压 ≥40 封、上限 30 时第一批发完就
@@ -144,8 +139,9 @@ export function createMailOutbox({
         // attempted 也停在 20 碰不到 40 的保护线 —— for(;;) 全程无 await 同步空转，CPU 打满。
         const remaining = maxPerHour - sentInLastHour();
         if (remaining <= 0 || attempted >= 40) break;
-        const rows = first ? q.dueForce.all(nowIso(now()), 20) : q.due.all(nowIso(now()), 20);
-        first = false;
+        // force 与普通 due 用同一条查询：退避中的 pending 不该被「立即重试」推出去，
+        // 空收件人的行也靠 deferRecipient 的延后时间自然退出队伍。
+        const rows = q.due.all(nowIso(now()), 20);
         if (!rows.length) break;
         let batchSent = 0;
         let budgetOut = false;

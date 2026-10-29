@@ -33,7 +33,7 @@ const { initMail, KEYS, ownerEmail, fromAddress } = await import('../src/mail.js
 const { toIsoOffset, parseDate, formatDay, formatDateTime } = await import('../src/util/text.js');
 const { resolveLogDir } = await import('../src/log-rotate.js');
 const { JSDOM } = await import('jsdom');
-const { dateBadge } = await import('../src/render/layout.js');
+const { dateBadge, ledgerItem } = await import('../src/render/layout.js');
 const { editorPage } = await import('../src/admin/views/content.js');
 const db = open(process.env.DB_FILE);
 migrate(db, { log() {} });
@@ -103,6 +103,10 @@ try {
     assert.equal(formatDateTime('not-a-date'), '');
     assert.equal(formatDay('2026-02-30'), '2026-03-02');
     assert.equal(dateBadge(''), '', '空日期不应渲染成「0 月 / 空年」徽记');
+    const blankDay = ledgerItem({ day: '', kind: 'post', title: 'x', published_at: '' });
+    assert.ok(!blankDay.includes('<time') && !blankDay.includes('NaN'), '账本行空日期不应输出 <time> 或 NaN');
+    assert.ok(ledgerItem({ day: '2026-02-03', kind: 'post', title: 'x', published_at: '2026-02-03T00:00:00Z' }).includes('<time'),
+      '正常日期仍应渲染 <time>');
   });
   await test('日志目录：服务与 CLI 共用同一解析口径，且展开 ~', async () => {
     assert.equal(resolveLogDir('~/logs'), path.join(os.homedir(), 'logs'));
@@ -118,6 +122,43 @@ try {
     assert.match(html, /id="comments"/);
     assert.match(html, /id="c-body"/);
     assert.match(html, /class="c-form"/);
+  });
+  await test('本文关评论时不再白跑 threadCount / pageThreads', async () => {
+    const closedId = await save({ ...input, title: '关评论的笔记', slug: 'closed-note', kind: 'note', comments: '', body: 'closed body' });
+    assert.ok(closedId);
+    const seen = { count: 0, threads: 0, page: 0 };
+    // 只包一层计数，行为仍走真实仓库：关评论的页面不该碰这两条重查询。
+    const spy = {
+      ...comments,
+      countOfPost: (...a) => { seen.count++; return comments.countOfPost(...a); },
+      threadCount: (...a) => { seen.threads++; return comments.threadCount(...a); },
+      pageThreads: (...a) => { seen.page++; return comments.pageThreads(...a); },
+    };
+    const pubSpy = publicRoutes(repo, { comments: spy, crypt });
+    const res = await pubSpy.request('/n/closed-note/');
+    assert.equal(res.status, 200);
+    assert.match(await res.text(), /本文的评论已关闭/);
+    assert.equal(seen.threads, 0, 'threadCount 被白查了');
+    assert.equal(seen.page, 0, 'pageThreads 被白查了');
+    assert.ok(seen.count >= 1, 'countOfPost 仍要跑：关闭提示的标题还挂着总数');
+  });
+  await test('FTS 触发器随版本号重建（旧库改了 trigger SQL 不会一直沿用）', async () => {
+    const { createAdminSearch } = await import('../db/admin-search.js');
+    const triggerNames = () => db.prepare("SELECT name FROM sqlite_master WHERE type='trigger' AND name LIKE 'admin_%'")
+      .all().map((row) => row.name).sort();
+    const first = createAdminSearch(db);
+    assert.equal(first.ready, true);
+    assert.equal(triggerNames().length, 6);
+    // 模拟旧版本建过的库：触发器缺一个、settings 里的版本号还停在旧值。
+    db.exec('DROP TRIGGER admin_posts_fts_ai');
+    db.prepare("UPDATE settings SET value = '1' WHERE key = 'admin_search_fts_version'").run();
+    const again = createAdminSearch(db);
+    assert.equal(again.ready, true);
+    assert.deepEqual(triggerNames(), [
+      'admin_media_fts_ad', 'admin_media_fts_ai', 'admin_media_fts_au',
+      'admin_posts_fts_ad', 'admin_posts_fts_ai', 'admin_posts_fts_au',
+    ], '版本变化时应把整组触发器重建');
+    assert.ok(again.posts('post', 'Regression', 'all', 0, 5)?.length, '重建后索引仍可检索');
   });
   await test('非视频大文件 raw 上传在读入堆之前就返回 413', async () => {
     const big = Buffer.alloc(9 * 1024 * 1024, 0x61);

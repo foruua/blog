@@ -1,7 +1,7 @@
 import { mediaFallback } from '../media/variants.js';
 import { esc, decodeHtmlAttribute, htmlAttr } from '../util/text.js';
 import { ICON_CLOSE } from './icons.js';
-import { IMG_TAG_RE } from './media-tag.js';
+import { IMG_TAG_RE, aspectRatioStyle } from './media-tag.js';
 
 /** 灯箱（点图看大图）。弹窗纯静态，交互全在 public/app.js（监听 [data-lightbox]、用 data-full 取展示图、按 data-lightbox 串同组图片翻页）；哪些图片能点完全由标记决定。 */
 
@@ -26,9 +26,10 @@ function withAspectRatio(tag) {
   const h = htmlAttr(tag, 'height');
   if (!/^\d+$/.test(w) || !/^\d+$/.test(h)) return tag;
   const style = /\bstyle="([^"]*)"/i.exec(tag)?.[1];
+  const ratio = aspectRatioStyle(w, h);
   return style === undefined
-    ? tag.replace(/>$/, ` style="aspect-ratio:${w}/${h}">`)
-    : tag.replace(/\bstyle="[^"]*"/i, `style="aspect-ratio:${w}/${h};${style}"`);
+    ? tag.replace(/>$/, ` style="${ratio}">`)
+    : tag.replace(/\bstyle="[^"]*"/i, `style="${ratio};${style}"`);
 }
 
 /** 给正文插图挂灯箱属性。渲染页面时做，不写回数据库。@param group 同组标识（一般 p-<slug>）：翻页只在这一篇的图里走。 */

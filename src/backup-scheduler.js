@@ -97,12 +97,17 @@ export function createBackupScheduler({
       let resumeBackgroundWrites = () => {};
       try { resumeBackgroundWrites = backgroundWrites.pause(); }
       catch (error) {
-        // 屏障已存在（另一个后台写还在飞）：本次跳过，别让同步异常从定时器里炸掉进程。
+        // 屏障已存在（另一个后台写还在飞）：本轮跳过不能静默——记一次失败并按现有退避重排，
+        // 同时确保刚起来的 worker 已终止，否则它会在没有屏障的情况下继续跑。
         queued = false;
         worker = null;
         startedAt = null;
         logError(error, null, 'backup.barrier');
+        recordFailure('备份屏障占用', { retry: true });
         void current.terminate().catch(() => {});
+        const retry = retryDelayMs;
+        retryDelayMs = null;
+        if (retry && !closed) schedule(retry, { force: true });
         return;
       }
       let released = false;

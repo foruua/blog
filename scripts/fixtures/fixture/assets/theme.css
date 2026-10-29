@@ -2,7 +2,7 @@
 .fx-main { max-width: 42rem; margin: 0 auto; padding: 0 1.25rem; }
 .fx-intro h1 { font-size: 2rem; line-height: 1.2; }
 .fx-intro .fx-desc { color: var(--fx-accent, #8a5a2b); }
-.fx-list, .fx-notes { list-style: none; padding: 0; }
-.fx-item, .fx-note { padding: .75rem 0; border-bottom: 1px solid currentColor; }
+.fx-list { list-style: none; padding: 0; }
+.fx-item { padding: .75rem 0; border-bottom: 1px solid currentColor; }
 .fx-excerpt { opacity: .72; }
 .fx-post-head h1 { font-size: 1.75rem; }

@@ -11,11 +11,15 @@ const NON_HTML_PATH_RE = /^\/(?:admin|moderate|unsubscribe|healthz|api|avatar|up
 // 后台会话 cookie 名与 admin/auth.js 同源；用正则判断「有没有这个 cookie」，不解析值。
 const ADMIN_COOKIE_RE = new RegExp(`(?:^|;\\s*)${ADMIN_COOKIE}=`);
 // 只缓存能可靠归一化的查询参数：page/cpage 是页码，reply 是评论 id，kind 是归档筛选。
-// q/before/n/partial/panel/suffix/c 等会改变正文且取值空间不设限，直接不缓存——
+// q/before/c/partial 会改变正文且取值空间不设限，直接不缓存——
 // 以前任意 ?q=、?before=、?page=999999 都各开一条 key，200 条随机请求就能把整页缓存冲掉。
 const CACHEABLE_QUERY = new Set(['page', 'cpage', 'reply', 'kind']);
-// 这些参数会改变正文且取值不受限：带它们就完全不进共享缓存，避免随机 q/before/n 把 200 条缓存冲掉。
-const UNCACHEABLE_QUERY = new Set(['before', 'n', 'c', 'partial', 'panel', 'suffix', 'q']);
+// 这些参数会改变正文且取值不受限：带它们就完全不进共享缓存，避免随机 q/before 把 200 条缓存冲掉。
+// （抽屉时代的 panel/suffix 已无调用方；n 只承载旧 /notes/?n=<slug> 的 301，见下面的 legacyNoteQuery。）
+const UNCACHEABLE_QUERY = new Set(['before', 'c', 'partial', 'q']);
+// 旧 /notes/?n=<slug> 要按 slug 301 到正文页。共享缓存若命中列表页，路由根本不会跑，旧链接就退回列表了；
+// 因此这条地址一律跳过缓存（n 的值不进键，进去只会开出无数条无意义键）。
+const legacyNoteQuery = (c) => c.req.path === '/notes' && c.req.query('n') !== undefined;
 
 /**
  * 匿名 HTML 页面缓存 + 弱 ETag + 自带 br/gzip。
@@ -117,6 +121,7 @@ export function createHtmlCache({
 
   const cacheable = (c) => {
     if (!enabled || c.req.method !== 'GET') return false;
+    if (legacyNoteQuery(c)) return false;
     if (NON_HTML_PATH_RE.test(c.req.path) || isImmutableAsset(c.req.path)) return false;
     // 任何后台会话（包括伪造的）都不走缓存：作者表单、CSRF、主题预览只属于这个浏览器。
     if (ADMIN_COOKIE_RE.test(c.req.header('cookie') ?? '')) return false;

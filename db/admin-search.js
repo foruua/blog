@@ -3,11 +3,26 @@
 // 表是派生索引，真正数据仍在 posts/media；triggers 负责随写入维护。
 const POSTS_TABLE = 'admin_posts_fts';
 const MEDIA_TABLE = 'admin_media_fts';
+// 触发器改写成 SQL 常量后，旧库里的 CREATE TRIGGER IF NOT EXISTS 不会跟着更新：靠 settings 里的
+// 版本号判断，版本变化（或首次建表）时先 DROP 再重建，然后 rebuild 一次派生索引。
+const TRIGGER_NAMES = [
+  'admin_posts_fts_ai', 'admin_posts_fts_ad', 'admin_posts_fts_au',
+  'admin_media_fts_ai', 'admin_media_fts_ad', 'admin_media_fts_au',
+];
+const VERSION_KEY = 'admin_search_fts_version';
+const VERSION = '2';
 
 export function createAdminSearch(db, { log = () => {} } = {}) {
   let ready = false;
   try {
     const hadPosts = Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(POSTS_TABLE));
+    // settings 表由迁移创建；旧库读不到版本号按「需要升级」处理。
+    const stored = db.prepare('SELECT value FROM settings WHERE key = ?').get(VERSION_KEY)?.value;
+    const stale = !hadPosts || stored !== VERSION;
+    if (stale) {
+      // 旧触发器里可能还写着一套过时的维护语句：整组删掉再重建，避免新旧混用。
+      for (const name of TRIGGER_NAMES) db.exec(`DROP TRIGGER IF EXISTS ${name}`);
+    }
     db.exec(`
       CREATE VIRTUAL TABLE IF NOT EXISTS ${POSTS_TABLE}
         USING fts5(title, slug, content='posts', content_rowid='id', tokenize='trigram');
@@ -44,13 +59,11 @@ export function createAdminSearch(db, { log = () => {} } = {}) {
     `);
     // 首次启用/从旧库升级时重建一次；之后 triggers 会增量维护。外部内容表 COUNT(*) 会读 content 表，
     // 不能靠行数判断索引是否已填充，这里用一次性 settings 标记。
-    const key = 'admin_search_fts_version';
-    const version = '1';
-    if (!hadPosts || db.prepare('SELECT value FROM settings WHERE key = ?').get(key)?.value !== version) {
+    if (stale) {
       db.exec(`INSERT INTO ${POSTS_TABLE}(${POSTS_TABLE}) VALUES('rebuild')`);
       db.exec(`INSERT INTO ${MEDIA_TABLE}(${MEDIA_TABLE}) VALUES('rebuild')`);
       db.prepare(`INSERT INTO settings(key, value) VALUES(?, ?)
-        ON CONFLICT(key) DO UPDATE SET value = excluded.value`).run(key, version);
+        ON CONFLICT(key) DO UPDATE SET value = excluded.value`).run(VERSION_KEY, VERSION);
     }
     ready = true;
   } catch (error) {

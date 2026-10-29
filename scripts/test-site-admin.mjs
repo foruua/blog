@@ -238,6 +238,8 @@ check('S1b 设置页把「站点与阅读」改成了「阅读与外观」', pag
   const article = await html('/p/why-single-column/');
   check('S7b 前台收起撰写框', article.includes('评论暂时关闭'), '没看到关闭提示');
   check('S7c 已有评论仍在页面上', article.includes('这条是关闭评论之前就有的。'), '旧评论被一起藏起来了');
+  check('S7c2 全站关评论时收起「回复」入口（指向不存在的表单）',
+    !article.includes('class="c-reply"'), '仍渲染了 c-reply');
 
   const submit = await client('/p/why-single-column/comment', {
     method: 'POST',
@@ -253,6 +255,7 @@ check('S1b 设置页把「站点与阅读」改成了「阅读与外观」', pag
   await client('/admin/site/comments', form({ _csrf: csrf, open: '1', moderateAll: '1', rate: '9' }));
   const reopened = await html('/p/why-single-column/');
   check('S7e 重新打开后撰写框回来了', reopened.includes('data-comment-form'));
+  check('S7e2 重新打开后「回复」入口也回来', reopened.includes('class="c-reply"'), '');
 
   // 限流值越界
   const bad = await client('/admin/site/comments', form({ _csrf: csrf, open: '1', rate: '99' }));

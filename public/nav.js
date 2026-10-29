@@ -325,7 +325,7 @@
       if (stylePending.has(absolute)) { pending.push(stylePending.get(absolute)); return; }
       if (have[absolute]) return;
       var tier = styleTier(absolute);
-      // 已经有更高级的样式表就跳过：从 /notes/（全量）回首页时再补一份 lite，
+      // 已经有更高级的样式表就跳过：从内页（全量/文章档）回列表页时再补一份 lite，
       // 既多下载约 12.5KB(br)，又因为子集排在全量之后，让同特异性规则的层叠顺序反过来。
       // 同级不跳：同档但 ?v= 不同说明构建换了指纹（内容已更新），这份新的必须补上，
       // 追加在同类规则之后正是「新版本覆盖旧版本」应有的顺序。
@@ -667,6 +667,16 @@
     if (location.pathname + location.search === renderedPath) { renderedUrl = location.href; return; }
     var targetIndex = Number(ev.state && ev.state.blogIndex);
     var targetUrl = location.href;
+    // 后退/前进可能跨越前台与后台（例如从编辑页退回文章页）。两边的外壳（body class、样式表、脚本）
+    // 完全不同，只换 #app 会串味 —— 与 eligible 同一条规则：一方在 /admin、另一方不在，就整页跳。
+    var targetPath = '';
+    try { targetPath = new URL(targetUrl).pathname; } catch (e) { /* 坏地址按普通换页处理 */ }
+    if (targetPath
+      && targetPath.startsWith('/admin') !== renderedPath.split('?')[0].startsWith('/admin')) {
+      // popstate 时 location 已经是目标地址，href=target 等于没变；要的是重新加载这一页。
+      location.reload();
+      return;
+    }
     var intent = ++navigationIntent;
     var allowed = true;
     try { if (typeof window.__beforeNavigate === 'function') allowed = await window.__beforeNavigate(targetUrl); }

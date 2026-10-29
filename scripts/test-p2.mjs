@@ -266,6 +266,13 @@ const page = await (await fetch(`${BASE}/p/${SLUG}/`)).text();
   check('T58 笔记列表用 ?before= 翻页（不再有 ?n= 游标）',
     /<p class="pager-more"><a href="\/notes\/\?before=/.test(firstPage) && !/\/notes\/\?n=/.test(firstPage),
     beforeHref);
+  const legacy = await fetch(`${BASE}/notes/?n=fixture-note`, { redirect: 'manual' });
+  check('T58b 旧 /notes/?n=<slug> 301 到笔记正文页',
+    legacy.status === 301 && (legacy.headers.get('location') ?? '').endsWith('/n/fixture-note/'),
+    `${legacy.status} ${legacy.headers.get('location')}`);
+  const legacyMissing = await fetch(`${BASE}/notes/?n=no-such-note`, { redirect: 'manual' });
+  check('T58c 指向不存在笔记的 ?n= 按普通列表展示（不 404、不 301）',
+    legacyMissing.status === 200, String(legacyMissing.status));
   const multi = await fetch(`${BASE}${beforeHref}`, { redirect: 'manual' });
   const multiHtml = await multi.text();
 
@@ -286,6 +293,17 @@ const page = await (await fetch(`${BASE}/p/${SLUG}/`)).text();
       go.status === 301 && (go.headers.get('location') ?? '').endsWith(`/p/${SLUG}/`),
       `status=${go.status} location=${go.headers.get('location') ?? '—'}`);
   }
+}
+
+{
+  // 分享图取图与正文/灯箱共用 IMG_TAG_RE：alt 里带 `>` 时不能被截成半个标签。
+  db.prepare(`INSERT INTO posts(slug,kind,title,body_md,body_html,draft,source,word_count,published_at,comments_on)
+    VALUES('zz-og-alt','post','OG 探针','x','<p><img src="/uploads/zz-og.png" alt="a > b"></p>',0,'admin',1,'2026-01-01T00:00:00Z',0)`).run();
+  const ogPage = await (await fetch(`${BASE}/p/zz-og-alt/`)).text();
+  check('T9c 分享图取 <img> 时不被 alt 里的 > 截断',
+    /<meta property="og:image" content="[^"]*\/uploads\/zz-og\.png"/.test(ogPage)
+    && /<meta property="og:image:alt" content="a &gt; b"/.test(ogPage), '');
+  db.prepare("DELETE FROM posts WHERE slug = 'zz-og-alt'").run();
 }
 
 {

@@ -20,23 +20,35 @@ export function obsoleteMediaPlan(db, { uploadsDir, contentDir }) {
   const protectedPaths = new Set();
   const protect = (value) => { const p = uploadPath(value); if (p) protectedPaths.add(p); };
   const protectMarkdown = (value) => { for (const p of referencedUploads(value)) protectedPaths.add(p); };
+  // posts/revisions/comments 在大站上整表 .all() 会把所有正文一次读进内存；按 id 游标分 200 行一批扫，
+  // 正文用完即弃，只留派生出来的路径。.md 本来就是逐个读，保持不动。
+  const BATCH = 200;
+  const eachBatch = (table, columns, onRow) => {
+    const stmt = db.prepare(`SELECT id, ${columns.join(', ')} FROM ${table} WHERE id > ? ORDER BY id LIMIT ?`);
+    let cursor = 0;
+    for (;;) {
+      const rows = stmt.all(cursor, BATCH);
+      for (const row of rows) { onRow(row); cursor = row.id; }
+      if (rows.length < BATCH) return;
+    }
+  };
   const rows = db.prepare('SELECT path, thumbnail, variants FROM media').all();
   const originals = new Set(rows.map((row) => row.path));
   for (const row of rows) for (const p of expandMediaPaths(row)) protect(p);
-  for (const row of db.prepare('SELECT body_md, body_html FROM posts').all()) {
+  eachBatch('posts', ['body_md', 'body_html'], (row) => {
     protectMarkdown(row.body_md);
     const html = String(row.body_html ?? '');
     for (const m of html.matchAll(/\b(?:src|href|data-full)="([^"]*)"/g)) protect(m[1].replace(/&amp;/g, '&'));
     for (const m of html.matchAll(/\bsrcset="([^"]*)"/g)) {
       for (const candidate of m[1].split(',')) protect(candidate.trim().split(/\s+/)[0]);
     }
-  }
+  });
   for (const row of db.prepare('SELECT value FROM settings').all()) {
     protect(row.value); protectMarkdown(row.value);
   }
   // 历史修订与评论正文也可能引用旧派生文件（回滚预览、评论区插图）；以前没扫这里会导致仅被引用的派生文件被回收。
-  for (const row of db.prepare('SELECT body_md FROM revisions').all()) protectMarkdown(row.body_md);
-  for (const row of db.prepare('SELECT body_md FROM comments').all()) protectMarkdown(row.body_md);
+  eachBatch('revisions', ['body_md'], (row) => protectMarkdown(row.body_md));
+  eachBatch('comments', ['body_md'], (row) => protectMarkdown(row.body_md));
   for (const sub of ['posts', 'notes', 'pages']) {
     for (const file of markdownFiles(path.join(contentDir, sub))) protectMarkdown(fs.readFileSync(file, 'utf8'));
   }

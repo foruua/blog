@@ -134,18 +134,29 @@ try {
     } finally { layoutMod.setPaletteDefault(() => ''); }
 
     // 主题自己写 <head> 时，meta 的标题/OG/JSON-LD 必须来自内置 layoutContext，而不是空字段。
+    // 标题给一份带 & 与 < 的原文：meta.full_title 交给 Liquid 的 outputEscape 转一次，
+    // 内置 <title> 由 layout 转一次 —— 两边都不许出现 &amp;amp;。
     const metaTheme = makeTheme('meta-probe');
     fs.writeFileSync(path.join(metaTheme, 'templates', 'layout.liquid'),
       '{{ meta.full_title }}|{{ meta.og_image }}|{{ meta.og_locale }}|{{ meta.json_ld | json | raw }}');
     unitRegistry.scan(true);
+    const titleProbe = '探针 & <b>';
     const metaHtml = unitEngine.render(unitRegistry.get('meta-probe'), {
-      page: 'page', themeType: 'page', title: '探针', canonical: '/probe', desc: '描述', main: '',
+      page: 'page', themeType: 'page', title: titleProbe, canonical: '/probe', desc: '描述', main: '',
     });
     check('T1r 主题 meta 的标题/OG/locale/JSON-LD 非空', typeof metaHtml === 'string'
       && metaHtml.startsWith('探针')
       && /https?:\/\//.test(metaHtml)
       && metaHtml.includes('_')
       && metaHtml.includes('"@type":"WebSite"'));
+    check('T1r2 主题 meta.full_title 只转义一次',
+      typeof metaHtml === 'string'
+      && metaHtml.startsWith('探针 &amp; &lt;b&gt;') && !metaHtml.includes('&amp;amp;'),
+      metaHtml.slice(0, 60));
+
+    const builtinTitle = layoutMod.layout({ title: titleProbe, canonical: '/probe', page: 'page', main: '' });
+    check('T1r3 内置 <title> 仍是转义一次',
+      builtinTitle.includes('探针 &amp; &lt;b&gt;') && !builtinTitle.includes('&amp;amp;'), '');
   }
 
   // —— 2. 后台外观页 ——

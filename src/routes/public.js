@@ -4,6 +4,7 @@ import { settings, heroImages, heroOverlay, commentsOpen } from '../settings.js'
 import { layout, listBlock, emptyPage, masthead, entriesBlock, moreLink, defaultOgImage, heroToolsHtml } from '../render/layout.js';
 import { pageRevisionOf } from '../content/revision.js';
 import { withLightbox } from '../render/lightbox.js';
+import { firstImgTag } from '../render/media-tag.js';
 import { heroBlock, heroPreload as heroPreloadTag } from '../render/hero.js';
 import { tocHtml, pagerHtml, articleMain, articleJsonLd } from '../render/article.js';
 import { archiveMain } from '../render/archive.js';
@@ -133,7 +134,7 @@ export function publicRoutes(repo, { comments, crypt, media = null, feeds = null
   // 分享图：文章取正文首图（最大档变体），首页取封面首图；都没有就用站点默认图（见 layout.defaultOgImage）。
   const imgAttr = (tag, name) => decodeHtmlAttribute(htmlAttr(tag, name));
   function ogImageOf(post) {
-    const tag = /<img\b[^>]*>/i.exec(post?.body_html ?? '')?.[0];
+    const tag = firstImgTag(post?.body_html);
     if (!tag) return null;
     const src = imgAttr(tag, 'src');
     if (!src || /^data:/i.test(src)) return null;
@@ -323,14 +324,32 @@ ${listHtml}
     active: 'posts', pathname: '/posts/',
   }));
 
-  app.get('/notes', (c) => listPage(c, {
-    kind: 'note', title: '笔记', mark: 'Notes',
-    desc: '还没长成文章的碎片、读书记录、临时想法。',
-    active: 'notes', pathname: '/notes/',
-  }));
+  // 旧列表页的「就地展开」入口 /notes/?n=<slug> 已随抽屉一起撤掉：带 n 的地址若指向真实笔记就 301 到正文页，
+  // 旧链接与搜索引擎收录仍能落到内容上；指向不存在/草稿的 slug 则忽略，照常展示笔记列表。
+  app.get('/notes', (c) => {
+    const legacy = c.req.query('n');
+    if (legacy) {
+      const post = repo.getPost(legacy, 'note');
+      if (post && !post.draft) return c.redirect(contentUrl(post), 301);
+    }
+    return listPage(c, {
+      kind: 'note', title: '笔记', mark: 'Notes',
+      desc: '还没长成文章的碎片、读书记录、临时想法。',
+      active: 'notes', pathname: '/notes/',
+    });
+  });
 
   /** 评论区（三种 kind 共用）：分页、回复目标、令牌都按 post.id 算；回填地址取内容 URL。 */
   function commentBlockFor(c, post) {
+    // 本文已关评论：commentSection 只输出「已关闭」那一块，threadCount / pageThreads 不必白跑
+    // （countOfPost 仍要 —— 关闭提示的标题上还挂着总数）。
+    if (post.comments_on === 0 || post.comments_on === false) {
+      c.set('commentReplyId', null);
+      return commentSection({
+        post, thread: [], count: countOfPost(c, post.id), replyBase: contentUrl(post), formOff: commentsOffIn(c),
+      });
+    }
+
     const perPage = commentsPerPageOf(c);
     const pages = Math.max(1, Math.ceil(comments.threadCount(post.id) / perPage));
 

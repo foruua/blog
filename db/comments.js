@@ -113,6 +113,8 @@ export function createCommentRepo(db) {
     ofPost: (postId) => q.approvedOfPost.all(postId),
     pageThreadsOf(ids, limit = 20) {
       if (!ids.length) return new Map();
+      // roots 先按 post_id 聚一次总数，再 JOIN 回输出行：以前每行都跑一次 MAX(thread_count) 子查询，
+      // 输出行数 × roots 数等于白扫一遍窗口函数结果。
       const sql = `WITH RECURSIVE roots AS (
         SELECT c.id, c.post_id,
           ROW_NUMBER() OVER (PARTITION BY c.post_id ORDER BY c.created_at,c.id) AS rn,
@@ -120,13 +122,17 @@ export function createCommentRepo(db) {
         FROM comments c LEFT JOIN comments p ON p.id=c.parent_id
         WHERE c.status='approved' AND c.post_id IN (${ids.map(() => '?').join(',')})
           AND (c.parent_id IS NULL OR p.id IS NULL OR p.status<>'approved')
+      ), totals AS (
+        SELECT post_id, MAX(thread_count) AS thread_count FROM roots GROUP BY post_id
       ), tree(id,post_id) AS (
         SELECT id,post_id FROM roots WHERE rn<=?
         UNION
         SELECT c.id,c.post_id FROM comments c JOIN tree t ON c.parent_id=t.id AND c.post_id=t.post_id
         WHERE c.status='approved'
-      ) SELECT c.*, (SELECT MAX(thread_count) FROM roots r WHERE r.post_id=c.post_id) AS thread_count
-        FROM tree t CROSS JOIN comments c ON c.id=t.id ORDER BY c.created_at,c.id`;
+      ) SELECT c.*, totals.thread_count
+        FROM tree t CROSS JOIN comments c ON c.id=t.id
+        JOIN totals ON totals.post_id = c.post_id
+        ORDER BY c.created_at,c.id`;
       const stmt = ofPostsStmts.get(sql) ?? db.prepare(sql);
       ofPostsStmts.set(sql, stmt);
       const groups = new Map(ids.map((id) => [id, []]));

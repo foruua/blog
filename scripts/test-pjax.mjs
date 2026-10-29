@@ -324,6 +324,24 @@ try {
   }
 
   {
+    // 后退/前进跨越前台与后台：两边外壳（body class、样式表、脚本）完全不同，只换 #app 会串味。
+    // jsdom 不实现跨 Document 导航，所以「没有发 pjax 请求、DOM 原样不动 + 触发了导航」就是走了整页跳这条。
+    const { w: wb, errors } = await mount(`${BASE}/posts/`);
+    const before = wb.document.getElementById('app').innerHTML;
+    let fetched = 0;
+    const raw = wb.fetch;
+    wb.fetch = (...args) => { fetched++; return raw(...args); };
+    wb.history.replaceState({ blogIndex: 9 }, '', `${BASE}/admin/system`);
+    wb.dispatchEvent(new wb.PopStateEvent('popstate', { state: wb.history.state }));
+    await sleep(300);
+    wb.fetch = raw;
+    check('T23e 跨 /admin 边界的 popstate 整页跳转，不做 pjax 换壳',
+      fetched === 0 && wb.document.getElementById('app').innerHTML === before
+      && errors.some((m) => /navigation/i.test(m)),
+      `fetch=${fetched} errors=${errors.join(' | ')}`);
+  }
+
+  {
     const { w: wr, errors } = await mount(`${BASE}/`);
     errors.length = 0;
     wr.__nav.navigate(`${BASE}/posts/`);

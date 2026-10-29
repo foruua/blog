@@ -39,6 +39,15 @@ try {
   const statsDown = outbox.stats();
   check('T4 统计能看到最近错误', statsDown.pending === 1 && statsDown.lastError?.message === 'smtp-down', JSON.stringify(statsDown));
 
+  // 「立即重试」不再绕过退避：后台按钮会先把失败行放回队列（next_attempt_at=now），仍在退避的 pending 不动。
+  const callsBeforeForce = calls;
+  await outbox.flush({ force: true });
+  const stillPending = db.prepare('SELECT * FROM mail_outbox WHERE id = ?').get(first.id);
+  check('T4b 强制重试不会发送仍在退避中的邮件',
+    calls === callsBeforeForce && stillPending?.status === 'pending', `calls=${calls} ${JSON.stringify(stillPending)}`);
+
+  // 退避时间到了之后，普通 flush（不 force）就能把它捞起来。
+  db.prepare('UPDATE mail_outbox SET next_attempt_at = ? WHERE id = ?').run(new Date().toISOString(), first.id);
   await outbox.flush({ force: true });
   const sentRow = db.prepare('SELECT * FROM mail_outbox WHERE id = ?').get(first.id);
   check('T5 强制重试成功后标记 sent', sentRow?.status === 'sent' && Boolean(sentRow.sent_at), JSON.stringify(sentRow));
