@@ -201,7 +201,7 @@ check('S1b 设置页把「站点与阅读」改成了「阅读与外观」', pag
 
   const home = await html('/');
   check('S6c 首页不再有「N 篇文章 / N 篇笔记」', !/\d+\s*篇文章/.test(home) && !/\d+\s*篇笔记/.test(home));
-  check('S6d 首页「最近更新」标题在位', home.includes('>最近更新</h2>'));
+  check('S6d 首页「最近更新」标题在位', /<h2 class="recent-head">[\s\S]{0,80}最近更新/.test(home));
   check('S6e 信息行有 GitHub 与 RSS 图标',
     home.includes('href="https://github.com/foruua"') && home.includes('aria-label="我的 GitHub"')
     && home.includes('href="/feed.xml"') && home.includes('class="hero-meta"'));

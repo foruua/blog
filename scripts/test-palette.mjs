@@ -431,7 +431,7 @@ await test('boot 与站点默认的优先级：访客选择 > 素笺明选 > 站
 // 与配色同构：站主设默认、访客可覆盖，首帧由 THEME_BOOT 落位。区别是版式只有两态，
 // 且「纸面」= 不挂属性（CSS 里用 html[data-layout="box"] 起头，少一层 :not）。
 
-await test('版式清单与 CSS 对得上：素匣的每条规则都挂在 html[data-layout="box"] 下，且都排除首页', () => {
+await test('版式清单与 CSS 对得上：素匣的每条规则都挂在 html[data-layout="box"] 下；除首页「最近更新」铭牌外都排除首页', () => {
   assert.deepEqual(LAYOUTS.map((l) => l.key), ['box', 'paper'], '清单应恰好是素匣 + 纸面');
   // 两处主规则：匣子本体与列宽。少了任一条，要么没框、要么行长被压窄。
   assert.match(css, /html\[data-layout="box"\] body:not\(\[data-page="home"\]\) main#main \{/);
@@ -442,11 +442,17 @@ await test('版式清单与 CSS 对得上：素匣的每条规则都挂在 html[
   for (const sel of ['main#main > .mast', 'main#main > .page > .mast', 'main#main > article.post > .post-mast']) {
     assert.ok(css.includes(sel), `素匣缺少刊头归零选择器：${sel}`);
   }
-  // 不变量：所有素匣规则都必须排除首页 —— 首页本来就是「标题 + 一只匣子」，再套一层就是匣中匣。
+  // 不变量：素匣规则一律排除首页 —— 首页本来就是「标题 + 一只匣子」，再套一层就是匣中匣。
+  // 唯一例外是首页「最近更新」那块铭牌：素匣版式本来就要它在（纸面版式才收起），
+  // 这条规则必须显式写 body[data-page="home"]，不能靠 :not 排除。
   const sels = [...css.matchAll(/html\[data-layout="box"\][^{]*\{/g)].map((m) => m[0]);
   assert.ok(sels.length >= 6, `素匣规则只有 ${sels.length} 条，像是被删过`);
+  assert.match(css, /html\[data-layout="box"\] body\[data-page="home"\] \.recent \{/,
+    '素匣下首页「最近更新」的铭牌规则不见了');
   for (const sel of sels) {
-    assert.ok(sel.includes('body:not([data-page="home"])'), `这条没排除首页：${sel.replace(/\s+/g, ' ')}`);
+    const homeRecent = /body\[data-page="home"\] \.recent/.test(sel);
+    assert.ok(sel.includes('body:not([data-page="home"])') || homeRecent,
+      `这条没排除首页：${sel.replace(/\s+/g, ' ')}`);
   }
   // CSS 里只认 box 这一个值；纸面是「不挂属性」，不该再出现 data-layout="paper"。
   const inCss = new Set([...css.matchAll(/data-layout="([a-z]+)"/g)].map((m) => m[1]));
