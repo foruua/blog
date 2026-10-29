@@ -151,14 +151,14 @@
 
 /* —— 墨面（深色）：不是黑，是磨开的墨 —— */
 html[data-theme="dark"] {
-  --bg: #0b0b0b;
-  --bg-soft: #141414;
-  --bg-elev: #101010;
+  --bg: #1a1a1a;
+  --bg-soft: #242424;
+  --bg-elev: #202020;
   --fg: #f4f2ec;
   --fg-soft: #c6c3b9;
-  /* 6.0:1 on --bg。深色下同档灰看着更淡 —— 两边不是同一个数，是同一条"小字也够读"的线。 */
-  --muted: #928e85;
-  --muted-soft: #807d76;     /* 深色下 4.6:1（原 #7c7972 实测 4.41，审计会报） */
+  /* 6.4:1 on --bg；纸面提亮后同步上调，悬停的金色底上也要 ≥4.5。 */
+  --muted: #a09c93;
+  --muted-soft: #908d85;     /* 深色下 5.2:1 on --bg；页脚这类 11–12px 小字也要过审计线 */
   --rule: rgba(244, 242, 236, .12);
   --rule-strong: rgba(244, 242, 236, .26);
   --accent: #dcb066;
@@ -170,7 +170,7 @@ html[data-theme="dark"] {
   --danger-soft: rgba(224, 133, 102, .12);
   /* 墨面上的警示色：浅色下用 --danger，但那条 salmon 压在深色 --danger-soft 上读不清， 故墨面单取一档更亮的暖琥珀。 */
   --warn: #e0a86a;
-  --code-bg: #121212;
+  --code-bg: #222222;
   --code-fg: #ddd9cd;
   /* 与浅色同一套角色，只是换成墨面上够亮的几档（最差 5.2:1）。 */
   --hl-comment: #948d7d;
@@ -203,13 +203,13 @@ html[data-theme="dark"] { color-scheme: dark; }
 /* 下面这段与 html[data-theme="dark"] 逐字相同，是**故意**重复的：CSS 没法用一条规则同时 表达「显式深色」与「系统深色」。合并只能靠 light-dark()（Safari 17.5+ / Chrome 123+）， 不支持的浏览器上整段变量会失效（整个配色塌掉），不划算。改深色配色时两处必须一起改。 */
 @media (prefers-color-scheme: dark) {
   html:not([data-theme="light"]):not([data-theme="dark"]) {
-    --bg: #0b0b0b;
-    --bg-soft: #141414;
-    --bg-elev: #101010;
+    --bg: #1a1a1a;
+    --bg-soft: #242424;
+    --bg-elev: #202020;
     --fg: #f4f2ec;
     --fg-soft: #c6c3b9;
-    --muted: #928e85;          /* 6.0:1，同显式深色块 */
-    --muted-soft: #807d76;     /* 深色下 4.6:1（原 #7c7972 实测 4.41，审计会报） */
+    --muted: #a09c93;
+    --muted-soft: #908d85;
     --rule: rgba(244, 242, 236, .12);
     --rule-strong: rgba(244, 242, 236, .26);
     --accent: #dcb066;
@@ -220,7 +220,7 @@ html[data-theme="dark"] { color-scheme: dark; }
     --danger: #e08566;
     --danger-soft: rgba(224, 133, 102, .12);
     --warn: #e0a86a;            /* 同显式深色块 */
-    --code-bg: #121212;
+    --code-bg: #222222;
     --code-fg: #ddd9cd;
     --hl-comment: #948d7d;
     --hl-keyword: #e2b96b;
@@ -410,15 +410,15 @@ html[data-palette="qingci"] {
   --hl-deletion: #9c4331;
 }
 html[data-theme="dark"][data-palette="qingci"] {
-  --bg: #0e0e0e;
-  --bg-soft: #181818;
-  --bg-elev: #131313;
+  --bg: #1e1e1e;
+  --bg-soft: #292929;
+  --bg-elev: #232323;
   --accent: #82ccb4;
   --accent-ink: #96d6c0;
   --accent-soft: rgba(130, 204, 180, .13);
   --accent-line: rgba(130, 204, 180, .36);
   --gold: linear-gradient(120deg, #b6e5d2 0%, #6db39a 45%, #d2efe2 100%);
-  --code-bg: #141414;
+  --code-bg: #242424;
   --code-fg: #d2dbd6;
   /* 代码高亮同色系（默认那组会串色）；实测最差 4.71:1（小字要 4.5）。 */
   --hl-comment: #8d9c94;
@@ -432,15 +432,15 @@ html[data-theme="dark"][data-palette="qingci"] {
 }
 @media (prefers-color-scheme: dark) {
   html:not([data-theme="light"]):not([data-theme="dark"])[data-palette="qingci"] {
-    --bg: #0e0e0e;
-    --bg-soft: #181818;
-    --bg-elev: #131313;
+    --bg: #1e1e1e;
+    --bg-soft: #292929;
+    --bg-elev: #232323;
     --accent: #82ccb4;
     --accent-ink: #96d6c0;
     --accent-soft: rgba(130, 204, 180, .13);
     --accent-line: rgba(130, 204, 180, .36);
     --gold: linear-gradient(120deg, #b6e5d2 0%, #6db39a 45%, #d2efe2 100%);
-    --code-bg: #141414;
+    --code-bg: #242424;
     --code-fg: #d2dbd6;
     /* 代码高亮同色系（默认那组会串色）；实测最差 4.71:1（小字要 4.5）。 */
     --hl-comment: #8d9c94;
@@ -477,15 +477,15 @@ html[data-palette="dailan"] {
   --hl-deletion: #9c4331;
 }
 html[data-theme="dark"][data-palette="dailan"] {
-  --bg: #0e0e0e;
-  --bg-soft: #181818;
-  --bg-elev: #121212;
+  --bg: #1e1e1e;
+  --bg-soft: #292929;
+  --bg-elev: #222222;
   --accent: #94bfe8;
   --accent-ink: #a8cdf0;
   --accent-soft: rgba(148, 191, 232, .13);
   --accent-line: rgba(148, 191, 232, .36);
   --gold: linear-gradient(120deg, #cfe2f6 0%, #74a3d4 45%, #e0eefb 100%);
-  --code-bg: #151515;
+  --code-bg: #252525;
   --code-fg: #d3dce6;
   /* 代码高亮同色系（默认那组会串色）；实测最差 4.71:1（小字要 4.5）。 */
   --hl-comment: #8c93a0;
@@ -499,15 +499,15 @@ html[data-theme="dark"][data-palette="dailan"] {
 }
 @media (prefers-color-scheme: dark) {
   html:not([data-theme="light"]):not([data-theme="dark"])[data-palette="dailan"] {
-    --bg: #0e0e0e;
-    --bg-soft: #181818;
-    --bg-elev: #121212;
+    --bg: #1e1e1e;
+    --bg-soft: #292929;
+    --bg-elev: #222222;
     --accent: #94bfe8;
     --accent-ink: #a8cdf0;
     --accent-soft: rgba(148, 191, 232, .13);
     --accent-line: rgba(148, 191, 232, .36);
     --gold: linear-gradient(120deg, #cfe2f6 0%, #74a3d4 45%, #e0eefb 100%);
-    --code-bg: #151515;
+    --code-bg: #252525;
     --code-fg: #d3dce6;
     /* 代码高亮同色系（默认那组会串色）；实测最差 4.71:1（小字要 4.5）。 */
     --hl-comment: #8c93a0;
@@ -544,15 +544,15 @@ html[data-palette="qian"] {
   --hl-deletion: #a13a2c;
 }
 html[data-theme="dark"][data-palette="qian"] {
-  --bg: #0c0c0c;
-  --bg-soft: #141414;
-  --bg-elev: #0f0f0f;
+  --bg: #1c1c1c;
+  --bg-soft: #242424;
+  --bg-elev: #1f1f1f;
   --accent: #e79b93;
   --accent-ink: #eeaea7;
   --accent-soft: rgba(231, 155, 147, .13);
   --accent-line: rgba(231, 155, 147, .36);
   --gold: linear-gradient(120deg, #f6cfc7 0%, #d98a7e 45%, #fbe6df 100%);
-  --code-bg: #131313;
+  --code-bg: #232323;
   --code-fg: #e2d6d2;
   /* 代码高亮同色系（默认那组会串色）；实测最差 4.71:1（小字要 4.5）。 */
   --hl-comment: #9c908e;
@@ -566,15 +566,15 @@ html[data-theme="dark"][data-palette="qian"] {
 }
 @media (prefers-color-scheme: dark) {
   html:not([data-theme="light"]):not([data-theme="dark"])[data-palette="qian"] {
-    --bg: #0c0c0c;
-    --bg-soft: #141414;
-    --bg-elev: #0f0f0f;
+    --bg: #1c1c1c;
+    --bg-soft: #242424;
+    --bg-elev: #1f1f1f;
     --accent: #e79b93;
     --accent-ink: #eeaea7;
     --accent-soft: rgba(231, 155, 147, .13);
     --accent-line: rgba(231, 155, 147, .36);
     --gold: linear-gradient(120deg, #f6cfc7 0%, #d98a7e 45%, #fbe6df 100%);
-    --code-bg: #131313;
+    --code-bg: #232323;
     --code-fg: #e2d6d2;
     /* 代码高亮同色系（默认那组会串色）；实测最差 4.71:1（小字要 4.5）。 */
     --hl-comment: #9c908e;
@@ -611,15 +611,15 @@ html[data-palette="ziteng"] {
   --hl-deletion: #9c4331;
 }
 html[data-theme="dark"][data-palette="ziteng"] {
-  --bg: #0e0e0e;
-  --bg-soft: #161616;
-  --bg-elev: #121212;
+  --bg: #1e1e1e;
+  --bg-soft: #262626;
+  --bg-elev: #222222;
   --accent: #c8abf0;
   --accent-ink: #d4bdf4;
   --accent-soft: rgba(200, 171, 240, .13);
   --accent-line: rgba(200, 171, 240, .36);
   --gold: linear-gradient(120deg, #e3d3f8 0%, #a98ad4 45%, #efe3fc 100%);
-  --code-bg: #131313;
+  --code-bg: #232323;
   --code-fg: #d9d3e4;
   /* 代码高亮同色系（默认那组会串色）；实测最差 4.71:1（小字要 4.5）。 */
   --hl-comment: #918ca0;
@@ -633,15 +633,15 @@ html[data-theme="dark"][data-palette="ziteng"] {
 }
 @media (prefers-color-scheme: dark) {
   html:not([data-theme="light"]):not([data-theme="dark"])[data-palette="ziteng"] {
-    --bg: #0e0e0e;
-    --bg-soft: #161616;
-    --bg-elev: #121212;
+    --bg: #1e1e1e;
+    --bg-soft: #262626;
+    --bg-elev: #222222;
     --accent: #c8abf0;
     --accent-ink: #d4bdf4;
     --accent-soft: rgba(200, 171, 240, .13);
     --accent-line: rgba(200, 171, 240, .36);
     --gold: linear-gradient(120deg, #e3d3f8 0%, #a98ad4 45%, #efe3fc 100%);
-    --code-bg: #131313;
+    --code-bg: #232323;
     --code-fg: #d9d3e4;
     /* 代码高亮同色系（默认那组会串色）；实测最差 4.71:1（小字要 4.5）。 */
     --hl-comment: #918ca0;
@@ -694,13 +694,13 @@ html[data-palette="xuanzhi"] {
   --hl-deletion: #615440;
 }
 html[data-theme="dark"][data-palette="xuanzhi"] {
-  --bg: #111111;
-  --bg-soft: #1a1a1a;
-  --bg-elev: #161616;
+  --bg: #212121;
+  --bg-soft: #2b2b2b;
+  --bg-elev: #262626;
   --fg: #f2f0ea;
   --fg-soft: #c8c5bc;
-  --muted: #97938a;
-  --muted-soft: #807d76;     /* 4.6:1 on --bg（原 #7e7a72 实测 4.41） */
+  --muted: #a09c93;
+  --muted-soft: #908d85;     /* 深色下 5.2:1 on --bg */
   --rule: rgba(242, 240, 234, .12);
   --rule-strong: rgba(242, 240, 234, .26);
   --accent: #c9c4b8;
@@ -711,7 +711,7 @@ html[data-theme="dark"][data-palette="xuanzhi"] {
   --danger: #d99080;
   --danger-soft: rgba(217, 144, 128, .12);
   --warn: #d9b78c;
-  --code-bg: #161616;
+  --code-bg: #262626;
   --code-fg: #ded9cd;
   --hl-comment: #aeaaa3;
   --hl-keyword: #f9f8f5;
@@ -724,13 +724,13 @@ html[data-theme="dark"][data-palette="xuanzhi"] {
 }
 @media (prefers-color-scheme: dark) {
   html:not([data-theme="light"]):not([data-theme="dark"])[data-palette="xuanzhi"] {
-    --bg: #111111;
-    --bg-soft: #1a1a1a;
-    --bg-elev: #161616;
+    --bg: #212121;
+    --bg-soft: #2b2b2b;
+    --bg-elev: #262626;
     --fg: #f2f0ea;
     --fg-soft: #c8c5bc;
-    --muted: #97938a;
-    --muted-soft: #807d76;     /* 4.6:1 on --bg（原 #7e7a72 实测 4.41） */
+    --muted: #a09c93;
+    --muted-soft: #908d85;     /* 深色下 5.2:1 on --bg */
     --rule: rgba(242, 240, 234, .12);
     --rule-strong: rgba(242, 240, 234, .26);
     --accent: #c9c4b8;
@@ -741,7 +741,7 @@ html[data-theme="dark"][data-palette="xuanzhi"] {
     --danger: #d99080;
     --danger-soft: rgba(217, 144, 128, .12);
     --warn: #d9b78c;
-    --code-bg: #161616;
+    --code-bg: #262626;
     --code-fg: #ded9cd;
     --hl-comment: #aeaaa3;
     --hl-keyword: #f9f8f5;

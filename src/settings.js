@@ -89,22 +89,22 @@ export const HERO_MAX = 8;
 export const PALETTES = [
   { key: '',       name: '素笺', paper: '#f8f8f8', ink: '#926922',
     seed: { hue: 77,  chroma: 0.100, chromaD: 0.106, paper: 0, paperD: 0,
-            inkL: 0.550, inkLD: 0.781, bgL: 0.979, bgLD: 0.150 } },
+            inkL: 0.550, inkLD: 0.781, bgL: 0.979, bgLD: 0.218 } },
   { key: 'xuanzhi', name: '宣纸', paper: '#f5f5f5', ink: '#5b564d',
     seed: { hue: 82,  chroma: 0.016, chromaD: 0.017, paper: 0, paperD: 0,
-            inkL: 0.455, inkLD: 0.821, bgL: 0.970, bgLD: 0.178 } },
+            inkL: 0.455, inkLD: 0.821, bgL: 0.970, bgLD: 0.248 } },
   { key: 'qingci', name: '青瓷', paper: '#f2f2f2', ink: '#26604f',
     seed: { hue: 171, chroma: 0.067, chromaD: 0.082, paper: 0, paperD: 0,
-            inkL: 0.445, inkLD: 0.790, bgL: 0.961, bgLD: 0.164 } },
+            inkL: 0.445, inkLD: 0.790, bgL: 0.961, bgLD: 0.235 } },
   { key: 'dailan', name: '黛蓝', paper: '#f2f2f2', ink: '#2f5a86',
     seed: { hue: 251, chroma: 0.087, chromaD: 0.074, paper: 0, paperD: 0,
-            inkL: 0.458, inkLD: 0.788, bgL: 0.961, bgLD: 0.164 } },
+            inkL: 0.458, inkLD: 0.788, bgL: 0.961, bgLD: 0.235 } },
   { key: 'qian',   name: '茜色', paper: '#f4f4f4', ink: '#9d3a32',
     seed: { hue: 28,  chroma: 0.134, chromaD: 0.093, paper: 0, paperD: 0,
-            inkL: 0.486, inkLD: 0.763, bgL: 0.967, bgLD: 0.154 } },
+            inkL: 0.486, inkLD: 0.763, bgL: 0.967, bgLD: 0.226 } },
   { key: 'ziteng', name: '紫藤', paper: '#f3f3f3', ink: '#5d4685',
     seed: { hue: 299, chroma: 0.102, chromaD: 0.101, paper: 0, paperD: 0,
-            inkL: 0.448, inkLD: 0.791, bgL: 0.964, bgLD: 0.164 } },
+            inkL: 0.448, inkLD: 0.791, bgL: 0.964, bgLD: 0.235 } },
 ];
 const PALETTE_KEYS = PALETTES.map((p) => p.key);
 

@@ -146,8 +146,8 @@
     },
     dark: {
       L: {
-        bg: 0.19, soft: 0.245, elev: 0.215, accent: 0.79, accentInk: 0.84,
-        codeBg: 0.205, codeFg: 0.88,
+        bg: 0.218, soft: 0.261, elev: 0.243, accent: 0.79, accentInk: 0.84,
+        codeBg: 0.252, codeFg: 0.88,
         comment: 0.67, keyword: 0.8, string: 0.8, number: 0.8,
         title: 0.8, variable: 0.8, meta: 0.67, deletion: 0.78,
       },

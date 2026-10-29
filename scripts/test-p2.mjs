@@ -188,7 +188,7 @@ const page = await (await fetch(`${BASE}/p/${SLUG}/`)).text();
       return null;
     };
     const light = block(':root {\n  --bg: #f8f8f8;');
-    const dark = block('html[data-theme="dark"] {\n  --bg: #0b0b0b;');
+    const dark = block('html[data-theme="dark"] {\n  --bg: #1a1a1a;');
     const cases = [['素笺·浅色', light, ''], ['素笺·深色', dark, '']];
     for (const p of PALETTES.filter((x) => x.key)) {
       cases.push([`${p.name}·浅色`, light, block(`\nhtml[data-palette="${p.key}"] {`)]);

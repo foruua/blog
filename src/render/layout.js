@@ -419,7 +419,7 @@ function headHtmlOf(ctx) {
   return `<meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#f8f8f8" media="(prefers-color-scheme:light)">
-<meta name="theme-color" content="#0b0b0b" media="(prefers-color-scheme:dark)">
+<meta name="theme-color" content="#1a1a1a" media="(prefers-color-scheme:dark)">
 <title>${esc(ctx.fullTitle)}</title>
 <meta name="description" content="${esc(ctx.desc)}">
 <link rel="canonical" href="${esc(absUrl(ctx.canonical))}">
