@@ -36,7 +36,7 @@ if ! mkdir "$lock" 2>/dev/null; then
   # mkdir 失败有两种可能：锁已存在（另一轮在跑），或目录不可写/磁盘满。后者以前也被当成
   # 「已有任务」并 exit 0，备份停了很久也没人知道——只有确认锁目录真的存在才按「跳过」处理。
   if [[ ! -d "$lock" ]]; then
-    echo "无法创建锁目录 $lock（权限或磁盘错误），本次拉取失败" >&2
+    echo "无法创建锁目录 ${lock}（权限或磁盘错误），本次拉取失败" >&2
     exit 1
   fi
   if [[ -n "$(find "$lock" -maxdepth 0 -mmin +120 2>/dev/null)" ]]; then

@@ -12,10 +12,14 @@ const SESSION_TTL = 30 * 24 * 3600;
 
 const SCRYPT = { N: 32768, r: 8, p: 1, keylen: 64, maxmem: 256 * 1024 * 1024 };
 
+// 序列化格式只有这一处：同步/异步两条写路径必须产出一模一样的 hash。
+const serializeHash = (salt, key) =>
+  ['scrypt', SCRYPT.N, SCRYPT.r, SCRYPT.p, salt.toString('base64url'), key.toString('base64url')].join('$');
+
 export function hashPassword(pw) {
   const salt = crypto.randomBytes(16);
   const key = crypto.scryptSync(String(pw), salt, SCRYPT.keylen, SCRYPT);
-  return ['scrypt', SCRYPT.N, SCRYPT.r, SCRYPT.p, salt.toString('base64url'), key.toString('base64url')].join('$');
+  return serializeHash(salt, key);
 }
 
 // 用 hash 里记录的 N/r/p 去验（常量存在的意义就是存下当时的参数），否则调强参数会让存量密码静默验不过、后台锁死；但参数必须落区间：被篡改的 hash 不能靠超大 N 打爆内存。
@@ -51,7 +55,7 @@ async function hashPasswordAsync(pw) {
   const salt = crypto.randomBytes(16);
   const key = await scryptAsync(String(pw), salt, SCRYPT.keylen,
     { N: SCRYPT.N, r: SCRYPT.r, p: SCRYPT.p, maxmem: SCRYPT.maxmem });
-  return ['scrypt', SCRYPT.N, SCRYPT.r, SCRYPT.p, salt.toString('base64url'), key.toString('base64url')].join('$');
+  return serializeHash(salt, key);
 }
 
 async function verifyPasswordAsync(pw, stored) {

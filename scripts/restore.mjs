@@ -18,7 +18,7 @@ if (argv.includes('--help')) {
     + '  --allow-root   允许以 root 执行（默认拒绝：还原出来的文件会全部归 root，服务随后读写不了）。');
   process.exit(0);
 }
-const DIR = opt('--dir') ?? process.env.BACKUP_DIR ?? DEFAULT_DIR;
+const DIR = opt('--dir') ?? DEFAULT_DIR;
 const FROM = opt('--from');
 const YES = argv.includes('--yes');
 const WITH_THEMES = argv.includes('--with-themes');
@@ -81,6 +81,33 @@ if (!YES) {
   if (answer.trim().toLowerCase() !== 'yes') { console.log('  已取消。'); process.exit(0); }
 }
 
+// SQL 快照失败、或快照不完整（restore 会拒绝用它回滚）时，额外留一份原始文件副本。
+// 不要求损坏的数据库仍能执行 SQL；mkdtemp 也在守卫内：备份目录不可写时给友好报错，而不是裸堆栈。
+function preserveRawState(reason, { fatal = true } = {}) {
+  try {
+    const raw = fs.mkdtempSync(path.join(DIR, 'pre-restore-raw-'));
+    fs.chmodSync(raw, 0o700);
+    const sources = { database: DB_FILE, wal: DB_FILE + '-wal', shm: DB_FILE + '-shm',
+      content: CONTENT_DIR, uploads: UPLOADS_DIR, themes: THEMES_DIR, journal: path.join(DATA_DIR, '.write-journal') };
+    for (const [name, source] of Object.entries(sources)) {
+      if (!fs.existsSync(source)) continue;
+      if (path.resolve(raw).startsWith(path.resolve(source) + path.sep)) throw new Error('保底目录不能位于被复制目录内部');
+      fs.cpSync(source, path.join(raw, name), { recursive: true, dereference: false, preserveTimestamps: true, verbatimSymlinks: true });
+    }
+    fs.writeFileSync(path.join(raw, 'manifest.json'), JSON.stringify({ createdAt: new Date().toISOString(),
+      reason, sources, note: '原始取证副本；不是可自动恢复的完整快照' }, null, 2), { mode: 0o600 });
+    console.log(`  ✓ 原始文件已保留至 ${raw}`);
+    return raw;
+  } catch (copyError) {
+    if (fatal) {
+      console.error(`✗ 无法保留当前原始状态，拒绝恢复：${copyError.message}`);
+      process.exit(1);
+    }
+    console.error(`  ⚠ 无法保留原始文件副本：${copyError.message}（保底快照仍在 ${DIR}）`);
+    return null;
+  }
+}
+
 try {
   const exists = fs.existsSync(DB_FILE);
   const db = open(exists ? DB_FILE : path.join(path.dirname(v.dbPath), 'pre-state.db'));
@@ -91,28 +118,13 @@ try {
     before = await snapshot(db, { dir: DIR, keep: 0, label: 'pre-restore', allowMissingFiles: true });
   } finally { close(db); }
   console.log(`  ✓ 当前状态已另存 ${path.basename(before.gzFile)}（label=pre-restore）`);
-  if (!before.complete) console.log('  · 当前内容目录已有文件缺失，保底备份保留原数据库与所有残存文件');
-} catch (err) {
-  // SQL 快照失败时保留原始状态；不要求损坏的数据库仍能执行 SQL。
-  // mkdtemp 也在守卫内：备份目录不可写时走下面的友好报错，而不是裸堆栈。
-  let raw = null;
-  try {
-    raw = fs.mkdtempSync(path.join(DIR, 'pre-restore-raw-'));
-    fs.chmodSync(raw, 0o700);
-    const sources = { database: DB_FILE, wal: DB_FILE + '-wal', shm: DB_FILE + '-shm',
-      content: CONTENT_DIR, uploads: UPLOADS_DIR, themes: THEMES_DIR, journal: path.join(DATA_DIR, '.write-journal') };
-    for (const [name, source] of Object.entries(sources)) {
-      if (!fs.existsSync(source)) continue;
-      if (path.resolve(raw).startsWith(path.resolve(source) + path.sep)) throw new Error('保底目录不能位于被复制目录内部', { cause: err });
-      fs.cpSync(source, path.join(raw, name), { recursive: true, dereference: false, preserveTimestamps: true, verbatimSymlinks: true });
-    }
-    fs.writeFileSync(path.join(raw, 'manifest.json'), JSON.stringify({ createdAt: new Date().toISOString(),
-      reason: err.message, sources, note: '原始取证副本；不是可自动恢复的完整快照' }, null, 2), { mode: 0o600 });
-    console.log(`  ✓ SQL 快照不可用，原始文件已保留至 ${raw}`);
-  } catch (copyError) {
-    console.error(`✗ 无法保留当前原始状态，拒绝恢复：${copyError.message}`);
-    process.exit(1);
+  if (!before.complete) {
+    // complete=false 的备份会被 restore.mjs 的完整性检查拒绝，不能当回滚点；再留一份原始副本。
+    console.log('  · 当前内容目录已有文件缺失，保底快照不可用于自动回滚，另存原始文件副本');
+    preserveRawState('当前内容目录不完整（保底快照 complete=false）', { fatal: false });
   }
+} catch (err) {
+  preserveRawState(err.message);
 }
 
 const restored = restoreBackup(v, { dbFile: DB_FILE, contentDir: CONTENT_DIR, uploadsDir: UPLOADS_DIR, themesDir: THEMES_DIR, lockHeld: true, withThemes: WITH_THEMES });

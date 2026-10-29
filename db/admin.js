@@ -91,6 +91,8 @@ export function createAdminRepo(db) {
     // 旧版 Node 22 的 DatabaseSync 没有 isTransaction 属性（undefined），所以用 !== 而非 ===：
     const canCache = db.isTransaction !== true;
     if (!canCache || signature !== usageSignature || !usageIndex) {
+      // 不能按 posts.version 做行级增量：外部 SQL 直接改 body_md 时 version 不变，会缓存住旧引用。
+      // 这里靠 createUsageCache 按正文文本复用 Markdown 解析结果，没变的文章不重复 parse。
       usageIndex = indexUploads(q.mediaReferences.all(), references);
       usageSignature = canCache ? signature : '';
     }

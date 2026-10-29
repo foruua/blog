@@ -182,7 +182,14 @@ export function createMailOutbox({
           try { result = await deliver(payload); }
           catch (error) { result = { sent: false, reason: error?.message ?? 'deliver-failed' }; }
           if (result?.sent) {
-            q.markSent.run(nowIso(now()), row.id);
+            try {
+              q.markSent.run(nowIso(now()), row.id);
+            } catch (error) {
+              // 信已经发出去了，标记失败若让这一行留在 pending，下一轮会重复投递。
+              // 退化成 skipped（带原因）而不是无限重试——宁可丢“已发送”状态，也不重复发信。
+              log(JSON.stringify({ event: 'mail.mark-sent-failed', id: row.id, reason: String(error?.message ?? 'db').slice(0, 200) }));
+              try { q.markSkipped.run(nowIso(now()), 'mark-sent-failed', row.id); } catch { /* 下一轮再兜底 */ }
+            }
             sent++;
             batchSent++;
             continue;

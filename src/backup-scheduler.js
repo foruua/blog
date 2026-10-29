@@ -23,6 +23,8 @@ export function createBackupScheduler({
   let alertedAt = 0;
   let runFailed = false;
   let queued = false;
+  let queuedOpts = null;
+  let retryOffsite = false;
   let worker = null;
   let closed = false;
 
@@ -48,29 +50,37 @@ export function createBackupScheduler({
     }
   }
 
-  function recordFailure(reason) {
+  function recordFailure(reason, { retry = true } = {}) {
     if (runFailed) return;
     runFailed = true;
     lastAttemptAt = new Date().toISOString();
     lastError = { at: lastAttemptAt, reason: String(reason ?? 'unknown').slice(0, 300) };
-    retryStep = Math.min(retryStep + 1, RETRY_STEPS.length);
-    retryDelayMs = RETRY_STEPS[retryStep - 1] ?? RETRY_STEPS.at(-1);
-    nextRetryAt = new Date(Date.now() + retryDelayMs).toISOString();
+    if (retry) {
+      retryStep = Math.min(retryStep + 1, RETRY_STEPS.length);
+      retryDelayMs = RETRY_STEPS[retryStep - 1] ?? RETRY_STEPS.at(-1);
+      nextRetryAt = new Date(Date.now() + retryDelayMs).toISOString();
+    } else {
+      // 缺文件这类状态不会自己恢复，重试只会反复做整轮 VACUUM；等下一个正常间隔再试，先把告警发出去。
+      retryDelayMs = null;
+      nextRetryAt = null;
+    }
     notifyFailure(lastError.reason);
   }
 
-  function schedule(delayMs = 0) {
+  function schedule(delayMs = 0, { force = false, offsiteOnly = false } = {}) {
     if (queued || closed) return;
     queued = true;
+    queuedOpts = { force, offsiteOnly };
 
     // 不占全局写队列：备份的一致性由 SQLite 的 VACUUM INTO + 文件树 mtime 校验保证，评论/设置这类
     // 只写库的操作不该排队等整次备份；文章/上传/主题变更会触发快照失败并在 worker 里重试。
     setTimeout(() => {
-      if (closed) { queued = false; return; }
+      if (closed) { queued = false; queuedOpts = null; return; }
+      const opts = queuedOpts; queuedOpts = null;
       startedAt = Date.now();
       runFailed = false;
       let current;
-      try { current = new Worker(new URL('./backup-worker.js', import.meta.url)); }
+      try { current = new Worker(new URL('./backup-worker.js', import.meta.url), { workerData: opts }); }
       catch (error) {
         // 起不来必须立刻放标志位，否则自动备份会被永久静默关闭；同时按失败处理，避免只留一行日志。
         queued = false;
@@ -79,7 +89,7 @@ export function createBackupScheduler({
         recordFailure(`备份 worker 启动失败（${error.code ?? 'WORKER_START'}）`);
         const retry = retryDelayMs;
         retryDelayMs = null;
-        if (retry) schedule(retry);
+        if (retry) schedule(retry, { force: true });
         return;
       }
       worker = current;
@@ -115,9 +125,12 @@ export function createBackupScheduler({
           retryDelayMs = null;
           alertedAt = 0;
         } else if (message.event === 'backup.failed') {
-          recordFailure(message.reason ?? message.code ?? '备份失败');
+          const reason = message.reason ?? message.code ?? '备份失败';
+          recordFailure(reason);
+          // 本地快照已成功、只是异地推送失败：重试只补推最新备份，别再整轮 VACUUM + 打包。
+          if (/^异地备份失败/.test(String(reason))) retryOffsite = true;
         } else if (message.event === 'backup.incomplete') {
-          recordFailure(message.reason ?? '备份不完整');
+          recordFailure(message.reason ?? '备份不完整', { retry: false });
         }
         console.log(JSON.stringify(message));
       });
@@ -134,21 +147,25 @@ export function createBackupScheduler({
         // worker 自己崩溃/被 SIGKILL 时不会走 message 分支；这里兜住，否则失败会被静默吞掉。
         if (!closed && !runFailed && (code !== 0 || signal)) recordFailure(`备份 worker 退出（${signal ?? code}）`);
         const retry = retryDelayMs;
+        const retryOnlyOffsite = retryOffsite;
         retryDelayMs = null;
-        if (retry && !closed) schedule(retry);
+        retryOffsite = false;
+        if (retry && !closed) schedule(retry, { force: true, offsiteOnly: retryOnlyOffsite });
       });
     }, Math.max(0, Number(delayMs) || 0)).unref();
   }
 
   const autoOn = env.BACKUP_ON_PUBLISH !== 'false';
   // 0 = 关闭自动备份，与 FEED_REFRESH_MS 等其它间隔约定一致；min 只约束非零值。
+  // envDurationMs 对显式 0 返回 0，必须在这里拦住：setInterval(..., 0) 会变成毫秒级连跑。
   const intervalMs = envDurationMs(env.BACKUP_INTERVAL_MS, 6 * 3600000, { min: 60000 });
-  const interval = autoOn ? setInterval(() => schedule(), intervalMs) : null;
+  const scheduled = autoOn && intervalMs > 0;
+  const interval = scheduled ? setInterval(() => schedule(), intervalMs) : null;
   interval?.unref();
 
   // 启动补做：只要「启动后不到一个间隔又重启」，纯 setInterval 就永远排不上。
   let catchup = null;
-  if (autoOn) {
+  if (scheduled) {
     const lastBackup = latestRecoverableBackup();
     const lastAgeMs = lastBackup?.createdAt ? Date.now() - Date.parse(lastBackup.createdAt) : null;
     if (lastAgeMs === null || lastAgeMs >= intervalMs) {

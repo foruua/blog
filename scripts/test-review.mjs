@@ -24,7 +24,7 @@ import { createRefresher } from '../src/feeds/refresh.js';
 import { fetchDocument } from '../src/feeds/fetch.js';
 import { acquireMaintenanceLock } from '../src/util/lock.js';
 import { atomicWrite } from '../src/util/files.js';
-import { snapshot, verifyBackup, restoreBackup, latestRecoverableBackup } from '../src/backup.js';
+import { snapshot, verifyBackup, restoreBackup, latestRecoverableBackup, isRecoverableBackup } from '../src/backup.js';
 import { syncContent } from '../src/content/sync.js';
 import { validateSlug } from '../src/util/text.js';
 import { startServer } from './_server.mjs';
@@ -260,6 +260,21 @@ await test('备份检测缺失响应式候选图', async () => {
     fs.writeFileSync(path.join(uploadsDir, 'image.png'), 'image');
     c.adminRepo.mediaAdd({ path: '/uploads/image.png', variants: JSON.stringify([{ w: 640, path: '/uploads/image.png.w640.webp' }]) });
     await assert.rejects(snapshot(c.db, { contentDir, uploadsDir, dir: path.join(root, 'backups') }), /附件缺失/);
+  } finally { c.db.close(); fs.rmSync(root, { recursive: true, force: true }); }
+});
+await test('自动备份把缺失派生图记为告警，但不阻断可恢复', async () => {
+  const c = context(), root = temp();
+  try {
+    const contentDir = path.join(root, 'content'), uploadsDir = path.join(root, 'uploads'), dir = path.join(root, 'backups');
+    fs.mkdirSync(contentDir); fs.mkdirSync(uploadsDir);
+    fs.writeFileSync(path.join(uploadsDir, 'image.png'), 'image');
+    c.adminRepo.mediaAdd({ path: '/uploads/image.png', variants: JSON.stringify([{ w: 640, path: '/uploads/image.png.w640.webp' }]) });
+    const auto = await snapshot(c.db, { contentDir, uploadsDir, dir, allowMissingFiles: true, verify: false, keep: 0 });
+    assert.equal(auto.complete, true);
+    assert.deepEqual(auto.missingDerived, ['uploads/image.png.w640.webp']);
+    assert.deepEqual(auto.missingFiles, []);
+    const name = path.basename(auto.gzFile).replace('.db.gz', '');
+    assert.equal(isRecoverableBackup({ ...auto, name, dir, verified: true }), true);
   } finally { c.db.close(); fs.rmSync(root, { recursive: true, force: true }); }
 });
 await test('413 同样带安全头和请求 ID；健康检查只对持有 token 的监控公开备份状态', async () => {

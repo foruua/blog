@@ -49,8 +49,11 @@ export function createSearch(db) {
   // 条目被编辑时 version 变化即失效；查询结束时顺手删掉已不在结果集里的 id（文章删除后的残留）。
   // 再加一道硬上限兜底：缓存里存的是整站正文纯文本，万一裁剪路径没走到（异常/提前返回），
   // 不该让它无界长下去。超了就按插入序丢最老的——退化成现算，而不是把内存吃掉。
-  const TEXT_CACHE_MAX = 500;
-  const TEXT_CACHE_MAX_BYTES = 8 * 1024 * 1024;
+  // 上限按「整站正文纯文本」的实际体量来定：中文文章 10KB 正文 × 500 篇，加上小写匹配串
+  // 约 10MB；8MB 会把中型站点整批淘汰，之后每次检索都重新 htmlToPlainText 全站。32MB 覆盖
+  // 常见规模，仍远小于一个进程的其它常驻开销。
+  const TEXT_CACHE_MAX = 1000;
+  const TEXT_CACHE_MAX_BYTES = 32 * 1024 * 1024;
   const textCache = new Map();
   let textCacheBytes = 0;
   // 条目里同时存 text 与 hay（标题+正文的小写串），后者几乎和正文一样大。

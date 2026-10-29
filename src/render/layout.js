@@ -524,9 +524,9 @@ function chromeOf(ctx) {
   };
 }
 
-/** 默认渲染：主题渲染失败时的最终兜底，保证任何页都不会白屏。 */
-function builtinLayout(opts, ctx = layoutContext(opts)) {
-  const chrome = chromeOf(ctx);
+/** 默认渲染：主题渲染失败时的最终兜底，保证任何页都不会白屏。prebuilt 是主题已算好的 chrome，直接复用。 */
+function builtinLayout(opts, ctx = layoutContext(opts), prebuilt = null) {
+  const chrome = prebuilt ?? chromeOf(ctx);
   return `<!DOCTYPE html>
 <html lang="${esc(SITE.lang)}"${paletteAttr()}${layoutAttr()}>
 ${chrome.head}
@@ -593,7 +593,7 @@ export function layout(opts) {
           const shellContext = withMainContext(rendered.context ?? layoutContext(opts), rendered.content);
           // themeChrome 的 context 只带原始 opts 的 head；主题自己的 head.liquid/theme.css 追加在这里。
           shellContext.extraHead = extraHead;
-          html = builtinLayout({ ...opts, main: rendered.content, extraHead }, shellContext);
+          html = builtinLayout({ ...opts, main: rendered.content, extraHead }, shellContext, rendered.chrome ?? null);
         }
       }
     } catch (error) {

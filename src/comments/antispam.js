@@ -46,9 +46,15 @@ export function createAntispam({ windowMs = 10 * 60 * 1000, maxPerWindow = 5 } =
       if (now - lastSweep >= SWEEP_MS || hits.size > MAX_KEYS) sweep(now);
       if (hits.size >= MAX_KEYS && !hits.has(bucket)) evictOldest();
       const kept = (hits.get(bucket) ?? []).filter((t) => now - t < windowMs);
-      if (kept.length >= limitOf()) { hits.set(bucket, kept); return true; }
+      if (kept.length >= limitOf()) {
+        // 被拒命中也要刷新顺序：否则高基数流量灌满 Map 后，evictOldest 最先淘汰的正是
+        // 「一直有人在打、但一直没被接受」的桶，等于把限流计数清零后放行。
+        hits.delete(bucket);
+        hits.set(bucket, kept);
+        return true;
+      }
       kept.push(now);
-      // 删掉重插把桶挪到 Map 末尾：插入序即「最近一次被接受命中」升序，evictOldest 才能直接淘汰最前面。
+      // 删掉重插把桶挪到 Map 末尾：插入序即「最近一次命中」升序，evictOldest 才能直接淘汰最前面。
       hits.delete(bucket);
       hits.set(bucket, kept);
       return false;

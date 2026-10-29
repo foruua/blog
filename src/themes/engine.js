@@ -259,8 +259,9 @@ export function createThemeEngine(registry, { cache } = {}) {
     };
 
     const content = file ? renderFile(engine, file, context, theme) : (opts.main ?? '');
-    // 没有 layout 时交给内置外壳；把主题 CSS / head 片段一并带过去，否则「主题样式自动注入」只在有 layout 时成立。
-    if (!layoutFile) return { content, head: injected, context: shellContext };
+    // 没有 layout 时交给内置外壳；把主题 CSS / head 片段与已构建好的 chrome 一并带过去，
+    // 否则「主题样式自动注入」只在有 layout 时成立，而且内置外壳会把 head/页头/页脚重算一遍。
+    if (!layoutFile) return { content, head: injected, context: shellContext, chrome: context.chrome };
 
     return injectThemeHead(renderFile(engine, layoutFile, { ...context, content, main: content }, theme), context);
   }

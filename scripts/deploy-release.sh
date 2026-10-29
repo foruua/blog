@@ -47,22 +47,22 @@ restore_schema_if_needed() {
   before="$(cat "$release/pre-schema")"
   after="$(schema_version)"
   if ! [[ "$before" =~ ^[0-9]+$ && "$after" =~ ^[0-9]+$ ]]; then
-    echo "  跳过数据库回滚：结构版本无法确定（部署前 $before / 现在 $after）" >&2
+    echo "  跳过数据库回滚：结构版本无法确定（部署前 ${before} / 现在 ${after}）" >&2
     return 0
   fi
   if [ "$before" = "$after" ]; then
-    echo "  数据库结构未变（schema $after），无需回滚数据库"
+    echo "  数据库结构未变（schema ${after}），无需回滚数据库"
     return 0
   fi
   if ! test -f "$release/pre-backup"; then
-    echo "  ✗ 结构已从 $before 变为 $after，但没记下 pre-deploy 备份名；旧代码可能无法启动" >&2
+    echo "  ✗ 结构已从 ${before} 变为 ${after}，但没记下 pre-deploy 备份名；旧代码可能无法启动" >&2
     return 1
   fi
   local name
   name="$(cat "$release/pre-backup")"
-  echo "  结构已从 $before 变为 $after：从 pre-deploy 备份 $name 恢复数据库"
+  echo "  结构已从 ${before} 变为 ${after}：从 pre-deploy 备份 ${name} 恢复数据库"
   ( cd "$app_root" && runuser -u "$run_user" -- "$node_bin" --env-file="$app_root/.env" scripts/restore.mjs --from "$name" --yes ) \
-    || { echo "  ✗ 数据库回滚失败（备份 $name），请人工处理" >&2; return 1; }
+    || { echo "  ✗ 数据库回滚失败（备份 ${name}），请人工处理" >&2; return 1; }
 }
 
 rollback() {
@@ -79,7 +79,7 @@ rollback() {
   fi
   if test -f "$release/stopped"; then
     systemctl start "$service" || { echo "回滚中止：systemctl start $service 失败" >&2; return 1; }
-    curl -fsS --max-time 10 --retry 10 --retry-delay 1 --retry-connrefused "$health" || { echo "回滚中止：健康检查未通过（$health）" >&2; return 1; }
+    curl -fsS --max-time 10 --retry 10 --retry-delay 1 --retry-connrefused "$health" || { echo "回滚中止：健康检查未通过（${health}）" >&2; return 1; }
     rm -f "$release/stopped"
   fi
   if test -f "$active" && test "$(cat "$active")" = "$release"; then rm -f "$active"; fi
@@ -89,7 +89,7 @@ case "$mode" in
   commit)
     # 校验失败必须说明原因：test && test 静默返回 1 时，操作者面对的是「commit 失败但一个字都没有」。
     if ! test -f "$active" || ! test "$(cat "$active")" = "$release"; then
-      echo "commit 拒绝：$active 不存在或不是当前版本 $release（未 activate / 已过期 / 被别的版本占用）" >&2
+      echo "commit 拒绝：${active} 不存在或不是当前版本 ${release}（未 activate / 已过期 / 被别的版本占用）" >&2
       exit 1
     fi
     rm -f "$release/stopped" "$release/switched" "$active"

@@ -9,7 +9,7 @@ import { snapshot, listBackups, verifyBackupLite, DEFAULT_DIR, DEFAULT_KEEP, rec
 
 const { has, opt } = parseFlags();
 
-const DIR = opt('--dir') ?? process.env.BACKUP_DIR ?? DEFAULT_DIR;
+const DIR = opt('--dir') ?? DEFAULT_DIR;
 const REMOTE = opt('--remote') ?? process.env.BACKUP_REMOTE ?? '';
 const HOOK = opt('--hook') ?? process.env.BACKUP_HOOK ?? '';
 

@@ -4,7 +4,7 @@ import { acceptsEncoding, ifNoneMatch } from '../util/http.js';
 import { parseReplyId } from '../util/validation.js';
 import { compressBuffer, MIN_COMPRESS_BYTES } from '../util/compress.js';
 import { ADMIN_COOKIE } from './cookies.js';
-import { mediaRevision } from '../media/revision.js';
+import { pageRevisionOf } from '../content/revision.js';
 
 // 与 server.js 的静态资源清单解耦：调用方传入 isImmutableAsset 判定即可。
 const NON_HTML_PATH_RE = /^\/(?:admin|moderate|unsubscribe|healthz|api|avatar|uploads|theme-assets)(?:$|\/)|^\/(?:feed\.xml|atom\.xml|feed\.json|sitemap\.xml|robots\.txt|site\.webmanifest|favicon\.ico)$/;
@@ -24,15 +24,15 @@ const UNCACHEABLE_QUERY = new Set(['before', 'n', 'c', 'partial', 'panel', 'suff
  * 浏览器与 EdgeOne 可在 15 秒内直出，回访/前进后退不必回源；超时后仍用弱 ETag 校验。
  * 服务端匿名 HTML 缓存命中时直接回；内容/评论/设置/媒体/主题任何一处变了修订号就变。
  * 两个必须一起处理的点：
- *   1. 评论时间戳令牌每次渲染都不同，会把正文哈希冲掉——只对「哈希」这一步归一到小时档。
- *      命中时沿用条目里那枚令牌（不重签）：重签就必须逐请求重压正文，而压缩字节复用正是这套
- *      缓存的主要收益。代价是「至少 3 秒才填完」这条启发式检查在 TTL 内可以用旧令牌绕过——
+ *   1. 评论时间戳令牌每次渲染都不同，会把正文哈希冲掉——因此 ETag 不再取正文哈希，而是由
+ *      修订号与缓存键派生；正文里的令牌随条目一起复用（见下）。
+ *      代价是「至少 3 秒才填完」这条启发式检查在 TTL 内可以用旧令牌绕过——
  *      它本来也不是鉴权边界，机器人等 3 秒同样能过，不值得为它牺牲整页压缩复用。
  *   2. Cloudflare 会改写/重压 HTML 并丢掉源站 ETag；加 `no-transform` 才肯透传，而 Hono 的 compress()
  *      见这条头就不压了，所以 HTML 的 br/gzip 在这里自己做。
  */
 export function createHtmlCache({
-  repo, themes, isImmutableAsset = () => false,
+  repo, isImmutableAsset = () => false,
   ttlMs = envInt(process.env.HTML_CACHE_TTL_MS, 60_000, { min: 0, max: 60 * 60 * 1000 }),
   maxEntries = 200, maxChars = 8 * 1024 * 1024, maxBody = 2 * 1024 * 1024,
   // 页码只缓存到这个上限：路由会把超大页码 clamp 到最后一页，若每个页码都开一条键，
@@ -123,13 +123,11 @@ export function createHtmlCache({
     return true;
   };
 
-  // 页面修订号只由会影响 HTML 的东西组成：DB 写入（文章/评论/设置/别名）、媒体变体、当前主题模板签名。
+  // 页面修订号只由会影响 HTML 的东西组成：DB 写入、媒体变体、主题模板签名（拼装口径见 content/revision.js）。
   function revisionOf(c) {
     let rev = c.get('pageRevision');
     if (rev === undefined) {
-      let theme = null;
-      try { theme = themes.active(); } catch { /* 主题错误由渲染层兜底 */ }
-      rev = `${repo.contentStamp?.() ?? repo.changeStamp?.() ?? ''}|${mediaRevision(repo)}|${theme?.id ?? ''}:${theme?.signature ?? ''}`;
+      rev = pageRevisionOf(repo);
       c.set('pageRevision', rev);
     }
     return rev;
@@ -251,13 +249,10 @@ export function createHtmlCache({
     let body;
     try { body = Buffer.from(await c.res.clone().arrayBuffer()); } catch { return; }
     const text = body.toString('utf8');
-    // 令牌归一化只影响哈希：正文里仍是当次新签发的令牌，服务端 3 秒防抖检查不受影响。
-    const stamp = Math.floor(Date.now() / 3600000);
-    const hasTokens = text.includes('name="ts"');
-    const sealed = hasTokens
-      ? text.replace(/(name="ts" value=")[^"]*(")/g, `$1hb${stamp}$2`)
-      : text;
-    const tag = `"${crypto.createHash('sha1').update(sealed).digest('base64url')}"`;
+    // ETag 由「页面修订号 + 缓存键」派生，而不是正文哈希：正文里有 relativeDate()「N 分钟前」
+    // 这类随时间窗变化的文案，按哈希会让 tag 跟着漂移，TTL 一过 304 几乎永不命中。
+    // 用弱 ETag 表示「语义相同、字节可能不同」，正好符合这里的要求。
+    const tag = `"${crypto.createHash('sha1').update(`${revision}|${key}`).digest('base64url')}"`;
     const headers = { 'Content-Type': contentType };
     const language = c.res.headers.get('Content-Language');
     if (language) headers['Content-Language'] = language;

@@ -11,7 +11,7 @@ import { SITE } from '../src/config.js';
 import { listBackups, isRecoverableBackup, verifyBackup, restoreBackup, DEFAULT_DIR } from '../src/backup.js';
 
 const { argv, opt } = parseFlags();
-const DIR = opt('--dir') ?? process.env.BACKUP_DIR ?? DEFAULT_DIR;
+const DIR = opt('--dir') ?? DEFAULT_DIR;
 const KEEP_WORK = argv.includes('--keep-work');
 
 let step = 0;

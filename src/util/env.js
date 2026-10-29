@@ -5,6 +5,18 @@ export const envInt = (raw, fallback, { min, max }) => {
   return Math.min(max, Math.max(min, n));
 };
 
+// 正数型环境变量：缺失/空白回落默认；非法值告警后回落，避免 "8MB" 这类写法被静默当成 Infinity/NaN。
+export const envPositive = (raw, fallback, name = '') => {
+  const text = String(raw ?? '').trim();
+  if (!text) return fallback;
+  const n = Number(text);
+  if (!Number.isFinite(n) || n <= 0) {
+    if (name) console.warn(`[config] ⚠ ${name}=${raw} 不是正数，按默认值处理`);
+    return fallback;
+  }
+  return n;
+};
+
 // 毫秒/秒级的间隔解析：0 一律表示「关闭」（定时器/后台任务），负数/非数字回退。
 // 与 envInt 的区别是不用 parseInt：`1e3`、`60000.0` 这类写法按数值理解；缺失/空白仍回退。
 export const envDurationMs = (raw, fallback, { min = 0, max = Number.MAX_SAFE_INTEGER } = {}) => {

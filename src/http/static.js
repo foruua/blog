@@ -92,8 +92,10 @@ export function createStaticFiles({ repo, assetVer }) {
   // 启动即预热：没有构建产物时这个 Promise 也会很快解析成空 Map。
   void loadPrecompiled();
 
-  async function compressedBuffer(real, stat, buf, encoding) {
-    const key = `${real}:${stat.ino}:${stat.size}:${stat.mtimeMs}:${stat.ctimeMs}:${encoding}`;
+  async function compressedBuffer(real, stat, buf, encoding, kind = 'raw') {
+    // kind 区分「原始字节」与「精简后的字节」：两者 stat 相同，若共用一条键，任一开关同时命中
+    // 两个路径就会把精简体/原文互相串用。
+    const key = `${real}:${stat.ino}:${stat.size}:${stat.mtimeMs}:${stat.ctimeMs}:${encoding}:${kind}`;
     const hit = compressedCache.get(key);
     if (hit) return hit;
     const compressed = await compressBuffer(buf, encoding);
@@ -235,7 +237,7 @@ export function createStaticFiles({ repo, assetVer }) {
           buf = await minifiedBuffer(real, stat);
           if (encoding && buf.length >= MIN_COMPRESS_BYTES) {
             try {
-              buf = await compressedBuffer(real, stat, buf, encoding);
+              buf = await compressedBuffer(real, stat, buf, encoding, 'min');
               headers['Content-Encoding'] = encoding;
               headers.Vary = 'Accept-Encoding';
             } catch { encoding = ''; /* 压缩失败就发未压缩的精简版 */ }

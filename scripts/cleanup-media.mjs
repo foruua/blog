@@ -19,7 +19,7 @@ try {
     const stamp = `${Date.now()}-${crypto.randomUUID()}`;
     const trashDir = path.join(DATA_DIR, '.trash', 'uploads');
     const manifest = { createdAt: new Date().toISOString(), files: plan.map((item, index) => ({
-      ...item, trash: path.join(trashDir, `${stamp}-${index}-${path.basename(item.path)}`),
+      ...item, trash: path.join(trashDir, `${stamp}-${index}.derived-${path.basename(item.path)}`),
     })) };
     // 先持久化原地址映射；中断时仍可按映射找回已经移动的文件。
     const manifestFile = path.join(DATA_DIR, 'cleanup-media', stamp + '.json');

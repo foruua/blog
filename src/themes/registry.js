@@ -247,7 +247,8 @@ export function createThemeRegistry({
     try { entries = root ? fs.readdirSync(root, { withFileTypes: true }) : []; } catch { /* 首次部署时目录可能还不存在 */ }
     // SIGKILL 窗口会遗留安装/替换的临时目录与上传中的 ZIP（finally 不执行）；
     // registry/backup 都特意跳过它们，但此前没有清理路径——趁扫描顺带清掉超龄孤儿。
-    for (const entry of entries) {
+    // 只在强制扫描（启动/后台动作）时做：周期扫描跑在请求线程上，不该顺手做同步删除。
+    if (force) for (const entry of entries) {
       const stale = entry.isDirectory()
         ? /^(?:\.install-|\.replace-)/.test(entry.name)
         : /^\.upload-.*\.zip$/.test(entry.name);

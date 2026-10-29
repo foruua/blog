@@ -13,8 +13,9 @@ export const TRASH_DERIVED_RETENTION_DAYS = Number.isFinite(envDerivedDays) && e
 
 const STAMP_RE = /^(?:front-)?(\d{13})-/;
 
-/** 缩略图或响应式变体：与 src/media/variants.js 的命名保持一致（.thumb-v3.webp / .v4-w640.webp / 旧 .w640.webp）。 */
-const isTrashDerived = (name) => /\.thumb(?:-v\d+)?\.webp$/i.test(name) || /\.(?:v\d+-)?w\d+\.webp$/i.test(name);
+/** 缩略图或响应式变体：写入回收站时必须带 `.derived-` 标记（见 media 删除与 cleanup-media），
+ *  不能再靠文件名后缀猜——原图恰好叫 x.w640.webp 时会被误判成派生图、按 7 天销毁。 */
+const isTrashDerived = (name) => /\.derived-[^/]*\.webp$/i.test(name);
 
 /** 扫描回收站（不递归，与写入侧一致：文件都平铺在 .trash/<子目录> 下）。 */
 export function scanTrash(roots) {

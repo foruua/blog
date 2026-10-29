@@ -33,7 +33,7 @@ if ! test -f "$key"; then echo "找不到部署密钥：$key" >&2; exit 1; fi
 # 只在权限过宽时收紧；密钥在只读挂载上时 chmod 失败不应让整个部署挂掉（ssh 自己会拒绝过宽的私钥）。
 if ! chmod 600 "$key" 2>/dev/null; then
   cur_mode=$(stat -f '%Lp' "$key" 2>/dev/null || stat -c '%a' "$key" 2>/dev/null || echo '?')
-  echo "⚠ 无法收紧密钥权限（当前 $cur_mode）；若 ssh 拒绝该密钥请手动 chmod 600" >&2
+  echo "⚠ 无法收紧密钥权限（当前 ${cur_mode}）；若 ssh 拒绝该密钥请手动 chmod 600" >&2
 fi
 
 # 远端命令统一带这套 env：否则 deploy-release.sh 的 BLOG_DEPLOY_* 默认值会悄悄覆盖本地配置。

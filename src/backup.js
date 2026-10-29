@@ -172,7 +172,7 @@ export async function snapshot(db, { dir = DEFAULT_DIR, keep = DEFAULT_KEEP, lab
     if (total > MAX_BACKUP_BYTES || allFiles.some((f) => f.bytes > MAX_BACKUP_FILE_BYTES)) throw new Error('内容、附件与主题超过备份大小上限');
     db.exec(`VACUUM INTO ${sqlStr(tmpDb)}`); fs.chmodSync(tmpDb, 0o600);
     if (fs.statSync(tmpDb).size + total > MAX_BACKUP_BYTES) throw new Error('数据库、内容及附件总大小超过备份上限');
-    const missingFiles = []; const postFiles = {};
+    const missingFiles = []; const missingDerived = []; const postFiles = {};
     let counts, schemaVersion;
     const indexed = new DatabaseSync(tmpDb, { readOnly: true });
     try {
@@ -200,12 +200,14 @@ export async function snapshot(db, { dir = DEFAULT_DIR, keep = DEFAULT_KEEP, lab
         const relative = mediaPath.startsWith('/uploads/') ? mediaPath.slice(9) : null;
         if (!safeRelative(relative)) throw new Error('无效的附件路径');
         if (!uploadPaths.has(relative)) {
-          // 显式快照（手动/演练）保持严格；自动备份由 maybeAutoBackup 传 allowMissingFiles，
-          // 记入 missingFiles（complete=false），避免一个缺失派生文件让整轮备份永久失败。
+          // 区分「原图缺失」与「派生图缺失」：缩略图/响应式变体可由原图重建，缺了不该让整份备份
+          // 变成不可恢复（那会让健康检查永久告警、异地永不上传）。原图缺失或手动快照仍然严格失败。
           if (!allowMissingFiles) throw new Error(`附件缺失：${mediaPath}`);
-          missingFiles.push(`uploads/${relative}`);
+          if (mediaPath === row.path) missingFiles.push(`uploads/${relative}`);
+          else missingDerived.push(`uploads/${relative}`);
         }
       }
+      if (missingDerived.length) console.warn(JSON.stringify({ event: 'backup.missing-derived', count: missingDerived.length, sample: missingDerived.slice(0, 5) }));
     } finally { indexed.close(); }
     const database = await compress(fs.createReadStream(tmpDb), gzFile);
     // 一次只流一个文件：大文件（几十 MB）不再整块 readFile + base64 成两三份内存副本。
@@ -264,7 +266,7 @@ export async function snapshot(db, { dir = DEFAULT_DIR, keep = DEFAULT_KEEP, lab
     if (JSON.stringify(dirStamp(contentDir)) !== JSON.stringify(contentStamp) || JSON.stringify(dirStamp(uploadsDir)) !== JSON.stringify(uploadsStamp)
       || JSON.stringify(dirStamp(themesDir)) !== JSON.stringify(themesStamp)) throw new Error('备份期间内容文件发生变化，请重试');
     const manifest = { formatVersion: 2, complete: !missingFiles.length && !skippedLinks.length, verified: false,
-      missingFiles, skippedLinks,
+      missingFiles, missingDerived, skippedLinks,
       assetsName, assetsSha256: assets.sha256, assetsBytes: assets.bytes, assetFiles: allFiles.length, themeFiles: themeFiles.length,
       createdAt: new Date().toISOString(), label, dbBytes: database.bytes, gzBytes: fs.statSync(gzFile).size,
       sha256: database.sha256, schemaVersion, counts, sqliteVersion: sqliteVersion(db) };
@@ -554,16 +556,20 @@ export function verifyBackup(name, { dir = DEFAULT_DIR, workDir } = {}) {
   return { ok: reasons.length === 0, reasons, dbPath: out, bundle, manifest, bytes: rawBytes };
 }
 
-export async function maybeAutoBackup(db, { dir = DEFAULT_DIR, keep = DEFAULT_KEEP, minIntervalMs = 10 * 60 * 1000, maxBytes = 64 * 1024 * 1024 } = {}) {
+export async function maybeAutoBackup(db, { dir = DEFAULT_DIR, keep = DEFAULT_KEEP, minIntervalMs = 10 * 60 * 1000, maxBytes = 64 * 1024 * 1024, force = false } = {}) {
   const size = fs.existsSync(dbFileOf(db)) ? fs.statSync(dbFileOf(db)).size : 0;
   if (size > maxBytes) return { skipped: `数据库 ${(size / 1048576).toFixed(1)}MB 超过自动备份上限，请改用 cron` };
 
-  const last = latestRecoverableBackup(dir);
-  if (last) {
-    const age = Date.now() - Date.parse(last.createdAt);
-    if (age < minIntervalMs) return { skipped: `距上次备份仅 ${Math.round(age / 1000)}s，跳过` };
+  // force 用于失败重试：刚生成的本地备份会让下面的最小间隔把重试判成 skipped，之后只能等下一轮 6 小时。
+  if (!force) {
+    const last = latestRecoverableBackup(dir);
+    if (last) {
+      const age = Date.now() - Date.parse(last.createdAt);
+      if (age < minIntervalMs) return { skipped: `距上次备份仅 ${Math.round(age / 1000)}s，跳过` };
+    }
   }
-  // 自动备份容忍单个附件缺失（清单会标 complete=false），否则一个坏派生文件就让备份永久停摆。
+  // 自动备份容忍单个附件缺失：缺失的原图会标 complete=false；缺失的派生图只记入 missingDerived
+  // （可再生，不影响可恢复性）。否则一个坏派生文件就让备份永久停摆。
   // 自检放在 snapshot 之后、写队列之外（见 backup-worker.js）；在验证通过前先标 verified=false，不 prune。
   return { backup: await snapshot(db, { dir, keep, label: 'publish', allowMissingFiles: true, verify: false }) };
 }

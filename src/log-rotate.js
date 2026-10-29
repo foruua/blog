@@ -10,7 +10,16 @@ import { pipeline } from 'node:stream/promises';
 // copytruncate 的固有取舍（要零丢失得让进程配合 reopen，launchd 场景做不到）。
 
 const DEFAULT_LOG_DIR = path.join(os.homedir(), '.local/share/blog-hosting');
-const ROTATED_RE = /^(.*)-\d{8}-\d{6}-\d{3}Z\.log\.gz$/;
+// 同一毫秒内二次轮转时目标名会撞车，加 -N 后缀区分；prune 必须认这个可选后缀、仍归到同一组。
+const ROTATED_RE = /^(.*)-\d{8}-\d{6}-\d{3}Z(?:-\d+)?\.log\.gz$/;
+
+// 目标名只到毫秒：同毫秒二次轮转不能用同名覆盖（旧实现 'w' 会覆盖上一份再清空源日志，丢一段）。
+function uniqueTarget(dir, base) {
+  let target = path.join(dir, `${base}.log.gz`);
+  let n = 0;
+  while (fs.existsSync(target)) target = path.join(dir, `${base}-${++n}.log.gz`);
+  return target;
+}
 
 // 服务与 CLI 共用同一口径；path.resolve() 不展开 ~，这里补上。
 export function resolveLogDir(raw = process.env.BLOG_LOG_DIR) {
@@ -58,7 +67,7 @@ export function rotateLogs({
   for (const { name, file, size } of logFiles(dir)) {
     if (size < maxBytes) continue;
 
-    const target = path.join(dir, `${name.replace(/\.log$/, '')}-${stamp}.log.gz`);
+    const target = uniqueTarget(dir, `${name.replace(/\.log$/, '')}-${stamp}`);
     if (dryRun) { rotated.push({ name, size, target }); continue; }
     try {
       // CLI 的 dry-run 与同步兜底不跑在请求路径上：日志量级是 MB 级，读进内存再 gzip 足够。
@@ -85,7 +94,7 @@ export async function rotateLogsAsync({
   const rotated = [];
   for (const { name, file, size } of logFiles(dir)) {
     if (size < maxBytes) continue;
-    const target = path.join(dir, `${name.replace(/\.log$/, '')}-${stamp}.log.gz`);
+    const target = uniqueTarget(dir, `${name.replace(/\.log$/, '')}-${stamp}`);
     try {
       await pipeline(fs.createReadStream(file), zlib.createGzip({ level: 6 }), fs.createWriteStream(target, { mode: 0o600 }));
       fs.truncateSync(file, 0);

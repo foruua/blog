@@ -69,12 +69,15 @@ try {
   await test('派生图在回收站用更短保留期，原图仍按长保留期', () => {
     const trash = path.join(content, '.trash'); fs.mkdirSync(trash, { recursive: true });
     const old = Date.now() - 10 * 86400000;
-    const derivedOld = path.join(trash, `${old}-a.jpg.thumb-v3.webp`); fs.writeFileSync(derivedOld, 'x');
-    const derivedFresh = path.join(trash, `${Date.now()}-b.jpg.v4-w640.webp`); fs.writeFileSync(derivedFresh, 'x');
+    const derivedOld = path.join(trash, `${old}-a.jpg.derived-thumb.webp`); fs.writeFileSync(derivedOld, 'x');
+    const derivedFresh = path.join(trash, `${Date.now()}-b.jpg.derived-w640.webp`); fs.writeFileSync(derivedFresh, 'x');
     const originalOld = path.join(trash, `${old}-c.jpg`); fs.writeFileSync(originalOld, 'x');
+    // 原图恰好叫 x.w640.webp 时不能再被按派生图误删（旧实现只看后缀）。
+    const originalLooksDerived = path.join(trash, `${old}-d.jpg.w640.webp`); fs.writeFileSync(originalLooksDerived, 'x');
     const removed = pruneTrash([trash], { derivedMaxAgeMs: 7 * 86400000 });
     assert.deepEqual(new Set(removed), new Set([derivedOld]));
     assert.ok(fs.existsSync(derivedFresh)); assert.ok(fs.existsSync(originalOld));
+    assert.ok(fs.existsSync(originalLooksDerived));
   });
   await test('固定页旧地址重定向；别名目标为草稿或未来发布时返回 404', async () => {
     const page = repo.getPost('fixture-page', 'page');

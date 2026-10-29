@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { getConnInfo } from '@hono/node-server/conninfo';
 import { SITE, MAX_THEME_ZIP } from '../config.js';
+import { envPositive } from './env.js';
 
 // 真实客户端 IP：仅当 TRUST_PROXY 且直连对端是受信任代理时，才取 X-Forwarded-For 链尾。
 const TRUST_PROXY = process.env.TRUST_PROXY === 'true';
@@ -107,14 +108,10 @@ export const pickEncoding = (header, candidates) => candidates.find((name) => ac
 
 // 单文件上传上限：默认不限制（MAX_UPLOAD_BYTES 设为正数可恢复上限）。Infinity 参与
 // `size > MAX_UPLOAD`、`limit + 65536` 这类比较时恒为 false，各检查点自动放行。
-export const MAX_UPLOAD = Number(process.env.MAX_UPLOAD_BYTES) > 0
-  ? Math.max(1024, Number(process.env.MAX_UPLOAD_BYTES))
-  : Infinity;
+export const MAX_UPLOAD = Math.max(1024, envPositive(process.env.MAX_UPLOAD_BYTES, Infinity, 'MAX_UPLOAD_BYTES'));
 // 旧 multipart 路径会把整个请求体读进内存（只有 raw 路径才流式落临时文件）。即便它要求登录，
 // 也不该默认无上限：单独给一个保守上限，需要更大就显式配 MAX_MULTIPART_UPLOAD_BYTES。
-export const MAX_MULTIPART_UPLOAD = Number(process.env.MAX_MULTIPART_UPLOAD_BYTES) > 0
-  ? Math.max(1024, Number(process.env.MAX_MULTIPART_UPLOAD_BYTES))
-  : 32 * 1024 * 1024;
+export const MAX_MULTIPART_UPLOAD = Math.max(1024, envPositive(process.env.MAX_MULTIPART_UPLOAD_BYTES, 32 * 1024 * 1024, 'MAX_MULTIPART_UPLOAD_BYTES'));
 const WRITE = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 // 上传是少数会把整个请求体读进内存的路径。除了单请求上限，还要限制同时在飞的数量：

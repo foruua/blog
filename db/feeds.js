@@ -208,6 +208,8 @@ export function createFeedRepo(db) {
       const changed = feedId == null ? q.clearAllItems.run().changes : q.clearItemsOf.run(Number(feedId)).changes;
       if (feedId == null) q.bumpAllVersions.run();
       else q.bumpVersion.run(Number(feedId));
+      // feeds.version 不在 044 修订号触发器的 WHEN 里：清空条目必须自己 bump，否则缓存继续展示旧条目。
+      q.bumpContentRevision.run();
       return changed;
     }),
     transaction: tx,

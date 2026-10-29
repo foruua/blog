@@ -253,10 +253,11 @@ export function registerMediaRoutes(app, { repo, adminRepo, mutate = (fn) => fn(
     const thumbnail = item.thumbnail ? mediaFile(item.thumbnail) : null;
     const trash = path.join(mediaTrashDir, `${Date.now()}-${path.basename(abs)}`);
     // 变体与缩略图是可再生的派生物，跟原图一起进回收站，别在 uploads 里留孤儿文件。
-    const variants = parseVariants(item.variants).map((v, i) => ({ file: mediaFile(v.path), trash: `${trash}.w${i + 1}.webp` }));
+    // 派生图用 `.derived-` 标记，回收站才能按短保留期销毁，而不误伤恰好同名的原图。
+    const variants = parseVariants(item.variants).map((v, i) => ({ file: mediaFile(v.path), trash: `${trash}.derived-w${i + 1}.webp` }));
     return deleteWithFiles({ repo, files: [
       { file: abs, trash },
-      ...(thumbnail ? [{ file: thumbnail, trash: trash + '.thumb.webp' }] : []),
+      ...(thumbnail ? [{ file: thumbnail, trash: trash + '.derived-thumb.webp' }] : []),
       ...variants,
     ], remove: () => adminRepo.mediaDelete(item.id) });
   }

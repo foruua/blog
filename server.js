@@ -347,7 +347,7 @@ app.use('*', async (c, next) => {
 
 
 // 匿名 HTML 缓存 / 弱 ETag / 自带 br+gzip 统一在 src/http/html-cache.js。
-const htmlCache = createHtmlCache({ repo, themes, isImmutableAsset: isImmutablePath });
+const htmlCache = createHtmlCache({ repo, isImmutableAsset: isImmutablePath });
 app.use('*', htmlCache.middleware);
 
 // 后台写请求在鉴权守卫之前整块读入请求体：先挡掉未登录请求，避免匿名客户端用大请求体
