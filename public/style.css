@@ -647,7 +647,7 @@ body.mnav-open .mnav-panel { transform: none; opacity: 1; }
   .hero-tools { margin-inline: .14rem; gap: 1.67rem; }
 }
 
-/* 最近更新：封面里的一块浅色铭牌 */
+/* 最近更新：封面里的一块浅色铭牌（404 页的「最近更新」也用这一套） */
 .recent {
   width:100%;
   max-width:var(--measure-wide);
@@ -655,6 +655,22 @@ body.mnav-open .mnav-panel { transform: none; opacity: 1; }
   text-align:left;
   -webkit-backdrop-filter:blur(8px);
   backdrop-filter:blur(8px);
+  background: var(--card-bg);
+  border: 1px solid var(--card-bd);
+  box-shadow: var(--card-sh);
+  border-radius: var(--radius-lg);
+  padding: clamp(1.2rem, 2.8vw, 1.9rem) clamp(1.2rem, 2.8vw, 1.9rem) clamp(1rem, 2.2vw, 1.35rem);
+}
+/* 首页：纸面版式（默认）直接落在纸上，不套铭牌；素匣版式再把铭牌加回来。
+   两块只差容器：行、标题、链接都走同一套设计。 */
+body[data-page="home"] .recent {
+  background: none; border: 0; box-shadow: none;
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+  padding: 0;
+}
+html[data-layout="box"] body[data-page="home"] .recent {
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
   background: var(--card-bg);
   border: 1px solid var(--card-bd);
   box-shadow: var(--card-sh);
@@ -672,7 +688,38 @@ body.mnav-open .mnav-panel { transform: none; opacity: 1; }
   color: var(--accent);
 }
 .recent-head::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, var(--accent-line), transparent); }
+/* 首页标题行：标签 · 金色渐隐线 · 总篇数；线由元素画，不用 ::after（总数要排在线的右边）。 */
+body[data-page="home"] .recent-head::after { display: none; }
+.recent-head .recent-line { flex: 1; height: 2px; border-radius: 1px; background: var(--mark); }
+.recent-head .recent-num { font: 11.5px/1 var(--mono); letter-spacing: .08em; color: var(--muted-soft); white-space: nowrap; }
+/* 首页行：悬停不铺底色，左缘长出一根 2px 金线；文字色仍走 .entries 那条。 */
+body[data-page="home"] .recent .entries a { position: relative; }
+body[data-page="home"] .recent .entries a::before {
+  content: ""; position: absolute; left: 0; top: .3rem; bottom: .3rem; width: 2px;
+  background: var(--accent); transform: scaleY(0); transform-origin: 50% 0;
+  transition: transform var(--dur-3) var(--ease);
+}
+body[data-page="home"] .recent .entries a:hover { background: transparent; }
+body[data-page="home"] .recent .entries a:hover::before { transform: scaleY(1); }
+/* 首页「全部 25 篇」：右下角的文字链接，不是居中 pill。 */
 .recent .pager-more { margin-top: clamp(1.2rem, 2.6vw, 1.8rem); }
+body[data-page="home"] .recent .pager-more { margin: .95rem 0 0; padding-inline: .2rem; justify-content: flex-end; }
+body[data-page="home"] .recent .pager-more a {
+  position: relative;
+  /* 命中区补到 24px+（WCAG 2.5.8）：上下 .45rem，负外边距抵消，版面不变；下划线改由 ::after 画在文字底下 */
+  padding: .45rem 0; margin: -.45rem 0;
+  border: 0; border-radius: 0; background: none; box-shadow: none;
+  font: var(--label-size)/1.4 var(--mono); letter-spacing: var(--label-track);
+  text-transform: none; color: var(--muted-soft);
+}
+body[data-page="home"] .recent .pager-more a::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: .4rem; height: 1px;
+  background: var(--rule); transition: background var(--dur-2) var(--ease);
+}
+body[data-page="home"] .recent .pager-more a:hover { color: var(--accent-read); background: none; box-shadow: none; }
+body[data-page="home"] .recent .pager-more a:hover::after { background: var(--accent); }
+body[data-page="home"] .recent .pager-more .recent-arrow { display: inline-block; transition: transform var(--dur-2) var(--ease); }
+body[data-page="home"] .recent .pager-more a:hover .recent-arrow { transform: translateX(3px); }
 /* 首页账本标题只占一行（点线只有单行才成立，放不下就省略号）。标题要是块级 flex item （见 ledgerItem 的 .e-title-text），min-width:0 让它在 minmax(0,1fr) 列里能缩下去。 */
 .recent .e-title { min-width: 0; }
 .recent .e-title-text { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
@@ -2483,9 +2530,11 @@ mark {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }
-  /* 模糊撤了就得自己站住：浮层与卡片换成实底，遮罩加深到"挡得住底下的字"。 */
+  /* 模糊撤了就得自己站住：浮层与卡片换成实底，遮罩加深到"挡得住底下的字"。
+     .recent 只有带铭牌时才需要实底：404 那块恒有铭牌；首页只在素匣版式才有。 */
   #toast { background-color: var(--bg-elev); }
-  .recent { background-color: var(--bg-elev); }
+  .recent-404 { background-color: var(--bg-elev); }
+  html[data-layout="box"] body[data-page="home"] .recent { background-color: var(--bg-elev); }
   /* 页头是正文的滚动背景，只去掉模糊就成了"隔着 7% 的纸看字"——必须换成实底。 */
   header.site { background-color: var(--bg); }
   .lb-close, .lb-nav, .lb-zoom { background-color: rgba(20, 20, 22, .92); }

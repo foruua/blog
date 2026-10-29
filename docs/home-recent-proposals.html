@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>首页「最近更新」方案 · uua.me</title>
+<style>
+  /* 从 public/base.css 摘出的令牌与基底（单文件打开也不掉样式） */
+  :root {
+    --measure-wide: 52rem; --radius-hair: 2px; --radius: 9px; --radius-lg: 14px; --radius-pill: 999px;
+    --sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB",
+            "Source Han Sans SC", "Noto Sans CJK SC", "Noto Sans SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+    --display: "Songti SC", "Source Han Serif SC", "Noto Serif CJK SC", "Noto Serif SC", "Songti TC", "STSong", "SimSun", Georgia, "Times New Roman", serif;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", "JetBrains Mono", Menlo, Consolas, "Liberation Mono",
+            "PingFang SC", "Hiragino Sans GB", "Source Han Sans SC", "Noto Sans CJK SC", "Noto Sans SC", "Microsoft YaHei", monospace;
+    --body-size: 1.0625rem; --body-leading: 1.82;
+    --info-size: .8125rem; --info-track: .04em;
+    --label-size: .75rem; --label-size-lg: .8rem; --label-track: .16em; --label-track-mark: .38em;
+    --dur-1: .2s; --dur-2: .25s; --dur-3: .3s; --ease: cubic-bezier(.2, .7, .3, 1);
+    --shadow-sm: 0 1px 2px rgba(30, 26, 16, .04), 0 2px 8px -4px rgba(30, 26, 16, .08);
+    --shadow-md: 0 2px 6px -2px rgba(30, 26, 16, .07), 0 14px 30px -18px rgba(30, 26, 16, .22);
+    --bg: #f8f8f8; --bg-soft: #eeeeee; --bg-elev: #fefefe;
+    --fg: #17160f; --fg-soft: #433f37; --muted: #6b665d; --muted-soft: #736e65;
+    --rule: rgba(23, 22, 15, .10); --rule-strong: rgba(23, 22, 15, .24);
+    --accent: #926922; --accent-soft: rgba(146, 105, 34, .10); --accent-line: rgba(146, 105, 34, .34);
+    --accent-read: color-mix(in srgb, var(--accent) 82%, var(--fg));
+    --card-bg: color-mix(in srgb, var(--bg-elev) 76%, transparent);
+    --card-bd: var(--rule);
+    --card-sh: 0 1px 1px rgba(30, 26, 16, .05), 0 2px 7px -3px rgba(30, 26, 16, .14);
+    color-scheme: light;
+  }
+  html[data-theme="dark"] {
+    --bg: #1a1a1a; --bg-soft: #242424; --bg-elev: #202020;
+    --fg: #f4f2ec; --fg-soft: #c6c3b9; --muted: #a09c93; --muted-soft: #908d85;
+    --rule: rgba(244, 242, 236, .12); --rule-strong: rgba(244, 242, 236, .26);
+    --accent: #dcb066; --accent-soft: rgba(220, 176, 102, .13); --accent-line: rgba(220, 176, 102, .36);
+    --accent-read: color-mix(in srgb, var(--accent) 82%, var(--fg));
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, .5);
+    --shadow-md: 0 2px 8px -2px rgba(0, 0, 0, .6), 0 18px 36px -22px rgba(0, 0, 0, .8);
+    --card-bg: color-mix(in srgb, var(--bg-elev) 92%, transparent);
+    --card-sh: 0 1px 1px rgba(0, 0, 0, .55), 0 2px 7px -3px rgba(0, 0, 0, .6);
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; background: var(--bg); }
+  body { margin: 0; color: var(--fg); font: var(--body-size) / var(--body-leading) var(--sans); font-kerning: normal; -webkit-font-smoothing: antialiased; background-color: var(--bg); }
+  ::selection { background: color-mix(in srgb, var(--accent) 24%, transparent); color: var(--fg); }
+  a { color: inherit; text-decoration: none; }
+  img { max-width: 100%; height: auto; }
+
+  /* —— 预览页自身 —— */
+  .pv-head { max-width: 52rem; margin: 0 auto; padding: 3rem 24px 0; }
+  .pv-kicker { font-family: var(--mono); font-size: .72rem; letter-spacing: .18em; color: var(--accent); }
+  .pv-head h1 { font-family: var(--display); font-size: clamp(1.6rem, 3vw, 2rem); letter-spacing: .02em; margin: .5rem 0 .6rem; }
+  .pv-head p { color: var(--muted); font-size: .95rem; max-width: 40rem; margin: 0; }
+  .pv-nav { display: flex; flex-wrap: wrap; gap: .5rem; margin: 1.2rem 0 0; }
+  .pv-nav a { font-family: var(--mono); font-size: .75rem; letter-spacing: .05em; padding: .3rem .7rem; border: 1px solid var(--rule-strong); border-radius: var(--radius-pill); color: var(--muted); }
+  .pv-nav a:hover { color: var(--accent); border-color: var(--accent); }
+  .pv-theme { position: fixed; right: 1rem; top: 1rem; z-index: 5; font-family: var(--mono); font-size: .72rem; padding: .35rem .7rem; border: 1px solid var(--rule-strong); border-radius: var(--radius-pill); background: var(--bg-elev); color: var(--muted); cursor: pointer; }
+  .pv-theme:hover { color: var(--accent); border-color: var(--accent); }
+
+  .demo { max-width: 76rem; margin: 0 auto; padding: 0 24px; }
+  .proposal { margin: 3.2rem 0 0; }
+  .proposal-head { display: flex; align-items: baseline; gap: .8rem; flex-wrap: wrap; border-top: 1px solid var(--rule); padding-top: 1.2rem; }
+  .proposal-head h2 { font-family: var(--display); font-size: 1.35rem; letter-spacing: .03em; margin: 0; }
+  .proposal-head .tag { font-family: var(--mono); font-size: .7rem; letter-spacing: .12em; color: var(--muted-soft); border: 1px solid var(--rule); padding: .16rem .45rem; border-radius: var(--radius-hair); }
+  .proposal-head .idea { color: var(--muted); font-size: .92rem; margin: 0; flex-basis: 100%; }
+  .notes { display: flex; flex-wrap: wrap; gap: .35rem .5rem; margin: 1rem 0 1.4rem; padding: 0; }
+  .notes li { list-style: none; font-size: .78rem; color: var(--fg-soft); background: var(--accent-soft); border: 1px solid var(--accent-line); border-radius: var(--radius-pill); padding: .28rem .7rem; }
+
+  .cols { display: flex; flex-wrap: wrap; gap: 1.6rem; align-items: flex-start; }
+  .stage-shell { flex: 1 1 560px; min-width: 0; }
+  .stage-label { font-family: var(--mono); font-size: .7rem; letter-spacing: .14em; color: var(--muted-soft); margin: 0 0 .45rem .2rem; }
+  .stage { background: var(--bg); border: 1px solid var(--rule); border-radius: var(--radius-lg); padding: 1.6rem 24px; overflow: hidden; }
+  .phone-shell { flex: 0 0 390px; }
+  .phone { width: 390px; background: var(--bg); border: 1px solid var(--rule-strong); border-radius: 22px; padding: 0 24px 1.1rem; overflow: hidden; box-shadow: var(--shadow-md); margin-bottom: 1rem; }
+  .phone-bar { display: flex; justify-content: center; padding: .55rem 0 .2rem; }
+  .phone-bar span { width: 4.5rem; height: 4px; border-radius: 999px; background: var(--rule-strong); }
+  .phone-stage { padding-top: .8rem; }
+
+  /* —— 公共：区块头、行、标题、类型 —— */
+  .rh { display: flex; align-items: center; gap: .7rem; padding-inline: .6rem; margin: 0 0 1rem;
+        font: var(--label-size)/1 var(--mono); letter-spacing: var(--label-track-mark); text-transform: uppercase; color: var(--accent); }
+  .rh .line { flex: 1; height: 1px; background: linear-gradient(90deg, var(--accent-line), transparent); }
+  .rh .num { font: 11.5px/1 var(--mono); letter-spacing: .08em; color: var(--muted-soft); white-space: nowrap; }
+
+  .row { display: grid; grid-template-columns: 4.6em minmax(0, 1fr) auto; align-items: baseline; gap: 0 1.1rem; }
+  .row time { font: var(--info-size)/1.75 var(--mono); letter-spacing: var(--info-track); font-variant-numeric: tabular-nums; color: var(--muted); transition: color var(--dur-2) var(--ease); }
+  .rtitle { display: flex; align-items: baseline; gap: .8rem; min-width: 0; font-size: 1rem; color: var(--fg-soft); transition: color var(--dur-2) var(--ease); }
+  .rtitle span { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .rtitle::after { content: ""; flex: 1; min-width: 1.5rem; border-bottom: 1px dotted var(--rule-strong); opacity: .55; transform: translateY(-.28em); }
+  .rkind { font: var(--info-size)/1.75 var(--mono); letter-spacing: var(--info-track); color: var(--muted); white-space: nowrap; transition: color var(--dur-2) var(--ease); }
+  .list { list-style: none; margin: 0; padding: 0; }
+  .list li { border-top: 1px solid var(--rule); }
+  .list li:last-child { border-bottom: 1px solid var(--rule); }
+  .more { display: flex; justify-content: flex-end; padding: .95rem .2rem 0; }
+  .more a { font: var(--label-size)/1.4 var(--mono); letter-spacing: var(--label-track); color: var(--muted-soft); padding-bottom: .3rem; border-bottom: 1px solid var(--rule); transition: color var(--dur-2) var(--ease), border-color var(--dur-2) var(--ease); }
+  .more a:hover { color: var(--accent-read); border-color: var(--accent); }
+  .more b { font-weight: 400; display: inline-block; margin-left: .45em; transition: transform var(--dur-2) var(--ease); }
+  .more a:hover b { transform: translateX(3px); }
+
+  /* A 目录：无框、行线、右下文字链接 */
+  .ra .row { position: relative; padding: .58rem .2rem .58rem .7rem; }
+  .ra .row::before { content: ""; position: absolute; left: 0; top: .3rem; bottom: .3rem; width: 2px; background: var(--accent); transform: scaleY(0); transform-origin: 50% 0; transition: transform var(--dur-3) var(--ease); }
+  .ra .row:hover::before { transform: scaleY(1); }
+  .ra .row:hover .rtitle { color: var(--accent-read); }
+  .ra .row:hover time { color: var(--fg-soft); }
+
+  /* B 时间轴：左侧竖轴 + 节点，行间不画线 */
+  .rb .rh { padding-left: 2.15rem; }
+  .rb .list { position: relative; }
+  .rb .list li { border: 0; position: relative; }
+  .rb .list::before { content: ""; position: absolute; left: .55rem; top: .25rem; bottom: 1.15rem; width: 1px;
+                      background: linear-gradient(180deg, var(--rule-strong), var(--rule-strong) 86%, transparent); opacity: .85; }
+  .rb .list li::before { content: ""; position: absolute; left: .55rem; top: 1.02rem; width: 7px; height: 7px; border-radius: 50%;
+                         transform: translate(-50%, -50%); background: var(--bg); border: 1px solid var(--accent-line);
+                         transition: background var(--dur-2) var(--ease), border-color var(--dur-2) var(--ease); }
+  .rb .row { grid-template-columns: 4.3em minmax(0, 1fr) auto; padding: .52rem 0 .52rem 2.15rem; }
+  .rb .list li:hover::before { background: var(--accent); border-color: var(--accent); }
+  .rb .list li:hover .rtitle { color: var(--accent-read); }
+  .rb .list li:hover time { color: var(--fg-soft); }
+
+  /* C 分卷：笔记 / 文章两栏，中缝一条竖线 */
+  .rc .split { display: grid; grid-template-columns: 1fr 1fr; gap: 0 2.6rem; position: relative; }
+  .rc .split::before { content: ""; position: absolute; left: 50%; top: .35rem; bottom: .35rem; width: 1px; background: var(--rule); }
+  .rc .col { min-width: 0; }
+  .rc .ch { display: flex; align-items: baseline; gap: .55rem; padding: .1rem 0 .7rem;
+            font: var(--label-size)/1 var(--mono); letter-spacing: .18em; color: var(--fg-soft); }
+  .rc .ch b { font-family: var(--display); font-size: 1rem; font-weight: 700; color: var(--accent); letter-spacing: .02em; }
+  .rc .ch span { margin-left: auto; font: 11.5px/1 var(--mono); letter-spacing: .06em; color: var(--muted-soft); }
+  .rc .row { grid-template-columns: 3.5em minmax(0, 1fr); gap: 0 .7rem; padding: .46rem .1rem; }
+  .rc .rtitle { font-size: .95rem; }
+  .rc .rtitle::after { display: none; }
+  .rc .list li:hover .rtitle { color: var(--accent-read); }
+  .rc .list li:hover time { color: var(--fg-soft); }
+
+  /* D 登记册：铭牌 + 金色两位序号 */
+  .rd { background: var(--card-bg); border: 1px solid var(--card-bd); border-radius: var(--radius-lg);
+        box-shadow: var(--card-sh); padding: clamp(1.2rem, 2.8vw, 1.9rem) clamp(1.2rem, 2.8vw, 1.9rem) clamp(1rem, 2.2vw, 1.35rem); }
+  .rd .row { grid-template-columns: 2.3rem 4em minmax(0, 1fr) auto; gap: 0 .9rem; padding: .56rem .1rem; }
+  .rd .idx { font: 11.5px/1.75 var(--mono); letter-spacing: .06em; font-variant-numeric: tabular-nums; color: var(--accent); opacity: .8; transition: opacity var(--dur-2) var(--ease); }
+  .rd .list li:hover .row { background: var(--accent-soft); }
+  .rd .list li:hover .idx { opacity: 1; }
+  .rd .list li:hover .rtitle { color: var(--accent-read); }
+  .rd .list li:hover time { color: var(--fg-soft); }
+  .rd .more { margin: clamp(1.1rem, 2.4vw, 1.5rem) 0 0; display: flex; justify-content: center; padding-top: 0; }
+  .rd .more a { display: inline-flex; align-items: center; gap: .55rem; padding: .68rem 1.4rem; border-bottom: 0;
+                font: var(--label-size-lg)/1.4 var(--mono); letter-spacing: var(--label-track); text-transform: uppercase; color: var(--fg-soft);
+                border: 1px solid var(--rule-strong); border-radius: var(--radius-pill); background: color-mix(in srgb, var(--bg-elev) 50%, transparent);
+                transition: color var(--dur-3) var(--ease), border-color var(--dur-3) var(--ease), background var(--dur-3) var(--ease), box-shadow var(--dur-3) var(--ease); }
+  .rd .more a:hover { color: var(--accent-read); border-color: var(--accent); background: var(--accent-soft); box-shadow: var(--shadow-sm); }
+
+  /* 现状：保留原有铭牌与 pill */
+  .rn { background: var(--card-bg); border: 1px solid var(--card-bd); border-radius: var(--radius-lg); box-shadow: var(--card-sh);
+        padding: clamp(1.2rem, 2.8vw, 1.9rem) clamp(1.2rem, 2.8vw, 1.9rem) clamp(1rem, 2.2vw, 1.35rem); }
+  .rn .row { padding: .58rem .6rem; transition: background var(--dur-3) var(--ease); }
+  .rn .list li:hover .row { background: var(--accent-soft); }
+  .rn .list li:hover .rtitle { color: var(--accent-read); }
+  .rn .more { margin: clamp(1.1rem, 2.4vw, 1.5rem) 0 0; display: flex; justify-content: center; padding-top: 0; }
+  .rn .more a { display: inline-flex; align-items: center; gap: .55rem; padding: .68rem 1.4rem; border-bottom: 0;
+                font: var(--label-size-lg)/1.4 var(--mono); letter-spacing: var(--label-track); text-transform: uppercase; color: var(--fg-soft);
+                border: 1px solid var(--rule-strong); border-radius: var(--radius-pill); background: color-mix(in srgb, var(--bg-elev) 50%, transparent); }
+
+  /* 手机容器：窄屏规则要作用到克隆进 .phone-stage 的内容（媒体查询按视口走，管不到容器） */
+  .phone-stage .rtitle::after { display: none; }
+  .phone-stage .rtitle { display: block; }
+  .phone-stage .rtitle span { white-space: normal; overflow: visible; text-overflow: clip;
+                              display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-height: 1.6; }
+  .phone-stage .row { grid-template-columns: minmax(0, 1fr) auto; gap: .3rem .8rem; }
+  .phone-stage .rtitle { grid-column: 1 / -1; grid-row: 1; }
+  .phone-stage .row time { grid-column: 1; grid-row: 2; }
+  .phone-stage .row .rkind { grid-column: 2; grid-row: 2; }
+  /* 登记册：手机上序号占左窄列，标题跨到右端，日期与类型落到第二行 */
+  .phone-stage .rd .row { grid-template-columns: 1.8rem minmax(0, 1fr) auto; }
+  .phone-stage .rd .idx { grid-column: 1; grid-row: 1; }
+  .phone-stage .rd .rtitle { grid-column: 2 / -1; grid-row: 1; }
+  .phone-stage .rd .row time { grid-column: 2; grid-row: 2; }
+  .phone-stage .rd .row .rkind { grid-column: 3; grid-row: 2; }
+  /* 分卷：手机上落成一卷 */
+  .phone-stage .split { grid-template-columns: 1fr; gap: 1.4rem 0; }
+  .phone-stage .split::before { display: none; }
+
+  @media (max-width: 720px) {
+    .phone-shell { display: none; }
+    .rc .split { grid-template-columns: 1fr; gap: 1.4rem 0; }
+    .rc .split::before { display: none; }
+  }
+
+  .pv-foot { max-width: 52rem; margin: 3.6rem auto 4rem; padding: 1.6rem 24px 0; border-top: 1px solid var(--rule); color: var(--muted); font-size: .85rem; }
+</style>
+</head>
+<body>
+<button class="pv-theme" type="button" id="themeBtn">切换纸面</button>
+
+<header class="pv-head">
+  <span class="pv-kicker">RECENT UPDATES · 2026</span>
+  <h1>首页「最近更新」的四个方向</h1>
+  <p>同一批条目（10 条 / 共 25 篇），四种读法：目录、时间轴、分卷、登记册。都只用现有令牌——纸面、细界、一处金；差别在容器、轴线和信息怎么分层。</p>
+  <nav class="pv-nav">
+    <a href="#a">A · 目录</a><a href="#b">B · 时间轴</a><a href="#c">C · 分卷</a><a href="#d">D · 登记册</a><a href="#now">现状对照</a>
+  </nav>
+</header>
+
+<div class="demo">
+
+  <!-- A -->
+  <section class="proposal" id="a">
+    <div class="proposal-head">
+      <h2>A · 目录</h2><span class="tag">无框</span>
+      <p class="idea">拿掉铭牌，让这块直接落在纸上：标题一行、行间细线、右下角一枚文字链接。最安静的一版。</p>
+    </div>
+    <ul class="notes">
+      <li>不套卡片：少一层边与影，和正文同一张纸</li>
+      <li>行悬停时左缘长出一根 2px 金线，不铺底色</li>
+      <li>标题到类型保留点线（book contents 的手感）</li>
+      <li>「全部 25 篇」收成右下角文字链接</li>
+    </ul>
+    <div class="cols">
+      <div class="stage-shell">
+        <p class="stage-label">DESKTOP · 全宽</p>
+        <div class="stage">
+          <section class="ra">
+            <div class="rh"><span>最近更新</span><span class="line"></span><span class="num">25 篇</span></div>
+            <ul class="list">
+              <li><div class="row"><time>昨天</time><span class="rtitle"><span>赶场胖东来超市</span></span><span class="rkind">笔记</span></div></li>
+              <li><div class="row"><time>昨天</time><span class="rtitle"><span>早餐胡辣汤</span></span><span class="rkind">笔记</span></div></li>
+              <li><div class="row"><time>前天</time><span class="rtitle"><span>兔兔真可爱，吃了吧</span></span><span class="rkind">笔记</span></div></li>
+              <li><div class="row"><time>3 天前</time><span class="rtitle"><span>网红菜之橘子炒蛋</span></span><span class="rkind">笔记</span></div></li>
+              <li><div class="row"><time>5 天前</time><span class="rtitle"><span>备案成功网站速度起飞</span></span><span class="rkind">笔记</span></div></li>
+              <li><div class="row"><time>7 天前</time><span class="rtitle"><span>一轮又一轮的 AI 审计</span></span><span class="rkind">文章</span></div></li>
+              <li><div class="row"><time>13 天前</time><span class="rtitle"><span>学校门口停车之争</span></span><span class="rkind">笔记</span></div></li>
+              <li><div class="row"><time>13 天前</time><span class="rtitle"><span>自用软件之夸克网盘</span></span><span class="rkind">文章</span></div></li>
+              <li><div class="row"><time>14 天前</time><span class="rtitle"><span>文章和笔记列表把我改吐了</span></span><span class="rkind">笔记</span></div></li>
+              <li><div class="row"><time>16 天前</time><span class="rtitle"><span>喜新厌旧之网站配色</span></span><span class="rkind">文章</span></div></li>
+            </ul>
+            <div class="more"><a href="#">全部 25 篇<b>→</b></a></div>
+          </section>
+        </div>
+      </div>
+      <div class="phone-shell">
+        <p class="stage-label">PHONE · 390px</p>
+        <div class="phone"><div class="phone-bar"><span></span></div><div class="phone-stage"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- B -->
+  <section class="proposal" id="b">
+    <div class="proposal-head">
+      <h2>B · 时间轴</h2><span class="tag">一条轴</span>
+      <p class="idea">左侧一条竖轴贯穿十行，行首是节点。行间不再画线，靠轴把条目串起来。</p>
+    </div>
+    <ul class="notes">
+      <li>竖轴从首行延到末行，末端渐隐收住</li>
+      <li>节点默认空心细金，悬停填金</li>
+      <li>去掉逐行横线，留白换成轴线的节奏</li>
+      <li>标题仍带点线，只在宽屏出现</li>
+    </ul>
+    <div class="cols">
+      <div class="stage-shell">
+        <p class="stage-label">DESKTOP · 全宽</p>
+        <div class="stage">
+          <section class="rb">
+            <div class="rh"><span>最近更新</span><span class="line"></span><span class="num">25 篇</span></div>
+            <ul class="list">
+              <li><div class="row"><time>昨天</time><span class="rtitle"><span>赶场胖东来超市</span></span><span class="rkind">笔记</span></div></li>
+              <li><div class="row"><time>昨天</time><span class="rtitle"><span>早餐胡辣汤</span></span><span class="rkind">笔记</span></div></li>
+              <li><div class="row"><time>前天</time><span class="rtitle"><span>兔兔真可爱，吃了吧</span></span><span class="rkind">笔记</span></div></li>
+              <li><div class="row"><time>3 天前</time><span class="rtitle"><span>网红菜之橘子炒蛋</span></span><span class="rkind">笔记</span></div></li>
+              <li><div class="row"><time>5 天前</time><span class="rtitle"><span>备案成功网站速度起飞</span></span><span class="rkind">笔记</span></div></li>
+              <li><div class="row"><time>7 天前</time><span class="rtitle"><span>一轮又一轮的 AI 审计</span></span><span class="rkind">文章</span></div></li>
+              <li><div class="row"><time>13 天前</time><span class="rtitle"><span>学校门口停车之争</span></span><span class="rkind">笔记</span></div></li>
+              <li><div class="row"><time>13 天前</time><span class="rtitle"><span>自用软件之夸克网盘</span></span><span class="rkind">文章</span></div></li>
+              <li><div class="row"><time>14 天前</time><span class="rtitle"><span>文章和笔记列表把我改吐了</span></span><span class="rkind">笔记</span></div></li>
+              <li><div class="row"><time>16 天前</time><span class="rtitle"><span>喜新厌旧之网站配色</span></span><span class="rkind">文章</span></div></li>
+            </ul>
+            <div class="more"><a href="#">全部 25 篇<b>→</b></a></div>
+          </section>
+        </div>
+      </div>
+      <div class="phone-shell">
+        <p class="stage-label">PHONE · 390px</p>
+        <div class="phone"><div class="phone-bar"><span></span></div><div class="phone-stage"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- C -->
+  <section class="proposal" id="c">
+    <div class="proposal-head">
+      <h2>C · 分卷</h2><span class="tag">两栏</span>
+      <p class="idea">笔记与文章分两卷排，中缝一条竖线。一眼看出最近在写什么、记什么。</p>
+    </div>
+    <ul class="notes">
+      <li>左「笔记」、右「文章」，各带条数</li>
+      <li>中缝一条 1px 竖线，上下各让 0.35rem</li>
+      <li>栏内仍用细线分行，标题不再画点线</li>
+      <li>窄屏落成上下两卷，中缝不画</li>
+    </ul>
+    <div class="cols">
+      <div class="stage-shell">
+        <p class="stage-label">DESKTOP · 全宽</p>
+        <div class="stage">
+          <section class="rc">
+            <div class="rh"><span>最近更新</span><span class="line"></span><span class="num">25 篇</span></div>
+            <div class="split">
+              <div class="col">
+                <div class="ch"><b>笔记</b><span>6 条</span></div>
+                <ul class="list">
+                  <li><div class="row"><time>昨天</time><span class="rtitle"><span>赶场胖东来超市</span></span></div></li>
+                  <li><div class="row"><time>昨天</time><span class="rtitle"><span>早餐胡辣汤</span></span></div></li>
+                  <li><div class="row"><time>前天</time><span class="rtitle"><span>兔兔真可爱，吃了吧</span></span></div></li>
+                  <li><div class="row"><time>3 天前</time><span class="rtitle"><span>网红菜之橘子炒蛋</span></span></div></li>
+                  <li><div class="row"><time>5 天前</time><span class="rtitle"><span>备案成功网站速度起飞</span></span></div></li>
+                  <li><div class="row"><time>13 天前</time><span class="rtitle"><span>学校门口停车之争</span></span></div></li>
+                </ul>
+              </div>
+              <div class="col">
+                <div class="ch"><b>文章</b><span>4 条</span></div>
+                <ul class="list">
+                  <li><div class="row"><time>7 天前</time><span class="rtitle"><span>一轮又一轮的 AI 审计</span></span></div></li>
+                  <li><div class="row"><time>13 天前</time><span class="rtitle"><span>自用软件之夸克网盘</span></span></div></li>
+                  <li><div class="row"><time>14 天前</time><span class="rtitle"><span>文章和笔记列表把我改吐了</span></span></div></li>
+                  <li><div class="row"><time>16 天前</time><span class="rtitle"><span>喜新厌旧之网站配色</span></span></div></li>
+                </ul>
+              </div>
+            </div>
+            <div class="more"><a href="#">全部 25 篇<b>→</b></a></div>
+          </section>
+        </div>
+      </div>
+      <div class="phone-shell">
+        <p class="stage-label">PHONE · 390px</p>
+        <div class="phone"><div class="phone-bar"><span></span></div><div class="phone-stage"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- D -->
+  <section class="proposal" id="d">
+    <div class="proposal-head">
+      <h2>D · 登记册</h2><span class="tag">保留铭牌</span>
+      <p class="idea">铭牌留着，但左侧多一列金色两位序号，像账本的行号；其余照旧，收得更整。</p>
+    </div>
+    <ul class="notes">
+      <li>01–10 金色序号用等宽、右对齐，撑起一条新列</li>
+      <li>序号只到 10 条，不跟「全部 25 篇」混淆</li>
+      <li>悬停铺浅金底，序号由 80% 提到满金</li>
+      <li>底部「全部 25 篇」保留原 pill，和铭牌同一套语言</li>
+    </ul>
+    <div class="cols">
+      <div class="stage-shell">
+        <p class="stage-label">DESKTOP · 全宽</p>
+        <div class="stage">
+          <section class="rd">
+            <div class="rh"><span>最近更新</span><span class="line"></span><span class="num">25 篇</span></div>
+            <ul class="list">
+              <li><div class="row"><span class="idx">01</span><time>昨天</time><span class="rtitle"><span>赶场胖东来超市</span></span><span class="rkind">笔记</span></div></li>
+              <li><div class="row"><span class="idx">02</span><time>昨天</time><span class="rtitle"><span>早餐胡辣汤</span></span><span class="rkind">笔记</span></div></li>
+              <li><div class="row"><span class="idx">03</span><time>前天</time><span class="rtitle"><span>兔兔真可爱，吃了吧</span></span><span class="rkind">笔记</span></div></li>
+              <li><div class="row"><span class="idx">04</span><time>3 天前</time><span class="rtitle"><span>网红菜之橘子炒蛋</span></span><span class="rkind">笔记</span></div></li>
+              <li><div class="row"><span class="idx">05</span><time>5 天前</time><span class="rtitle"><span>备案成功网站速度起飞</span></span><span class="rkind">笔记</span></div></li>
+              <li><div class="row"><span class="idx">06</span><time>7 天前</time><span class="rtitle"><span>一轮又一轮的 AI 审计</span></span><span class="rkind">文章</span></div></li>
+              <li><div class="row"><span class="idx">07</span><time>13 天前</time><span class="rtitle"><span>学校门口停车之争</span></span><span class="rkind">笔记</span></div></li>
+              <li><div class="row"><span class="idx">08</span><time>13 天前</time><span class="rtitle"><span>自用软件之夸克网盘</span></span><span class="rkind">文章</span></div></li>
+              <li><div class="row"><span class="idx">09</span><time>14 天前</time><span class="rtitle"><span>文章和笔记列表把我改吐了</span></span><span class="rkind">笔记</span></div></li>
+              <li><div class="row"><span class="idx">10</span><time>16 天前</time><span class="rtitle"><span>喜新厌旧之网站配色</span></span><span class="rkind">文章</span></div></li>
+            </ul>
+            <div class="more"><a href="#">全部 25 篇 →</a></div>
+          </section>
+        </div>
+      </div>
+      <div class="phone-shell">
+        <p class="stage-label">PHONE · 390px</p>
+        <div class="phone"><div class="phone-bar"><span></span></div><div class="phone-stage"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 现状 -->
+  <section class="proposal" id="now">
+    <div class="proposal-head">
+      <h2>现状 · 对照</h2><span class="tag">当前线上</span>
+      <p class="idea">铭牌 + 标题金线 + 点线账本 + 居中 pill。干净，但容器与按钮把注意力从条目上分走了一点。</p>
+    </div>
+    <div class="cols">
+      <div class="stage-shell">
+        <p class="stage-label">DESKTOP · 全宽</p>
+        <div class="stage">
+          <section class="rn">
+            <div class="rh"><span>最近更新</span><span class="line"></span><span class="num">25 篇</span></div>
+            <ul class="list">
+              <li><div class="row"><time>昨天</time><span class="rtitle"><span>赶场胖东来超市</span></span><span class="rkind">笔记</span></div></li>
+              <li><div class="row"><time>昨天</time><span class="rtitle"><span>早餐胡辣汤</span></span><span class="rkind">笔记</span></div></li>
+              <li><div class="row"><time>前天</time><span class="rtitle"><span>兔兔真可爱，吃了吧</span></span><span class="rkind">笔记</span></div></li>
+              <li><div class="row"><time>3 天前</time><span class="rtitle"><span>网红菜之橘子炒蛋</span></span><span class="rkind">笔记</span></div></li>
+              <li><div class="row"><time>5 天前</time><span class="rtitle"><span>备案成功网站速度起飞</span></span><span class="rkind">笔记</span></div></li>
+              <li><div class="row"><time>7 天前</time><span class="rtitle"><span>一轮又一轮的 AI 审计</span></span><span class="rkind">文章</span></div></li>
+              <li><div class="row"><time>13 天前</time><span class="rtitle"><span>学校门口停车之争</span></span><span class="rkind">笔记</span></div></li>
+              <li><div class="row"><time>13 天前</time><span class="rtitle"><span>自用软件之夸克网盘</span></span><span class="rkind">文章</span></div></li>
+              <li><div class="row"><time>14 天前</time><span class="rtitle"><span>文章和笔记列表把我改吐了</span></span><span class="rkind">笔记</span></div></li>
+              <li><div class="row"><time>16 天前</time><span class="rtitle"><span>喜新厌旧之网站配色</span></span><span class="rkind">文章</span></div></li>
+            </ul>
+            <div class="more"><a href="#">全部 25 篇 →</a></div>
+          </section>
+        </div>
+      </div>
+      <div class="phone-shell">
+        <p class="stage-label">PHONE · 390px</p>
+        <div class="phone"><div class="phone-bar"><span></span></div><div class="phone-stage"></div></div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<footer class="pv-foot">
+  <p>四版都只用现有令牌：纸面 --bg、细界 --rule、一处金 --accent；主文字 --fg-soft，元信息 --muted。悬停色走 --accent-read（软底上也可读）。</p>
+</footer>
+
+<script>
+  document.querySelectorAll('.proposal .cols').forEach((cols) => {
+    const stage = cols.querySelector('.stage');
+    const slot = cols.querySelector('.phone-stage');
+    if (stage && slot) slot.innerHTML = stage.innerHTML;
+  });
+  const btn = document.getElementById('themeBtn');
+  btn.addEventListener('click', () => {
+    const cur = document.documentElement.getAttribute('data-theme');
+    document.documentElement.setAttribute('data-theme', cur === 'dark' ? 'light' : 'dark');
+  });
+</script>
+</body>
+</html>

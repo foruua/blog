@@ -226,10 +226,11 @@ export function publicRoutes(repo, { comments, crypt, media = null, feeds = null
     if (!homeRecentOf(c)) return '';
     const rows = recentOf(c);
     if (!rows.length) return '';
+    const total = statsOf(c).reduce((n, p) => n + p.n, 0);
     return `    <section class="recent">
-      <h2 class="recent-head">最近更新</h2>
+      <h2 class="recent-head"><span>最近更新</span><span class="recent-line" aria-hidden="true"></span><span class="recent-num">${total} 篇</span></h2>
 ${entriesBlock(rows, { relative: true })}
-      <p class="pager-more"><a href="/archive/">全部 ${statsOf(c).reduce((n,p) => n+p.n, 0)} 篇 →</a></p>
+      <p class="pager-more recent-more"><a href="/archive/">全部 ${total} 篇 <span class="recent-arrow" aria-hidden="true">→</span></a></p>
     </section>`;
   }
 

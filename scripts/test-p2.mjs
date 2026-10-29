@@ -607,7 +607,7 @@ const page = await (await fetch(`${BASE}/p/${SLUG}/`)).text();
       !/animation:\s*rise|@keyframes\s+rise/.test(css), '');
 
     {
-      const entriesA = /\.entries a \{([^}]*)\}/.exec(css)?.[1] ?? '';
+      const entriesA = /^\.entries a \{([^}]*)\}/m.exec(css)?.[1] ?? '';
       const listMain = /\.list li > \.e-main \{([^}]*)\}/.exec(css)?.[1] ?? '';
       {
       // 配色可用性：正文/次要色对背景必须达到 WCAG AA（防止看着高级把文字调得过浅）
@@ -641,13 +641,13 @@ const page = await (await fetch(`${BASE}/p/${SLUG}/`)).text();
         `entries=${entriesA.trim().slice(0, 50)} | list=${listMain.trim().slice(0, 50)}`);
     }
 
-    // 账本行有整行悬停底色：分隔线必须是通栏实色，悬停色也不能用渐变，否则两端会断开。
-    check('T50d2 账本悬停色与分隔线都不做渐变',
+    // 账本分隔线必须是通栏实色；首页行悬停改成左缘金线（不铺底色），其它页仍保留整行悬停底色。
+    check('T50d2 账本分隔线不做渐变；首页悬停走左缘金线、不铺底色',
       /\.entries li::after \{[^}]*background: var\(--rule\)/.test(css)
       && /\.entries a:hover \{ background: var\(--accent-soft\); \}/.test(css)
-      && !/\.entries a::before/.test(css)
-      && !/\.entries a:hover::before/.test(css),
-      '账本悬停色与行分隔线都应为实色');
+      && /body\[data-page="home"\] \.recent \.entries a:hover \{ background: transparent; \}/.test(css)
+      && /body\[data-page="home"\] \.recent \.entries a:hover::before/.test(css),
+      '账本分隔线应为实色；首页悬停应走左缘金线');
 
     // 归档每个年份都靠 .chron 的 1.5rem 上内距拉开与分割线的距离；首年不能单独换成 --section-inset。
     check('T50h 归档首年与后续年份距上分割线一致',
