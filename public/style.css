@@ -1955,16 +1955,20 @@ footer.site {
   color: var(--muted);
   font-size: .88rem; line-height: 1.9;
 }
-/* 两段界栏各让出 1.4rem，中间留出 2.8rem 的缺口；外端渐隐，内端实到星旁。 */
-footer.site::before,
-footer.site::after {
+/* 界栏从页脚中心向两端铺满整幅（--bleed-line = 100vw），正中留 2.8rem 缺口嵌星；
+   两端只收 24px 的渐隐 —— 读作"一直延伸到边"，不是收在正文栏里。 */
+footer.site::before {
   content: "";
-  position: absolute; top: -1px;
-  width: calc(50% - 1.4rem); height: 1px;
+  position: absolute; top: -1px; left: 50%;
+  width: var(--bleed-line); height: 1px;
+  transform: translateX(-50%);
+  background: linear-gradient(90deg,
+    transparent 0, var(--rule-strong) 24px,
+    var(--rule-strong) calc(50% - 1.4rem), transparent calc(50% - 1.4rem),
+    transparent calc(50% + 1.4rem), var(--rule-strong) calc(50% + 1.4rem),
+    var(--rule-strong) calc(100% - 24px), transparent 100%);
   opacity: .9;
 }
-footer.site::before { left: 0; background: linear-gradient(90deg, transparent, var(--rule-strong)); }
-footer.site::after { right: 0; background: linear-gradient(270deg, transparent, var(--rule-strong)); }
 /* 星形回顶入口：命中区是按钮尺寸，视觉只有那颗星（与字标里的五角星同形、同色）。 */
 footer.site .foot-seal {
   position: absolute; top: -16px; left: 50%;
