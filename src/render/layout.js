@@ -479,7 +479,6 @@ function chromeOf(ctx) {
     skip: '<a class="skip" href="#main">跳到正文</a>',
     progress: '<div id="progress" aria-hidden="true"></div>',
     top: '<span id="top"></span>',
-    toTop: '<a class="to-top" href="#top" aria-label="回到顶部" title="回到顶部"><span aria-hidden="true">↑</span></a>',
     header: `<header class="site">
   <div class="shell">
 
@@ -499,9 +498,10 @@ function chromeOf(ctx) {
   </div>
 </header>`,
     drawer: ctx.drawer,
-    // 页脚两行：第一行版权，第二行两条备案号（RSS 与配色在首页 hero-meta 那一行）。
-    // 后台入口与「回到顶部」早先已从页脚撤掉 —— 手机端不再需要第二枚回到顶部（悬浮钮仍按原断点隐藏）。
+    // 页脚：界栏正中压一枚方印，方印就是「回到顶部」；左端版权，右端两条备案号。
+    // 页脚只承载"必须存在"的信息，入口收成 32px 的印钮 —— 原先的右下悬浮钮已撤掉，全站只此一处回顶。
     footer: `<footer class="site">
+    <a class="foot-seal" href="#top" aria-label="回到顶部" title="回到顶部"><span aria-hidden="true">↑</span></a>
     <div class="foot-inner">
       <div class="foot-legal">
         <span class="foot-copy"><span class="sr-only">©</span>${ICON_COPYRIGHT} ${new Date().getFullYear()}${SITE.author ? `<span class="sep">·</span>${esc(SITE.author)}` : ''}</span>
@@ -534,8 +534,6 @@ ${chrome.head}
 ${chrome.top}
 ${chrome.skip}
 ${chrome.progress}
-
-${chrome.toTop}
 
 <div id="app">
 ${chrome.header}

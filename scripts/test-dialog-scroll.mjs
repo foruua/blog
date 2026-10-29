@@ -18,7 +18,7 @@ try {
 
 const instance = await startIsolated();
 const geometry = (page) => page.evaluate(() => {
-  const rects = ['#app', '.a-main', '.a-rail', '.a-bar', '.wrap', '.to-top', '#toast'].flatMap((selector) => {
+  const rects = ['#app', '.a-main', '.a-rail', '.a-bar', '.wrap', '#toast'].flatMap((selector) => {
     const element = document.querySelector(selector);
     if (!element) return [];
     const rect = element.getBoundingClientRect();

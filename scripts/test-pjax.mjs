@@ -118,22 +118,6 @@ try {
 
   {
     const page = await mount(`${BASE}/posts/`);
-    const btn = page.w.document.querySelector('.to-top');
-    check('T60 回到顶部按钮在 #app 之外（无刷新换页不会把它换掉）',
-      Boolean(btn) && !page.w.document.getElementById('app').contains(btn), '');
-    check('T60b 顶部时按钮不显示', !btn.classList.contains('show'), btn.className);
-    page.w.scrollTo(0, page.w.innerHeight * 2);
-    page.w.dispatchEvent(new page.w.Event('scroll'));
-    await sleep(120);
-    check('T60c 滚过一屏半后浮现', btn.classList.contains('show'), btn.className);
-    page.w.scrollTo(0, 0);
-    page.w.dispatchEvent(new page.w.Event('scroll'));
-    await sleep(120);
-    check('T60d 回到顶部后收起', !btn.classList.contains('show'), btn.className);
-  }
-
-  {
-    const page = await mount(`${BASE}/posts/`);
     page.w.scrollTo(0, 900);
     check('T57 已模拟"从列表中部点击"（滚动位置 900）', page.w.scrollY === 900, `y=${page.w.scrollY}`);
     const link = [...page.w.document.querySelectorAll('.list a.e-main')][2];

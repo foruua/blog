@@ -126,18 +126,11 @@ const page = await (await fetch(`${BASE}/p/${SLUG}/`)).text();
   const css = await (await fetch(`${BASE}/style.css`)).text();
   const js = await (await fetch(`${BASE}/app.js`)).text();
   const body = await (await fetch(`${BASE}/posts/`)).text();
-  check('T63 页面里有回到顶部按钮（↑ 图标 + aria-label），指向保留片段 #top',
-    /<a class="to-top" href="#top" aria-label="回到顶部"[^>]*><span aria-hidden="true">↑<\/span><\/a>/.test(body), '');
-  check('T63b 按钮在 #app 之外（换页不会被重建）',
-    body.indexOf('class="to-top"') < body.indexOf('<div id="app">'), '');
-  check('T64 浮钮仅宽屏常驻；≤1000 隐藏，页脚不再重复「回到顶部」',
-    /html\.has-js \.to-top \{[^}]*opacity: 0/.test(css)
-    && !/^\.to-top \{[^}]*opacity: 0/m.test(css)
-    && /@media \(max-width: 1000px\)\s*\{[^}]*\.to-top\s*\{\s*display:\s*none;\s*\}/.test(css)
-    && !/class="foot-top"/.test(body), '');
-  check('T65 滚过一屏就浮现，且用 rAF 节流',
-    /\.to-top\.show/.test(css) && /requestAnimationFrame/.test(js)
-    && /scrollY > window\.innerHeight\b/.test(js), '');
+  check('T63 页脚界栏正中是回顶印钮（↑ + aria-label，指向保留片段 #top）',
+    /<a class="foot-seal" href="#top" aria-label="回到顶部"[^>]*><span aria-hidden="true">↑<\/span><\/a>/.test(body), '');
+  check('T64 右下悬浮回顶钮整体撤掉（全站只留页脚这一处回顶）',
+    !/class="to-top"/.test(body) && !/\.to-top/.test(css) && !/to-top/.test(js)
+    && /footer\.site \.foot-seal/.test(css), '');
 }
 
 {

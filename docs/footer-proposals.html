@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>页脚方案 · uua.me</title>
+<style>
+  /* 从 public/base.css 摘出的令牌与基底（预览页自带一份，单文件打开也不会掉样式） */
+  :root {
+    --measure-wide: 52rem; --radius-hair: 2px; --radius: 9px; --radius-lg: 14px; --radius-pill: 999px;
+    --sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB",
+            "Source Han Sans SC", "Noto Sans CJK SC", "Noto Sans SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+    --display: "Songti SC", "Source Han Serif SC", "Noto Serif CJK SC", "Noto Serif SC", "Songti TC", "STSong", "SimSun", Georgia, "Times New Roman", serif;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", "JetBrains Mono", Menlo, Consolas, "Liberation Mono",
+            "PingFang SC", "Hiragino Sans GB", "Source Han Sans SC", "Noto Sans CJK SC", "Noto Sans SC", "Microsoft YaHei", monospace;
+    --body-size: 1.0625rem; --body-leading: 1.82;
+    --dur-1: .2s; --dur-2: .25s; --dur-3: .3s; --dur-4: .45s; --ease: cubic-bezier(.2, .7, .3, 1);
+    --shadow-sm: 0 1px 2px rgba(30, 26, 16, .04), 0 2px 8px -4px rgba(30, 26, 16, .08);
+    --shadow-md: 0 2px 6px -2px rgba(30, 26, 16, .07), 0 14px 30px -18px rgba(30, 26, 16, .22);
+    --bg: #f8f8f8; --bg-soft: #eeeeee; --bg-elev: #fefefe;
+    --fg: #17160f; --fg-soft: #433f37; --muted: #6b665d; --muted-soft: #736e65;
+    --rule: rgba(23, 22, 15, .10); --rule-strong: rgba(23, 22, 15, .24);
+    --accent: #926922; --accent-soft: rgba(146, 105, 34, .10); --accent-line: rgba(146, 105, 34, .34);
+    color-scheme: light;
+  }
+  html[data-theme="dark"] {
+    --bg: #1a1a1a; --bg-soft: #242424; --bg-elev: #202020;
+    --fg: #f4f2ec; --fg-soft: #c6c3b9; --muted: #a09c93; --muted-soft: #908d85;
+    --rule: rgba(244, 242, 236, .12); --rule-strong: rgba(244, 242, 236, .26);
+    --accent: #dcb066; --accent-soft: rgba(220, 176, 102, .13); --accent-line: rgba(220, 176, 102, .36);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, .5);
+    --shadow-md: 0 2px 8px -2px rgba(0, 0, 0, .6), 0 18px 36px -22px rgba(0, 0, 0, .8);
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; background: var(--bg); }
+  body { margin: 0; color: var(--fg); font: var(--body-size) / var(--body-leading) var(--sans); font-kerning: normal; -webkit-font-smoothing: antialiased; background-color: var(--bg); }
+  ::selection { background: color-mix(in srgb, var(--accent) 24%, transparent); color: var(--fg); }
+  a { color: inherit; text-decoration: none; transition: color var(--dur-1) var(--ease); }
+  a:hover { color: color-mix(in srgb, var(--accent) 82%, var(--fg)); }
+  img { max-width: 100%; height: auto; vertical-align: middle; }
+</style>
+<style>
+  /* 预览页自身的排版；页脚样式全部以 .f 前缀作用域，不与站点样式冲突 */
+  .pv-head { max-width: 52rem; margin: 0 auto; padding: 3rem 24px 0; }
+  .pv-kicker { font-family: var(--mono); font-size: .72rem; letter-spacing: .18em; color: var(--accent); }
+  .pv-head h1 { font-family: var(--display); font-size: clamp(1.6rem, 3vw, 2rem); letter-spacing: .02em; margin: .5rem 0 .6rem; }
+  .pv-head p { color: var(--muted); font-size: .95rem; max-width: 38rem; margin: 0; }
+  .pv-nav { display: flex; flex-wrap: wrap; gap: .5rem; margin: 1.2rem 0 0; }
+  .pv-nav a { font-family: var(--mono); font-size: .75rem; letter-spacing: .05em; padding: .3rem .7rem; border: 1px solid var(--rule-strong); border-radius: var(--radius-pill); color: var(--muted); }
+  .pv-nav a:hover { color: var(--accent); border-color: var(--accent); }
+  .pv-theme { position: fixed; right: 1rem; top: 1rem; z-index: 5; font-family: var(--mono); font-size: .72rem; padding: .35rem .7rem; border: 1px solid var(--rule-strong); border-radius: var(--radius-pill); background: var(--bg-elev); color: var(--muted); cursor: pointer; }
+  .pv-theme:hover { color: var(--accent); border-color: var(--accent); }
+
+  .demo { max-width: 76rem; margin: 0 auto; padding: 0 24px; }
+  .proposal { margin: 3.2rem 0 0; }
+  .proposal-head { display: flex; align-items: baseline; gap: .8rem; flex-wrap: wrap; border-top: 1px solid var(--rule); padding-top: 1.2rem; }
+  .proposal-head h2 { font-family: var(--display); font-size: 1.35rem; letter-spacing: .03em; margin: 0; }
+  .proposal-head .tag { font-family: var(--mono); font-size: .7rem; letter-spacing: .12em; color: var(--muted-soft); border: 1px solid var(--rule); padding: .16rem .45rem; border-radius: var(--radius-hair); }
+  .proposal-head .idea { color: var(--muted); font-size: .92rem; margin: 0; flex-basis: 100%; }
+  .notes { display: flex; flex-wrap: wrap; gap: .35rem .5rem; margin: 1rem 0 1.4rem; }
+  .notes li { list-style: none; font-size: .78rem; color: var(--fg-soft); background: var(--accent-soft); border: 1px solid var(--accent-line); border-radius: var(--radius-pill); padding: .28rem .7rem; }
+  .notes ul { display: contents; }
+
+  .cols { display: flex; flex-wrap: wrap; gap: 1.6rem; align-items: flex-start; }
+  .stage-shell { flex: 1 1 560px; min-width: 0; }
+  .stage-label { font-family: var(--mono); font-size: .7rem; letter-spacing: .14em; color: var(--muted-soft); margin: 0 0 .45rem .2rem; }
+  .stage { background: var(--bg); border: 1px solid var(--rule); border-radius: var(--radius-lg); padding: 0 24px; overflow: hidden; }
+  .mock { padding: 2.2rem 0 0; color: var(--muted); font-size: .95rem; line-height: 1.8; }
+  .mock p { margin: 0; }
+  .mock .mock-eyebrow { font-family: var(--mono); font-size: .7rem; letter-spacing: .16em; color: var(--muted-soft); display: block; margin-bottom: .4rem; }
+  .phone-shell { flex: 0 0 390px; }
+  .phone { width: 390px; background: var(--bg); border: 1px solid var(--rule-strong); border-radius: 22px; padding: 0 24px 1.1rem; overflow: hidden; box-shadow: var(--shadow-md); margin-bottom: 1rem; }
+  .phone-bar { display: flex; justify-content: center; padding: .55rem 0 0; }
+  .phone-bar span { width: 4.5rem; height: 4px; border-radius: 999px; background: var(--rule-strong); }
+  .phone .mock { padding-top: 1.1rem; font-size: .9rem; }
+
+  /* —— 页脚公共件 —— */
+  .f { color: var(--muted); font-size: .88rem; line-height: 1.9; }
+  .f .hair { position: absolute; top: -1px; left: 50%; width: 118%; height: 1px; transform: translateX(-50%); background: linear-gradient(90deg, transparent, var(--rule-strong) 20%, var(--rule-strong) 80%, transparent); opacity: .9; }
+  .f .star { display: inline-block; width: .34em; height: .34em; background: var(--accent); clip-path: polygon(50% 4.78%, 61.23% 39.32%, 97.55% 39.32%, 68.16% 60.68%, 79.39% 95.23%, 50% 73.88%, 20.61% 95.23%, 31.84% 60.68%, 2.45% 39.32%, 38.77% 39.32%); }
+  .f .seal { box-sizing: border-box; display: inline-grid; place-items: center; font-family: var(--display); font-weight: 700; color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 54%, transparent); border-radius: 2px; line-height: 1; transition: background-color var(--dur-2) var(--ease), color var(--dur-2) var(--ease), border-color var(--dur-2) var(--ease); }
+  .f a { transition: color var(--dur-2) var(--ease); }
+  .f .copy-ico { height: 1.05em; width: 1.05em; vertical-align: -.14em; margin-right: .22em; }
+  .f .f-ico { height: 14px; width: auto; vertical-align: -.22em; margin-right: .32rem; }
+  .f .dot { color: var(--accent); padding: 0 .5em; }
+
+  /* —— A 落款 · 两端 —— */
+  .fa { position: relative; margin-top: 2.2rem; }
+  .fa-in { display: flex; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; gap: 1.2rem 1.8rem; padding: 1.35rem 0 1.25rem; }
+  .fa-l { display: flex; flex-direction: column; gap: .45rem; }
+  .fa-brand { display: inline-flex; align-items: center; font-family: var(--display); font-weight: 700; font-size: 1.05rem; letter-spacing: .055em; color: var(--fg); }
+  .fa-brand .seal { width: 1.35rem; height: 1.35rem; font-size: .72rem; margin-right: .5rem; }
+  .fa-brand:hover { color: var(--accent); }
+  .fa-brand:hover .seal { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+  .fa-brand .star { width: .42em; height: .42em; margin: 0 .17em; vertical-align: .08em; }
+  .fa-motto { font-size: .76rem; letter-spacing: .2em; color: var(--muted-soft); }
+  .fa-r { display: flex; flex-direction: column; align-items: flex-end; gap: .2rem; font-family: var(--mono); font-size: .72rem; letter-spacing: .06em; color: var(--muted-soft); }
+  .fa-r .fa-beian { display: inline-flex; flex-wrap: wrap; justify-content: flex-end; gap: .1rem .9rem; }
+  .fa-beian a, .fc-r a, .fd-mid a, .fnow .beian a, .fb-meta a { white-space: nowrap; }
+  .fa-r a:hover { color: var(--accent); }
+
+  /* —— B 书尾 · 居中 —— */
+  .fb { position: relative; margin-top: 2.2rem; padding: 2.1rem 0 1.6rem; text-align: center; }
+  .fb::before, .fb::after { content: ""; position: absolute; top: -1px; height: 1px; width: calc(50% - 1.4rem); opacity: .9; }
+  .fb::before { left: 0; background: linear-gradient(90deg, transparent, var(--rule-strong)); }
+  .fb::after { right: 0; background: linear-gradient(270deg, transparent, var(--rule-strong)); }
+  .fb-star { position: absolute; top: -4px; left: 50%; transform: translateX(-50%); width: 7px; height: 7px; background: var(--accent); clip-path: polygon(50% 4.78%, 61.23% 39.32%, 97.55% 39.32%, 68.16% 60.68%, 79.39% 95.23%, 50% 73.88%, 20.61% 95.23%, 31.84% 60.68%, 2.45% 39.32%, 38.77% 39.32%); }
+  .fb-motto { font-family: var(--display); font-size: .98rem; letter-spacing: .28em; padding-left: .28em; color: var(--fg-soft); margin: 0 0 .7rem; }
+  .fb-meta { font-family: var(--mono); font-size: .72rem; letter-spacing: .06em; color: var(--muted-soft); margin: 0; }
+  .fb-meta a:hover { color: var(--accent); }
+
+  /* —— C 界栏 · 印钮 —— */
+  .fc { position: relative; margin-top: 2.6rem; padding: 1.55rem 0 1.3rem; }
+  .fc-seal { position: absolute; top: -15px; left: 50%; transform: translateX(-50%); width: 30px; height: 30px; font-size: .9rem; background: var(--bg); }
+  .fc-seal:hover { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+  .fc-in { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem 1.6rem; flex-wrap: wrap; font-family: var(--mono); font-size: .72rem; letter-spacing: .06em; color: var(--muted-soft); }
+  .fc-l, .fc-r { flex: 0 1 auto; min-width: 0; }
+  .fc-r { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .1rem .9rem; margin-left: auto; }
+  .fc-r a:hover, .fc-l a:hover { color: var(--accent); }
+
+  /* —— D 一线 · 到底 —— */
+  .fd { margin-top: 2.2rem; }
+  .fd-in { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: .45rem 1.4rem; border-top: 1px solid var(--rule); padding: 1.15rem 0 1.1rem; font-family: var(--mono); font-size: .72rem; letter-spacing: .06em; color: var(--muted-soft); }
+  .fd-legal { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: .1rem .55rem; min-width: 0; }
+  .fd-top { color: var(--muted-soft); white-space: nowrap; margin-left: auto; }
+  .fd-top b { display: inline-block; font-weight: 400; transition: transform var(--dur-2) var(--ease); }
+  .fd-top:hover { color: var(--accent); }
+  .fd-top:hover b { transform: translateY(-2px); }
+  .fd-legal a:hover, .fd-in > :first-child a:hover { color: var(--accent); }
+
+  /* —— 现状对照 —— */
+  .fnow { position: relative; margin-top: 2.2rem; padding: 1.35rem 0 1.3rem; text-align: center; }
+  .fnow::before { content: ""; position: absolute; top: -1px; left: 50%; width: 118%; height: 1px; transform: translateX(-50%); background: linear-gradient(90deg, transparent, var(--rule-strong) 20%, var(--rule-strong) 80%, transparent); opacity: .9; }
+  .fnow .legal { display: flex; flex-direction: column; align-items: center; gap: .45rem; font-family: var(--mono); font-size: .72rem; letter-spacing: .09em; color: var(--muted-soft); }
+  .fnow .beian { display: flex; flex-wrap: wrap; justify-content: center; gap: .15rem .9rem; }
+
+  /* 手机框是容器而不是视口：窄屏规则要再作用一份到 .phone-stage 里，否则克隆内容仍按桌面排 */
+  .phone-stage .fa-in { flex-direction: column; align-items: flex-start; gap: 1rem; }
+  .phone-stage .fa-r { align-items: flex-start; }
+  .phone-stage .fa-r .fa-beian { justify-content: flex-start; }
+  .phone-stage .fc-in { flex-direction: column; align-items: center; text-align: center; gap: .85rem; }
+  .phone-stage .fc-r { justify-content: center; }
+  .phone-stage .fd-in { flex-direction: column; align-items: center; text-align: center; gap: .55rem; }
+  .phone-stage .fd-legal { flex-direction: column; align-items: center; gap: .45rem; }
+  .phone-stage .fd-legal .dot { display: none; }
+  .phone-stage .fd-top { justify-self: center; margin-left: 0; }
+  .phone-stage .fb-meta { display: flex; flex-direction: column; align-items: center; gap: .15rem; line-height: 1.9; }
+  .phone-stage .fb-meta .dot { display: none; }
+  .phone-stage .fnow .legal, .phone-stage .fnow .beian { text-align: center; }
+
+  /* —— 响应：手机 —— */
+  @media (max-width: 720px) {
+    /* 手机上看时，演示卡本身就是手机宽度，右侧的「手机预览」重复一份，隐掉 */
+    .phone-shell { display: none; }
+    .fa-in { flex-direction: column; align-items: flex-start; gap: 1rem; }
+    .fa-r { align-items: flex-start; }
+    .fa-r .fa-beian { justify-content: flex-start; }
+    .fc-in { flex-direction: column; align-items: center; text-align: center; gap: .85rem; }
+    .fc-r { justify-content: center; }
+    .fd-in { flex-direction: column; align-items: center; text-align: center; }
+    .fd-legal { flex-direction: column; align-items: center; gap: .45rem; }
+    .fd-legal .dot { display: none; }
+    .fd-top { margin-left: 0; }
+    .fb-meta { display: flex; flex-direction: column; align-items: center; gap: .15rem; line-height: 1.9; }
+    .fb-meta .dot { display: none; }
+  }
+
+  .pv-foot { max-width: 52rem; margin: 3.6rem auto 4rem; padding: 1.6rem 24px 0; border-top: 1px solid var(--rule); color: var(--muted); font-size: .85rem; }
+</style>
+</head>
+<body>
+<button class="pv-theme" type="button" id="themeBtn">切换纸面</button>
+
+<header class="pv-head">
+  <span class="pv-kicker">FOOTER STUDY · 2026</span>
+  <h1>页脚的四个方向</h1>
+  <p>都在现有令牌里做文章：纸面 --bg、细界 --rule、一处金 --accent；衬线落标题、等宽落法务。差别只在信息怎么排、留白怎么给。下面每版都给了桌面与手机两个宽度。</p>
+  <nav class="pv-nav">
+    <a href="#a">A · 落款</a><a href="#b">B · 书尾</a><a href="#c">C · 界栏</a><a href="#d">D · 一线</a><a href="#now">现状对照</a>
+  </nav>
+</header>
+
+<div class="demo">
+
+  <!-- A -->
+  <section class="proposal" id="a">
+    <div class="proposal-head">
+      <h2>A · 落款</h2><span class="tag">两端平衡</span>
+      <p class="idea">左边是一枚小印加站名与站训，右边是两行法务。左重右轻，收得干净。</p>
+    </div>
+    <ul class="notes">
+      <li>印框沿用字标那枚方印，悬停整枚填金</li>
+      <li>站训排在站名下方，字距 0.2em，压低到 --muted-soft</li>
+      <li>法务右对齐成两行，与左侧站训的底边齐平</li>
+      <li>窄屏改为左对齐上下堆叠，不居中</li>
+    </ul>
+    <div class="cols">
+      <div class="stage-shell">
+        <p class="stage-label">DESKTOP · 全宽</p>
+        <div class="stage">
+          <div class="mock"><span class="mock-eyebrow">正文末尾</span><p>页脚之前的最后一段正文。它在这里只负责把页脚推到合适的位置，让上面的留白看起来是真的。</p></div>
+          <footer class="f fa">
+            <span class="hair"></span>
+            <div class="fa-in">
+              <div class="fa-l">
+                <a class="fa-brand" href="#"><span class="seal">u</span>uua<span class="star"></span>me</a>
+                <span class="fa-motto">写代码，也写字。</span>
+              </div>
+              <div class="fa-r">
+                <span>© 2026 · 沉沦</span>
+                <span class="fa-beian"><a href="https://beian.miit.gov.cn/"><img class="f-ico" src="data:image/png;base64,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" width="15" height="14" alt="">冀ICP备2026047112号</a><a href="https://beian.mps.gov.cn/"><img class="f-ico" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACcAAAAqCAMAAAAH47LZAAADAFBMVEVMaXHWo0PmtVfdtFWpt3IAH1q7qWDqtlJEVj/PtlvXrVLfrUvbsF/On0nduGCpgkLElEPMmEPcwF8AGFvVn0TWn0LiqkXcrk7GnUvdrk/oyWjYo0XhuFPhqUfapkrmrko1RVnouFYAFE8AE0rAjD7ow1nss0XMkjvdrU7Ciz7arU3RrE6zfzPMljqvgz2/jDvmuFvps0vcsFbnrkvfr03qy2rSmkTmvla+lEXFnUvSpE3cpkjRkTzaz4ZxXDvioT/Oo0zMizm9gDHw1mpSQTRQQzXuzGDXp0jXEBEAHVXVpkjcrUkIJVYDIlULJ1fos03YqU/ZrErdp0XYnj/SmT3VnUDcrk7ouVDZpELGizzYCw/fsk+8eC/KjzvQkz7aBgvPm0cAHE7WExIXMVnWGRTPkjjSoUfiulHeulgGJE7HDQ/YQyfDey3Zo0rIiTXRjDXQTyXTp1DVAwvQmUHiskrOOR0DJVngnT7bij/asU7arlUeM1Pju10YKj/iwFpmYlYMFDHVNB3UYTMIHj7hn0zQnUHDgzPjtk/hrkedhlBfVkfYm0XgpD62ezXgp0IDH0a6mlSqgUPVDQ7uvlCcilnaOSLfyXjXJhk2FSXZLR3egj7UpljVljnpwV7MmUPHlEXMoE7Zql3dslrsxVfsyWUAGkXkrUhzalTu2H7Wr1HREBBGT1rZZTfQLxjfl1zbez/OQSK+hjnTrFzXsVkpO1c9SFRdYFilWR+ykU7KhDKKelPmuVTrz3TjxWbbmj/WtWTauFLhrG3SIxfVUS/m2IbTezbcSy7y3WfkqE20cC5QVFQfMUewllaQeEvmvmswOUM2Jj3Em1fQpFL0yly9Eg/hi1K2VC6XbDfuuEu8fzXoqUCxZyVHSE1ZHTXwz2MQKld2YjoQKkuJcEUlFiicExfLEQ+XQixpSDT6226OVy3r33ceDSfVbzfdlUlVRzr5xFLConJxY0h5dFyREhYnIkrjEQ+qExmcpXp0FiC9ekeAcFaKLSXADw6rkFR3Z0Tp1IHwfWxtAAAA43RSTlMA/v7+B/4SAQEaP8v+If4LVfAm/oCujW5Hre/KgtVgov5N/P34zvyY8IG4MCe5OkGQddWy49Hf7vn86cLxSP7iNdC/0Pz+Lfz////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////+/////////////////////////////////////////////////sZfHl4AAAAJcEhZcwAACxMAAAsTAQCanBgAAAW1SURBVDjLbVVldBtHED5ZkiUzxRwnjh1m5rQpPukknViyLCbLsszMzMzMzI4hZsYwOMzQOJyU+U9PttsmdWffvje379tvZmd3vgOADwyDgefXu/fuMVZ/YIH/NYwapblm3/pXX90yWrsOtbyy0rCA8WqbtPcxdib2YZ+st9mjBSNXsi1S3bpSF9IS0RDREhLzPuvoIukKmHXaizB721yv0YDU+vr5XFv7y09Fa7EA9j+4dVkxdtAfLHYQFcEAxxU57EHI7vxhvY9CYzEAdl+yiTQ3nQrOePrBY6aJm3NBanLR7KPDYAHU7iylfy65ieHXjCtqL3Bs9mM6s5P8Q46Yf0iote7YrTCTCN8mwaSjcPbS9LsooeNkShC7weTyekttzb9TA0w7v8xAS68qwLa8jiLH4qYZoaq9qI2qmA/Bh31SvmqJEovB7rhsB6HPJY5He7ci84RtUa3CWV2VMHqc3YuG7JPNlnBwnqa2aAh9kTwW5SgrKJotEuapZAUFwihqTS4eQvfuWU7R0NC0BU2E+ocnZDiJtyo/WnKjSibEOcoEisxHRHSEjpmeuorGm/WR99FE6XfDgTiJRDIZHZWt8pTBXnZg+NUQf3zDxm83qRlP1HZrJKNJPWOKQBxOgsPJJNnZONhT46p7SPjBjeQN6vs7Ma3P/R5PfHJYEQDHzZ6aaG9vn5hylEhksWWV59GkpI01XxjAOO3GfN+neEh8ke2c5+0tm5jOz8+frpJ5exfBlRb7Q/01Dw8s4h46B2QRIXEy23lmqjX66lhwsBPo1XGj48Z4QLKYFFKZOLR/O3wXxwg+9IoQEimsPJ0aFzTiBFKDqM7hYHjja1/OeRL+NJU+UqajCRiyqZUM2mk8VPc4gJXg6XfK75QnPNs8Q0OvPa6D8BHk0OEhsjawC5HoxU9twEP4sJt54bFR3gXFscUF3rOh1Xm/h4khUlJt40jCIWMAZZ0OVsj7ISIx45kwapQQS56rnSPHvo6dFP6WAZFCuhobw2u2wnVefQ3p5AEH9v/JZcGl2TOwo1XVWhwY3ezS/IsSwvfWu4WGX1sNn1fPys1DfncQ7//g52YXT5Xf1Nu30ao21SkXieSKP3QhnZE+bLUNAAwsDnowEQ5gD+nBAi47lt3xbm7uZWBxTbEj7voV/Dk2lUWo3bsdC+wI7uIz6czEQVJM4TOXF38uXL+ZdfP6wvPnLj8W1kkzfYOoDnTEcUPgeKr+fFwpA0E4J46J/CYysrDwTeSbwsJI2I8R/5BDdRgtZTDubgK2pLh1O8nljNQjUlJGnVIpVj6JyRArlcoMpdgWmS4vpQucztAsAJSlhm63nMFwTU0i9fRKSY9aMjMzW/BEKREvzUz1cHVwq9I9s0rdRDYa+hSnOFf3xKSsnIbk/rGcnJe/3o+4EHE618N1QI7UrTpjqhYb4OT+ISQV5PPliQmigZQBAWvoUr4IdEubl99zFVAoFLKOlvqdYoFt1mQuAcH0cOdSfEQ8DoIick/j8UTufbzKYELi7a1aSw2CAoytySwKhekOKpAcQTmTQRP0vQqm3TtbQnHwvW25DMMAelsOcin6XSAYxE3gsmhMhqtcVEkjeJWkiEQC+ueGKHUbYYHtn3lwKrx8SrxAByrBV8Hp6+OFJjgg4nz4rrzO+LN8t00omAwDWASUCjicclGXEyMuDkGgguVI2kB8PK/zzlleGo/jE/Cp5iIOtZasUa1bAlK8EAimUxDVl0V35cXH3+lMi+dUlFDcRpeEA5ZIcx2N2hHnJhaB4Etwdnag0d3d+XxOOZPJCi3T0FmDWhZLDKC1eoPVpTJFQjCFxeXCOD6HXyHqLiPXb9Yx1/xH2dRKqKW9e8MhroaGbpUbE0EX+ARXV3tZHTCz0AI+FP1FX0t71VabzUeN6Ey6kZHRXkvzk5orfyNLuwz0tHfu2rJjzc6du/QM/l0GAOAvArYxt15UouoAAAAASUVORK5CYII=" width="13" height="14" alt="">冀公网安备13060202001368号</a></span>
+              </div>
+            </div>
+          </footer>
+        </div>
+      </div>
+      <div class="phone-shell">
+        <p class="stage-label">PHONE · 390px</p>
+        <div class="phone"><div class="phone-bar"><span></span></div><div class="phone-stage"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- B -->
+  <section class="proposal" id="b">
+    <div class="proposal-head">
+      <h2>B · 书尾</h2><span class="tag">对称居中</span>
+      <p class="idea">像一本书的尾页：界栏在正中断开，一枚金星落进缺口，下面一句站训、一行法务。全靠字距和留白。</p>
+    </div>
+    <ul class="notes">
+      <li>顶端界栏在中间断开 2.8rem，金星嵌在缺口里</li>
+      <li>金色五角星，与字标里那颗同形</li>
+      <li>站训用衬线、0.28em 字距；法务用等宽</li>
+      <li>法务之间用金色中点分隔</li>
+    </ul>
+    <div class="cols">
+      <div class="stage-shell">
+        <p class="stage-label">DESKTOP · 全宽</p>
+        <div class="stage">
+          <div class="mock"><span class="mock-eyebrow">正文末尾</span><p>页脚之前的最后一段正文。它在这里只负责把页脚推到合适的位置，让上面的留白看起来是真的。</p></div>
+          <footer class="f fb">
+            <span class="fb-star"></span>
+            <p class="fb-motto">写代码，也写字。</p>
+            <p class="fb-meta">© 2026 沉沦<span class="dot">·</span><a href="https://beian.miit.gov.cn/"><img class="f-ico" src="data:image/png;base64,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" width="15" height="14" alt="">冀ICP备2026047112号</a><span class="dot">·</span><a href="https://beian.mps.gov.cn/"><img class="f-ico" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACcAAAAqCAMAAAAH47LZAAADAFBMVEVMaXHWo0PmtVfdtFWpt3IAH1q7qWDqtlJEVj/PtlvXrVLfrUvbsF/On0nduGCpgkLElEPMmEPcwF8AGFvVn0TWn0LiqkXcrk7GnUvdrk/oyWjYo0XhuFPhqUfapkrmrko1RVnouFYAFE8AE0rAjD7ow1nss0XMkjvdrU7Ciz7arU3RrE6zfzPMljqvgz2/jDvmuFvps0vcsFbnrkvfr03qy2rSmkTmvla+lEXFnUvSpE3cpkjRkTzaz4ZxXDvioT/Oo0zMizm9gDHw1mpSQTRQQzXuzGDXp0jXEBEAHVXVpkjcrUkIJVYDIlULJ1fos03YqU/ZrErdp0XYnj/SmT3VnUDcrk7ouVDZpELGizzYCw/fsk+8eC/KjzvQkz7aBgvPm0cAHE7WExIXMVnWGRTPkjjSoUfiulHeulgGJE7HDQ/YQyfDey3Zo0rIiTXRjDXQTyXTp1DVAwvQmUHiskrOOR0DJVngnT7bij/asU7arlUeM1Pju10YKj/iwFpmYlYMFDHVNB3UYTMIHj7hn0zQnUHDgzPjtk/hrkedhlBfVkfYm0XgpD62ezXgp0IDH0a6mlSqgUPVDQ7uvlCcilnaOSLfyXjXJhk2FSXZLR3egj7UpljVljnpwV7MmUPHlEXMoE7Zql3dslrsxVfsyWUAGkXkrUhzalTu2H7Wr1HREBBGT1rZZTfQLxjfl1zbez/OQSK+hjnTrFzXsVkpO1c9SFRdYFilWR+ykU7KhDKKelPmuVTrz3TjxWbbmj/WtWTauFLhrG3SIxfVUS/m2IbTezbcSy7y3WfkqE20cC5QVFQfMUewllaQeEvmvmswOUM2Jj3Em1fQpFL0yly9Eg/hi1K2VC6XbDfuuEu8fzXoqUCxZyVHSE1ZHTXwz2MQKld2YjoQKkuJcEUlFiicExfLEQ+XQixpSDT6226OVy3r33ceDSfVbzfdlUlVRzr5xFLConJxY0h5dFyREhYnIkrjEQ+qExmcpXp0FiC9ekeAcFaKLSXADw6rkFR3Z0Tp1IHwfWxtAAAA43RSTlMA/v7+B/4SAQEaP8v+If4LVfAm/oCujW5Hre/KgtVgov5N/P34zvyY8IG4MCe5OkGQddWy49Hf7vn86cLxSP7iNdC/0Pz+Lfz////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////+/////////////////////////////////////////////////sZfHl4AAAAJcEhZcwAACxMAAAsTAQCanBgAAAW1SURBVDjLbVVldBtHED5ZkiUzxRwnjh1m5rQpPukknViyLCbLsszMzMzMzI4hZsYwOMzQOJyU+U9PttsmdWffvje379tvZmd3vgOADwyDgefXu/fuMVZ/YIH/NYwapblm3/pXX90yWrsOtbyy0rCA8WqbtPcxdib2YZ+st9mjBSNXsi1S3bpSF9IS0RDREhLzPuvoIukKmHXaizB721yv0YDU+vr5XFv7y09Fa7EA9j+4dVkxdtAfLHYQFcEAxxU57EHI7vxhvY9CYzEAdl+yiTQ3nQrOePrBY6aJm3NBanLR7KPDYAHU7iylfy65ieHXjCtqL3Bs9mM6s5P8Q46Yf0iote7YrTCTCN8mwaSjcPbS9LsooeNkShC7weTyekttzb9TA0w7v8xAS68qwLa8jiLH4qYZoaq9qI2qmA/Bh31SvmqJEovB7rhsB6HPJY5He7ci84RtUa3CWV2VMHqc3YuG7JPNlnBwnqa2aAh9kTwW5SgrKJotEuapZAUFwihqTS4eQvfuWU7R0NC0BU2E+ocnZDiJtyo/WnKjSibEOcoEisxHRHSEjpmeuorGm/WR99FE6XfDgTiJRDIZHZWt8pTBXnZg+NUQf3zDxm83qRlP1HZrJKNJPWOKQBxOgsPJJNnZONhT46p7SPjBjeQN6vs7Ma3P/R5PfHJYEQDHzZ6aaG9vn5hylEhksWWV59GkpI01XxjAOO3GfN+neEh8ke2c5+0tm5jOz8+frpJ5exfBlRb7Q/01Dw8s4h46B2QRIXEy23lmqjX66lhwsBPo1XGj48Z4QLKYFFKZOLR/O3wXxwg+9IoQEimsPJ0aFzTiBFKDqM7hYHjja1/OeRL+NJU+UqajCRiyqZUM2mk8VPc4gJXg6XfK75QnPNs8Q0OvPa6D8BHk0OEhsjawC5HoxU9twEP4sJt54bFR3gXFscUF3rOh1Xm/h4khUlJt40jCIWMAZZ0OVsj7ISIx45kwapQQS56rnSPHvo6dFP6WAZFCuhobw2u2wnVefQ3p5AEH9v/JZcGl2TOwo1XVWhwY3ezS/IsSwvfWu4WGX1sNn1fPys1DfncQ7//g52YXT5Xf1Nu30ao21SkXieSKP3QhnZE+bLUNAAwsDnowEQ5gD+nBAi47lt3xbm7uZWBxTbEj7voV/Dk2lUWo3bsdC+wI7uIz6czEQVJM4TOXF38uXL+ZdfP6wvPnLj8W1kkzfYOoDnTEcUPgeKr+fFwpA0E4J46J/CYysrDwTeSbwsJI2I8R/5BDdRgtZTDubgK2pLh1O8nljNQjUlJGnVIpVj6JyRArlcoMpdgWmS4vpQucztAsAJSlhm63nMFwTU0i9fRKSY9aMjMzW/BEKREvzUz1cHVwq9I9s0rdRDYa+hSnOFf3xKSsnIbk/rGcnJe/3o+4EHE618N1QI7UrTpjqhYb4OT+ISQV5PPliQmigZQBAWvoUr4IdEubl99zFVAoFLKOlvqdYoFt1mQuAcH0cOdSfEQ8DoIick/j8UTufbzKYELi7a1aSw2CAoytySwKhekOKpAcQTmTQRP0vQqm3TtbQnHwvW25DMMAelsOcin6XSAYxE3gsmhMhqtcVEkjeJWkiEQC+ueGKHUbYYHtn3lwKrx8SrxAByrBV8Hp6+OFJjgg4nz4rrzO+LN8t00omAwDWASUCjicclGXEyMuDkGgguVI2kB8PK/zzlleGo/jE/Cp5iIOtZasUa1bAlK8EAimUxDVl0V35cXH3+lMi+dUlFDcRpeEA5ZIcx2N2hHnJhaB4Etwdnag0d3d+XxOOZPJCi3T0FmDWhZLDKC1eoPVpTJFQjCFxeXCOD6HXyHqLiPXb9Yx1/xH2dRKqKW9e8MhroaGbpUbE0EX+ARXV3tZHTCz0AI+FP1FX0t71VabzUeN6Ey6kZHRXkvzk5orfyNLuwz0tHfu2rJjzc6du/QM/l0GAOAvArYxt15UouoAAAAASUVORK5CYII=" width="13" height="14" alt="">冀公网安备13060202001368号</a></p>
+          </footer>
+        </div>
+      </div>
+      <div class="phone-shell">
+        <p class="stage-label">PHONE · 390px</p>
+        <div class="phone"><div class="phone-bar"><span></span></div><div class="phone-stage"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- C -->
+  <section class="proposal" id="c">
+    <div class="proposal-head">
+      <h2>C · 界栏</h2><span class="tag">结构感</span>
+      <p class="idea">一枚金印压在界栏正中，法务分列左右两端。页脚有了一条真正的「轴」。</p>
+    </div>
+    <ul class="notes">
+      <li>30px 方印骑在 1px 界栏上，用纸色切断线，像装订钮</li>
+      <li>左端版权、右端两条备案号，各占一半，沿同一条基线</li>
+      <li>悬停印钮翻转成实金</li>
+      <li>窄屏：印钮留在线上，法务收到中间、上下排列</li>
+    </ul>
+    <div class="cols">
+      <div class="stage-shell">
+        <p class="stage-label">DESKTOP · 全宽</p>
+        <div class="stage">
+          <div class="mock"><span class="mock-eyebrow">正文末尾</span><p>页脚之前的最后一段正文。它在这里只负责把页脚推到合适的位置，让上面的留白看起来是真的。</p></div>
+          <footer class="f fc">
+            <span class="hair"></span>
+            <span class="seal fc-seal">u</span>
+            <div class="fc-in">
+              <div class="fc-l">© 2026 · 沉沦</div>
+              <div class="fc-r">
+                <a href="https://beian.miit.gov.cn/"><img class="f-ico" src="data:image/png;base64,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" width="15" height="14" alt="">冀ICP备2026047112号</a>
+                <a href="https://beian.mps.gov.cn/"><img class="f-ico" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACcAAAAqCAMAAAAH47LZAAADAFBMVEVMaXHWo0PmtVfdtFWpt3IAH1q7qWDqtlJEVj/PtlvXrVLfrUvbsF/On0nduGCpgkLElEPMmEPcwF8AGFvVn0TWn0LiqkXcrk7GnUvdrk/oyWjYo0XhuFPhqUfapkrmrko1RVnouFYAFE8AE0rAjD7ow1nss0XMkjvdrU7Ciz7arU3RrE6zfzPMljqvgz2/jDvmuFvps0vcsFbnrkvfr03qy2rSmkTmvla+lEXFnUvSpE3cpkjRkTzaz4ZxXDvioT/Oo0zMizm9gDHw1mpSQTRQQzXuzGDXp0jXEBEAHVXVpkjcrUkIJVYDIlULJ1fos03YqU/ZrErdp0XYnj/SmT3VnUDcrk7ouVDZpELGizzYCw/fsk+8eC/KjzvQkz7aBgvPm0cAHE7WExIXMVnWGRTPkjjSoUfiulHeulgGJE7HDQ/YQyfDey3Zo0rIiTXRjDXQTyXTp1DVAwvQmUHiskrOOR0DJVngnT7bij/asU7arlUeM1Pju10YKj/iwFpmYlYMFDHVNB3UYTMIHj7hn0zQnUHDgzPjtk/hrkedhlBfVkfYm0XgpD62ezXgp0IDH0a6mlSqgUPVDQ7uvlCcilnaOSLfyXjXJhk2FSXZLR3egj7UpljVljnpwV7MmUPHlEXMoE7Zql3dslrsxVfsyWUAGkXkrUhzalTu2H7Wr1HREBBGT1rZZTfQLxjfl1zbez/OQSK+hjnTrFzXsVkpO1c9SFRdYFilWR+ykU7KhDKKelPmuVTrz3TjxWbbmj/WtWTauFLhrG3SIxfVUS/m2IbTezbcSy7y3WfkqE20cC5QVFQfMUewllaQeEvmvmswOUM2Jj3Em1fQpFL0yly9Eg/hi1K2VC6XbDfuuEu8fzXoqUCxZyVHSE1ZHTXwz2MQKld2YjoQKkuJcEUlFiicExfLEQ+XQixpSDT6226OVy3r33ceDSfVbzfdlUlVRzr5xFLConJxY0h5dFyREhYnIkrjEQ+qExmcpXp0FiC9ekeAcFaKLSXADw6rkFR3Z0Tp1IHwfWxtAAAA43RSTlMA/v7+B/4SAQEaP8v+If4LVfAm/oCujW5Hre/KgtVgov5N/P34zvyY8IG4MCe5OkGQddWy49Hf7vn86cLxSP7iNdC/0Pz+Lfz////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////+/////////////////////////////////////////////////sZfHl4AAAAJcEhZcwAACxMAAAsTAQCanBgAAAW1SURBVDjLbVVldBtHED5ZkiUzxRwnjh1m5rQpPukknViyLCbLsszMzMzMzI4hZsYwOMzQOJyU+U9PttsmdWffvje379tvZmd3vgOADwyDgefXu/fuMVZ/YIH/NYwapblm3/pXX90yWrsOtbyy0rCA8WqbtPcxdib2YZ+st9mjBSNXsi1S3bpSF9IS0RDREhLzPuvoIukKmHXaizB721yv0YDU+vr5XFv7y09Fa7EA9j+4dVkxdtAfLHYQFcEAxxU57EHI7vxhvY9CYzEAdl+yiTQ3nQrOePrBY6aJm3NBanLR7KPDYAHU7iylfy65ieHXjCtqL3Bs9mM6s5P8Q46Yf0iote7YrTCTCN8mwaSjcPbS9LsooeNkShC7weTyekttzb9TA0w7v8xAS68qwLa8jiLH4qYZoaq9qI2qmA/Bh31SvmqJEovB7rhsB6HPJY5He7ci84RtUa3CWV2VMHqc3YuG7JPNlnBwnqa2aAh9kTwW5SgrKJotEuapZAUFwihqTS4eQvfuWU7R0NC0BU2E+ocnZDiJtyo/WnKjSibEOcoEisxHRHSEjpmeuorGm/WR99FE6XfDgTiJRDIZHZWt8pTBXnZg+NUQf3zDxm83qRlP1HZrJKNJPWOKQBxOgsPJJNnZONhT46p7SPjBjeQN6vs7Ma3P/R5PfHJYEQDHzZ6aaG9vn5hylEhksWWV59GkpI01XxjAOO3GfN+neEh8ke2c5+0tm5jOz8+frpJ5exfBlRb7Q/01Dw8s4h46B2QRIXEy23lmqjX66lhwsBPo1XGj48Z4QLKYFFKZOLR/O3wXxwg+9IoQEimsPJ0aFzTiBFKDqM7hYHjja1/OeRL+NJU+UqajCRiyqZUM2mk8VPc4gJXg6XfK75QnPNs8Q0OvPa6D8BHk0OEhsjawC5HoxU9twEP4sJt54bFR3gXFscUF3rOh1Xm/h4khUlJt40jCIWMAZZ0OVsj7ISIx45kwapQQS56rnSPHvo6dFP6WAZFCuhobw2u2wnVefQ3p5AEH9v/JZcGl2TOwo1XVWhwY3ezS/IsSwvfWu4WGX1sNn1fPys1DfncQ7//g52YXT5Xf1Nu30ao21SkXieSKP3QhnZE+bLUNAAwsDnowEQ5gD+nBAi47lt3xbm7uZWBxTbEj7voV/Dk2lUWo3bsdC+wI7uIz6czEQVJM4TOXF38uXL+ZdfP6wvPnLj8W1kkzfYOoDnTEcUPgeKr+fFwpA0E4J46J/CYysrDwTeSbwsJI2I8R/5BDdRgtZTDubgK2pLh1O8nljNQjUlJGnVIpVj6JyRArlcoMpdgWmS4vpQucztAsAJSlhm63nMFwTU0i9fRKSY9aMjMzW/BEKREvzUz1cHVwq9I9s0rdRDYa+hSnOFf3xKSsnIbk/rGcnJe/3o+4EHE618N1QI7UrTpjqhYb4OT+ISQV5PPliQmigZQBAWvoUr4IdEubl99zFVAoFLKOlvqdYoFt1mQuAcH0cOdSfEQ8DoIick/j8UTufbzKYELi7a1aSw2CAoytySwKhekOKpAcQTmTQRP0vQqm3TtbQnHwvW25DMMAelsOcin6XSAYxE3gsmhMhqtcVEkjeJWkiEQC+ueGKHUbYYHtn3lwKrx8SrxAByrBV8Hp6+OFJjgg4nz4rrzO+LN8t00omAwDWASUCjicclGXEyMuDkGgguVI2kB8PK/zzlleGo/jE/Cp5iIOtZasUa1bAlK8EAimUxDVl0V35cXH3+lMi+dUlFDcRpeEA5ZIcx2N2hHnJhaB4Etwdnag0d3d+XxOOZPJCi3T0FmDWhZLDKC1eoPVpTJFQjCFxeXCOD6HXyHqLiPXb9Yx1/xH2dRKqKW9e8MhroaGbpUbE0EX+ARXV3tZHTCz0AI+FP1FX0t71VabzUeN6Ey6kZHRXkvzk5orfyNLuwz0tHfu2rJjzc6du/QM/l0GAOAvArYxt15UouoAAAAASUVORK5CYII=" width="13" height="14" alt="">冀公网安备13060202001368号</a>
+              </div>
+            </div>
+          </footer>
+        </div>
+      </div>
+      <div class="phone-shell">
+        <p class="stage-label">PHONE · 390px</p>
+        <div class="phone"><div class="phone-bar"><span></span></div><div class="phone-stage"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- D -->
+  <section class="proposal" id="d">
+    <div class="proposal-head">
+      <h2>D · 一线</h2><span class="tag">极简</span>
+      <p class="idea">一条线，一行等宽小字。左端法务、右端回顶，中间大片留白。</p>
+    </div>
+    <ul class="notes">
+      <li>整条页脚只有一格高，桌面下一行排完</li>
+      <li>法务靠左、回顶靠右，中间留空</li>
+      <li>备案号之间用金色中点，悬停转金</li>
+      <li>回顶箭头上浮 2px，替代悬浮按钮的文字版</li>
+    </ul>
+    <div class="cols">
+      <div class="stage-shell">
+        <p class="stage-label">DESKTOP · 全宽</p>
+        <div class="stage">
+          <div class="mock"><span class="mock-eyebrow">正文末尾</span><p>页脚之前的最后一段正文。它在这里只负责把页脚推到合适的位置，让上面的留白看起来是真的。</p></div>
+          <footer class="f fd">
+            <div class="fd-in">
+              <span class="fd-legal">© 2026 · 沉沦<span class="dot">·</span><a href="https://beian.miit.gov.cn/"><img class="f-ico" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAC0AAAAqCAMAAAAQwSIQAAADAFBMVEVMaXHyUAAAeczmOgDyPAAWgOHXMwXaGg+BIhj/MwDzUwDgMQDuSwD1VgDyUwDrRwLkPgD7XQDsRgDjMwD3WgAEecfxTgDnPwDgMADuQgDmPgH7TwDoPQAAbMLwTgDxTADxTwDrPADoRwDgMQDmPgDeIgDySwDsNAAAeNIIh9vzTADYIADpNwDxSQD1TADwSQDbJQDnOAD0RgDoPADlJQDrQwAAcMf5WwD1WwD5WwD0TwD0UAD1TgAIker3TAD8YADwSQDySgDjNQDhHgDtSgDwRAD9YgHlJQDlLwDsOQD1OADtQADrRgDlJQDkMwDiLQAAdMkAdc0Abs3+WAACkuv3UgACjeUBiOD2UgD1UADvSgD+YgDtRwDlLgDvSADwRwDtNADxOADsPQDpHwAMqv7tQADtLwDrLQAGvP/8bwP7bwYAa8MAbMQAbMUAaL7xUAAAftgAgN37XAD5VAD8VQD7XgDxYQz8XAAIovYAiN79XgDySwAGl+3hIAD0OwDqPQDsRQDpOwAQovD6YgD0QQAXt/z2RwDwSgD6SQD6PgDuNwDlKADvRwDnMQDmIgDpPADmMwDiJADtPQD+YQAkvvzpKwD/bAArv/svx//7XQD1WAD3VgD2VAAAdM0AcckAftQAeswAd9EAgd35WwAAgt4AiuIAetMAiuUCkevuTQDtSAD8SwDuSQDkIADqLwDhNwDxMgDuRwD/YwD5PADkJABreYwgvP4qs/gPzf8yyfxesL4AbcYAcMkAZr4FlOr7YAD4WwAAle73VQANrv3zOQAAo/8Jq/31LgDeIAAYpO+VcWH/dQDrLQAVvf+hcFout/n/bQD9bQAcs/8mwP/3XwIDpfL4WgD/WAD2VgD/UgD2WAD/VgD1UwD/YgD/TwD/RQD/XAAAcsv9QAD/ZQAAg9/8TgDuPAD/SwD/XwAAetXxTQD1PwD0SwD1JQD/NwAAfdkAjOgBl/P8VAD1UAD4MgD3RQD8RgD3WAAGo/79KgD/cwH/egEAc88AieP/bAEJrP+9/3qoAAAA1nRSTlMA/gETAwIFAQIC/gr8/vwMD/4nHv4JThguCCr+O/79Pvt6RyM2ObjX/hwuFVhdnaYpcflf0/39/B57v+t6ONxX6HNIVvr+aLGXpJju+uhsQD2oEPzSy39t1eVUiWZ0jLLB3eKSK77O+JjTwXNf4Pg3w8/Bh/fLY0jkYe/wj2jvmJ+0gUW1+8LI9NbzMdJM/PiP94KX9ci1n8Tr/PSm5n+XJe/zr9uvTOq+1lbn9hfuZIOHq+HFOtc5Wdhi7M61Ytie7I/xsVHD8qNSPyWnI0Rdit5HdnGe0pUTewAAAAlwSFlzAAALEgAACxIB0t1+/AAABaVJREFUOMt1lXVUVFsUxjfM5cYM0zABIwww5NAl3SWNAqKgIPlAfXaL2N0t+myfz+5+3Z1rwQwDDh1SgoT93rmwQEHf/uOuu8793bP23ufb3wEYGZZTLAAokETG/ViMAwEEBv8TBDCKo7LsccAgwX2Xew4LraBV4v0sBVsu93TkywDwqz09z6wvod9w5XtRFBhIVrQ2NrrgIIy+Ma3A3QIIPDTHEn8Xxy0l6BeLTZtWlbgZCWVXXKZERQlBWRzX7h4qHQ2ztllnyXjAMLM3n+y3MjPTcWqwfYiAl3C5fdezSMYoWGq/ubU2xlwqnOwU1KBWP6SjLybPJSE+v2B7KE4Sum8nLY6u3eG6QSbaqlYbm+ijCAsL02/r67MWOe/bxwVSV093mEc9UsQYOymvGatN9E10dHTk9OORfmxsb+1O5wTcEIUe6OkNwCSGAeNaJs9KI5frVDI5lRMmzD/s67tsvvGjWA/tOKntktTUJYm2hnoD21MkajVXiGCdShWHXX3Yx080SyCwE00NMvbwqDVDePLj+o+SEunNMYWbAAeeo0bOZKtK+WVHZuEERdBBCnwaYsOzhQCGx052dp44imhhdG1MnsJBo8NUVZQ2HwrkEhSGYRSFnoRdUJtHqz1uCMdnt3i+nInobdm94ZmKgG6OSoXgRfTGQ9VTXKeGWK0ZiwRIsqkZ8yGqMb6xKcDBr5zDrmDzmxdK6RSGe8W6pr7YZMbCwDDJxpOm0fm5rpelaTiq/tK6U2Ka5TLwIdpJHdbggJOQOMdmzAANjPMZGd1Mdr8Bn78GI0jwCrQblCoFXpMq25YZofdjKBFPlDeqCDdyLOeoDAyqFjCABGl6BI+mCaTzrzVyjSOXhBmnUSKenw0mKEgp51SUja1LlyI6Yv8aoFBfkNS8l7I1aUYEfDynpWZMzcwZAEoLc1PTAA2z32BsXQQOv+UW7f8FzQUK0y8PVZenmQOCO2s8Xz6Ybggwbm2Ao2gSTfOrFuFw937hX4EUYF6L0hc0V1WcMgfDiafrbWpaHkwfj3ZobG2yGqLXYHDgftGLwj+9068X1r1uXuAtAP/lZ+tbOm0+nTGeLmZzeJPP5LRyZn8Zv0qEw8F/Fha+ePH8+fPXS+fOM4XciZ88flVffyIpkQRaJmvXX7A671PO6UdVRkjhwMG/A/fsLyq6vifCbrw/Yrse15+cTWcxIFiJLMPN9Ej1QE/2SOHOvYN3/W/9/vOt3Nzvlid3Pe16dXb20eOIfTM9vHmD/f5CDPDHvb23P0Dx/eKn/z7t+ir5zERbgOHJQXLDuA7dlQNlBqIjv3Pg9t6969at+2bx4uQzqf5IUaTe215i5yBKoXViUDXXSxd9sf1p9erlq1M/97elP6MJw4ftiiAlazcG+5XL2RUoF2+e7lsZ0qguBTxn1vCCJE/rmmnq201Ltpq/kEsQesOhS0tLOiVk0BHpMPq21eNCRrBGXolmp5rvLSbQ2JAkrXN6fHDxqiglvHFO+xVa15XiFISzVeyy6rki7pCvIlzsssJa+AamQGi2U8EFO99uObNSxSzlj02ZZ+7FRSxPcH5ltnaa8whbo3A0HLjCdJJGbsJkMjlM5Ce+5zb4bDi3bKOr1lpxiRppx8h+jIKmCqyQrZkMeJXOkyfGxm2PPMK1WcKdkcrR7s3b3bfRSREcpFY/MdEPG3RC/V7tDjNh1A/bLYkR9wMy7mnINgNCBMFWFx8ij21oeNjU1JtdItuWX7CrPYcBI28Trsvm2sYSBihl5g5+juu3bs1z2u0WYgES9/b27cXcUTTwQrPixRjwxq3aHe8mM0pwuxIfFSkB1pZI91Dlu/caLmGhbjKsG2NuOEnAInqTdUHcFjTUzpbY+68pgqY7OjqixcC72tHzLM4ZMGLoChvNo6sUaeLX/H0h6MXyZtzNHPrER7TjPyL41E7ej15HAAAAAElFTkSuQmCC" width="15" height="14" alt="">冀ICP备2026047112号</a><span class="dot">·</span><a href="https://beian.mps.gov.cn/"><img class="f-ico" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACcAAAAqCAMAAAAH47LZAAADAFBMVEVMaXHWo0PmtVfdtFWpt3IAH1q7qWDqtlJEVj/PtlvXrVLfrUvbsF/On0nduGCpgkLElEPMmEPcwF8AGFvVn0TWn0LiqkXcrk7GnUvdrk/oyWjYo0XhuFPhqUfapkrmrko1RVnouFYAFE8AE0rAjD7ow1nss0XMkjvdrU7Ciz7arU3RrE6zfzPMljqvgz2/jDvmuFvps0vcsFbnrkvfr03qy2rSmkTmvla+lEXFnUvSpE3cpkjRkTzaz4ZxXDvioT/Oo0zMizm9gDHw1mpSQTRQQzXuzGDXp0jXEBEAHVXVpkjcrUkIJVYDIlULJ1fos03YqU/ZrErdp0XYnj/SmT3VnUDcrk7ouVDZpELGizzYCw/fsk+8eC/KjzvQkz7aBgvPm0cAHE7WExIXMVnWGRTPkjjSoUfiulHeulgGJE7HDQ/YQyfDey3Zo0rIiTXRjDXQTyXTp1DVAwvQmUHiskrOOR0DJVngnT7bij/asU7arlUeM1Pju10YKj/iwFpmYlYMFDHVNB3UYTMIHj7hn0zQnUHDgzPjtk/hrkedhlBfVkfYm0XgpD62ezXgp0IDH0a6mlSqgUPVDQ7uvlCcilnaOSLfyXjXJhk2FSXZLR3egj7UpljVljnpwV7MmUPHlEXMoE7Zql3dslrsxVfsyWUAGkXkrUhzalTu2H7Wr1HREBBGT1rZZTfQLxjfl1zbez/OQSK+hjnTrFzXsVkpO1c9SFRdYFilWR+ykU7KhDKKelPmuVTrz3TjxWbbmj/WtWTauFLhrG3SIxfVUS/m2IbTezbcSy7y3WfkqE20cC5QVFQfMUewllaQeEvmvmswOUM2Jj3Em1fQpFL0yly9Eg/hi1K2VC6XbDfuuEu8fzXoqUCxZyVHSE1ZHTXwz2MQKld2YjoQKkuJcEUlFiicExfLEQ+XQixpSDT6226OVy3r33ceDSfVbzfdlUlVRzr5xFLConJxY0h5dFyREhYnIkrjEQ+qExmcpXp0FiC9ekeAcFaKLSXADw6rkFR3Z0Tp1IHwfWxtAAAA43RSTlMA/v7+B/4SAQEaP8v+If4LVfAm/oCujW5Hre/KgtVgov5N/P34zvyY8IG4MCe5OkGQddWy49Hf7vn86cLxSP7iNdC/0Pz+Lfz////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////+/////////////////////////////////////////////////sZfHl4AAAAJcEhZcwAACxMAAAsTAQCanBgAAAW1SURBVDjLbVVldBtHED5ZkiUzxRwnjh1m5rQpPukknViyLCbLsszMzMzMzI4hZsYwOMzQOJyU+U9PttsmdWffvje379tvZmd3vgOADwyDgefXu/fuMVZ/YIH/NYwapblm3/pXX90yWrsOtbyy0rCA8WqbtPcxdib2YZ+st9mjBSNXsi1S3bpSF9IS0RDREhLzPuvoIukKmHXaizB721yv0YDU+vr5XFv7y09Fa7EA9j+4dVkxdtAfLHYQFcEAxxU57EHI7vxhvY9CYzEAdl+yiTQ3nQrOePrBY6aJm3NBanLR7KPDYAHU7iylfy65ieHXjCtqL3Bs9mM6s5P8Q46Yf0iote7YrTCTCN8mwaSjcPbS9LsooeNkShC7weTyekttzb9TA0w7v8xAS68qwLa8jiLH4qYZoaq9qI2qmA/Bh31SvmqJEovB7rhsB6HPJY5He7ci84RtUa3CWV2VMHqc3YuG7JPNlnBwnqa2aAh9kTwW5SgrKJotEuapZAUFwihqTS4eQvfuWU7R0NC0BU2E+ocnZDiJtyo/WnKjSibEOcoEisxHRHSEjpmeuorGm/WR99FE6XfDgTiJRDIZHZWt8pTBXnZg+NUQf3zDxm83qRlP1HZrJKNJPWOKQBxOgsPJJNnZONhT46p7SPjBjeQN6vs7Ma3P/R5PfHJYEQDHzZ6aaG9vn5hylEhksWWV59GkpI01XxjAOO3GfN+neEh8ke2c5+0tm5jOz8+frpJ5exfBlRb7Q/01Dw8s4h46B2QRIXEy23lmqjX66lhwsBPo1XGj48Z4QLKYFFKZOLR/O3wXxwg+9IoQEimsPJ0aFzTiBFKDqM7hYHjja1/OeRL+NJU+UqajCRiyqZUM2mk8VPc4gJXg6XfK75QnPNs8Q0OvPa6D8BHk0OEhsjawC5HoxU9twEP4sJt54bFR3gXFscUF3rOh1Xm/h4khUlJt40jCIWMAZZ0OVsj7ISIx45kwapQQS56rnSPHvo6dFP6WAZFCuhobw2u2wnVefQ3p5AEH9v/JZcGl2TOwo1XVWhwY3ezS/IsSwvfWu4WGX1sNn1fPys1DfncQ7//g52YXT5Xf1Nu30ao21SkXieSKP3QhnZE+bLUNAAwsDnowEQ5gD+nBAi47lt3xbm7uZWBxTbEj7voV/Dk2lUWo3bsdC+wI7uIz6czEQVJM4TOXF38uXL+ZdfP6wvPnLj8W1kkzfYOoDnTEcUPgeKr+fFwpA0E4J46J/CYysrDwTeSbwsJI2I8R/5BDdRgtZTDubgK2pLh1O8nljNQjUlJGnVIpVj6JyRArlcoMpdgWmS4vpQucztAsAJSlhm63nMFwTU0i9fRKSY9aMjMzW/BEKREvzUz1cHVwq9I9s0rdRDYa+hSnOFf3xKSsnIbk/rGcnJe/3o+4EHE618N1QI7UrTpjqhYb4OT+ISQV5PPliQmigZQBAWvoUr4IdEubl99zFVAoFLKOlvqdYoFt1mQuAcH0cOdSfEQ8DoIick/j8UTufbzKYELi7a1aSw2CAoytySwKhekOKpAcQTmTQRP0vQqm3TtbQnHwvW25DMMAelsOcin6XSAYxE3gsmhMhqtcVEkjeJWkiEQC+ueGKHUbYYHtn3lwKrx8SrxAByrBV8Hp6+OFJjgg4nz4rrzO+LN8t00omAwDWASUCjicclGXEyMuDkGgguVI2kB8PK/zzlleGo/jE/Cp5iIOtZasUa1bAlK8EAimUxDVl0V35cXH3+lMi+dUlFDcRpeEA5ZIcx2N2hHnJhaB4Etwdnag0d3d+XxOOZPJCi3T0FmDWhZLDKC1eoPVpTJFQjCFxeXCOD6HXyHqLiPXb9Yx1/xH2dRKqKW9e8MhroaGbpUbE0EX+ARXV3tZHTCz0AI+FP1FX0t71VabzUeN6Ey6kZHRXkvzk5orfyNLuwz0tHfu2rJjzc6du/QM/l0GAOAvArYxt15UouoAAAAASUVORK5CYII=" width="13" height="14" alt="">冀公网安备13060202001368号</a></span>
+              <a class="fd-top" href="#top">回到顶部 <b>↑</b></a>
+            </div>
+          </footer>
+        </div>
+      </div>
+      <div class="phone-shell">
+        <p class="stage-label">PHONE · 390px</p>
+        <div class="phone"><div class="phone-bar"><span></span></div><div class="phone-stage"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 现状 -->
+  <section class="proposal" id="now">
+    <div class="proposal-head">
+      <h2>现状 · 对照</h2><span class="tag">当前线上</span>
+      <p class="idea">一条渐隐线 + 居中两行法务。干净，但页面收尾处没有落款感。</p>
+    </div>
+    <div class="cols">
+      <div class="stage-shell">
+        <p class="stage-label">DESKTOP · 全宽</p>
+        <div class="stage">
+          <div class="mock"><span class="mock-eyebrow">正文末尾</span><p>页脚之前的最后一段正文。它在这里只负责把页脚推到合适的位置，让上面的留白看起来是真的。</p></div>
+          <footer class="f fnow">
+            <div class="legal">
+              <span>© 2026 · 沉沦</span>
+              <span class="beian"><a href="https://beian.miit.gov.cn/"><img class="f-ico" src="data:image/png;base64,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" width="15" height="14" alt="">冀ICP备2026047112号</a><a href="https://beian.mps.gov.cn/"><img class="f-ico" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACcAAAAqCAMAAAAH47LZAAADAFBMVEVMaXHWo0PmtVfdtFWpt3IAH1q7qWDqtlJEVj/PtlvXrVLfrUvbsF/On0nduGCpgkLElEPMmEPcwF8AGFvVn0TWn0LiqkXcrk7GnUvdrk/oyWjYo0XhuFPhqUfapkrmrko1RVnouFYAFE8AE0rAjD7ow1nss0XMkjvdrU7Ciz7arU3RrE6zfzPMljqvgz2/jDvmuFvps0vcsFbnrkvfr03qy2rSmkTmvla+lEXFnUvSpE3cpkjRkTzaz4ZxXDvioT/Oo0zMizm9gDHw1mpSQTRQQzXuzGDXp0jXEBEAHVXVpkjcrUkIJVYDIlULJ1fos03YqU/ZrErdp0XYnj/SmT3VnUDcrk7ouVDZpELGizzYCw/fsk+8eC/KjzvQkz7aBgvPm0cAHE7WExIXMVnWGRTPkjjSoUfiulHeulgGJE7HDQ/YQyfDey3Zo0rIiTXRjDXQTyXTp1DVAwvQmUHiskrOOR0DJVngnT7bij/asU7arlUeM1Pju10YKj/iwFpmYlYMFDHVNB3UYTMIHj7hn0zQnUHDgzPjtk/hrkedhlBfVkfYm0XgpD62ezXgp0IDH0a6mlSqgUPVDQ7uvlCcilnaOSLfyXjXJhk2FSXZLR3egj7UpljVljnpwV7MmUPHlEXMoE7Zql3dslrsxVfsyWUAGkXkrUhzalTu2H7Wr1HREBBGT1rZZTfQLxjfl1zbez/OQSK+hjnTrFzXsVkpO1c9SFRdYFilWR+ykU7KhDKKelPmuVTrz3TjxWbbmj/WtWTauFLhrG3SIxfVUS/m2IbTezbcSy7y3WfkqE20cC5QVFQfMUewllaQeEvmvmswOUM2Jj3Em1fQpFL0yly9Eg/hi1K2VC6XbDfuuEu8fzXoqUCxZyVHSE1ZHTXwz2MQKld2YjoQKkuJcEUlFiicExfLEQ+XQixpSDT6226OVy3r33ceDSfVbzfdlUlVRzr5xFLConJxY0h5dFyREhYnIkrjEQ+qExmcpXp0FiC9ekeAcFaKLSXADw6rkFR3Z0Tp1IHwfWxtAAAA43RSTlMA/v7+B/4SAQEaP8v+If4LVfAm/oCujW5Hre/KgtVgov5N/P34zvyY8IG4MCe5OkGQddWy49Hf7vn86cLxSP7iNdC/0Pz+Lfz////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////+/////////////////////////////////////////////////sZfHl4AAAAJcEhZcwAACxMAAAsTAQCanBgAAAW1SURBVDjLbVVldBtHED5ZkiUzxRwnjh1m5rQpPukknViyLCbLsszMzMzMzI4hZsYwOMzQOJyU+U9PttsmdWffvje379tvZmd3vgOADwyDgefXu/fuMVZ/YIH/NYwapblm3/pXX90yWrsOtbyy0rCA8WqbtPcxdib2YZ+st9mjBSNXsi1S3bpSF9IS0RDREhLzPuvoIukKmHXaizB721yv0YDU+vr5XFv7y09Fa7EA9j+4dVkxdtAfLHYQFcEAxxU57EHI7vxhvY9CYzEAdl+yiTQ3nQrOePrBY6aJm3NBanLR7KPDYAHU7iylfy65ieHXjCtqL3Bs9mM6s5P8Q46Yf0iote7YrTCTCN8mwaSjcPbS9LsooeNkShC7weTyekttzb9TA0w7v8xAS68qwLa8jiLH4qYZoaq9qI2qmA/Bh31SvmqJEovB7rhsB6HPJY5He7ci84RtUa3CWV2VMHqc3YuG7JPNlnBwnqa2aAh9kTwW5SgrKJotEuapZAUFwihqTS4eQvfuWU7R0NC0BU2E+ocnZDiJtyo/WnKjSibEOcoEisxHRHSEjpmeuorGm/WR99FE6XfDgTiJRDIZHZWt8pTBXnZg+NUQf3zDxm83qRlP1HZrJKNJPWOKQBxOgsPJJNnZONhT46p7SPjBjeQN6vs7Ma3P/R5PfHJYEQDHzZ6aaG9vn5hylEhksWWV59GkpI01XxjAOO3GfN+neEh8ke2c5+0tm5jOz8+frpJ5exfBlRb7Q/01Dw8s4h46B2QRIXEy23lmqjX66lhwsBPo1XGj48Z4QLKYFFKZOLR/O3wXxwg+9IoQEimsPJ0aFzTiBFKDqM7hYHjja1/OeRL+NJU+UqajCRiyqZUM2mk8VPc4gJXg6XfK75QnPNs8Q0OvPa6D8BHk0OEhsjawC5HoxU9twEP4sJt54bFR3gXFscUF3rOh1Xm/h4khUlJt40jCIWMAZZ0OVsj7ISIx45kwapQQS56rnSPHvo6dFP6WAZFCuhobw2u2wnVefQ3p5AEH9v/JZcGl2TOwo1XVWhwY3ezS/IsSwvfWu4WGX1sNn1fPys1DfncQ7//g52YXT5Xf1Nu30ao21SkXieSKP3QhnZE+bLUNAAwsDnowEQ5gD+nBAi47lt3xbm7uZWBxTbEj7voV/Dk2lUWo3bsdC+wI7uIz6czEQVJM4TOXF38uXL+ZdfP6wvPnLj8W1kkzfYOoDnTEcUPgeKr+fFwpA0E4J46J/CYysrDwTeSbwsJI2I8R/5BDdRgtZTDubgK2pLh1O8nljNQjUlJGnVIpVj6JyRArlcoMpdgWmS4vpQucztAsAJSlhm63nMFwTU0i9fRKSY9aMjMzW/BEKREvzUz1cHVwq9I9s0rdRDYa+hSnOFf3xKSsnIbk/rGcnJe/3o+4EHE618N1QI7UrTpjqhYb4OT+ISQV5PPliQmigZQBAWvoUr4IdEubl99zFVAoFLKOlvqdYoFt1mQuAcH0cOdSfEQ8DoIick/j8UTufbzKYELi7a1aSw2CAoytySwKhekOKpAcQTmTQRP0vQqm3TtbQnHwvW25DMMAelsOcin6XSAYxE3gsmhMhqtcVEkjeJWkiEQC+ueGKHUbYYHtn3lwKrx8SrxAByrBV8Hp6+OFJjgg4nz4rrzO+LN8t00omAwDWASUCjicclGXEyMuDkGgguVI2kB8PK/zzlleGo/jE/Cp5iIOtZasUa1bAlK8EAimUxDVl0V35cXH3+lMi+dUlFDcRpeEA5ZIcx2N2hHnJhaB4Etwdnag0d3d+XxOOZPJCi3T0FmDWhZLDKC1eoPVpTJFQjCFxeXCOD6HXyHqLiPXb9Yx1/xH2dRKqKW9e8MhroaGbpUbE0EX+ARXV3tZHTCz0AI+FP1FX0t71VabzUeN6Ey6kZHRXkvzk5orfyNLuwz0tHfu2rJjzc6du/QM/l0GAOAvArYxt15UouoAAAAASUVORK5CYII=" width="13" height="14" alt="">冀公网安备13060202001368号</a></span>
+            </div>
+          </footer>
+        </div>
+      </div>
+      <div class="phone-shell">
+        <p class="stage-label">PHONE · 390px</p>
+        <div class="phone"><div class="phone-bar"><span></span></div><div class="phone-stage"></div></div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<footer class="pv-foot">
+  <p>四个方向都过对比度线：法务走 --muted-soft（4.8:1 浅色 / 5.2:1 深色），悬停走 --accent。</p>
+</footer>
+
+<script>
+  // 手机预览：把桌面演示里的假正文 + 页脚整体搬进手机框，保证同一份结构在窄屏下重新折行
+  document.querySelectorAll('.proposal .cols').forEach((cols) => {
+    const stage = cols.querySelector('.stage');
+    const slot = cols.querySelector('.phone-stage');
+    if (stage && slot) slot.innerHTML = stage.innerHTML;
+  });
+
+  // 明暗切换：只切 base.css 里已有的 html[data-theme] 两档
+  const btn = document.getElementById('themeBtn');
+  btn.addEventListener('click', () => {
+    const cur = document.documentElement.getAttribute('data-theme');
+    document.documentElement.setAttribute('data-theme', cur === 'dark' ? 'light' : 'dark');
+  });
+</script>
+</body>
+</html>

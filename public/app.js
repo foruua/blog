@@ -121,18 +121,6 @@
     if (close) { closeEmoji(close.closest('[data-emoji-picker]'), true); return; }
   });
 
-  const toTop = document.querySelector('.to-top');
-  if (toTop) {
-    const sync = () => {
-      const show = window.scrollY > window.innerHeight;
-      toTop.classList.toggle('show', show);
-    };
-    const onScroll = perFrame(sync);
-    window.addEventListener('scroll', onScroll, { passive: true });
-    window.addEventListener('resize', onScroll, { passive: true });
-    sync();
-  }
-
   /* 正文插图的「点开大图」是 JS 能力：role/tabindex 也由 JS 补，写死在 HTML 里会让禁 JS 的读者拿到假按钮。
      首页封面那张是 <h1> 唯一内容：只补 role/tabindex，不加 aria-label，否则会改掉标题可访问名。 */
   function decorateLightbox(root = document) {

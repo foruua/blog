@@ -6,38 +6,6 @@
 
 
 
-.to-top {
-  position: fixed;
-  right: calc(clamp(1rem, 3vw, 2.2rem) + var(--modal-lock-pad, 0px));
-  bottom: clamp(1rem, 3vw, 2.2rem);
-  z-index: 40;
-  width: 2.85rem; height: 2.85rem;
-  display: grid; place-items: center;
-  font-size: 1rem; line-height: 1;
-  color: var(--fg-soft);
-  background: color-mix(in srgb, var(--bg-elev) 82%, transparent);
-  -webkit-backdrop-filter: blur(10px) saturate(1.2);
-  backdrop-filter: blur(10px) saturate(1.2);
-  border: 1px solid var(--rule-strong);
-  border-radius: var(--radius-pill);
-  box-shadow: var(--shadow-sm);
-  transition: color var(--dur-2) var(--ease), border-color var(--dur-2) var(--ease),
-              transform var(--dur-2) var(--ease), box-shadow var(--dur-2) var(--ease);
-}
-.to-top:hover {
-  color: var(--accent); border-color: var(--accent);
-   box-shadow: var(--shadow-md);
-}
-html.has-js .to-top {
-  opacity: 0; visibility: hidden; transform: translateY(.5rem);
-  /* 悬停那三项（color / border-color / box-shadow）必须在这条里再写一遍：本规则权重更高，会把 .to-top 上那条 transition 整条顶掉 —— 漏写就是悬停硬跳（实测 60ms 即到终值）。 */
-  transition: opacity var(--dur-3) var(--ease), transform var(--dur-3) var(--ease), visibility var(--dur-3),
-              color var(--dur-2) var(--ease), border-color var(--dur-2) var(--ease), box-shadow var(--dur-2) var(--ease);
-}
-html.has-js .to-top.show { opacity: 1; visibility: visible; transform: none; }
-@media print { .to-top { display: none; } }
-
-
 .chron:target, .comments:target { border-top-color: var(--accent-line); }
 
 /* 页眉 */
@@ -1979,8 +1947,8 @@ html[data-theme="dark"] .c-flash-bad, html[data-theme="dark"] .c-flash-limited {
 .c-preview { border: 1px solid var(--rule); border-radius: var(--radius); padding: .9rem; background: var(--bg-soft); }
 /* @page-css comments:end */
 
-/* 页脚 · 双端：左边只留法务细字（© / 备案号），右边 RSS 与配色两枚图标。
-   页脚只承载"必须存在"的信息，入口收成 34px 的细线圆钮；手机端不再重复「回到顶部」。 */
+/* 页脚 · 界栏：正中一枚方印压在细线上，它就是「回到顶部」；左端版权，右端两条备案号。
+   全站只此一处回顶 —— 原先的右下悬浮钮已撤掉，手机上也能在文末收尾。 */
 footer.site {
   position: relative;
   margin: var(--sp-5) 0 0;
@@ -1995,26 +1963,43 @@ footer.site::before {
   background: linear-gradient(90deg, transparent, var(--rule-strong) 22%, var(--rule-strong) 78%, transparent);
   opacity: .9;
 }
+/* 印钮：32px 方印骑在 1px 界栏上，纸色底把线切断，像装订钮。悬停翻成实金；
+   字形是 ↑，可访问名交给 aria-label —— 图形本身 aria-hidden（与字标 .bseal 同一套做法）。 */
+footer.site .foot-seal {
+  position: absolute; top: -16px; left: 50%;
+  z-index: 1;
+  box-sizing: border-box;
+  width: 32px; height: 32px;
+  display: grid; place-items: center;
+  transform: translateX(-50%);
+  color: var(--accent);
+  background: var(--bg);
+  border: 1px solid color-mix(in srgb, var(--accent) 54%, transparent);
+  border-radius: var(--radius-hair);
+  font-size: .95rem; line-height: 1;
+  transition: background-color var(--dur-2) var(--ease),
+              color var(--dur-2) var(--ease),
+              border-color var(--dur-2) var(--ease);
+}
+footer.site .foot-seal:hover {
+  background: var(--accent); border-color: var(--accent); color: var(--bg);
+}
 footer.site .foot-inner {
   box-sizing: border-box;
   /* 页脚始终在 .wrap 里（内置布局与 classic 主题同构）：左右留白已由 .wrap 的 24px 给足，
-     这里不再补一层，否则内容会比正文/卡片多缩进 24px。 */
-  padding: clamp(1.35rem, 2.5vw, 1.75rem) 0 clamp(1.3rem, 2.4vw, 1.7rem);
-  display: flex;
-  align-items: center;
-  /* 页脚只剩一法务行（RSS 与配色搬进了首页 hero-meta）：宽屏落在正中，手机端由下面那条
-     @media 让 .foot-legal 撑满、两端分开。 */
-  justify-content: center;
-  gap: 1rem 1.5rem;
+     这里不再补一层，否则内容会比正文/卡片多缩进 24px。
+     上内距吃到 1.6rem，给印钮往下探的那 16px 留出余量。 */
+  padding: clamp(1.6rem, 3vw, 2rem) 0 clamp(1.15rem, 2.3vw, 1.45rem);
 }
 footer.site .foot-legal {
-  display: flex; flex-direction: column; align-items: center;
-  /* 两行之间留 .45rem（约 7px）：11.5px 的等宽小字行高 18.4px，行距再压就给不出「两行」的呼吸感 */
-  gap: .45rem 1.1rem;
+  display: flex; align-items: baseline; justify-content: space-between;
+  flex-wrap: wrap;
+  /* 左版权、右备案号各靠一端；放不下时备案号整块换行，仍贴右端。 */
+  gap: .55rem 1.4rem;
   min-width: 0;
   font-family: var(--mono);
-  font-size: .72rem; line-height: 1.6;
-  letter-spacing: .09em;
+  font-size: .72rem; line-height: 1.7;
+  letter-spacing: .06em;
   color: var(--muted-soft);
 }
 footer.site .foot-legal .foot-copy { white-space: nowrap; }
@@ -2029,12 +2014,13 @@ footer.site .foot-copy > svg {
 }
 /* 署名前的金色中点：与文章 meta 行「4 天前 · 1654 字」同一个分隔符语言 */
 footer.site .foot-copy .sep { color: var(--accent); padding-inline: .35em; }
-/* 第二行两条备案号同行排；320px 放不下时允许各自成行（仍居中），比溢出稳。 */
+/* 两条备案号同行排；放不下时各自成行，比溢出稳。 */
 footer.site .foot-beian {
   display: flex; flex-wrap: wrap; align-items: baseline;
-  justify-content: center;
+  justify-content: flex-end;
   gap: .15rem .9rem;
   min-width: 0;
+  margin-left: auto;
 }
 footer.site .foot-icp,
 footer.site .foot-police { white-space: nowrap; }
@@ -2058,13 +2044,10 @@ footer.site .foot-police:hover { color: var(--accent); }
 footer.site .foot-police-ico { height: 14px; width: auto; vertical-align: -.22em; margin-right: .32rem; }
 /* ICP 徽标与警徽同一套对齐：链接保持 inline（基线是文字的），图标单独 vertical-align 微调。 */
 footer.site .foot-icp-ico { height: 14px; width: auto; vertical-align: -.22em; margin-right: .32rem; }
+/* 窄屏：界栏与印钮不动，法务收到中间、上下两行。 */
 @media (max-width: 620px) {
-  /* 两行结构窄屏不用动：第一行版权、第二行备案号各自居中，放不下时备案号再各占一行。 */
-  footer.site .foot-legal { flex: 1 1 auto; }
-}
-/* 窄屏不再有页脚入口，右下角浮钮也在这个断点隐藏 —— 手机端彻底不出现「回到顶部」。 */
-@media (max-width: 1000px) {
-  .to-top { display: none; }
+  footer.site .foot-legal { flex-direction: column; align-items: center; gap: .5rem; text-align: center; }
+  footer.site .foot-beian { justify-content: center; margin-left: 0; }
 }
 
 
@@ -2247,7 +2230,7 @@ article.post-empty::before {
 /* 打印 */
 
 @media print {
-  header.site, footer.site, #progress, .comments, details.toc, .nav, .to-top { display: none !important; }
+  header.site, footer.site, #progress, .comments, details.toc, .nav { display: none !important; }
   /* 打印使用确切日期，选择器对应当前文章刊头结构。 */
   .post-mast .meta::after { content: "（" attr(data-day) "）"; }
   body { font-size: 11pt; background: #fff; color: #000; background-image: none; }
@@ -2495,14 +2478,14 @@ mark {
 /* 用户偏好：减弱透明度 / 更高对比。两件事此前全站一条都没有：17 处 backdrop-filter 对开了「减弱透明度」的人仍是满档模糊；--muted/--muted-soft 一直压在 AA 线上调，主动要"更高对比"的人拿不到。两块放在**所有组件之后、访客配色之前**。 */
 
 @media (prefers-reduced-transparency: reduce) {
-  #toast, .to-top, .recent, header.site,
+  #toast, .recent, header.site,
   .lb-close, .lb-nav, .lb-zoom,
   .lightbox::backdrop, .ui-dialog::backdrop {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }
   /* 模糊撤了就得自己站住：浮层与卡片换成实底，遮罩加深到"挡得住底下的字"。 */
-  #toast, .to-top { background-color: var(--bg-elev); }
+  #toast { background-color: var(--bg-elev); }
   .recent { background-color: var(--bg-elev); }
   /* 页头是正文的滚动背景，只去掉模糊就成了"隔着 7% 的纸看字"——必须换成实底。 */
   header.site { background-color: var(--bg); }

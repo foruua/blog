@@ -7,8 +7,8 @@
 
   var OPEN_CLASS = 'mnav-open';
   var WIDE = 620;            // 与 CSS 断点同值
-  // 抽屉打开时摘出被遮罩盖住的"背景"（含 #app 外的「跳到正文」「回到顶部」，它们排在 Tab 最前/最后，漏掉就会跑到看不见的地方）。
-  var BACKGROUND = '.skip, .to-top, header.site, main, footer.site';
+  // 抽屉打开时摘出被遮罩盖住的"背景"（含 #app 外的「跳到正文」，它排在 Tab 最前，漏掉就会跑到看不见的地方）。
+  var BACKGROUND = '.skip, header.site, main, footer.site';
   var last = null;           // 打开前焦点，关闭时还回去
   var pad = 0;               // 滚动条宽度，只在没锁时量得到
 
@@ -383,7 +383,7 @@
       if (dp) document.body.setAttribute('data-page', dp);
       else document.body.removeAttribute('data-page');
 
-      // 必须先收抽屉再换 body.className：set(false) 靠 isOpen() 读 class，若先被抹掉 mnav-open，set() 会早退，.skip/.to-top 的 inert 与 --mnav-pad 就永远留着。
+      // 必须先收抽屉再换 body.className：set(false) 靠 isOpen() 读 class，若先被抹掉 mnav-open，set() 会早退，.skip 的 inert 与 --mnav-pad 就永远留着。
       releaseScrollLock();
       if (window.__closeNavDrawer) window.__closeNavDrawer();
       document.body.className = doc.body.className;
