@@ -50,18 +50,18 @@ export function createSearch(db) {
   // 再加一道硬上限兜底：缓存里存的是整站正文纯文本，万一裁剪路径没走到（异常/提前返回），
   // 不该让它无界长下去。超了就按插入序丢最老的——退化成现算，而不是把内存吃掉。
   const TEXT_CACHE_MAX = 500;
-  const TEXT_CACHE_MAX_CHARS = 8 * 1024 * 1024;
+  const TEXT_CACHE_MAX_BYTES = 8 * 1024 * 1024;
   const textCache = new Map();
-  let textCacheChars = 0;
-  // 条目里同时存 text 与 hay（标题+正文的小写串），后者几乎和正文一样大。只按 text 记账会让
-  // 实际内存约为预算的两倍，8MB 的额度悄悄变成 16MB+。
-  const entryChars = (entry) => entry.text.length + entry.hay.length;
+  let textCacheBytes = 0;
+  // 条目里同时存 text 与 hay（标题+正文的小写串），后者几乎和正文一样大。
+  // JS 字符串按 UTF-16 存储，按 length（字符数）记账会把内存低估约一半；统一按 2 字节/码元估算。
+  const entryBytes = (entry) => (entry.text.length + entry.hay.length) * 2;
   const evictOldest = () => {
     const first = textCache.keys().next();
     if (first.done) return;
     const old = textCache.get(first.value);
     textCache.delete(first.value);
-    textCacheChars -= old ? entryChars(old) : 0;
+    textCacheBytes -= old ? entryBytes(old) : 0;
   };
   const entryKey = (row) => `${row.version}:${row.updated_at ?? ''}:${row.file_hash ?? ''}`;
   const entryOf = (row, cachedBody) => {
@@ -72,10 +72,10 @@ export function createSearch(db) {
     if (cached && cached.key === key) return cached;
     const text = plainText(cachedBody !== undefined ? cachedBody : qBody.get(row.id)?.body_html);
     const entry = { key, version: row.version, text, hay: `${row.title}\n${text}`.toLowerCase() };
-    if (cached) { textCacheChars -= entryChars(cached); textCache.delete(row.id); }
+    if (cached) { textCacheBytes -= entryBytes(cached); textCache.delete(row.id); }
     textCache.set(row.id, entry);
-    textCacheChars += entryChars(entry);
-    while (textCache.size > TEXT_CACHE_MAX || textCacheChars > TEXT_CACHE_MAX_CHARS) evictOldest();
+    textCacheBytes += entryBytes(entry);
+    while (textCache.size > TEXT_CACHE_MAX || textCacheBytes > TEXT_CACHE_MAX_BYTES) evictOldest();
     return entry;
   };
 
@@ -99,7 +99,7 @@ export function createSearch(db) {
 
     const rows = q.all(nowIso());
     // 冷缓存时按 200 篇一批取正文：既避免每篇一次 SELECT，也不会把全站 body_html 同时堆进内存。
-    // 文本缓存本身有 8MB 上限；批次外只保留命中项需要的纯文本。
+    // 文本缓存本身有 8MB（按 UTF-16 估算）上限；批次外只保留命中项需要的纯文本。
     const hits = [];
     let total = 0;
     for (let start = 0; start < rows.length; start += 200) {
@@ -126,7 +126,7 @@ export function createSearch(db) {
         if (!live.has(id)) {
           const old = textCache.get(id);
           textCache.delete(id);
-          textCacheChars -= old ? entryChars(old) : 0;
+          textCacheBytes -= old ? entryBytes(old) : 0;
         }
       }
     }

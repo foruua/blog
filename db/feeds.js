@@ -73,6 +73,8 @@ export function createFeedRepo(db) {
     pruneOf: db.prepare(`DELETE FROM feed_items WHERE feed_id = ? AND id NOT IN (
         SELECT id FROM feed_items WHERE feed_id = ?
         ORDER BY COALESCE(published_at, fetched_at) DESC, id DESC LIMIT ?)`),
+    // feed_items 的逐行触发器已在 043 移除：一轮刷新只在这里 bump 一次内容修订号。
+    bumpContentRevision: db.prepare('UPDATE content_revision SET rev = rev + 1 WHERE id = 1'),
     stats: db.prepare(`SELECT
       (SELECT COUNT(*) FROM feeds WHERE enabled = 1) AS sources,
       (SELECT COUNT(*) FROM feed_items i JOIN feeds f ON f.id = i.feed_id AND f.enabled = 1) AS items`),
@@ -116,6 +118,7 @@ export function createFeedRepo(db) {
     return tx(() => {
       upsertMany(feedId, items, at);
       q.pruneOf.run(feedId, feedId, keep);
+      q.bumpContentRevision.run();
       return { seen: items.length, kept: q.countItemsOf.get(feedId).n };
     });
   }

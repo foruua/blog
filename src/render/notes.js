@@ -1,6 +1,7 @@
 import { mediaFallback } from '../media/variants.js';
 import { esc, decodeHtmlAttribute, htmlAttr, noteHref, cleanExcerpt } from '../util/text.js';
 import { dateBadge, commentLabel } from './layout.js';
+import { IMG_TAG_RE } from './media-tag.js';
 
 export function splitImages(html) {
   const images = [];
@@ -10,8 +11,7 @@ export function splitImages(html) {
     return /^\d+$/.test(value) ? value : null;
   };
   // 图片按文档顺序抽出来；属性值里允许出现被引号包住的 `>`（alt="a > b"），别让正则在这里提前截断标签。
-  const MEDIA_RE = /<img\b(?:[^>"']|"[^"]*"|'[^']*')*>/gi;
-  let text = String(html ?? '').replace(MEDIA_RE, (block) => {
+  let text = String(html ?? '').replace(IMG_TAG_RE, (block) => {
     const src = decodeHtmlAttribute(htmlAttr(block, 'data-full') || htmlAttr(block, 'src'));
     const alt = decodeHtmlAttribute(htmlAttr(block, 'alt'));
     const width = attr(block, 'width');

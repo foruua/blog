@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { SITE, FRIENDS_PER_PAGE, FRIENDS_PER_SOURCE, LINKS_PER_PAGE } from '../config.js';
 import { settings, heroImages, heroOverlay, commentsOpen } from '../settings.js';
-import { layout, listBlock, emptyPage, masthead, entriesBlock, moreLink, defaultOgImage, heroToolsHtml } from '../render/layout.js';
+import { layout, listBlock, emptyPage, masthead, entriesBlock, moreLink, defaultOgImage, heroToolsHtml, themeCacheStamp } from '../render/layout.js';
 import { notesStream, splitImages } from '../render/notes.js';
 import { withLightbox } from '../render/lightbox.js';
 import { heroBlock, heroPreload as heroPreloadTag } from '../render/hero.js';
@@ -815,7 +815,7 @@ ${emptyPage('这一年还没有内容', `换一年看看，或者去 <a href="/a
   let notFoundCache = null;
   const NOT_FOUND_TTL_MS = 60_000;
   function notFound(c) {
-    const stamp = typeof repo.contentStamp === 'function' ? repo.contentStamp() : (typeof repo.changeStamp === 'function' ? repo.changeStamp() : '');
+    const stamp = `${typeof repo.contentStamp === 'function' ? repo.contentStamp() : (typeof repo.changeStamp === 'function' ? repo.changeStamp() : '')}|${themeCacheStamp()}`;
     const hit = notFoundCache;
     // 命中也要走 c.html：c.body 默认 text/plain，会把缓存住的页面当纯文本渲染成裸 <pre>。
     // 除 TTL 外再看内容修订号：文章/评论/设置一改，404 页里的「最近更新」也应立刻跟上。

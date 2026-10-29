@@ -1,8 +1,9 @@
 import { SITE, UPLOADS_DIR } from '../config.js';
+import { PALETTES, settings } from '../settings.js';
 import { isSafeRelative } from '../themes/registry.js';
 
 /** 静态资源出口：带指纹的 public 资源、主题资源、上传附件与 PWA 清单。 */
-export function registerAssetRoutes(app, { sendFile, themes, auth, assetVer }) {
+export function registerAssetRoutes(app, { sendFile, themes, auth, assetVer, repo }) {
   // 主题资源：/theme-assets/<id>/<相对路径>。只允许截图和 assets/ 下的文件，路径由 registry.assetPath 校验。
   // 激活主题对所有访客可用；未激活主题只有站主（预览/后台截图）能取，避免把半成品主题公开。
   app.get('/theme-assets/*', async (c) => {
@@ -45,6 +46,7 @@ export function registerAssetRoutes(app, { sendFile, themes, auth, assetVer }) {
   // 清单本身只发 no-cache（下方默认中间件也会这么兜），浏览器每次校验一次，几十字节。
   app.get('/site.webmanifest', (c) => {
     const icon = (file) => `/${file}?v=${assetVer(file)}`;
+    const paper = PALETTES.find((p) => p.key === settings.paletteDefault(repo))?.paper ?? '#faf8f4';
     const manifest = {
       id: '/',
       name: SITE.identity,
@@ -54,8 +56,8 @@ export function registerAssetRoutes(app, { sendFile, themes, auth, assetVer }) {
       start_url: '/',
       scope: '/',
       display: 'standalone',
-      background_color: '#faf8f4',
-      theme_color: '#faf8f4',
+      background_color: paper,
+      theme_color: paper,
       icons: [
         { src: icon('icon-192.png'), sizes: '192x192', type: 'image/png' },
         { src: icon('icon-512.png'), sizes: '512x512', type: 'image/png' },

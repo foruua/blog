@@ -17,11 +17,12 @@ export function registerLinkRoutes(app, { links, linkChecker }, { ctx }) {
 
   app.get('/admin/links', (c) => {
     const page = pageNumber(c);
-    const rows = links.adminPage({ limit: ADMIN_PAGE_SIZE + 1, offset: (page - 1) * ADMIN_PAGE_SIZE });
-    const snapshot = links.adminSnapshot();
+    const snapshot = links.adminPageWithStats({
+      limit: ADMIN_PAGE_SIZE + 1, offset: (page - 1) * ADMIN_PAGE_SIZE,
+    });
     return c.html(linksAdminPage(ctx(c, {
-      rows: rows.slice(0, ADMIN_PAGE_SIZE),
-      hasMore: rows.length > ADMIN_PAGE_SIZE,
+      rows: snapshot.rows.slice(0, ADMIN_PAGE_SIZE),
+      hasMore: snapshot.rows.length > ADMIN_PAGE_SIZE,
       page,
       total: snapshot.total,
       counts: snapshot.counts,

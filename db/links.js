@@ -96,6 +96,18 @@ export function createLinkRepo(db) {
     adminList: db.prepare(`SELECT * FROM (${LIVE_CTE}) AS live ORDER BY n DESC, last_at DESC, host ASC`),
     adminPage: db.prepare(`SELECT * FROM (${LIVE_CTE}) AS live
       ORDER BY n DESC, last_at DESC, host ASC LIMIT ? OFFSET ?`),
+    // 后台一页把列表与统计合到同一次 LIVE_CTE：正常页只跑一次聚合；空页再单独取一次统计。
+    adminPageWithStats: db.prepare(`WITH live AS (${LIVE_CTE}),
+      stats AS (
+        SELECT COUNT(*) AS total,
+          SUM(CASE WHEN IFNULL(hidden, 0) = 0 AND IFNULL(alive, 1) <> 0 THEN 1 ELSE 0 END) AS total_live,
+          SUM(CASE WHEN IFNULL(hidden, 0) = 0 AND IFNULL(alive, 1) = 0 THEN 1 ELSE 0 END) AS total_dead,
+          SUM(CASE WHEN IFNULL(hidden, 0) = 1 THEN 1 ELSE 0 END) AS total_hidden
+        FROM live
+      )
+      SELECT live.*, stats.total, stats.total_live, stats.total_dead, stats.total_hidden
+        FROM live CROSS JOIN stats
+       ORDER BY n DESC, last_at DESC, host ASC LIMIT ? OFFSET ?`),
     adminCount: db.prepare(`SELECT COUNT(*) AS n FROM (${LIVE_CTE}) AS live`),
     // 后台一页同时要总数与三组计数：合并成一条，避免为同一份 LIVE_CTE 跑三遍。
     adminSnapshot: db.prepare(`SELECT
@@ -161,6 +173,30 @@ export function createLinkRepo(db) {
     publicRecent: (since) => q.publicRecent.get(sqliteTime(since)).n,
     adminList: () => q.adminList.all(),
     adminPage: ({ limit = 60, offset = 0 } = {}) => q.adminPage.all(limit, offset),
+    adminPageWithStats: ({ limit = 60, offset = 0 } = {}) => {
+      const rows = q.adminPageWithStats.all(limit, offset);
+      if (rows.length) {
+        return {
+          rows,
+          total: Number(rows[0].total) || 0,
+          counts: {
+            live: Number(rows[0].total_live) || 0,
+            dead: Number(rows[0].total_dead) || 0,
+            hidden: Number(rows[0].total_hidden) || 0,
+          },
+        };
+      }
+      // 越界页没有行可带统计：补一次聚合（与旧行为一致，仍只有空页付这份成本）。
+      const snapshot = {
+        total: Number(q.adminCount.get()?.n) || 0,
+        counts: { live: 0, dead: 0, hidden: 0 },
+      };
+      const row = q.adminSnapshot.get() ?? {};
+      snapshot.counts = {
+        live: Number(row.live) || 0, dead: Number(row.dead) || 0, hidden: Number(row.hidden) || 0,
+      };
+      return { rows, ...snapshot };
+    },
     adminCount: () => q.adminCount.get().n,
     adminSnapshot: () => {
       const row = q.adminSnapshot.get() ?? {};

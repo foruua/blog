@@ -191,6 +191,7 @@ export function createStaticFiles({ repo, assetVer }) {
     try {
       const stat = await fh.stat();
       if (!stat.isFile()) return c.notFound();
+      const lastModified = new Date(stat.mtimeMs).toUTCString();
       // 精简/预压缩资源会按 Accept-Encoding 发不同字节（br/gzip/原文）。同一 ETag 跨表示容易让缓存把
       // 压缩体当成另一种编码的验证器；用弱 ETag 表示「语义相同、字节可能不同」。
       const etag = `${minify || weakEtag || compress ? 'W/' : ''}"${stat.size.toString(16)}-${stat.ino.toString(16)}-${stat.mtimeMs.toString(16)}-${stat.ctimeMs.toString(16)}"`;
@@ -203,10 +204,14 @@ export function createStaticFiles({ repo, assetVer }) {
       const headers = {
         'Content-Type': MIME[path.extname(resolved).toLowerCase()] ?? 'application/octet-stream',
         ETag: etag,
+        'Last-Modified': lastModified,
         'Cache-Control': cache,
       };
-      if (ifNoneMatch(c, etag)) {
-        const extra = { ETag: etag, 'Cache-Control': headers['Cache-Control'] };
+      const ims = Date.parse(c.req.header('if-modified-since') ?? '');
+      const notModifiedSince = !c.req.header('if-none-match') && Number.isFinite(ims)
+        && Math.floor(stat.mtimeMs / 1000) <= Math.floor(ims / 1000);
+      if (ifNoneMatch(c, etag) || notModifiedSince) {
+        const extra = { ETag: etag, 'Last-Modified': lastModified, 'Cache-Control': headers['Cache-Control'] };
         if (minify || compress) extra.Vary = 'Accept-Encoding';
         return c.body(null, 304, extra);
       }
@@ -243,6 +248,8 @@ export function createStaticFiles({ repo, assetVer }) {
       // 只处理文本类型且体积适中的文件；大文件仍交给外层 compress() 流式处理，避免整块读进内存。
       if (compress && isCompressibleType(headers['Content-Type'])
           && stat.size >= MIN_COMPRESS_BYTES && stat.size <= 4 * 1024 * 1024) {
+        // 不管这次是否真的压缩都声明 Vary：同一 URL 下一次可能按另一个 Accept-Encoding 返回压缩体。
+        headers.Vary = 'Accept-Encoding';
         const accepted = c.req.header('accept-encoding') ?? '';
         let encoding = pickEncoding(accepted, ['br', 'gzip']);
         if (encoding) {
@@ -252,7 +259,6 @@ export function createStaticFiles({ repo, assetVer }) {
           try {
             buf = await compressedBuffer(real, stat, source, encoding);
             headers['Content-Encoding'] = encoding;
-            headers.Vary = 'Accept-Encoding';
           } catch { encoding = ''; }
           headers['Content-Length'] = String(buf.length);
           return c.body(c.req.method === 'HEAD' ? null : buf, 200, headers);
@@ -263,7 +269,11 @@ export function createStaticFiles({ repo, assetVer }) {
       headers['Accept-Ranges'] = 'bytes';
       const range = c.req.header('range');
       const match = /^bytes=(\d*)-(\d*)$/.exec((range ?? '').trim());
-      if (match && (match[1] || match[2])) {
+      const ifRange = c.req.header('if-range');
+      // If-Range 只认当前强 ETag 或 Last-Modified；弱 ETag（精简/压缩表示）不用于 Range 校验。
+      const strongEtag = etag.startsWith('W/') ? '' : etag;
+      const rangeAllowed = !ifRange || ifRange === strongEtag || ifRange === lastModified;
+      if (rangeAllowed && match && (match[1] || match[2])) {
         let start, end;
         if (match[1]) {
           start = Number(match[1]);

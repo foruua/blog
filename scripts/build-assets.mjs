@@ -189,6 +189,11 @@ if (previous?.files && !checkOnly) {
 }
 
 if (checkOnly) {
+  // 当前文件集合也必须和旧清单一致：只比较逐个文件会漏掉「旧版构建出来的、新版已不再生成的」
+  // 5 个源脚本，CI 会误报“已是最新”。
+  const previousKeys = Object.keys(previous?.files ?? {}).sort().join('\n');
+  const currentKeys = Object.keys(manifest.files).sort().join('\n');
+  if (previousKeys !== currentKeys) stale = true;
   if (stale || !previous || previous.version !== manifest.version) {
     console.error('✗ public/.build 不是最新：请运行 npm run build:assets');
     process.exit(1);

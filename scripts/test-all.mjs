@@ -5,7 +5,14 @@ import { createFixtures } from './_fixtures.mjs';
 import { fileURLToPath } from 'node:url';
 
 const project = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const runSuite = (suite) => runIsolatedSuite(suite, { cwd: project });
+const runSuite = async (suite) => {
+  // 并发时 stdout 会交错；套件边界至少打一行标签，失败时能看出是哪一段。
+  const loud = concurrency > 1;
+  if (loud) console.log(`\n── 套件 ${suite} 开始`);
+  const code = await runIsolatedSuite(suite, { cwd: project });
+  if (loud) console.log(`── 套件 ${suite} ${code === 0 ? '完成' : `失败（${code}）`}`);
+  return code;
+};
 // 套件清单只维护在 _suites.mjs；`npm test -- --only test-comments` 可单跑一个，不必在 package.json 再记一份。
 const onlyAt = process.argv.indexOf('--only');
 const only = onlyAt >= 0 ? process.argv[onlyAt + 1] : '';

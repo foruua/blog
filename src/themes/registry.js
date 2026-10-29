@@ -392,6 +392,7 @@ export function createThemeRegistry({
       ? `/theme-assets/${encodeURIComponent(theme.id)}/${encoded}?v=${assetVersion(theme, rel, file)}`
       : '';
     // 不存在的资源也记一下，但只记几秒：作者刚补上文件时不必等满一个 TTL。
+    if (urlCache.size >= 512) urlCache.delete(urlCache.keys().next().value);
     urlCache.set(key, { at: now(), url, ttl: url ? assetTtlMs : Math.min(assetTtlMs, 5000) });
     return url;
   }

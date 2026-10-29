@@ -198,7 +198,7 @@ BLOG_DEPLOY_NODE=/opt/node24/bin/node \
 ./scripts/deploy-tencent.sh
 ```
 
-脚本会：准备独立发布目录 → 以 `blog` 用户 `npm ci` / `build:assets` / `npm prune --omit=dev` → 语法检查 → 停服并做 `pre-deploy` 备份 → 同步代码 → `backfill-media` → 启动 → 本机健康检查 → 恢复演练 → 通过域名直连新机做 HTTPS 健康检查 → 清理旧发布。`npm` 的 `PATH` 会优先使用 `BLOG_DEPLOY_NODE` 所在目录，保证安装依赖和运行时是同一个 Node。另有 `DEPLOY_PORT` / `DEPLOY_TARGET_HOST` / `BLOG_DEPLOY_HEALTH` 可覆盖（一般不用动）。
+脚本会：准备独立发布目录 → 以 `blog` 用户 `npm ci` / `build:assets` / `npm prune --omit=dev` → 语法检查 → 停服并做 `pre-deploy` 备份 → 同步代码 → `backfill-media` → 启动 → 本机健康检查 → 恢复演练 → 通过域名直连新机做 HTTPS 健康检查 → 清理旧发布。`npm` 的 `PATH` 会优先使用 `BLOG_DEPLOY_NODE` 所在目录，保证安装依赖和运行时是同一个 Node。依赖默认从官方 npm 源安装；国内镜像同步新版本有延迟时可用 `NPM_REGISTRY=https://registry.npmmirror.com` 覆盖。另有 `DEPLOY_PORT` / `DEPLOY_TARGET_HOST` / `BLOG_DEPLOY_HEALTH` 可覆盖（一般不用动）。
 
 失败会自动回滚到上一份完整源码。手动回滚：
 

@@ -106,13 +106,14 @@ export function syncContent(repo, { log = console.log, quiet = false, renderer =
         const draft = data.draft === true || !publishedAt;
 
         // 正文没变就不必再渲染：以前每次启动都对全站 Markdown 重跑 markdown-it，算完立刻被 upsertFromFile
-        // 按 file_hash 丢掉（500 篇实测约一半启动同步时间白烧）。
-        // 预检只需要元数据与旧渲染结果；用 getPostMeta 避免整行正文随每次启动进内存。
+        // 按 file_hash 丢掉（500 篇实测约一半启动同步时间白烧）。预检只取哈希/类型/字数等小字段，
+        // 不再把旧 body_html/toc_json 一起拖进内存；未变化的记录也不会走到 writePost 的参数拼装。
         const existing = (typeof repo.getPostMeta === 'function' ? repo.getPostMeta(slug) : repo.getPost(slug));
         const unchanged = !stalePipeline && Boolean(existing)
-          && existing.file_hash === fileHash && !existing.missing_file;
+          && existing.file_hash === fileHash && existing.kind === kind && existing.slug === slug
+          && !existing.missing_file;
         let rendered;
-        if (unchanged) rendered = { html: existing.body_html, toc: existing.toc };
+        if (unchanged) rendered = { html: '', toc: [] };
         else {
           try { rendered = renderer.render(bodyMd); }
           catch (error) { error.renderFailed = true; throw error; }
@@ -125,7 +126,9 @@ export function syncContent(repo, { log = console.log, quiet = false, renderer =
           repaired: repaired !== original ? repaired : null,
           prev: existing,
           rec: {
-            slug, kind, title, description: data.description ? String(data.description) : '', bodyMd, bodyHtml: rendered.html, toc: rendered.toc,
+            slug, kind, title, description: data.description ? String(data.description) : '',
+            // 未变化时 writePost 会在哈希/类型/slug 检查处直接返回，正文参数不会用到；不保留副本。
+            bodyMd: unchanged ? '' : bodyMd, bodyHtml: rendered.html, toc: rendered.toc,
             lang: data.lang ? String(data.lang) : 'zh', commentsOn: data.comments !== false,
             draft, publishedAt, wordCount: unchanged ? existing.word_count : wordCount(bodyMd),
             filePath: file, fileHash, existing,

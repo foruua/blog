@@ -1,6 +1,7 @@
 import { mediaFallback } from '../media/variants.js';
 import { esc, decodeHtmlAttribute, htmlAttr } from '../util/text.js';
 import { ICON_CLOSE } from './icons.js';
+import { IMG_TAG_RE } from './media-tag.js';
 
 /** 灯箱（点图看大图）。弹窗纯静态，交互全在 public/app.js（监听 [data-lightbox]、用 data-full 取展示图、按 data-lightbox 串同组图片翻页）；哪些图片能点完全由标记决定。 */
 
@@ -34,7 +35,7 @@ function withAspectRatio(tag) {
 export function withLightbox(html, group, imageInfo) {
   const id = esc(group);
   const out = String(html ?? '');
-  return out.replace(/<img\b[^>]*>/gi, (tag, offset, whole) => {
+  return out.replace(IMG_TAG_RE, (tag, offset, whole) => {
     tag = withAspectRatio(tag);
     if (/\bdata-lightbox=/i.test(tag)) return tag;
     const full = htmlAttr(tag, 'data-full') || null;

@@ -35,7 +35,7 @@ export function cloneDb(src, clearTables = ['comments', 'mail_outbox']) {
   return { dir, dst };
 }
 
-export async function startServer({ env = {}, isolateDb, timeoutMs = 20000 } = {}) {
+async function startServerOnce({ env = {}, isolateDb, timeoutMs = 20000 } = {}) {
   const port = await freePort();
   const base = `http://127.0.0.1:${port}`;
 
@@ -145,4 +145,15 @@ export async function startServer({ env = {}, isolateDb, timeoutMs = 20000 } = {
   process.on('SIGTERM', onSignal);
 
   return { base, port, dbFile, child, log: () => buf, stop };
+}
+
+// freePort() 先监听再关闭，和子进程真正绑定之间有一个极小窗口；并发套件多时可能撞端口。
+// 只对「端口被抢」失败重试，其他启动错误（维护锁、语法错）原样抛出。
+export async function startServer(options = {}) {
+  for (let attempt = 0; ; attempt++) {
+    try { return await startServerOnce(options); }
+    catch (error) {
+      if (attempt >= 2 || !/EADDRINUSE|address already in use/i.test(String(error?.message ?? error))) throw error;
+    }
+  }
 }

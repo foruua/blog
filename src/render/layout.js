@@ -20,6 +20,13 @@ let themeErrorLogger = (error) => console.error('[theme] 渲染失败，回退�
 export const setThemeResolver = (fn) => { themeResolver = typeof fn === 'function' ? fn : () => null; };
 export const setThemeRenderer = (fn) => { themeRenderer = typeof fn === 'function' ? fn : null; };
 export const setThemeErrorLogger = (fn) => { themeErrorLogger = typeof fn === 'function' ? fn : (error) => console.error('[theme]', error); };
+// 404 等自建缓存的页面也要跟主题模板签名一起失效，不能只看内容修订号。
+export const themeCacheStamp = () => {
+  try {
+    const theme = themeResolver();
+    return theme ? `${theme.id}:${theme.signature ?? ''}` : '';
+  } catch { return ''; }
+};
 
 // 主题引导必须内联在 <head>（外链会闪白），靠 CSP 的 sha256 白名单放行；server.js 对该常量算哈希。
 

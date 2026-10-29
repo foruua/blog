@@ -27,10 +27,10 @@ export function createRepo(db) {
   const q = {
     byId: db.prepare('SELECT * FROM posts WHERE id = ?'),
     bySlug: db.prepare('SELECT * FROM posts WHERE slug = ?'),
-    // 同步预检只需要判断哈希/取旧渲染结果，不需要整行；顺手把 writePost 也要用的元数据带回去，
-    // 避免同一篇在预检和写入时各 SELECT 一次。
+    // 同步预检只需要哈希与写入要用的元数据，不取 body_html/toc_json：那是大字段，启动同步时
+    // 全站正文会跟着进内存。未变化的文件根本不会进入 writePost 的参数拼装。
     bySlugMeta: db.prepare(`SELECT id, slug, kind, file_path, file_hash, missing_file, version,
-      body_html, toc_json, word_count FROM posts WHERE slug = ?`),
+      word_count FROM posts WHERE slug = ?`),
     byFilePath: db.prepare('SELECT * FROM posts WHERE file_path = ?'),
 
     feedFirst: db.prepare(`SELECT ${FEED_COLS} FROM posts
@@ -228,11 +228,7 @@ export function createRepo(db) {
   }
 
   function getPostMeta(slug) {
-    const row = q.bySlugMeta.get(slug);
-    if (!row) return null;
-    let toc = [];
-    try { toc = row.toc_json ? JSON.parse(row.toc_json) : []; } catch { toc = []; }
-    return { ...row, toc };
+    return q.bySlugMeta.get(slug) ?? null;
   }
 
   // 评论提交用：一次查询拿到任意 kind 的可发布内容。

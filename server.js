@@ -292,10 +292,12 @@ app.use('*', compress());
 // 请求级派生值只算一次：路径归一化、URL 解析与静态资源判定在下面 6 个中间件/路由里都要用。
 app.use('*', async (c, next) => {
   const path = c.req.path;
+  const immutable = isImmutablePath(path);
   c.set('requestPath', path);
   c.set('pathKey', path.replace(/\/+$/, ''));
-  c.set('isImmutableAsset', isImmutablePath(path));
-  c.set('requestUrl', new URL(c.req.url));
+  c.set('isImmutableAsset', immutable);
+  // 静态资源不读 URL 查询串；页面/接口才需要。避免一页十几个 CSS/JS/图片各构造一次 URL。
+  if (!immutable) c.set('requestUrl', new URL(c.req.url));
   const id = crypto.randomUUID(); c.set('requestId', id); c.header('X-Request-Id', id);
   await next();
 });
@@ -449,7 +451,7 @@ const { sendFile } = createStaticFiles({ repo, assetVer });
 
 for (const file of VERSIONED_ASSETS) app.get('/' + file, (c) => sendFile(c, '/' + file, { minify: serveMinified && /\.(?:css|js)$/.test(file) }));
 
-registerAssetRoutes(app, { sendFile, themes, auth, assetVer });
+registerAssetRoutes(app, { sendFile, themes, auth, assetVer, repo });
 
 
 // 只给已审核评论出现过的邮箱 md5 回源；任意 hash 不再能消耗上游预算/做枚举。
