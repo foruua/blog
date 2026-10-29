@@ -27,9 +27,13 @@ active="${app_root}.deploy-active"
 
 # 数据库结构版本：迁移是在 systemctl start 里跑的，所以「结构变了没有」只能在部署前记一次、
 # 回滚时再读一次来比较。读不出来就回 unknown，调用方跳过自动回滚而不是瞎猜。
+# 读取器优先用本次发布暂存的新代码（$release/next）：activate 开头 $app_root 里还是旧版本，
+# 而旧版本可能根本没有这个脚本 —— 第一次引入时就是这样，结果被记成了 unknown。
 # 在子 shell 里 cd 到应用根：回滚时脚本的工作目录不一定是 $app_root，相对路径会找不到脚本。
 schema_version() {
-  ( cd "$app_root" && runuser -u "$run_user" -- "$node_bin" --env-file="$app_root/.env" scripts/schema-version.mjs 2>/dev/null ) || echo unknown
+  local script="$release/next/scripts/schema-version.mjs"
+  [ -f "$script" ] || script="$app_root/scripts/schema-version.mjs"
+  ( cd "$app_root" && runuser -u "$run_user" -- "$node_bin" --env-file="$app_root/.env" "$script" 2>/dev/null ) || echo unknown
 }
 
 # 回滚只换代码是不够的：040/041 这类删列迁移一旦跑过，旧代码一写入就报错。
