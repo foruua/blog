@@ -32,7 +32,7 @@ const { recoverWrites, deleteWithFiles } = await import('../src/content/commit.j
 const { snapshot, verifyBackup, restoreBackup, listBackups } = await import('../src/backup.js');
 const { acquireMaintenanceLock } = await import('../src/util/lock.js');
 const { normalizeImage } = await import('../src/media/image.js');
-const { notesStream, splitImages } = await import('../src/render/notes.js');
+const { withLightbox } = await import('../src/render/lightbox.js');
 const { editorPage } = await import('../src/admin/views/content.js');
 const db = open(process.env.DB_FILE); migrate(db, { log() {} });
 const repo = createRepo(db), adminRepo = createAdminRepo(db), comments = createCommentRepo(db), crypt = createCrypto(db);
@@ -202,8 +202,16 @@ try {
     const raw=await sharp({create:{width:20,height:10,channels:3,background:'red'}}).jpeg().withMetadata({orientation:6}).toBuffer();const out=await normalizeImage(raw);assert.equal(out.width,10);assert.equal(out.height,20);assert.equal((await sharp(out.buffer).metadata()).exif,undefined);assert.equal((await sharp(out.thumbnail).metadata()).format,'webp');
   });
   await test('带参数图片地址及替代文字只转义一次', async () => {
-    const images=splitImages(renderer.render('![a & b](https://example.com/a.png?x=1&y=2)').html).images;
-    const dom=new JSDOM(notesStream([{slug:'n',title:'n',text:'',images:images.map(im=>({...im,thumb:'/uploads/preview.webp?x=1&y=2'})),commentsOn:false}]));try{const image=dom.window.document.querySelector('img');assert.equal(image.getAttribute('src'),'/uploads/preview.webp?x=1&y=2');assert.equal(dom.window.document.querySelector('[data-full]').getAttribute('data-full'),'https://example.com/a.png?x=1&y=2');assert.equal(image.alt,'a & b')}finally{dom.window.close()}
+    const html = withLightbox(renderer.render('![a & b](https://example.com/a.png?x=1&y=2)').html, 'n');
+    assert.ok(html.includes('&amp;'), html);
+    assert.ok(!html.includes('&amp;amp;'), html);
+    const dom = new JSDOM(html);
+    try {
+      const image = dom.window.document.querySelector('img');
+      assert.equal(image.getAttribute('src'), 'https://example.com/a.png?x=1&y=2');
+      assert.equal(image.getAttribute('data-full'), 'https://example.com/a.png?x=1&y=2');
+      assert.equal(image.alt, 'a & b');
+    } finally { dom.window.close(); }
   });
   await test('媒体分页可以读取第 121 个记录并按路径独立查找', async () => {
     for(let i=0;i<125;i++)adminRepo.mediaAdd({path:`/uploads/fixture-${i}.png`,filename:`fixture-${i}.png`});
@@ -353,7 +361,7 @@ try {
     try{w.eval(fs.readFileSync('public/ui.js', 'utf8'));w.eval(fs.readFileSync('public/request.js', 'utf8'));w.eval(fs.readFileSync('public/app.js','utf8'));const form=w.document.querySelector('form');form.querySelector('[name=author]').value='reader';form.querySelector('[name=email]').value='reader@example.com';form.querySelector('[name=body]').value='local';form.dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await new Promise(r=>setImmediate(r));assert.equal(payload.slug,'note-a');assert.equal(form.querySelector('[name=body]').value,'local');assert.equal(form.querySelector('button').disabled,false);assert.match(form.textContent,/try again/)}finally{w.close()}
   });
   await test('评论局部刷新保留 id 后缀（同页第二个评论区的 label 不会指到别人家）', async () => {
-    // 笔记流一页有多个评论区，服务端给它们内部 id 加 `-<slug>` 后缀；而 `?partial=comments` 回刷的是单独渲染、不带后缀的那份。
+    // 同一页出现多份评论区时，服务端给内部 id 加 `-<slug>` 后缀；而 `?partial=comments` 回刷的是单独渲染、不带后缀的那份。
     // 照搬会与其他评论区撞 id —— `<label for="c-author">` 会聚焦别人家的框。
     const { commentSection } = await import('../src/comments/view.js');
     const args = (slug) => ({
@@ -600,12 +608,13 @@ await test('T13g 文章列表不再出缩略图（编年轨只留文字）', asy
   assert.ok(!listBlock([row]).includes('.thumb.webp'));
 });
 
-await test('T13d 笔记画廊沿用正文图片的宽高', async () => {
-  const { splitImages } = await import('../src/render/notes.js');
-  const { images } = splitImages('<p><img src="/uploads/x.png" alt="a" width="2400" height="1520"></p>');
-  assert.equal(images.length, 1);
-  assert.equal(images[0].width, '2400');
-  assert.equal(images[0].height, '1520');
+await test('T13d 正文图片的宽高由渲染器写入标记（笔记与文章详情同一套）', async () => {
+  const html = createRenderer({
+    imageInfo: () => ({ original: '/uploads/x.png', preview: '/uploads/x.webp', width: 2400, height: 1520 }),
+  }).render('![a](/uploads/x.png)').html;
+  assert.match(html, /width="2400"/);
+  assert.match(html, /height="1520"/);
+  assert.match(html, /style="aspect-ratio:2400\/1520"/);
 });
 
 // 代码高亮（服务端 highlight.js）：写了语言才高亮，其余走回原来的转义

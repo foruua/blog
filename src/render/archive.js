@@ -27,7 +27,7 @@ ${items.map((p) => ledgerItem(p)).join('\n')}
           </ul>
         </details>`;
 
-// 年份块：原生 <details>。年份不放「只看这一年」链接——<summary> 里塞交互元素对键盘/辅助技术支持不一致（与 notes.js 同一个坑）；年页 /a/<year>/ 仍在。
+// 年份块：原生 <details>。年份不放「只看这一年」链接——<summary> 里塞交互元素对键盘/辅助技术支持不一致（Chrome 会告警）；年页 /a/<year>/ 仍在。
 function yearBlock(year, list, open) {
   const groups = [];
   for (const p of list) {

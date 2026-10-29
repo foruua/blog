@@ -51,18 +51,6 @@ export function createRepo(db) {
       FROM posts p WHERE ${LIVE_ANY} AND ${CURSOR_AFTER}
       ORDER BY published_at DESC, id DESC LIMIT ?`),
 
-    notePosition: db.prepare(`SELECT COUNT(*) AS position FROM posts
-      WHERE kind = 'note' AND ${LIVE_ONLY} AND (published_at > ? OR (published_at = ? AND id > ?))`),
-    noteMeta: db.prepare(`SELECT id, published_at FROM posts
-      WHERE slug = ? AND kind = 'note' AND ${LIVE_ONLY}`),
-    noteBoundary: db.prepare(`SELECT id, published_at FROM posts
-      WHERE kind = 'note' AND ${LIVE_ONLY} ORDER BY published_at DESC, id DESC LIMIT 1 OFFSET ?`),
-    noteFirst: db.prepare(`SELECT id, slug, kind, title, published_at, word_count, comments_on, body_html, ${COMMENT_COUNT}
-      FROM posts p WHERE kind = 'note' AND ${LIVE_ONLY}
-      ORDER BY published_at DESC, id DESC LIMIT ?`),
-    noteAfter: db.prepare(`SELECT id, slug, kind, title, published_at, word_count, comments_on, body_html, ${COMMENT_COUNT}
-      FROM posts p WHERE kind = 'note' AND ${LIVE_ONLY} AND ${CURSOR_AFTER}
-      ORDER BY published_at DESC, id DESC LIMIT ?`),
     listKindFirst: db.prepare(`SELECT ${LIST_COLS}, ${COMMENT_COUNT}
       FROM posts p WHERE kind = ? AND ${LIVE_ONLY}
       ORDER BY published_at DESC, id DESC LIMIT ?`),
@@ -196,22 +184,6 @@ export function createRepo(db) {
     const cursor = parseCursor(before);
     if (kind) return cursor ? q.kindAfter.all(kind, ...cursor, limit) : q.kindFirst.all(kind, limit);
     return cursor ? q.feedAfter.all(...cursor, limit) : q.feedFirst.all(limit);
-  }
-
-  function noteCursor(slug, size) {
-    // 只需要定位用的 id/发布时间：以前用 pageBySlug 的 SELECT *，长笔记会把整篇正文拖出来。
-    const target = q.noteMeta.get(slug);
-    if (!target) return undefined;
-    const position = q.notePosition.get(target.published_at, target.published_at, target.id).position;
-    const offset = Math.floor(position / size) * size - 1;
-    if (offset < 0) return null;
-    const boundary = q.noteBoundary.get(offset);
-    return boundary ? `${boundary.published_at}|${boundary.id}` : null;
-  }
-
-  function notes({ limit = 20, before = null } = {}) {
-    const cursor = parseCursor(before);
-    return (cursor ? q.noteAfter.all(...cursor, limit) : q.noteFirst.all(limit)).map(decorate);
   }
 
   function list({ limit = 20, before = null, kind = null } = {}) {
@@ -379,7 +351,7 @@ export function createRepo(db) {
 
   return {
 
-    feed, list, notes, noteCursor, getPost, getPostMeta, getAnyLive, resolveWikiLink, allPublished, publishedInYear, changeStamp, contentStamp,
+    feed, list, getPost, getPostMeta, getAnyLive, resolveWikiLink, allPublished, publishedInYear, changeStamp, contentStamp,
     archiveEntries: () => q.archiveAll.all(),
     recentEntries: (limit = 8) => q.recentEntries.all(limit),
     stats, neighbours, findAlias,

@@ -59,7 +59,7 @@ async function mount(url, cookie, seed) {
   let sy = 0;
   Object.defineProperty(w, 'scrollY', { get: () => sy, configurable: true });
   w.scrollTo = (_x, y) => { sy = typeof y === 'number' ? y : 0; };
-  // jsdom 没有 scrollIntoView（评论抽屉展开时会调）—— 补空实现，别让环境缺方法变成用例失败。
+  // jsdom 没有 scrollIntoView —— 补空实现，别让环境缺方法变成用例失败。
   w.Element.prototype.scrollIntoView = () => {};
   w.confirm = () => false;
   w.addEventListener('error', () => {});
@@ -145,11 +145,11 @@ try {
 
     page.w.scrollTo(0, 700);
 
-    await page.w.__nav.navigate(new URL(`${BASE}/notes/?n=fixture-note#n-fixture-note`).href);
+    await page.w.__nav.navigate(new URL(`${BASE}/notes/#main`).href);
     await sleep(500);
     check('T59 带锚点的跳转不强行回顶部（交给锚点定位）',
-      page.w.scrollY === 700 && page.w.location.hash === '#n-fixture-note'
-      && Boolean(page.w.document.getElementById('n-fixture-note')),
+      page.w.scrollY === 700 && page.w.location.hash === '#main'
+      && Boolean(page.w.document.getElementById('main')),
       `y=${page.w.scrollY} hash=${page.w.location.hash}`);
   }
 
@@ -190,17 +190,17 @@ try {
 
   {
     // 有构建产物时页面按类型只发 lite/article 变体；pjax 只换 #app、不换 <head>，
-    // 所以换到笔记/文章页必须把缺的样式补进 head，否则会看到原生 details 三角和裸评论表单。
+    // 所以换到文章内页必须把缺的样式补进 head，否则会看到裸评论表单。
     const light = await mount(`${BASE}/`);
     const lite = /style-lite\.css/.test(light.html);
     await light.w.__nav.navigate(`${BASE}/notes/`);
     const notesCss = [...light.w.document.querySelectorAll('link[rel="stylesheet"]')]
       .map((link) => link.href || '');
-    check('T3c pjax 从轻量样式页换到笔记页会补全量样式',
-      !lite || notesCss.some((href) => /\/style\.css\?/.test(href)),
+    check('T3c /notes/ 与文章列表一样是轻量样式页（pjax 不再需要补全量样式）',
+      !lite || notesCss.some((href) => /\/style-lite\.css\?/.test(href)),
       notesCss.join(' '));
-    check('T3d 换到笔记页后笔记流标记已在 DOM（不是只补了样式）',
-      Boolean(light.w.document.querySelector('.nf')));
+    check('T3d 换到笔记页后列表条目已在 DOM（与文章列表同一套标记）',
+      Boolean(light.w.document.querySelector('.list .e-main')) && !light.w.document.querySelector('.nf'));
 
     const list = await mount(`${BASE}/posts/`);
     const listLite = /style-lite\.css/.test(list.html);
@@ -340,15 +340,16 @@ try {
     errors.length = 0;
     wn.__nav.navigate(`${BASE}/notes/`);
     await sleep(600);
-    const cards = [...wn.document.querySelectorAll('.notes > .nf')];
-    const revealed = cards.filter((el) => !el.hasAttribute('data-reveal'));
-    check('T30b 换到笔记页后，笔记卡片没有入场动画标记',
-      cards.length > 0 && revealed.length === cards.length, `${revealed.length}/${cards.length} 张`);
-    check('T30c 换页后笔记卡片已可见（没有留在隐藏态）',
+    const items = [...wn.document.querySelectorAll('.list > li')];
+    const revealed = items.filter((el) => !el.hasAttribute('data-reveal'));
+    check('T30b 换到笔记页后，条目与文章列表同一套且没有入场动画标记',
+      items.length > 0 && revealed.length === items.length, `${revealed.length}/${items.length} 条`);
+    check('T30c 换页后笔记条目已可见（没有留在隐藏态）',
       revealed.length > 0 && revealed.every((el) => getVisible(el)),
-      `${revealed.filter((el) => !getVisible(el)).length} 张未显示`);
-    check('T30d 笔记卡片不再错开入场',
-      !/\.notes > \.note-card:nth-child\(2\)\.is-in/.test(await cssAll()), '');
+      `${revealed.filter((el) => !getVisible(el)).length} 条未显示`);
+    check('T30d 笔记列表不再有折叠行与评论抽屉',
+      !wn.document.querySelector('.nf-fold') && !wn.document.querySelector('.ncp-slot')
+      && !/\.notes > \.note-card:nth-child\(2\)\.is-in/.test(await cssAll()), '');
     const css = await cssAll();
     check('T30i 没有 View Transition 快照规则，也没有针对到达页的动画覆盖（统一一条路径）',
       !/::view-transition/.test(css) && !/nav-swap/.test(css) && !/#app\.arrive/.test(css), '');
@@ -613,56 +614,20 @@ try {
     const page = await mount(`${BASE}/notes/`);
     const { w } = page;
     w.__marker = 'alive';
-    const btn = w.document.querySelector('[data-comments]');
-    const slug = btn?.dataset.comments;
-    const slot = w.document.getElementById(`c-${slug}`);
-    // 笔记流评论是就地展开的一块（.ncp-slot）：首屏只有空壳，grid 0fr 挡不住 Tab，必须同时带 inert；
-    // 评论面板首次展开时才取（列表页不再内嵌 10 份表单）。
-    check('T79d 笔记列里的评论抽屉首屏是收起 + inert 的空壳，表单尚未加载',
-      Boolean(slot) && slot.hasAttribute('inert') && !slot.classList.contains('is-open')
-      && !slot.querySelector('[data-comment-form]')
-      && btn.getAttribute('aria-expanded') === 'false', '');
-    check('T79d1 抽屉的按需地址带 panel=note 与 -<slug> 后缀（多篇同时开过也不撞 id）',
-      String(slot?.dataset.commentsUrl ?? '').includes('partial=comments')
-      && String(slot?.dataset.commentsUrl ?? '').includes('panel=note')
-      && String(slot?.dataset.commentsUrl ?? '').includes(`suffix=-${slug}`), slot?.dataset.commentsUrl ?? '');
+    const link = w.document.querySelector('.list li .e-comments');
+    // 笔记列表与文章列表用同一套条目：评论区只在详情页里，列表不再就地展开。
+    check('T79d 笔记列表条目与文章列表同一套：评论链接直达 /n/<slug>/#comments，没有就地抽屉',
+      Boolean(link) && /^\/n\/.+\/#comments$/.test(link.getAttribute('href') ?? '')
+      && !w.document.querySelector('[data-comments]')
+      && !w.document.querySelector('.ncp-slot') && !w.document.querySelector('.nf-fold'),
+      link?.getAttribute('href') ?? '(无)');
 
-    click(w, btn);
-    check('T79d2 点「评论」就地展开：inert 摘掉、aria-expanded 翻成 true',
-      slot.classList.contains('is-open') && !slot.hasAttribute('inert')
-      && btn.getAttribute('aria-expanded') === 'true', `${slot.className} / ${btn.getAttribute('aria-expanded')}`);
-
-    for (let i = 0; i < 60 && !slot.querySelector('[data-comment-form]'); i++) await sleep(50);
-    const form = slot.querySelector('[data-comment-form]');
-    check('T79d3 展开后取回抽屉自己那套（ncp-form），不是内页评论区那份',
-      Boolean(form) && Boolean(slot.querySelector('.ncp-form')) && !slot.querySelector('.c-form'), '');
-    // 列表页首屏没有评论表单，表情面板的 <template> 也得随页面下发：抽屉里的表单是后取的，
-    // 那时页面已经渲染完，模板不在就再也补不出来了（表现就是点表情键没反应）。
-    check('T79d4 列表页也带着表情面板模板（懒加载抽屉里的表情键能用）',
-      Boolean(w.document.querySelector('template[data-emoji-tpl]')), '');
-    const emojiTrigger = slot.querySelector('[data-emoji-toggle]');
-    click(w, emojiTrigger);
-    check('T79d5 展开的评论抽屉里，表情键能弹出面板',
-      Boolean(slot.querySelector('[data-emoji-panel].is-open'))
-      && emojiTrigger.getAttribute('aria-expanded') === 'true',
-      `${emojiTrigger.getAttribute('aria-expanded')} / ${Boolean(slot.querySelector('[data-emoji-panel]'))}`);
-    form.querySelector('[name=author]').value = '抽屉游客';
-    form.querySelector('[name=email]').value = 'drawer@example.com';    form.querySelector('[name=body]').value = '抽屉里提交也应该原地更新。';
-    await sleep(300);
-    submit(w, form, form.querySelector('button[type=submit]'));
-    await waitFor(() => /等待站主确认/.test(slot.textContent ?? ''), { timeoutMs: 8000 });
-    check('T79e 抽屉里的评论提交后：不跳页、抽屉还开着、内容就地更新',
-      w.__marker === 'alive' && w.location.pathname === '/notes/'
-      && slot.classList.contains('is-open')
-      && /等待站主确认/.test(slot.textContent ?? ''),
-      `${w.location.pathname}`);
-    // 回刷必须仍是抽屉那套；写成内页那套会换脸（.ncp-form 不见、换成 .c-form）—— 本机制最易漏的耦合。
-    check('T79e1 回刷回来的仍是抽屉自己那份（ncp-form 还在、没被换成内页那套）',
-      Boolean(slot.querySelector('.ncp-form')) && !slot.querySelector('.c-form')
-      && Boolean(slot.querySelector('.ncp-flash')), '');
-    // 按钮上的数字是抽屉外唯一显示条数处；它带展开箭头（::after），整块 textContent 重写会抹掉箭头 —— 断言它仍是数字。
-    check('T79e2 提交后按钮仍写着「评论」或「评论 N」',
-      /^评论( \d+)?$/.test((btn.textContent ?? '').trim()), JSON.stringify(btn.textContent));
+    click(w, link);
+    await waitFor(() => /^\/n\//.test(w.location.pathname), { timeoutMs: 5000 });
+    check('T79d1 点评论链接进入笔记详情页，标准评论区可用',
+      w.__marker === 'alive' && w.location.hash === '#comments'
+      && Boolean(w.document.getElementById('comments'))
+      && Boolean(w.document.querySelector('.c-form')), `${w.location.pathname}${w.location.hash}`);
   }
 
   {
@@ -743,9 +708,9 @@ try {
       /html\.modal-open \{ overflow: hidden/.test(cssLock)
       && /html\.modal-open body \{ padding-right: var\(--modal-lock-pad/.test(cssLock)
       && /\(hover: none\) and \(pointer: coarse\)[\s\S]{0,200}position: fixed/.test(cssLock), '');
-    check('T81e 灯箱掐断滚动链（笔记流的评论抽屉不在此列：它在页面里展开，锁住就滚不动了）',
+    check('T81e 灯箱掐断滚动链（评论抽屉已删除，页面里没有需要另说的展开块）',
       /\.lightbox[^{]*\{[^}]*overscroll-behavior: contain/.test(cssLock)
-      && !/\.ncp-slot[^{]*\{[^}]*overscroll-behavior/.test(cssLock), '');
+      && !/\.ncp-slot/.test(cssLock), '');
   }
 
   {

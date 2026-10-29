@@ -84,51 +84,35 @@ const page = await (await fetch(`${BASE}/p/${SLUG}/`)).text();
     VALUES(?, ?, '沉沦', '收到。', 'approved', 1, '2031-01-01T00:00:00.000Z')`).run(zzid, zzRoot);
 
   const page = await (await fetch(`${BASE}/notes/`)).text();
-  const at = page.indexOf('id="n-zz-note"');
-  const slice = at >= 0 ? page.slice(at, page.indexOf('</details>', at)) : '';
+  const at = page.indexOf('href="/n/zz-note/"');
+  const itemStart = at >= 0 ? page.lastIndexOf('<li', at) : -1;
+  const slice = itemStart >= 0 ? page.slice(itemStart, page.indexOf('</li>', at) + 5) : '';
 
-  check('T52 笔记正文整篇铺在列里（不是 88 字的摘要）',
-    slice.includes(long.slice(0, 120)) && slice.includes(long.slice(-24)), `长度 ${slice.length}`);
-  const galAt = slice.indexOf('class="gallery"');
-  check('T53 正文里的图被抽到文字下方，排成图集',
-    galAt > 0 && slice.includes('class="gal-item"') && slice.slice(0, galAt).indexOf('<img') === -1, '');
-  check('T54 每则笔记带评论抽屉，「评论」按钮同时是无 JS 时的兜底链接',
-    slice.includes('id="c-zz-note"') && slice.includes('data-comments="zz-note"')
-    && slice.includes('href="/n/zz-note/#comments"'), '');
-  // 三件事一起守：① 服务端就得收起（无 JS 时一直收着）；② 收起态必须带 inert（光靠高度 0 挡不住 Tab）；
-  // ③ 面板不在列表页渲染（首次展开才取），但 URL 里必须带 -<slug> 后缀，避免开过两篇后表单 id 相撞。
-  check('T54c 评论抽屉首屏是「收起 + inert」的空壳，面板改首次展开时按 URL 取',
-    /class="ncp-slot" id="c-zz-note" data-comments-slot data-comments-url="[^"]*partial=comments[^"]*panel=note[^"]*suffix=-zz-note" data-comments-page="\/n\/zz-note\/#comments" inert/.test(slice)
-    && slice.includes('aria-expanded="false"')
-    && !slice.includes('class="ncp-form"') && !slice.includes('class="ncp"'), '');
-  const panel = await (await fetch(`${BASE}/n/zz-note/?partial=comments&panel=note&suffix=-zz-note`)).text();
-  check('T54d 按需取回的抽屉面板是它自己那套（ncp-），id 带 slug 后缀，不是内页评论区那套（c-list / c-form）',
-    panel.includes('id="comments-zz-note"') && panel.includes('class="ncp-list"') && panel.includes('class="ncp-c"')
-    && panel.includes('class="ncp-kids is-nest"') && panel.includes('class="ncp-form"')
-    && !panel.includes('class="c-list"') && !panel.includes('class="c-form"'), '');
+  check('T52 笔记列表与文章列表同一套条目（标题 + 摘要 + 评论链接）',
+    slice.includes('class="note"') && slice.includes('href="/n/zz-note/"')
+    && slice.includes('<h2>笔记列测试') && slice.includes('class="excerpt"'), `长度 ${slice.length}`);
+  check('T53 笔记列表不再有折叠行、图集与就地评论抽屉',
+    !page.includes('nf-fold') && !page.includes('ncp-slot') && !page.includes('class="gallery"'), '');
+  check('T54 评论数直达笔记详情页的评论区',
+    slice.includes('href="/n/zz-note/#comments"') && slice.includes('2 条评论'), slice.slice(-200));
 
-  // 「评论」按钮点亮时坐在 --accent-soft 上，裸 --accent 只有 4.11:1（12.8px 字要 4.5）；用 .c-actions button 那套合成。
+  // 评论回刷只保留标准评论区这一套（c-*）；笔记列表不再有抽屉那套（ncp-*）。
+  const panel = await (await fetch(`${BASE}/n/zz-note/?partial=comments`)).text();
+  check('T54b 笔记详情页的评论回刷仍是标准评论区',
+    panel.includes('class="c-list"') && panel.includes('class="c-form"') && !panel.includes('class="ncp'),
+    panel.slice(0, 120));
+
   const css = await (await fetch(`${BASE}/style.css`)).text();
-  const lit = /\.note-cbtn\[aria-expanded="true"\] \{([^}]*)\}/.exec(css)?.[1] ?? '';
-  check('T54e 点亮的「评论」按钮上的字走 82% 金 + 18% 前景（裸 --accent 在 --accent-soft 上只有 4.11:1）',
-    /color:\s*color-mix\(in srgb, var\(--accent\) 82%, var\(--fg\)\)/.test(lit)
-    // 只认整条声明就是裸 --accent：既要挡 color-mix(...) 里的 var(--accent)，也要挡
-    // border-color: var(--accent); —— 必须锚住前一个字符不是 `-`。
-    && !/(?:^|[;{\s])color:\s*var\(--accent\)\s*;/.test(lit), `点亮态：${lit.trim()}`);
+  check('T54c 笔记列表/抽屉的样式已从全量样式表移除',
+    !/\.nf-/.test(css) && !/\.ncp-/.test(css), '');
 
-  // 但它**只该在抽屉里** —— 笔记自己页面每个字段都有可见 <label>。
   const notePage = await (await fetch(`${BASE}/n/zz-note/`)).text();
   const noteBodyTag = /<textarea[^>]*name="body"[^>]*>/.exec(notePage)?.[0] ?? '';
-  check('T54f 抽屉写作区给了一句极轻的提示，笔记自己的页面仍走可见 label',
-    panel.includes('placeholder="写一条评论"') && panel.includes('aria-label="评论内容"')
-    && /<label for="c-body[^"]*">内容<\/label>/.test(notePage)
+  check('T54f 笔记详情页评论区走可见 label（与文章页同一套）',
+    /<label for="c-body">内容<\/label>/.test(notePage)
     && !/placeholder=/.test(noteBodyTag), `内页正文框：${noteBodyTag.slice(0, 80)}`);
-  const ph = /\.ncp-body::placeholder \{([^}]*)\}/.exec(css)?.[1] ?? '';
-  check('T54g 这句提示走可读的 --muted，不是只给装饰用的 --muted-soft（令牌注释写明 3.6:1）',
-    /(?:^|[;{\s])color:\s*var\(--muted\)\s*;/.test(ph) && !/muted-soft/.test(ph),
-    `placeholder 色：${ph.trim()}`);
 
-  check('T55 页面里有灯箱（点图集进灯箱看大图）', page.includes('id="lightbox"') && page.includes('class="lb-img"'));
+  check('T55 页面里有灯箱（点正文插图进灯箱看大图）', page.includes('id="lightbox"') && page.includes('class="lb-img"'));
 
   const homeHtml = await (await fetch(`${BASE}/`)).text();
   check('T56 首页的笔记条目仍是账本行（没被笔记流样式撑高）',
@@ -263,16 +247,13 @@ const page = await (await fetch(`${BASE}/p/${SLUG}/`)).text();
     bad = bad.concat([...html.matchAll(/href="(\/notes\/\?n=[^"]*)"/g)].map((m) => `${url} → ${m[1]}`));
     linked += (html.match(/href="\/n\//g) ?? []).length;
   }
-  check('T57b 笔记列表里有通往正文页的链接（收起态那枚「N 条评论」）',
-    /<a class="nf-comments" href="\/n\/fixture-note\/#comments"[^>]*>/.test(await (await fetch(`${BASE}/notes/`)).text()), '');
+  const notesHtml = await (await fetch(`${BASE}/notes/`)).text();
+  check('T57b 笔记列表的评论链接直达详情页评论区',
+    /<a class="e-comments" href="\/n\/fixture-note\/#comments"[^>]*>/.test(notesHtml), '');
   check('T57 首页/归档/标签页里的笔记链接都指向正文页',
     bad.length === 0 && linked > 0, `旧列表链接 ${bad.length} 条：${bad.slice(0, 2).join(' ')}；正文链接 ${linked} 条`);
 
-  const one = await fetch(`${BASE}/notes/?n=fixture-note`, { redirect: 'manual' });
-  const oneHtml = await one.text();
-  check('T58 /notes/?n=<slug> 直接渲染出这条笔记（200，不 302）',
-    one.status === 200 && oneHtml.includes('id="n-fixture-note"'), `status=${one.status}`);
-
+  // /notes/ 与 /posts/ 共用 ?before= 游标；?n=<slug> 不再是笔记列表的入口。
   for (let i = 1; i <= 6; i++) {
     const day = `2024-0${i}-01T00:00:00Z`;
     db.prepare(`INSERT INTO posts(slug,kind,title,body_md,body_html,draft,source,word_count,published_at,comments_on)
@@ -280,11 +261,16 @@ const page = await (await fetch(`${BASE}/p/${SLUG}/`)).text();
   }
   db.prepare("INSERT INTO settings(key,value) VALUES('page_size','5') ON CONFLICT(key) DO UPDATE SET value='5'").run();
   const oldest = db.prepare("SELECT slug FROM posts WHERE kind='note' AND draft=0 ORDER BY published_at LIMIT 1").get().slug;
-  const multi = await fetch(`${BASE}/notes/?n=${oldest}`, { redirect: 'manual' });
+  const firstPage = await (await fetch(`${BASE}/notes/`)).text();
+  const beforeHref = /href="(\/notes\/\?before=[^"]+)"/.exec(firstPage)?.[1] ?? '';
+  check('T58 笔记列表用 ?before= 翻页（不再有 ?n= 游标）',
+    /<p class="pager-more"><a href="\/notes\/\?before=/.test(firstPage) && !/\/notes\/\?n=/.test(firstPage),
+    beforeHref);
+  const multi = await fetch(`${BASE}${beforeHref}`, { redirect: 'manual' });
   const multiHtml = await multi.text();
 
-  check('T59 笔记在第二页以后时，也直接渲染出它（不靠 302 翻页）',
-    multi.status === 200 && multiHtml.includes(`id="n-${oldest}"`), `status=${multi.status}`);
+  check('T59 更早的笔记在第二页仍可访问',
+    multi.status === 200 && multiHtml.includes(`href="/n/${oldest}/"`), `status=${multi.status}`);
   db.prepare("DELETE FROM settings WHERE key = 'page_size'").run();
   db.prepare("DELETE FROM posts WHERE slug LIKE 'zz-note-old-%'").run();
 }
@@ -352,7 +338,7 @@ const page = await (await fetch(`${BASE}/p/${SLUG}/`)).text();
     const feed = await (await fetch(`${BASE}/feed.xml`)).text();
     // 固定页会出现在**导航**里（标题），而导航每页都有 —— 所以用正文片段判断它有没有混进列表/Feed，不能拿标题当判据（踩过的坑）。
     const leak = ['posts', 'notes', 'feed'].filter((k) => ({ posts, notes, feed })[k].includes('zz-about-body'));
-    check('T8d 固定页不进文章列表、笔记流与 Feed（正文不会混进去）', leak.length === 0, `命中 ${leak.join(',') || '无'}`);
+    check('T8d 固定页不进文章/笔记列表与 Feed（正文不会混进去）', leak.length === 0, `命中 ${leak.join(',') || '无'}`);
 
     const two = await fetch(`${BASE}/colophon/`);
     const twoHtml = await two.text();
@@ -410,10 +396,10 @@ const page = await (await fetch(`${BASE}/p/${SLUG}/`)).text();
   fs.writeFileSync(file, '---\ntitle: 中文笔记\ndate: 2026-10-08\n---\n中文 slug 的正文。');
   try {
     syncContent(createRepo(db), { quiet: true });
-    const url = `${BASE}/n/${encodeURIComponent(slug)}/?partial=comments&panel=note&suffix=-${encodeURIComponent(slug)}`;
+    const url = `${BASE}/n/${encodeURIComponent(slug)}/?partial=comments`;
     const html = await (await fetch(url)).text();
-    check('T8m 中文 slug 的评论抽屉保留 id 后缀',
-      html.includes(`id="comments-${slug}"`) && html.includes(`id="c-body-${slug}"`), html.slice(0, 120));
+    check('T8m 中文 slug 的笔记详情页评论区正常',
+      html.includes('id="comments"') && html.includes('id="c-body"') && html.includes('class="c-form"'), html.slice(0, 120));
   } finally {
     fs.rmSync(file, { force: true });
     db.prepare('DELETE FROM posts WHERE slug = ? AND kind = ?').run(slug, 'note');
@@ -580,13 +566,13 @@ const page = await (await fetch(`${BASE}/p/${SLUG}/`)).text();
     const postsHtml = await (await fetch(`${BASE}/posts/`)).text();
     const postItems = listItems(postsHtml);
 
-    const noteRows = [...notesHtml.matchAll(/<div class="nf"/g)].length;
+    const noteItems = [...notesHtml.matchAll(/<li class="note">/g)].length;
     const noteReveals = [...notesHtml.matchAll(/data-reveal/g)].length;
-    check('T36 /notes/ 每一篇都是折叠行（.nf），容器标了 data-kind="note"',
-      notesHtml.includes('<div class="notes" data-kind="note">') && noteRows > 0,
-      `${noteRows} 条`);
+    check('T36 /notes/ 与 /posts/ 使用同一套列表标记（.list ul + .e-main 条目）',
+      notesHtml.includes('<ul class="list" data-kind="note">') && noteItems > 0
+      && notesHtml.includes('class="e-main"') && !/nf-fold|ncp-slot/.test(notesHtml), `${noteItems} 条`);
     check('T36b /notes/ 的条目没有入场动画标记',
-      noteRows > 0 && noteReveals === 0, `${noteReveals}/${noteRows} 条`);
+      noteItems > 0 && noteReveals === 0, `${noteReveals}/${noteItems} 条`);
     check('T37 /posts/ 的列表标了 data-kind="post"，条目都不带 .note',
       postsHtml.includes('<ul class="list" data-kind="post">')
       && postItems.length > 0 && postItems.every((a) => !a.includes('class="note"')),
@@ -662,18 +648,15 @@ const page = await (await fetch(`${BASE}/p/${SLUG}/`)).text();
       && /\.mod-form \.c-actions \{[^}]*flex-direction:\s*column/.test(css),
       '审核页窄屏操作按钮与源文换行规则缺失');
 
-    check('T50b 浮窗打开时锁住背后的页面（否则滚到浮窗边界会连带滚走背景）；笔记流的评论抽屉反过来，不许锁',
+    check('T50b 浮窗打开时锁住背后的页面；笔记列表已无评论抽屉，全量样式里也没有它的规则',
       /html:has\(dialog\[open\]\)/.test(css) && /html\.modal-open \{ overflow: hidden/.test(css)
-      // 抽屉是页面里展开的一块，锁滚动就没法读 —— 它靠 0fr + visibility 收起，不用 dialog，也不该进 modal-open 那套锁。
-      && /\.ncp-slot \{[\s\S]{0,240}grid-template-rows: 0fr/.test(css)
-      && /\.ncp-slot \{[\s\S]{0,240}visibility: hidden/.test(css)
-      && !/\.ncp-slot[^{]*\{[^}]*overscroll-behavior/.test(css), '');
+      && !/\.ncp-(?:slot|mask|form|list)/.test(css)
+      && !/\.nf-(?:fold|sum|panel|meta)/.test(css), '');
     check('T50c 灯箱同样掐断滚动链', /\.lightbox\s*\{[^}]*overscroll-behavior:\s*contain/.test(css), '');
-    // 0fr 只管内容、管不住 grid 项的内外边距：空隙写成常驻 padding 时，收起后抽屉还留着 16.8px 高度；它必须与高度一起过渡。
-    check('T50g 抽屉收起时真的收到 0：那道空隙跟着一起过渡，不是常驻 padding',
-      /\.ncp-slot > \.ncp-mask \{[\s\S]{0,200}padding-top: 0;/.test(css)
-      && /\.ncp-slot > \.ncp-mask \{[\s\S]{0,240}transition: padding-top/.test(css)
-      && /\.ncp-slot\.is-open > \.ncp-mask \{ padding-top: 1\.05rem; \}/.test(css), '');
+    // 笔记列表与文章列表共用同一套行几何，不再有折叠层的 0fr/常驻内距那套。
+    check('T50g 笔记列表与文章列表共用行几何（.list .e-meta / .list h2::before 仍在）',
+      /\.list \.e-meta \{/.test(css) && /\.list h2::before \{/.test(css)
+      && !/\.nf-/.test(css), '');
 
     check('T47 页头不吸顶，也没有靠 JS 记滚动状态的 .stuck（页头随正文滚走，不需要滚动监听）',
       !/header\.site \{[^}]*position:\s*sticky/.test(css)

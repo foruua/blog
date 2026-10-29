@@ -29,8 +29,7 @@ const EMOJI = [
 // 触发键那枚笑脸是站里自己的图标语系（16×16 viewBox、stroke=currentColor、1.5、圆头），与灯箱关闭键、后台 a-ico 同一套。原来用 ☺ 文字字形（U+263A）：笔画与光学大小由系统字体决定，Windows/Android 上还可能被当彩色表情渲染——同一枚键三平台三种样子。
 const FACE_ICON = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8.1" r="6.1"/><path d="M5.6 9.6a3.1 3.1 0 0 0 4.8 0"/><path d="M6.15 6.35h.01M9.85 6.35h.01"/></svg>';
 
-// 面板本体（80 枚按钮 ≈ 7.4KB）不再跟着每个评论表单走：/notes 一页十来个抽屉就是十份，光这一项占掉整页
-// 四成体积。表单处只留触发键，面板改为整页一份 <template>，首次点开时由 app.js 克隆进对应的 .c-emoji。
+// 面板本体（80 枚按钮 ≈ 7.4KB）不再跟着每个评论表单走：表单处只留触发键，面板改为整页一份 <template>，首次点开时由 app.js 克隆进对应的 .c-emoji。
 // 无脚本时 .c-emoji 本来就被 CSS 收掉（style.css 的 html:not(.has-js)），所以这一改不影响降级行为。
 export function emojiPicker() {
   return `<div class="c-emoji" data-emoji-picker>
@@ -93,7 +92,7 @@ export function commentSection({ post, thread, count, flash, tsToken, replyTo = 
   const notice = flash && Object.hasOwn(FLASH, flash)
     ? `<p class="c-flash c-flash-${esc(flash)}">${esc(FLASH[flash])}</p>` : '';
 
-  // 与 notePanel 同一口径：只有显式 0/false 才算关闭；缺字段（老数据/主题数据）按默认开启。
+  // 关闭口径：只有显式 0/false 才算关闭；缺字段（老数据/主题数据）按默认开启。
   if (post.comments_on === 0 || post.comments_on === false) {
     return `<section class="comments" id="comments${idSuffix}" data-comments-section>
       <header class="c-top"><h2><span class="c-label">评论</span><b class="c-count">${count}</b></h2></header>

@@ -10,7 +10,6 @@ import { walkTemplates, templateMap, templateSignature } from './templates.js';
 const HIERARCHY = {
   home: ['home', 'front-page', 'index'],
   posts: ['posts', 'home', 'list', 'index'],
-  notes: ['notes', 'list', 'index'],
   post: ['single-post', 'single', 'index'],
   note: ['single-note', 'single', 'index'],
   page: ['page', 'index'],

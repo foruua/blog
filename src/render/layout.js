@@ -308,7 +308,7 @@ export const defaultOgImage = () => ({
 });
 
 const mainHtmlOf = (page, main) => `<main id="main" tabindex="-1"${page === 'home' ? ' class="home-main"' : ''}>\n${main}\n  </main>`;
-const emojiTplOf = (main) => (String(main ?? '').includes('data-emoji-toggle') || String(main ?? '').includes('data-comments-slot')
+const emojiTplOf = (main) => (String(main ?? '').includes('data-emoji-toggle')
   ? `\n${emojiPanelTemplate()}` : '');
 
 /** 把一次 layout() 的参数整理成 head / chrome / 主题上下文共用的结构。 */
@@ -352,8 +352,6 @@ function layoutContext({
   const mainHtml = mainHtmlOf(page, main);
 
   // 表情面板整页一份（见 comments/view.js）：只在页面里真有表情触发键时输出，其余页面不多背这 7KB。
-  // 笔记列表首屏只有评论抽屉的空壳（data-comments-slot），表单点开后才取回来；那时模板已经没机会再输出了，
-  // 所以有懒加载抽屉的页面也要一并下发，否则抽屉里的表情键点开时找不到模板。
   const emojiTpl = emojiTplOf(main);
 
   // 窄屏导航抽屉放在 #app 里：换页时随内容重建，不留第二份；初始 inert 让它关闭时不接受点击与焦点。
@@ -397,14 +395,14 @@ const PAGE_CSS_LITE = new Set(['home', 'list', 'archive', 'friends', 'links', 's
 function styleFileFor(ctx) {
   if (!hasPageCss()) return 'style.css';
   // 内置 classic 主题与 builtinLayout 同构（模板只调用 chrome.*），可以安全使用页面变体；
-  // 其他主题可能自带列表页评论区/笔记流结构，别替它猜，一律回退全量样式。
+  // 其他主题可能自带列表页结构，别替它猜，一律回退全量样式。
   try {
     const theme = themeResolver();
     if (theme && theme.id !== 'classic') return 'style.css';
   } catch { /* 无请求上下文（测试直调）按无主题处理 */ }
   if (PAGE_CSS_LITE.has(ctx.page)) return 'style-lite.css';
   if (ctx.page === 'page' || ctx.themeType === 'post' || ctx.themeType === 'note') return 'style-article.css';
-  // /notes/ 同时要笔记流与评论区；审核页等未知页面也保守用全量。
+  // 审核页等未知页面保守用全量。
   return 'style.css';
 }
 
@@ -639,7 +637,7 @@ const leading = (p, lines = 2) => {
   return text ? `    <p class="excerpt">${esc(text)}</p>` : '';
 };
 
-/** 编年日期徽记（大字日 + 月份/年份两行小字）：文章列表、笔记折叠行与检索命中三处同构，别再各拼一份。 */
+/** 编年日期徽记（大字日 + 月份/年份两行小字）：文章/笔记列表与检索命中两处同构，别再各拼一份。 */
 export function dateBadge(day, datetime = day) {
   // 数据库里的畸形日期经 formatDay() 会变成空串；别让它渲染成「0 月 / 空年」，
   // 调用方拿到空串自然就不输出日期徽记。
@@ -648,7 +646,7 @@ export function dateBadge(day, datetime = day) {
   return `<time datetime="${esc(datetime)}" aria-label="${esc(dayLabel([y, m, d]))}"><b>${esc(d)}</b><small><span>${esc(monthCn(m))}</span><span>${esc(y)}</span></small></time>`;
 }
 
-/** 评论数文案：列表与笔记折叠行两处口径必须一致。 */
+/** 评论数文案：文章列表与笔记列表两处口径必须一致。 */
 export const commentLabel = (n) => (n ? `${n} 条评论` : '暂无评论');
 
 /** 列表条目 = 编年轨 + 底部元信息行。底部元信息行是 .e-main 的兄弟（评论链接不能嵌进整行链接里）。结构约束：.excerpt 必须是 .e-main 的直接子节点——不许再包一层。

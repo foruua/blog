@@ -68,20 +68,15 @@ try {
     assert.ok((await page.locator('.e-kind').allTextContents()).every((text) => text === label));
   }
   await page.goto(srv.base + '/notes/');
-  // 笔记列表每篇都是折叠行、**默认全部收起**，评论按钮只在展开面板里 —— 取**第一个还收着的**折叠行展开；
-  // 一个都没有（例如意外预展开）就用手上那一篇。
-  const folds = page.locator('.notes > .nf .nf-fold');
-  const closedIdx = await folds.evaluateAll((els) => els.findIndex((e) => !e.open));
-  const target = folds.nth(closedIdx >= 0 ? closedIdx : 0);
-  if (closedIdx >= 0) { await target.locator('summary').click(); await page.waitForTimeout(300); }
-  const commentToggle = target.locator('[data-comments]');
-  for (const expanded of ['true', 'false', 'true', 'false']) {
-    await commentToggle.hover();
-    await page.mouse.down();
-    assert.equal(await commentToggle.evaluate((e) => getComputedStyle(e).opacity), '1');
-    await page.mouse.up();
-    assert.equal(await commentToggle.getAttribute('aria-expanded'), expanded);
-    assert.equal(await commentToggle.evaluate((e) => getComputedStyle(e).opacity), '1');
+  // 笔记列表与文章列表完全一致：同一套 .list 条目、评论链接直达详情页，不再有折叠行与就地抽屉。
+  const noteItems = page.locator('.list > li');
+  assert.ok(await noteItems.count() > 0, '笔记列表应有条目');
+  assert.equal(await page.locator('.nf-fold, .ncp-slot').count(), 0, '不该再有折叠行/评论抽屉');
+  const commentLinks = page.locator('.list .e-comments');
+  const commentHref = await commentLinks.first().getAttribute('href');
+  assert.match(commentHref ?? '', /^\/n\/[^/]+\/#comments$/, `评论链接应直达详情页：#comments（${commentHref}）`);
+  for (const opacity of await commentLinks.evaluateAll((links) => links.map((a) => getComputedStyle(a).opacity))) {
+    assert.equal(opacity, '1', '评论链接不应被透明度压暗');
   }
   await page.goto(srv.base + '/archive/?kind=invalid');
   assert.equal(await page.locator('.arch-filter [aria-current="page"]').textContent(), '全部');

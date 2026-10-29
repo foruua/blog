@@ -295,7 +295,7 @@ await test('真实浏览器：首页跳转聚焦正文；脚本失败和观察�
       });
       for (const url of ['/posts/', '/notes/']) {
         await page.goto(server.base + url);
-        const item = page.locator('.list > li, .notes > .nf').first();
+        const item = page.locator('.list > li').first();
         await item.waitFor();
         assert.ok(await item.evaluate((el) => getComputedStyle(el).opacity === '1'));
         assert.equal(await item.evaluate((el) => getComputedStyle(el).filter), 'none');

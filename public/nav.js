@@ -276,7 +276,7 @@
 
   /* —— pjax 换页后的样式表 ——
      页面按类型只发 lite / article / 全量三档；#app 换了但 <head> 不换，
-     从首页点进笔记或文章时会缺评论区 / 笔记流规则。三档是包含关系（lite ⊂ article ⊂ full），
+     从列表页点进文章或笔记内页时会缺评论区规则。三档是包含关系（lite ⊂ article ⊂ full），
      所以只补不删：把目标页缺的 <link> 追加进来，等 onload 再换 DOM，既不闪裸表单，也不用回退全量。 */
   function stylesheetHrefs(root) {
     return Array.prototype.map.call(root.querySelectorAll('link[rel="stylesheet"][href]'), function (link) {
@@ -411,7 +411,7 @@
 
       setLoading(false);
 
-      // 先跑页面钩子再算滚动：笔记抽屉/评论锚点要在钩子里才展开，否则 scrollToHash 找不到目标；
+      // 先跑页面钩子再算滚动：评论锚点/输入框聚焦都要在钩子里处理，否则 scrollToHash 找不到目标；
       // 钩子也可能把焦点交给 ?reply= 的输入框，下面 focus main 时要检测并让位。
       (window.__pjaxHooks || []).forEach(function (fn) {
         try { fn(); } catch (e) { console.error('[nav] pjax 钩子出错：', e); }

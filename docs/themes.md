@@ -42,8 +42,7 @@ themes/<id>/
 | `page.type` | 查找顺序 |
 | --- | --- |
 | `home` | `home` → `front-page` → `index` |
-| `posts` | `posts` → `home` → `list` → `index` |
-| `notes` | `notes` → `list` → `index` |
+| `posts` | `posts` → `home` → `list` → `index`（`/notes/` 也走这一档） |
 | `post` | `post-<slug>` → `single-post` → `single` → `index` |
 | `note` | `note-<slug>` → `single-note` → `single` → `index` |
 | `page` | `page-<slug>` → `page` → `index` |
@@ -59,7 +58,7 @@ themes/<id>/
 
 两个容易踩的点：
 
-- **`page.type` 才是主题类型**，`page.page` 是内置页面标识（`home` / `list` / `notes` / `page` / `archive` / `search` …），判断页面请用 `page.type`。
+- **`page.type` 才是主题类型**，`page.page` 是内置页面标识（`home` / `list` / `page` / `archive` / `search` …），判断页面请用 `page.type`。
 - **子模板路径相对主题根目录**。`templates/partials/card.liquid` 的模板名是 `partials/card`，但引用时要写全：
 
 ```liquid
@@ -88,8 +87,7 @@ themes/<id>/
 | `page.type` | `data` 字段 |
 | --- | --- |
 | `home` | `hero_html` `hero{}`（`images[]`：`path` `w` `h`）`stats[]`（每项 `kind` `n` `words` `first` `last`）`recent[]` `has_recent` |
-| `posts` | `kind` `title` `mark` `posts[]` `has_more` `more_html` `masthead_html` `list_html` `empty` |
-| `notes` | `kind` `title` `mark` `notes[]` `has_more` `more_html` `masthead_html` `stream_html` `empty`（**列表在 `data.notes`，不是 `posts`**） |
+| `posts` | `kind` `title` `mark` `posts[]` `has_more` `more_html` `masthead_html` `list_html` `empty`（`/notes/` 与 `/posts/` 同一套数据，用 `kind` 区分） |
 | `post` / `note` | `post{...}` `toc_html` `pager_html` `comments_html` `body_html` `words` `reading_minutes` `day_cn` |
 | `page` | `page{...}` `comments_html` `stats[]`（已渲染的 HTML 片段）`page_html` |
 | `archive` | `archive_html` |
@@ -100,11 +98,11 @@ themes/<id>/
 | `404` | `recent[]` `not_found_html` |
 | `go` | `name` `go_html` |
 
-列表项（`posts[]` / `recent[]` / `notes[]`）的字段：`id` `slug` `kind` `title` `url` `datetime` `date` `date_cn` `relative` `excerpt` `comments`（已通过审核的评论数）`draft` `lang`。单篇文章的 `data.post` / `data.page` 同样带这些字段。
+列表项（`posts[]` / `recent[]`）的字段：`id` `slug` `kind` `title` `url` `datetime` `date` `date_cn` `relative` `excerpt` `comments`（已通过审核的评论数）`draft` `lang`。单篇文章的 `data.post` / `data.page` 同样带这些字段。
 
 `data` 里那些 `*_html` 字段是内置渲染好的片段，可以直接 `| raw` 输出，也可以完全不用、自己用数组重排。
 
-兼容别名：`post` / `page` 模板里的 `data.post`、`data.page` 也带有 `body_html`、`toc_html`、`pager_html`、`comments_html`（与顶层同值），旧主题可继续从对象上取；`notes` 页面额外提供 `data.posts` 作为 `data.notes` 的别名。
+兼容别名：`post` / `page` 模板里的 `data.post`、`data.page` 也带有 `body_html`、`toc_html`、`pager_html`、`comments_html`（与顶层同值），旧主题可继续从对象上取。
 
 ### `chrome`
 

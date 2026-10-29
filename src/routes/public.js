@@ -3,7 +3,6 @@ import { SITE, FRIENDS_PER_PAGE, FRIENDS_PER_SOURCE, LINKS_PER_PAGE } from '../c
 import { settings, heroImages, heroOverlay, commentsOpen } from '../settings.js';
 import { layout, listBlock, emptyPage, masthead, entriesBlock, moreLink, defaultOgImage, heroToolsHtml } from '../render/layout.js';
 import { pageRevisionOf } from '../content/revision.js';
-import { notesStream, splitImages } from '../render/notes.js';
 import { withLightbox } from '../render/lightbox.js';
 import { heroBlock, heroPreload as heroPreloadTag } from '../render/hero.js';
 import { tocHtml, pagerHtml, articleMain, articleJsonLd } from '../render/article.js';
@@ -14,8 +13,6 @@ import { friendsStream } from '../render/friends.js';
 import { linksBlock } from '../render/links.js';
 import { esc, formatDay, formatWordCount, formatDayCn, readingMinutes, postUrl, pageUrl, contentUrl, kindPrefix, noteHref, cleanExcerpt, plainTextOf, excerptOfText, relativeDate, recentStartIso, utcDate, decodeHtmlAttribute, htmlAttr, absUrl } from '../util/text.js';
 import { commentSection } from '../comments/view.js';
-import { notePanel } from '../comments/panel.js';
-import { threadOf } from '../../db/comments.js';
 import { emailMd5 } from '../avatar/md5.js';
 import { decryptEmail } from '../auth.js';
 import { createAntispam } from '../comments/antispam.js';
@@ -125,7 +122,6 @@ export function publicRoutes(repo, { comments, crypt, media = null, feeds = null
     row.avatar_md5 = row.is_author ? authorMd5() : avatarMd5Of(row);
     return row;
   };
-  const withAvatars = (rows) => { for (const row of rows) hydrateAvatar(row); return rows; };
   const withAvatarTree = (nodes) => {
     for (const node of nodes) { hydrateAvatar(node); withAvatarTree(node.replies ?? []); }
     return nodes;
@@ -177,7 +173,7 @@ export function publicRoutes(repo, { comments, crypt, media = null, feeds = null
     if (!(key in cache)) cache[key] = compute();
     return cache[key];
   };
-  // 全站评论开关：关掉后只收撰写区（已有讨论照常显示），内页评论区与笔记抽屉共用同一条判断。
+  // 全站评论开关：关掉后只收撰写区（已有讨论照常显示），各页评论区共用同一条判断。
   const commentsOffIn = (c) => !settingOf(c, 'commentsOpen', () => commentsOpen(repo));
   const pageSizeOf = (c) => settingOf(c, 'pageSize', () => settings.pageSize(repo));
   const commentsPerPageOf = (c) => settingOf(c, 'commentsPerPage', () => settings.commentsPerPage(repo));
@@ -267,7 +263,7 @@ ${emptyPage('还没有内容', '还没有发布任何内容。<a href="/">回到
       title: title === SITE.title ? '' : title,
 
       page: 'list',
-      themeType: kind === 'note' ? 'notes' : 'posts',
+      themeType: 'posts',
       themeData: {
         kind,
         title,
@@ -327,95 +323,11 @@ ${listHtml}
     active: 'posts', pathname: '/posts/',
   }));
 
-  /** 笔记流评论抽屉内里。首屏与 ?partial=comments&panel=note 回刷必须走同一段代码，否则抽屉会被回刷成内页那套评论区。 */
-  function notePanelFor(c, p, { groups = null, idSuffix = '', flash = '', perPage = commentsPerPageOf(c) } = {}) {
-    const on = p.comments_on !== 0;
-    const rows = on ? (groups ?? comments.pageThreadsOf([p.id], perPage)).get(p.id) ?? [] : [];
-    withAvatars(rows);
-    const threads = threadOf(rows);
-
-    const rest = Math.max(0, (rows[0]?.thread_count ?? threads.length) - perPage);
-    const base = `/n/${encodeURIComponent(p.slug)}/`;
-    return notePanel({
-      post: p,
-      thread: threads.slice(0, perPage),
-      flash,
-      replyBase: base,
-      tsToken: crypt.sign({ purpose: 'comment-ts', ts: Date.now(), p: p.id }, 24 * 3600),
-      idSuffix,
-      asAuthor: ownerOf(c),
-      csrf: auth?.csrfOf(c) ?? '',
-      more: rest ? { href: `${base}#comments`, n: rest } : null,
-      formOff: commentsOffIn(c),
-    });
-  }
-
-  app.get('/notes', (c) => {
-    const notesTitle = '笔记';
-    const notesDesc = '还没长成文章的碎片、读书记录、临时想法。';
-
-    const pageSize = pageSizeOf(c);
-    const want = c.req.query('n');
-    let before = c.req.query('before') || null;
-    if (want) {
-      const cursor = repo.noteCursor(want, pageSize);
-      if (cursor !== undefined) before = cursor;
-    }
-    const { list, more } = paginate(c, {
-      fetchPage: (limit, cursor) => repo.notes({ limit, before: cursor }),
-      pathname: '/notes/', label: notesTitle, before, size: pageSize,
-    });
-
-    // 评论抽屉不再随列表服务端渲染：每篇一次 pageThreadsOf + 一批头像解析，10 篇笔记就多出约 80KB
-    // HTML（占整页 65%）。抽屉首次展开时由 app.js 取 ?partial=comments&panel=note&suffix=-<slug>。
-    // 无 JS 时「评论」按钮仍是指向 /n/<slug>/#comments 的普通链接，不受影响。
-    const noteRows = list.map((p) => {
-      const { text, images: rawImages } = splitImages(p.body_html);
-      // 画廊以静态预览兜底、按像素密度选候选；灯箱展示图取最大档变体。
-      const images = rawImages.map((im) => {
-        const info = mediaOf(im.src);
-        return { ...im, thumb: info?.thumbnail ?? null, previewSrcset: info?.srcset ?? '',
-          full: info?.full ?? im.src };
-      });
-      return {
-        ...themePost(p),
-        day: relativeDate(p.published_at),
-        dayExact: formatDay(p.published_at),
-        text,
-        images,
-        commentCount: p.comments,
-      };
-    });
-    const stream = notesStream(noteRows);
-    const notesMast = list.length ? masthead({ mark: 'Notes', title: notesTitle, stats: sectionStats(c, 'note') }) : '';
-
-    return c.html(layout({
-      title: notesTitle, active: 'notes',
-
-      canonical: '/notes/',
-      page: 'notes',
-      themeType: 'notes',
-      themeData: {
-        kind: 'note',
-        title: notesTitle,
-        mark: 'Notes',
-        notes: noteRows,
-        // notes → list 的回退：给只读 data.posts 的模板留一个同义字段。
-        posts: noteRows,
-        has_more: Boolean(more),
-        more_html: more,
-        masthead_html: notesMast,
-        stream_html: stream,
-        empty: !list.length,
-      },
-      desc: notesDesc,
-      main: list.length
-        ? `${notesMast}
-${stream}
-    ${more}`
-        : emptyList('Notes', notesTitle),
-    }));
-  });
+  app.get('/notes', (c) => listPage(c, {
+    kind: 'note', title: '笔记', mark: 'Notes',
+    desc: '还没长成文章的碎片、读书记录、临时想法。',
+    active: 'notes', pathname: '/notes/',
+  }));
 
   /** 评论区（三种 kind 共用）：分页、回复目标、令牌都按 post.id 算；回填地址取内容 URL。 */
   function commentBlockFor(c, post) {
@@ -467,17 +379,6 @@ ${stream}
 
     // 评论回刷只换评论区，不需要封面目录与上下篇（neighbours 是两条 SQL）；先判断再算。
     const wantPartial = c.req.query('partial') === 'comments';
-    // 笔记抽屉回刷走自己这一路：抽屉与内页评论区是两套语法，回刷的必须与首屏同款，否则发完评论这块会悄悄换脸。
-    if (wantPartial && post.kind === 'note' && c.req.query('panel') === 'note') {
-      // 笔记流首屏不再内嵌每篇的评论抽屉（改首次展开时再取）。抽屉 id 要带上 -<slug>，
-      // 否则同时开过两篇后，两份表单的 c-author/c-email/c-body 会在 DOM 里撞 id。
-      const rawSuffix = String(c.req.query('suffix') ?? '');
-      // slug 允许中文（slugify 保留 Han），后缀不能只认 ASCII；只排除会破坏 HTML 属性的字符。
-      // slug 长度上限见 util/text.js 的 validateSlug（160 字符）；后缀上限也必须跟它一致，
-      // 否则长 slug 的抽屉拿不到后缀，多篇同时开过时会和别的抽屉撞 DOM id。
-      const idSuffix = /^-[-\p{L}\p{N}_]{1,160}$/u.test(rawSuffix) ? rawSuffix : '';
-      return c.html(notePanelFor(c, post, { flash: c.req.query('c') ?? '', idSuffix }));
-    }
     if (wantPartial) return c.html(commentBlockFor(c, post));
 
     const words = post.word_count ?? 0;

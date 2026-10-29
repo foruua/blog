@@ -108,15 +108,16 @@ try {
     assert.equal(resolveLogDir('~/logs'), path.join(os.homedir(), 'logs'));
     assert.equal(resolveLogDir(''), resolveLogDir());
   });
-  await test('长 slug 的笔记抽屉保留 ID 后缀，避免多篇抽屉撞 id', async () => {
+  await test('长 slug 的笔记详情页评论区正常（不再有抽屉 id 后缀）', async () => {
     const longSlug = 'n'.repeat(65);
     const noteId = await save({ ...input, title: '长 slug 笔记', slug: longSlug, kind: 'note', comments: '1', body: 'note body' });
     assert.ok(noteId);
-    const res = await pub.request(`/n/${longSlug}/?partial=comments&panel=note&suffix=-${longSlug}`);
+    const res = await pub.request(`/n/${longSlug}/?partial=comments`);
     assert.equal(res.status, 200);
     const html = await res.text();
-    assert.match(html, new RegExp(`id="comments-${longSlug}"`));
-    assert.match(html, new RegExp(`id="c-body-${longSlug}"`));
+    assert.match(html, /id="comments"/);
+    assert.match(html, /id="c-body"/);
+    assert.match(html, /class="c-form"/);
   });
   await test('非视频大文件 raw 上传在读入堆之前就返回 413', async () => {
     const big = Buffer.alloc(9 * 1024 * 1024, 0x61);
@@ -372,38 +373,11 @@ try {
       assert.equal(timers.size, 0);
     } finally { w.close(); }
   });
-  await test('笔记折叠：点开下一篇不会收起上一篇（多篇可同开），也不再补滚动', async () => {
-    const html = `<!doctype html><html><body><div id="app"><div class="notes" data-kind="note">
-      <div class="nf"><details class="nf-fold" open><summary class="nf-sum"><h2 class="nf-title">第一篇</h2></summary><div class="nf-rollout"><div class="nf-panel"><div class="prose note-body">正文一</div></div></div></details><p class="nf-meta"></p></div>
-      <div class="nf"><details class="nf-fold"><summary class="nf-sum"><h2 class="nf-title">第二篇</h2></summary><div class="nf-rollout"><div class="nf-panel"><div class="prose note-body">正文二</div></div></div></details><p class="nf-meta"></p></div>
-    </div></div></body></html>`;
-    const dom = new JSDOM(html, { url: 'https://example.com/notes/', runScripts: 'outside-only', pretendToBeVisual: true });
-    const w = dom.window;
-    w.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
-    w.eval(fs.readFileSync(new URL('../public/request.js', import.meta.url), 'utf8'));   // 真实页面先加载它（提供 __csrf/__reducedMotion/__openDialog）
-    w.__request = async () => ({ ok: false, json: async () => ({ ok: false }) });
-    const folds = w.document.querySelectorAll('details.nf-fold');
-    const sums = w.document.querySelectorAll('summary.nf-sum');
-    const scrolls = [];
-    w.scrollBy = (_x, y) => { scrolls.push(y); };
-    // JSDOM 没有 WAAPI：给个只挂起、不完成的替身 —— 这样"收完才摘 open"才有东西可等
-    w.Element.prototype.animate = () => ({ finished: new Promise(() => {}), cancel() {} });
-    try {
-      w.eval(fs.readFileSync(new URL('../public/ui.js', import.meta.url), 'utf8'));
-      w.eval(fs.readFileSync(new URL('../public/app.js', import.meta.url), 'utf8'));
-      assert.equal(folds[0].open, true, '夹具第一篇应已展开');
-      assert.equal(folds[1].classList.contains('nf-anim'), true, '每行都应切到 px 高度形态');
-      sums[1].dispatchEvent(new w.MouseEvent('click', { bubbles: true, cancelable: true }));
-      assert.equal(folds[1].open, true, '被点的那篇应打开');
-      assert.equal(folds[0].open, true, '已展开的那篇不该被收起（不互斥）');
-      assert.deepEqual(scrolls, [], `不该再有任何滚动补偿：${JSON.stringify(scrolls)}`);
-      sums[1].dispatchEvent(new w.MouseEvent('click', { bubbles: true, cancelable: true }));
-      assert.equal(folds[1].open, true, '收起途中 open 还挂着（内容不能提前撤走）');
-      await new Promise((r) => w.setTimeout(r, 520));   // 等兜底定时器收干净（时长下限 220 + 160）
-      assert.equal(folds[1].open, false, '再点一次应收起');
-      assert.equal(folds[0].open, true, '收起自己不影响别人');
-      assert.equal(folds[1].querySelector('.nf-rollout').style.height, '', '收完要清掉行内高度，交回给 CSS 终态');
-    } finally { w.close(); }
+  await test('笔记列表不再有折叠/抽屉脚本与样式', async () => {
+    const app = fs.readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
+    const css = fs.readFileSync(new URL('../public/style.css', import.meta.url), 'utf8');
+    assert.ok(!/nf-anim|ncp-slot|data-close-comments|drawerOf|loadDrawer/.test(app), 'app.js 残留笔记折叠/抽屉逻辑');
+    assert.ok(!/\.nf-|\.ncp-/.test(css), 'style.css 残留笔记折叠/抽屉样式');
   });
   await test('单文件损坏不阻塞其余内容入库（且内容管线不卡死）', async () => {
     const dir = path.join(process.env.CONTENT_DIR, 'posts');

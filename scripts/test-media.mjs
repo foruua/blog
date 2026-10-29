@@ -9,7 +9,7 @@ import { normalizeImage, PREVIEW_REUSE_MAX_BYTES } from '../src/media/image.js';
 import { thumbnailFile, variantFile, previewSrcsetOf, previewSourceOf, variantWidthsOf, originalPathOf, parseVariants } from '../src/media/variants.js';
 import { createRenderer } from '../src/render/markdown.js';
 import { withLightbox } from '../src/render/lightbox.js';
-import { notesStream, splitImages } from '../src/render/notes.js';
+import { htmlAttr, decodeHtmlAttribute } from '../src/util/text.js';
 import { createImageInfo } from '../src/media/info.js';
 import { migrate } from '../db/migrate.js';
 
@@ -78,7 +78,8 @@ const previewHtml = createRenderer({imageInfo:()=>info}).render('![动画](/uplo
 assert.ok(!/src="\/uploads\/a.gif"/.test(previewHtml));
 assert.ok(!/a.gif 1200w/.test(previewHtml));
 assert.match(previewHtml,/data-full="\/uploads\/a.gif"/);
-assert.equal(splitImages(previewHtml).images[0].src,media.path);
+assert.equal(decodeHtmlAttribute(htmlAttr(previewHtml, 'data-full')), media.path);
+assert.equal(decodeHtmlAttribute(htmlAttr(previewHtml, 'alt')), '动画');
 const lit = withLightbox(previewHtml,'test');
 assert.equal((lit.match(/data-full=/g)??[]).length,1);
 assert.match(lit,/data-lightbox="test"/);
@@ -99,9 +100,9 @@ assert.match(renderer.render('![无尺寸](/x.png)').html, /loading="eager"/);
 const sized = createRenderer({ imageInfo: () => ({ width: 1200, height: 800, preview: '/p.webp' }) });
 assert.match(sized.render('长'.repeat(500) + '\n\n![后面](/b.png)').html, /loading="lazy"/);
 
-const gallery = notesStream([{ slug: 'test', title: 'test', day: '', text: '', images: [{ src: '/original.gif', thumb: '/preview.webp', previewSrcset: '/small.webp 240w', width: 1200, height: 800 }], commentsHtml: '' }]);
-assert.match(gallery, /data-full="\/original.gif"/);
-assert.match(gallery, /srcset="\/small.webp 240w"/);
+// 正文图片带响应式候选集与展示图地址：笔记详情与文章详情共用同一条渲染路径。
+assert.ok(previewHtml.includes(`srcset="${info.srcset}"`), previewHtml);
+assert.ok(previewHtml.includes('sizes="100vw"'), previewHtml);
 
 const work = fs.mkdtempSync(path.join(os.tmpdir(), 'blog-media-'));
 const env = { ...process.env, DATA_DIR: work, DB_FILE: path.join(work, 'blog.db'), UPLOADS_DIR: path.join(work, 'uploads'), CONTENT_DIR: path.join(work, 'content') };

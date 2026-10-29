@@ -185,7 +185,8 @@ try {
     const posts = await html('/posts/');
     check('T3g 文章列表命中 posts.liquid', posts.includes('fx-list') && posts.includes('为什么单栏是唯一正确的选择'));
     const notes = await html('/notes/');
-    check('T3h 笔记列表命中 notes.liquid', notes.includes('fx-notes') && notes.includes('示例笔记') && notes.includes('<h1>笔记</h1>'));
+    check('T3h 笔记列表与文章列表命中同一套 posts.liquid（不再有 notes 专用模板）',
+      notes.includes('fx-list') && notes.includes('示例笔记') && !notes.includes('fx-notes'));
     const post = await html('/p/why-single-column/');
     check('T3i 文章页命中 single-post.liquid', post.includes('fx-post') && post.includes('为什么单栏是唯一正确的选择'));
     const note = await html('/n/fixture-note/');

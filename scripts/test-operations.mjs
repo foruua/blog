@@ -51,13 +51,14 @@ try {
     db.prepare("UPDATE posts SET draft=1 WHERE slug='rank-0'").run();
     db.prepare("UPDATE posts SET published_at='2099-01-01T00:00:00Z' WHERE slug='rank-1'").run();
     const order = db.prepare("SELECT id,slug,published_at FROM posts WHERE draft=0 AND published_at<'2099' ORDER BY published_at DESC,id DESC").all();
-    for (const [index, item] of order.entries()) {
-      const boundary = order[Math.floor(index / 20) * 20 - 1];
-      assert.equal(repo.noteCursor(item.slug, 20), boundary ? `${boundary.published_at}|${boundary.id}` : null);
-      assert.ok(repo.notes({ limit: 20, before: repo.noteCursor(item.slug, 20) }).some((row) => row.id === item.id));
-    }
-    assert.equal(repo.noteCursor('missing', 20), undefined); assert.equal(repo.noteCursor('rank-0', 20), undefined);
-    db.close(); console.log('✓ 笔记定位使用排名与页边界，同秒排序、草稿和定时内容正确');
+    // /notes/ 与 /posts/ 共用同一套 ?before= 游标：按 published_at|id 排，同秒也不会重复或漏条。
+    const page = repo.list({ kind: 'note', limit: 20 });
+    assert.deepEqual(page.map((row) => row.id), order.slice(0, 20).map((row) => row.id));
+    const boundary = order[19];
+    const next = repo.list({ kind: 'note', limit: 20, before: `${boundary.published_at}|${boundary.id}` });
+    assert.deepEqual(next.map((row) => row.id), order.slice(20, 40).map((row) => row.id));
+    assert.ok(!next.some((row) => row.slug === 'rank-0' || row.slug === 'rank-1'), '草稿与定时内容不该出现在列表里');
+    db.close(); console.log('✓ 笔记列表使用统一游标分页，同秒排序、草稿和定时内容正确');
   }
 
   const dbFile = path.join(root, 'operations.db');

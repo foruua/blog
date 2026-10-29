@@ -85,112 +85,6 @@
     picker.querySelector('[data-emoji-toggle]').setAttribute('aria-expanded', 'true');
     openPicker = picker;
   };
-  /* —— 笔记折叠行 —— HTML 就是原生 <details>，没有脚本也能开合，而且不带 name：多篇可以同时展开。
-     有脚本时不再管别的行：展开＝直接给 open，收起＝先收高度、收完再摘 open（原因见 closeNote）。
-     没有互斥就没有跨行位移 —— 补滚动、transitionend 兜底、连点竞态跟着一起没有了。
-     高度怎么走：无脚本是 CSS 的 grid 0fr↔1fr；有脚本换成这里的一套 —— 量一次 px 高度，
-     用同一条时间线（同 duration、同 easing）驱动面板 / 摘要尾巴 / 元信息行（形态见 style.css 的 .nf-anim 段）。
-     fr 插值每帧都要按内容重算轨道基础尺寸再分配，Safari 上偶发 24ms 以上的长帧；px 高度是定值，只有一次布局。 */
-  const reduceMotion = window.__reducedMotion;
-  const canAnimate = () => typeof Element.prototype.animate === 'function' && !reduceMotion();
-  /* 矮面板别拖、长面板别闪：220–470ms。 */
-  const foldDur = (h) => Math.min(470, Math.max(220, Math.round(190 + h * 0.22)));
-  const FOLD_EASE = 'cubic-bezier(.4, 0, .2, 1)';   // 与 CSS 兜底的 --fold-ease 同一根曲线
-
-  const foldParts = (fold) => ({
-    roll: fold.querySelector('.nf-rollout'),
-    peek: fold.querySelector('.nf-peekwrap'),
-    meta: fold.parentElement?.querySelector(':scope > .nf-meta') ?? null,   // 元信息行是 details 的兄弟
-  });
-  const px = (el) => (el ? el.getBoundingClientRect().height : 0);
-
-  const folding = new WeakMap();   // fold -> { open, anims, timer, token }
-  let foldToken = 0;
-
-  /* 接管正在跑的那条时间线：cancel 会把行内高度还原成动画起点的旧值，所以先读当前视觉高度、
-     停掉动画、再把当前值写回行内 —— 下一段动画从"眼睛看到的位置"接着走。 */
-  function detach(fold) {
-    const rec = folding.get(fold);
-    if (!rec) return null;
-    const p = foldParts(fold);
-    const heights = { roll: px(p.roll), peek: px(p.peek), meta: px(p.meta) };
-    rec.anims.forEach((a) => a.cancel());
-    clearTimeout(rec.timer);
-    folding.delete(fold);
-    if (p.roll) p.roll.style.height = `${heights.roll}px`;
-    if (p.peek) p.peek.style.height = `${heights.peek}px`;
-    if (p.meta) p.meta.style.height = `${heights.meta}px`;
-    return { p, heights };
-  }
-
-  function runFold(fold, open) {
-    const adopted = detach(fold);
-    const p = adopted?.p ?? foldParts(fold);
-    if (!p.roll) { fold.open = open; return; }
-
-    const start = adopted?.heights ?? { roll: px(p.roll), peek: px(p.peek), meta: px(p.meta) };
-    let end;
-    if (open) {
-      /* 展开：面板 0 → 内容高度，摘要预览那两行与元信息行同时收到 0，三条共用一条时间线。
-         面板顶会被预览一路往上拽，正文落点因此上移（约预览两行的高度）——这是现有观感，改之前先想清楚。 */
-      fold.open = true;                     // 终态高度只能开着量；写读都在同一帧，不绘制中间态
-      p.roll.style.height = '';             // 让 CSS 的 height:auto 接管，量到的才是内容高度
-      end = { roll: px(p.roll), peek: 0, meta: 0 };
-    } else {
-      fold.classList.add('nf-rest');        // 展开态被压成 0 的两条尾巴，放回自然高度才量得到
-      end = { roll: 0, peek: px(p.peek), meta: px(p.meta) };
-      fold.classList.remove('nf-rest');
-    }
-    const dur = foldDur(open ? end.roll : start.roll);
-
-    const token = ++foldToken;
-    const rec = { open, anims: [], timer: 0, token };
-    folding.set(fold, rec);
-
-    /* 落定：清掉行内高度、摘/挂 open。此刻 CSS 终态与动画终值逐项相等（收起全 0、展开自然高度），不跳。 */
-    const settle = () => {
-      if (folding.get(fold)?.token !== token) return;
-      clearTimeout(rec.timer);
-      rec.anims.forEach((a) => a.cancel());
-      folding.delete(fold);
-      if (p.roll) p.roll.style.height = '';
-      if (p.peek) p.peek.style.height = '';
-      if (p.meta) p.meta.style.height = '';
-      fold.open = open;                     // 高度已经到 0 了，这时摘 open 不会让内容跳
-    };
-
-    if (!canAnimate() || dur <= 0) { settle(); return; }
-
-    if (p.peek) p.peek.style.height = `${start.peek}px`;
-    if (p.meta) p.meta.style.height = `${start.meta}px`;
-    p.roll.style.height = `${start.roll}px`;
-
-    const opts = { duration: dur, easing: FOLD_EASE, fill: 'both' };
-    const anims = [p.roll.animate([{ height: `${start.roll}px` }, { height: `${end.roll}px` }], opts)];
-    // 展开时预览已经是 0 高（高度让给面板了），0→0 的动画没有意义，别再起一条空时间线
-    if (p.peek && start.peek !== end.peek) anims.push(p.peek.animate([{ height: `${start.peek}px` }, { height: `${end.peek}px` }], opts));
-    if (p.meta) anims.push(p.meta.animate([{ height: `${start.meta}px` }, { height: `${end.meta}px` }], opts));
-    rec.anims = anims;
-    // finished 在个别版本被跳过时兜底：duration + 160 后强制落定（settle 幂等）
-    rec.timer = setTimeout(settle, dur + 160);
-    Promise.all(anims.map((a) => a.finished)).then(settle, () => {});
-  }
-
-  /* 收起必须「延迟摘 open」：details 一关，内容立刻从渲染树上撤走，高度过渡根本来不及跑（实测 70ms 就收完了，
-     等于瞬收）。所以先把高度收到 0，落定之后才 open=false —— 那时高度已是 0，摘属性不跳。 */
-  const closeNote = (fold) => runFold(fold, false);
-
-  // 点摘要 = 只切这一行。别人的开合与我无关，所以不需要先量位置、也不需要事后补滚动。
-  document.addEventListener('click', (e) => {
-    const sum = e.target.closest?.('summary.nf-sum');
-    if (!sum) return;
-    const fold = sum.closest('details.nf-fold');
-    if (!fold) return;
-    e.preventDefault();                  // 接管原生 <details> 的开合：收起要延迟摘 open，不能交给浏览器
-    const rec = folding.get(fold);
-    runFold(fold, rec ? !rec.open : !fold.open);   // 动画途中再点＝反悔，从当前高度往回走
-  }, true);
-
   document.addEventListener('toggle', (e) => {
     if (e.target.matches?.('[data-emoji-panel]') && e.newState === 'closed') {
       e.target.classList.remove('is-open');
@@ -198,58 +92,7 @@
       picker?.querySelector('[data-emoji-toggle]')?.setAttribute('aria-expanded', 'false');
       if (picker && openPicker === picker) openPicker = null;
     }
-    // 一行真正收起时把内部评论抽屉一并收掉：留着 is-open 会「看不见却仍能 Tab 进去」（inert 只在收起时加）。toggle 不冒泡，用 capture。
-    if (e.target.matches?.('details.nf-fold') && e.newState === 'closed') {
-      const slot = e.target.querySelector('.ncp-slot.is-open');
-      if (slot) foldDrawer(slot, false);
-    }
   }, true);
-
-  /* 手机上点正文收回有个副作用：正文是从手指底下被抽走的，而 iOS 在 touchend 之后还会补一次落点判定。
-     那一帧手指下面已经是**下一条**笔记的正文，于是被识别成一次选词 —— 看着就是「点收起却选中了下面那段」。
-     收起后这一小段时间里禁掉选文、并清掉已经产生的选区；420ms 一到立刻恢复，正常长按或拖动选文不受影响。
-     判据用「刚才是不是触摸」而不是 (pointer: coarse)：iPad 接了触控板时那个媒体查询会变，触摸才是这里要防的。 */
-  let lastTouchAt = 0;
-  document.addEventListener('touchstart', () => { lastTouchAt = Date.now(); }, { passive: true, capture: true });
-  let tapGuardTimer = 0;
-  let tapGuardClear = null;   // 上一轮的收尾：再次触发时先执行它，免得旧的 selectionchange 监听器留在文档上永久清空选区
-  function guardTapSelection() {
-    if (Date.now() - lastTouchAt > 700) return;   // 鼠标点的不必管，桌面选文行为一点不碰
-    const root = document.querySelector('.notes');
-    if (!root) return;
-    // 折叠光标留在已撤走的内容里，正是「迁移成选区」的起点；窗口内再冒出来的选区一律清掉
-    // （不单靠 user-select: none —— 动画期间的实现差异各地不一，这里要的是结果确定）。
-    const clear = () => { const s = getSelection(); if (s && !s.isCollapsed) s.removeAllRanges(); };
-    clear();
-    root.classList.add('is-tap-closing');
-    document.addEventListener('selectionchange', clear);
-    const finish = () => {
-      clearTimeout(tapGuardTimer);
-      document.removeEventListener('selectionchange', clear);
-      root.classList.remove('is-tap-closing');
-      if (tapGuardClear === finish) tapGuardClear = null;
-    };
-    // 先收掉上一轮：不清的话旧的 clear 监听器会一直挂在文档上，之后用户每次选词都被清空（无法复制文字）。
-    const previous = tapGuardClear;
-    tapGuardClear = finish;
-    previous?.();
-    tapGuardTimer = setTimeout(finish, 420);
-  }
-
-  /* 展开态点正文收回这一行（正文不是 <summary>）：放行链接、划选文字、评论胶囊/抽屉/图集。 */
-  document.addEventListener('click', (e) => {
-    const body = e.target.closest?.('.nf-fold .nf-panel > .prose');
-    // 交互元素（链接、代码复制按钮、代码块、表单、音频）不该触发“点正文收起”；
-    // 以前只排除 a，点笔记里的「复制代码」会把整篇折叠掉。
-    if (!body || e.target.closest('a, button, input, textarea, select, summary, pre, code, audio, [contenteditable]')) return;
-    const sel = document.getSelection();
-    if (sel && !sel.isCollapsed && sel.toString().trim()) return;
-    const fold = body.closest('details.nf-fold');
-    if (!fold?.open) return;
-    if (folding.get(fold)?.open === false) return;   // 正在收起，别把同一条时间线重起一遍
-    guardTapSelection();
-    closeNote(fold);
-  });
 
   window.addEventListener('resize', closeAllEmoji);
   // 面板跟随入口，与进度条同一套 perFrame 节流；scrollTarget 把当帧滚动目标带进 rAF（面板自身滚动时要用）。
@@ -291,8 +134,7 @@
   }
 
   /* 正文插图的「点开大图」是 JS 能力：role/tabindex 也由 JS 补，写死在 HTML 里会让禁 JS 的读者拿到假按钮。
-     首页封面那张是 <h1> 唯一内容：只补 role/tabindex，不加 aria-label，否则会改掉标题可访问名。
-     笔记流图集是真链接，不补 role。 */
+     首页封面那张是 <h1> 唯一内容：只补 role/tabindex，不加 aria-label，否则会改掉标题可访问名。 */
   function decorateLightbox(root = document) {
     for (const node of root.querySelectorAll('img[data-lightbox]:not([role])')) {
       node.setAttribute('role', 'button');
@@ -304,6 +146,7 @@
   }
 
   /* 首页轮播（多于一张图才渲染）。5 秒一张自动推进，悬停/聚焦/切走标签页/「减弱动态效果」暂停。 */
+  const reduceMotion = window.__reducedMotion;
   const HERO_AUTO_MS = 5000;
   let heroTimer = null;
   // 灯箱打开要停住轮播：对话框不置 document.hidden，否则关灯箱时已不是当时那张。
@@ -389,24 +232,10 @@
     setupHeroCarousel();
     setupCodeCopy();
 
-    /* 笔记列：给所有折叠行挂 .nf-anim 切到「px 高度」形态（见 style.css），开合由脚本量高度做动画。
-       笔记默认全部收起，不预展开首篇。全量加载与 PJAX 换页都走这里。 */
-    const notesRoot = document.querySelector('.notes');
-    if (notesRoot) {
-      notesRoot.querySelectorAll('details.nf-fold').forEach((fold) => fold.classList.add('nf-anim'));
-    }
-
     // 头像加载失败摘掉 img 露字母头像，别留碎图标；补体检接住挂监听前已失败的图。
     document.querySelectorAll('.avatar-img').forEach((img) => {
       if (img.complete && img.naturalWidth === 0) img.remove();
     });
-
-    // 落点是评论锚点或抽屉时展开那块，否则锚点跳过去什么都不会动。
-    const hash = location.hash;
-    const anchor = /^#c\d+$/.test(hash) ? document.querySelector(hash)
-      : (/^#comments-/.test(hash) ? document.getElementById(hash.slice(1)) : null);
-    const slot = anchor?.closest('.ncp-slot');
-    if (slot && !slot.classList.contains('is-open')) foldDrawer(slot, true);
 
     // ?reply=N 进来时聚焦输入框。写在 setupPage 而非顶层，pjax 换页才会聚焦。
     if (new URLSearchParams(location.search).has('reply')) {
@@ -511,12 +340,11 @@
   }
 
   /* 发完评论只换评论区：不跳页、不丢滚动位置；失败退回无刷新换页 */
-  async function refreshComments(form, flash, count) {
+  async function refreshComments(form, flash) {
     const section = form.closest ? form.closest('[data-comments-section]') : null;
-    const inPanel = Boolean(form.closest('.ncp'));
     // 分页后必须带上当前页，否则在第 2 页发完评论回刷出来的是第 1 页
     const cpage = form.dataset ? (form.dataset.cpage || '') : '';
-    const query = (extra) => `?partial=comments${inPanel ? '&panel=note' : ''}${cpage ? `&cpage=${encodeURIComponent(cpage)}` : ''}${extra}`;
+    const query = (extra) => `?partial=comments${cpage ? `&cpage=${encodeURIComponent(cpage)}` : ''}${extra}`;
     let base;
     try {
       base = new URL(form.getAttribute('action') || location.href, location.href);
@@ -541,7 +369,7 @@
         section.replaceWith(next);
         fillWho(next);
         // 替换后原提交按钮/表单已不在 DOM，焦点会掉到 body；把它交给新的评论区标题。
-        const focusTarget = next.querySelector('h2, .ncp-mark');
+        const focusTarget = next.querySelector('h2');
         if (focusTarget) {
           focusTarget.setAttribute('tabindex', '-1');
           try { focusTarget.focus({ preventScroll: true }); } catch { focusTarget.focus(); }
@@ -549,23 +377,6 @@
       }
       else return fallback();
 
-      // 数字跟着回刷走：只改数字别整块重写 textContent（会抹掉 ::after 箭头），包进 <b class="n"> 与服务端结构一致，否则那抹金色就没了。
-      const slug = form.dataset.slug;
-      if (slug && typeof count === 'number') {
-        for (const btn of document.querySelectorAll('[data-comments]')) {
-          if (btn.dataset.comments !== slug) continue;
-          if (!count) { btn.textContent = '评论'; continue; }
-          const n = document.createElement('b');
-          n.className = 'n';
-          n.textContent = String(count);
-          btn.replaceChildren('评论 ', n);
-        }
-        // 笔记折叠行底部那处计数是另一套标记，也要跟着变，否则同一行上下两个数字打架。
-        for (const link of document.querySelectorAll('[data-nf-comments]')) {
-          if (link.dataset.nfComments !== slug) continue;
-          link.textContent = count ? `${count} 条评论` : '暂无评论';
-        }
-      }
       // 列表可能过时，清掉 pjax 预取缓存
       window.__nav?.invalidate?.();
       window.__toast?.(flash === 'pending' ? '评论已提交，等待站主确认后显示。' : '评论已发布。');
@@ -616,77 +427,11 @@
         notice.textContent = out.error || (out.status === 'limited' ? '提交过于频繁，请稍后重试。' : '提交未成功，请稍后重试。');
         return;
       }
-      await refreshComments(form, out.status === 'pending' ? 'pending' : 'ok', out.count);
+      await refreshComments(form, out.status === 'pending' ? 'pending' : 'ok');
     } catch { notice.textContent = '连接中断或超时，输入已保留，请重试。'; }
     finally { if (releaseBusy) releaseBusy(); else { form.removeAttribute('aria-busy'); if (btn) { btn.disabled = false; btn.textContent = btnLabel; } } }
 
   });
-
-  /* —— 笔记流评论抽屉：点「评论」在笔记下方就地展开，不盖住整页；展开收起全交给 CSS（0fr→1fr），这里只改类名和 inert，不量高度。 */
-  const drawerOf = (btn) => document.getElementById(`c-${btn.dataset.comments}`);
-  const drawerBtn = (slot) => document.querySelector(`[data-comments="${CSS.escape(slot.id.slice(2))}"]`);
-
-  // 笔记流的评论抽屉首次展开时才取。服务端仍用 notePanelFor 生成同一份 ncp-* 标记，
-  // 区别只是从「列表页一次渲染 10 份」变成「点开哪篇取哪篇」。
-  function loadDrawer(slot) {
-    if (!slot || slot.dataset.loaded === '1' || slot.dataset.loading === '1') return;
-    const box = slot.querySelector('.ncp-mask');
-    const url = slot.dataset.commentsUrl;
-    if (!box || !url) return;
-    slot.dataset.loading = '1';
-    box.innerHTML = '<p class="ncp-loading" role="status">正在载入评论…</p>';
-    const req = window.__request || fetch;
-    Promise.resolve(req(url, { headers: { 'X-Requested-With': 'fetch' }, credentials: 'same-origin' }))
-      .then((res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.text();
-      })
-      .then((html) => {
-        // pjax 换页后旧 slot 已断开：别再往已移除的节点里写。
-        if (!slot.isConnected) return;
-        box.innerHTML = html;
-        fillWho(box);
-        slot.dataset.loaded = '1';
-        delete slot.dataset.loading;
-      })
-      .catch(() => {
-        if (!slot.isConnected) return;
-        const page = slot.dataset.commentsPage || url;
-        // 用 DOM 构造而不是拼 innerHTML：page 来自 data-comments-page（slug），
-        // 带引号的 slug 拼进属性里会把链接截断，甚至注入额外属性。
-        const note = document.createElement('p');
-        note.className = 'ncp-loading ncp-error';
-        note.setAttribute('role', 'status');
-        note.append('评论载入失败，');
-        const link = document.createElement('a');
-        link.href = page;
-        link.textContent = '去笔记页查看';
-        note.append(link, '。');
-        box.replaceChildren(note);
-        delete slot.dataset.loading;
-      });
-  }
-
-  function foldDrawer(slot, open) {
-    slot.classList.toggle('is-open', open);
-    // inert：收起时不进 Tab 顺序、读屏念不到；光靠高度 0 挡不住（overflow:hidden 只裁剪，输入框仍能被 Tab 到）。
-    slot.toggleAttribute('inert', !open);
-    drawerBtn(slot)?.setAttribute('aria-expanded', open ? 'true' : 'false');
-  }
-
-  function openDrawer(btn, slot) {
-    // 一次只开一个：各开会长到找不着北，展开还会顶动内容，留着上一个就同时有两块"刚展开的"。
-    for (const other of document.querySelectorAll('.ncp-slot.is-open')) {
-      if (other !== slot) foldDrawer(other, false);
-    }
-    foldDrawer(slot, true);
-    loadDrawer(slot);
-    // 刚点的按钮留在视口里：展开后它位置会下移。锚在篇末 .note-foot 上即可。
-    (btn.closest('.note-foot') ?? slot).scrollIntoView({
-      block: 'nearest',
-      behavior: reduceMotion() ? 'auto' : 'smooth',
-    });
-  }
 
   document.addEventListener('click', (e) => {
     const emoji = e.target.closest('[data-emoji]');
@@ -707,17 +452,6 @@
     }
     // 只有 openPicker 可能开着（openEmoji 前必先 closeAllEmoji），不必每次点击都全量扫一遍所有 picker。
     if (openPicker && !openPicker.contains(e.target)) closeEmoji(openPicker);
-    const btn = e.target.closest('[data-comments]');
-    if (btn) {
-      if (!isPlainClick(e)) return;
-      const slot = drawerOf(btn);
-      if (slot) {
-        e.preventDefault();
-        if (slot.classList.contains('is-open')) foldDrawer(slot, false);
-        else openDrawer(btn, slot);
-      }
-      return;
-    }
 
     // 「回复」就地切换。不要改回"靠 pjax 跳 ?reply=N"：取消后地址栏仍停在 ?reply=N，再点同一链接 nav.js 判定 URL 未变不接管。
     const reply = e.target.closest('[data-reply]');
@@ -734,10 +468,10 @@
       const item = reply.closest('li');
       if (item && !form.__home) form.__home = { parent: form.parentNode, next: form.nextSibling };
       if (item) {
-        const main = item.querySelector(':scope > .c-main') ?? item.querySelector(':scope > .ncp-c-main') ?? item;
+        const main = item.querySelector(':scope > .c-main') ?? item;
         main.insertBefore(form, main.querySelector(':scope > ul'));
       }
-      // focus() 自己会把输入区滚进视口（抽屉里它在最下面，多半在屏幕外）
+      // focus() 自己会把输入区滚进视口（表单在评论列表下方，多半在屏幕外）
       form.querySelector('textarea[name="body"]')?.focus();
       return;
     }
@@ -763,17 +497,6 @@
         if (back) back.focus();
       }
       return;
-    }
-
-    const close = e.target.closest('[data-close-comments]');
-    if (close) {
-      const slot = close.closest('.ncp-slot');
-      if (slot) {
-        e.preventDefault();
-        foldDrawer(slot, false);
-        // 收起后焦点会落进 inert 那块被丢回 body；送回「评论」按钮（既是刚点处也是重新展开入口）。
-        drawerBtn(slot)?.focus();
-      }
     }
   }, true);
 
@@ -828,10 +551,9 @@
   });
 
   document.addEventListener('keydown', (e) => {
-    // Esc 收起评论抽屉：它不是浮层，浏览器不代劳。
     if (e.key === 'Escape') {
       // 有 <dialog> 打开时先把 Esc 让给浏览器：在 keydown 上 preventDefault 会阻止灯箱/媒体选择器
-      // 的原生 cancel，结果只关了后面的抽屉、模态不关，焦点还会落到模态背后。
+      // 的原生 cancel，结果只关了后面的面板、模态不关，焦点还会落到模态背后。
       // 前面的搜索框/配色面板已经处理过这次 Esc：一次按键只关一层。
       if (e.defaultPrevented) return;
       if (document.querySelector('dialog[open]')) return;
@@ -839,14 +561,6 @@
       if (picker) {
         e.preventDefault();
         closeEmoji(picker, true);
-        return;
-      }
-      // 打开抽屉后焦点仍可能停在触发按钮（在抽屉外）；不能只看 e.target 的祖先。
-      const slot = e.target?.closest?.('.ncp-slot.is-open') ?? document.querySelector('.ncp-slot.is-open');
-      if (slot) {
-        e.preventDefault();
-        foldDrawer(slot, false);
-        drawerBtn(slot)?.focus();
         return;
       }
     }

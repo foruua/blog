@@ -299,24 +299,6 @@ export const PROBE = (options = {}) => {
 
 const exempted = (sel, rule) => rule.find(([s]) => sel.includes(s))?.[1] ?? null;
 
-// 抽屉互斥展开，逐个打开立即采样，不能先点完再只量最后一个。
-async function inspectNoteDrawers(page) {
-  const samples = [await page.evaluate(PROBE)];
-  const buttons = page.locator('[data-comments]');
-  for (let i = 0; i < await buttons.count(); i++) {
-    const btn = buttons.nth(i);
-    // 每行折叠行也挂评论抽屉，按钮收在面板里看不见 —— 先展开所在行再点。
-    if (!(await btn.isVisible())) {
-      await btn.evaluate((el) => { el.closest('details')?.setAttribute('open', ''); });
-      await page.waitForTimeout(140);
-    }
-    await btn.click();
-    await page.waitForTimeout(80);
-    samples.push(await page.evaluate(PROBE));
-  }
-  return samples;
-}
-
 // 窄屏导航抽屉关着时 .mnav{display:none}，不掀开就等于没审；宽屏无此按钮（.navbtn 只在 ≤620px）→ 返回 null。
 async function inspectMobileDrawer(page) {
   const button = page.locator('header.site .navbtn');
@@ -442,8 +424,7 @@ async function collectOne(browser, base, password, { group, tag = '', scheme, vp
         }
       }
       await page.addStyleTag({ content: 'html{scroll-behavior:auto!important}*,*::before,*::after{transition:none!important;animation:none!important}[data-reveal]{opacity:1!important;transform:none!important}' });
-      const samples = p === '/notes/' ? await inspectNoteDrawers(page)
-        : p === '/admin/media' ? await inspectMediaDialog(page)
+      const samples = p === '/admin/media' ? await inspectMediaDialog(page)
         : p === '/admin/feeds' ? await inspectImportDialog(page, await loadImportBlock())
         : p.startsWith('/p/') || p.startsWith('/n/') ? await inspectPostPage(page) : [await page.evaluate(PROBE)];
       const drawerSample = await inspectMobileDrawer(page);

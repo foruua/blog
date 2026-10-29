@@ -521,24 +521,23 @@ let firstId = 0;
 }
 
 {
-  // 笔记流评论抽屉不分页，但要封顶并给入口。取笔记必须写全条件：首行未必是已发布笔记，draft 默认 1。
+  // 笔记列表与文章列表完全一致：评论区只在详情页里，按 comments_per_page 分页；列表只留「N 条评论」链接。
   const note = db.prepare(
     "SELECT id, slug FROM posts WHERE kind='note' AND draft=0 AND comments_on=1 ORDER BY id",
   ).get();
   const npid = note.id;
-  // 注意 commentsPerPage 合法区间 5—100（更小会被夹取），要用 8 条串触发封顶
+  // 注意 commentsPerPage 合法区间 5—100（更小会被夹取），要用 8 条串触发分页
   db.prepare("INSERT INTO settings(key,value) VALUES('comments_per_page','5') ON CONFLICT(key) DO UPDATE SET value='5'").run();
   const ins = db.prepare(`INSERT INTO comments (post_id, parent_id, author, email_hash, email_enc, website, body_md, status, is_author, moderation_nonce, created_at)
     VALUES (?, NULL, ?, NULL, NULL, NULL, '笔记上的评论', 'approved', 0, ?, '2031-01-01T00:00:00.000Z')`);
   for (let i = 0; i < 8; i++) ins.run(npid, `笔记读者${i}`, `nonce-note-pg-${i}`);
   const notesHtml = await (await fetch(`${BASE}/notes/`)).text();
-  // 评论抽屉改首次展开时取：列表页只留空壳，面板走 partial 端点（见 app.js 的 loadDrawer）。
-  const panel = await (await fetch(`${BASE}/n/${encodeURIComponent(note.slug)}/?partial=comments&panel=note&suffix=-${encodeURIComponent(note.slug)}`)).text();
-  check('T15j 笔记流的评论抽屉只渲染首页份讨论串，并给出去笔记页面的入口',
-    /还有 3 个讨论串，去这篇笔记看/.test(panel)
-    && /class="ncp-more"/.test(panel)
-    && !/c-more-threads/.test(panel)
-    && !/class="ncp-more"/.test(notesHtml), '');
+  const detailUrl = `/n/${encodeURIComponent(note.slug)}/`;
+  const detail = await (await fetch(`${BASE}${detailUrl}`)).text();
+  check('T15j 笔记列表不再内嵌评论抽屉；评论链接直达详情页，详情页评论区按每页条数分页',
+    !/data-comment-form/.test(notesHtml) && !/ncp-/.test(notesHtml)
+    && notesHtml.includes(`href="${detailUrl}#comments"`) && notesHtml.includes('8 条评论')
+    && /class="c-form"/.test(detail) && /class="c-pager"/.test(detail) && !/ncp-/.test(detail), '');
   db.prepare(`DELETE FROM comments WHERE moderation_nonce LIKE 'nonce-note-pg-%'`).run();
   db.prepare("DELETE FROM settings WHERE key='comments_per_page'").run();
 }
