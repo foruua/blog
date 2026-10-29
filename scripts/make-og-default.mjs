@@ -4,24 +4,26 @@
 //   npm run make:og          # 重新生成并覆盖 public/og-default.jpg
 //
 // 为什么用代码画而不是丢一张手作图进仓库：分享封面里有一个「域名里的点换成五角星」的品牌手法
-// （见 render/layout.js 的 .bmark），手作图每次改字号都要重来；写成脚本后，颜色与字号就是
-// base.css 里那几个令牌的值，改版式只改下面这组常量。
+// （见 render/layout.js 的 .bmark），手作图每次改字号都要重来；写成脚本后，颜色就是
+// src/site/tokens.js 里那份素笺令牌（与 base.css 同步），改版式只改下面这组常量。
 //
 // 版式沿用站点自己的语言：左对齐、纸底墨字、宋体大标、金色发丝线、等宽小字做页脚。
 
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
+import { DEFAULT_PALETTE } from '../src/site/tokens.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = path.join(ROOT, 'public', 'og-default.jpg');
 
-// —— 设计令牌：与 public/base.css 的素笺配色逐字对应 ——
-const PAPER = '#f8f8f8';
-const INK = '#17160f';
-const INK_SOFT = '#433f37';
-const MUTED = '#6b665d';
-const GOLD = '#926922';
+// —— 设计令牌：取自 src/site/tokens.js（与 public/base.css 的素笺配色同一份真相源） ——
+const L = DEFAULT_PALETTE.light;
+const PAPER = L.paper;
+const INK = L.ink;
+const INK_SOFT = L.inkSoft;
+const MUTED = L.muted;
+const GOLD = L.accent;
 const RULE = 'rgba(23, 22, 15, 0.10)';
 
 const W = 1200;

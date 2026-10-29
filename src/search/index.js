@@ -102,7 +102,7 @@ export function createSearch(db) {
 
     const rows = q.all(nowIso());
     // 冷缓存时按 200 篇一批取正文：既避免每篇一次 SELECT，也不会把全站 body_html 同时堆进内存。
-    // 文本缓存本身有 8MB（按 UTF-16 估算）上限；批次外只保留命中项需要的纯文本。
+    // 文本缓存本身有 32MB（按 UTF-16 估算）上限；批次外只保留命中项需要的纯文本。
     const hits = [];
     let total = 0;
     for (let start = 0; start < rows.length; start += 200) {

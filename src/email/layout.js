@@ -1,8 +1,9 @@
 import crypto from 'node:crypto';
 import { SITE } from '../config.js';
 import { esc } from '../util/text.js';
+import { DEFAULT_PALETTE } from '../site/tokens.js';
 
-// 邮件版式——与前台 style.css 的「纸墨金石」同源。三条不能越的线：1. 只用 table 布局 + 内联样式
+// 邮件版式——与前台 base.css 的「纸墨金石」同源（纸墨与强调色取自 src/site/tokens.js）。三条不能越的线：1. 只用 table 布局 + 内联样式
 // （Outlook 桌面版是 Word 引擎不认 flex/grid，Gmail 会剥 body 里的 <style>，视觉须靠内联独立成立）；
 // 2. 不引用任何外部图片（邮件图默认「未下载」，装饰全用底色与 1px 边框，也避开追踪像素）；3. 间距一律用
 // spacer()、不给 div 写 margin（写死高度的空 div 是唯一跨客户端一致的间距）。深色模式：浅色写死内联，
@@ -16,37 +17,41 @@ const FAMILY = {
   mono: "ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,'Liberation Mono',monospace",
 };
 
+// 纸墨与强调色取自站点默认配色（src/site/tokens.js）：base.css 是唯一真相源，这里只补邮件
+// 必需的实色 —— Outlook 对 rgba / color-mix 支持不稳，边框与装饰线得先换算成实色。
+const L = DEFAULT_PALETTE.light;
+const D = DEFAULT_PALETTE.dark;
 const C = {
-  paper: '#faf8f4', card: '#fffefb', sunken: '#f7f4ec', soft: '#f8f5ef',
-  ink: '#17160f', inkSoft: '#3a362e', muted: '#716c62', faint: '#8a857a',
-  rule: '#eae4d8', ruleSoft: '#efe9dd', accentLine: '#ddcfae', sep: '#c8bfa9',
-  accent: '#926922', goldBar: '#a87c26',
+  paper: L.paper, card: L.paperElev, sunken: L.paperSoft, soft: L.paperSoft,
+  ink: L.ink, inkSoft: L.inkSoft, muted: L.muted, faint: L.mutedSoft,
+  rule: '#e2e2e2', ruleSoft: '#ececec', accentLine: '#dedede', sep: '#c9c9c9',
+  accent: L.accent, goldBar: '#a87c26',
   gold: 'linear-gradient(120deg,#c9a24a 0%,#a87c26 42%,#e0c47c 100%)',
-  btnInk: '#fffdf6', danger: '#a8452c',
-  noteBg: '#fbf6ea', noteBd: '#f0e6cf', noteInk: '#7a5c1c',
-  glyph: '#e2d5b0',
+  btnInk: '#ffffff', danger: L.danger,
+  noteBg: L.paperSoft, noteBd: '#e2e2e2', noteInk: L.inkSoft, glyph: '#e2e2e2',
+  codeBg: L.codeBg, codeFg: L.codeFg,
 };
 
 const DARK = [
-  ['.bg-page', 'background-color:#0b0b0d !important'],
-  ['.card', 'background-color:#101013 !important;border-color:#26262b !important'],
-  ['.foot', 'background-color:#141417 !important;border-top-color:#26262b !important'],
-  ['.ink', 'color:#f4f2ec !important'],
-  ['.ink-soft', 'color:#c6c3b9 !important'],
-  ['.muted', 'color:#8a877d !important'],
-  ['.faint', 'color:#7c7972 !important'],
-  ['.accent', 'color:#dcb066 !important'],
-  ['.danger', 'color:#e08566 !important'],
-  ['.sep', 'color:#4a4436 !important'],
-  ['.rule-bg', 'background-color:#26262b !important'],
-  ['.code', 'background-color:#1f1f24 !important;color:#ddd9cd !important'],
-  ['.rule-bd', 'border-top-color:#26262b !important;border-bottom-color:#26262b !important'],
-  ['.quote', 'background-color:#17171b !important;border-left-color:#dcb066 !important'],
-  ['.quote-glyph', 'color:#4a4436 !important'],
-  ['.notice', 'background-color:#1c1a12 !important;border-color:#34301f !important'],
-  ['.notice-ink', 'color:#e6c07c !important'],
-  ['.btn', 'background-color:#dcb066 !important'],
-  ['.btn-a', 'color:#141208 !important'],
+  ['.bg-page', `background-color:${D.paper} !important`],
+  ['.card', `background-color:${D.paperElev} !important;border-color:#272727 !important`],
+  ['.foot', `background-color:${D.paperSoft} !important;border-top-color:#272727 !important`],
+  ['.ink', `color:${D.ink} !important`],
+  ['.ink-soft', `color:${D.inkSoft} !important`],
+  ['.muted', `color:${D.muted} !important`],
+  ['.faint', `color:${D.mutedSoft} !important`],
+  ['.accent', `color:${D.accent} !important`],
+  ['.danger', `color:${D.danger} !important`],
+  ['.sep', 'color:#4a4a48 !important'],
+  ['.rule-bg', 'background-color:#272727 !important'],
+  ['.code', `background-color:${D.codeBg} !important;color:${D.codeFg} !important`],
+  ['.rule-bd', 'border-top-color:#272727 !important;border-bottom-color:#272727 !important'],
+  ['.quote', `background-color:${D.paperSoft} !important;border-left-color:${D.accent} !important`],
+  ['.quote-glyph', 'color:#4a4a48 !important'],
+  ['.notice', 'background-color:#1b1b1b !important;border-color:#313131 !important'],
+  ['.notice-ink', `color:${D.accentInk} !important`],
+  ['.btn', `background-color:${D.accent} !important`],
+  ['.btn-a', 'color:#101010 !important'],
 ];
 
 function styleBlock() {
@@ -100,7 +105,7 @@ export const paragraph = (html, extra = '') =>
 export const caption = (html, extra = '') =>
   `<p class="faint" style="margin:0;font-family:${FAMILY.mono};font-size:11px;line-height:1.8;letter-spacing:.05em;color:${C.faint};${extra}">${html}</p>`;
 
-export const quote = (bodyHtml, byline = '') => `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="quote" style="background-color:${C.sunken};border-left:2px solid #c9a24a;border-radius:0 8px 8px 0;">
+export const quote = (bodyHtml, byline = '') => `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="quote" style="background-color:${C.sunken};border-left:2px solid ${C.goldBar};border-radius:0 8px 8px 0;">
 <tr>
 <td class="q-pad ink-soft" valign="top" style="padding:18px 20px;font-family:${FAMILY.sans};font-size:15px;line-height:1.85;color:${C.inkSoft};word-break:break-word;">${bodyHtml}</td>
 <td class="quote-glyph" width="34" valign="top" style="padding:8px 14px 0 0;font-family:${FAMILY.display};font-size:40px;line-height:1;color:${C.glyph};">&rdquo;</td>
@@ -205,7 +210,7 @@ export function richText(s) {
     return `<a class="accent" href="${href}" style="color:${C.accent};">${label}</a>`;
   });
   return withLinks.replace(new RegExp(`${token}(\\d+)${token}`, 'g'), (_, i) =>
-    `<code class="code" style="font-family:${FAMILY.mono};font-size:.88em;color:#3b372e;background-color:#efece3;border-radius:4px;padding:1px 5px;">${codes[Number(i)]}</code>`);
+    `<code class="code" style="font-family:${FAMILY.mono};font-size:.88em;color:${C.codeFg};background-color:${C.codeBg};border-radius:4px;padding:1px 5px;">${codes[Number(i)]}</code>`);
 }
 
 // 只在确实像 http(s) 链接时才当链接用（评论者填的网址不可信）。

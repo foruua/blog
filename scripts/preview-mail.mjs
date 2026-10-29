@@ -6,6 +6,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { SITE } from '../src/config.js';
+import { DEFAULT_PALETTE } from '../src/site/tokens.js';
 import { ownerCommentLetter, replyCommentLetter, smtpTestLetter } from '../src/email/letters.js';
 
 // 只认「不是选项」的第一个参数：以前 `--help` 之类会被当成目录名，在当前目录建出一个叫 `--help` 的目录。
@@ -86,11 +87,13 @@ for (const [name, , mail] of letters) {
   fs.writeFileSync(path.join(outDir, `${name}.html`), mail.html);
 }
 
-const index = `<!DOCTYPE html>
+const index = (() => {
+  const L = DEFAULT_PALETTE.light;
+  return `<!DOCTYPE html>
 <html lang="zh-CN"><head><meta charset="utf-8"><title>邮件模版预览</title>
-<style>body{font:15px/1.8 -apple-system,"PingFang SC",sans-serif;max-width:40rem;margin:3rem auto;padding:0 1.2rem;color:#17160f;background:#faf8f4}
-h1{font-family:"Songti SC",serif;font-size:1.5rem}ul{list-style:none;padding:0}li{padding:.6rem 0;border-bottom:1px solid #eae4d8;display:flex;justify-content:space-between;gap:1rem}
-a{color:#926922;text-decoration:none}b{font-weight:600}.m{color:#8a857a;font-size:.82rem;font-family:ui-monospace,Menlo,monospace}</style>
+<style>body{font:15px/1.8 -apple-system,"PingFang SC",sans-serif;max-width:40rem;margin:3rem auto;padding:0 1.2rem;color:${L.ink};background:${L.paper}}
+h1{font-family:"Songti SC",serif;font-size:1.5rem}ul{list-style:none;padding:0}li{padding:.6rem 0;border-bottom:1px solid #e2e2e2;display:flex;justify-content:space-between;gap:1rem}
+a{color:${L.accent};text-decoration:none}b{font-weight:600}.m{color:${L.mutedSoft};font-size:.82rem;font-family:ui-monospace,Menlo,monospace}</style>
 </head><body>
 <h1>邮件模版预览</h1>
 <p class="m">${letters.length} 封信 · 由 scripts/preview-mail.mjs 生成</p>
@@ -98,6 +101,7 @@ a{color:#926922;text-decoration:none}b{font-weight:600}.m{color:#8a857a;font-siz
 ${letters.map(([name, label]) => `<li><a href="./${name}.html">${label}</a><span class="m">${name}.html</span></li>`).join('\n')}
 </ul>
 </body></html>`;
+})();
 fs.writeFileSync(path.join(outDir, 'index.html'), index);
 
 console.log(`已写出 ${letters.length + 1} 个文件到 ${outDir}`);

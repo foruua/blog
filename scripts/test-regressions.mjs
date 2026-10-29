@@ -549,5 +549,40 @@ await test('同一天更新仍会刷新 Feed ETag；纯重渲染保留 updated_a
       '内容真变了仍应更新时间');
   } finally { mem.close(); }
 });
+await test('跨载体令牌与 base.css 一致（邮件/分享图/预览不再各自手抄）', async () => {
+  const { DEFAULT_PALETTE, TOKEN_VARS } = await import('../src/site/tokens.js');
+  const css = fs.readFileSync('public/base.css', 'utf8');
+  // 同一选择器会出现多次（:root 有版面块与色彩块；深色选择器另有只写 color-scheme 的一条）：
+  // 取第一个含 --bg 定义的那个块。
+  const blockOf = (selector) => {
+    let from = 0;
+    for (;;) {
+      const at = css.indexOf(selector, from);
+      if (at < 0) return null;
+      const open = css.indexOf('{', at);
+      const close = css.indexOf('}', open);
+      if (open < 0 || close < 0) return null;
+      const body = css.slice(open + 1, close);
+      if (/--bg:\s*#/.test(body)) return body;
+      from = at + selector.length;
+    }
+  };
+  const read = (body, name) => new RegExp(`${name}:\\s*(#[0-9a-fA-F]{6})`).exec(body)?.[1];
+  for (const [mode, selector] of [['light', ':root'], ['dark', 'html[data-theme="dark"]']]) {
+    const body = blockOf(selector);
+    assert.ok(body, `${mode} 令牌块没找到（base.css 选择器变了？）`);
+    for (const [key, name] of Object.entries(TOKEN_VARS)) {
+      assert.equal(read(body, name)?.toLowerCase(), DEFAULT_PALETTE[mode][key],
+        `${mode}.${key} 与 base.css 的 ${name} 不一致`);
+    }
+  }
+  // 邮件与两个脚本必须从这一份取色，不能再手抄：钉住接线，也钉住脚本仍引用共享模块。
+  const { ownerCommentLetter } = await import('../src/email/letters.js');
+  const letter = ownerCommentLetter({ postTitle: 't', author: 'a', bodyMd: 'b', when: 'w', actions: [] });
+  assert.ok(letter.html.includes(`background-color:${DEFAULT_PALETTE.light.paper}`), '邮件页底没有跟随共享纸色');
+  for (const script of ['scripts/make-og-default.mjs', 'scripts/preview-mail.mjs']) {
+    assert.match(fs.readFileSync(script, 'utf8'), /from '\.\.\/src\/site\/tokens\.js'/, `${script} 没有引用共享令牌`);
+  }
+});
 console.log(`  ${pass} 通过 / ${fail} 失败`);
 process.exitCode = fail ? 1 : 0;
