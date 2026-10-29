@@ -33,6 +33,7 @@ const { initMail, KEYS, ownerEmail, fromAddress } = await import('../src/mail.js
 const { toIsoOffset, parseDate, formatDay, formatDateTime } = await import('../src/util/text.js');
 const { resolveLogDir } = await import('../src/log-rotate.js');
 const { JSDOM } = await import('jsdom');
+const { dateBadge } = await import('../src/render/layout.js');
 const { editorPage } = await import('../src/admin/views/content.js');
 const db = open(process.env.DB_FILE);
 migrate(db, { log() {} });
@@ -101,6 +102,7 @@ try {
     assert.equal(formatDay('2020-13-40'), '');
     assert.equal(formatDateTime('not-a-date'), '');
     assert.equal(formatDay('2026-02-30'), '2026-03-02');
+    assert.equal(dateBadge(''), '', '空日期不应渲染成「0 月 / 空年」徽记');
   });
   await test('日志目录：服务与 CLI 共用同一解析口径，且展开 ~', async () => {
     assert.equal(resolveLogDir('~/logs'), path.join(os.homedir(), 'logs'));

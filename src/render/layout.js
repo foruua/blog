@@ -636,6 +636,9 @@ const leading = (p, lines = 2) => {
 
 /** 编年日期徽记（大字日 + 月份/年份两行小字）：文章列表、笔记折叠行与检索命中三处同构，别再各拼一份。 */
 export function dateBadge(day, datetime = day) {
+  // 数据库里的畸形日期经 formatDay() 会变成空串；别让它渲染成「0 月 / 空年」，
+  // 调用方拿到空串自然就不输出日期徽记。
+  if (!day) return '';
   const [y, m, d] = dayParts(day);
   return `<time datetime="${esc(datetime)}" aria-label="${esc(dayLabel([y, m, d]))}"><b>${esc(d)}</b><small><span>${esc(monthCn(m))}</span><span>${esc(y)}</span></small></time>`;
 }

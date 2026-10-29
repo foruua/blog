@@ -34,7 +34,7 @@ export function securityHeaders(c) {
 
 // 渲染抛错时给浏览器一张能读的错页。刻意不套 layout()：那要读库取导航，库坏了会二次抛错。
 export const errorPage = () => `<!doctype html>
-<html lang="${SITE.lang}">
+<html lang="${esc(SITE.lang)}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">

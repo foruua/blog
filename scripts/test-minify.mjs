@@ -15,7 +15,7 @@ try {
   server = await startServer({ env: { ...fixtures.env, SERVE_MINIFIED: '1' } });
   const get = async (path, headers) => {
     const res = await fetch(server.base + path, { headers });
-    return { status: res.status, type: res.headers.get('content-type'), etag: res.headers.get('etag'), text: await res.text() };
+    return { status: res.status, type: res.headers.get('content-type'), etag: res.headers.get('etag'), lastModified: res.headers.get('last-modified'), text: await res.text() };
   };
 
   const ruleCount = (css) => {
@@ -54,6 +54,15 @@ try {
 
   const notModified = await fetch(server.base + '/style.css', { headers: { 'if-none-match': css.etag } });
   check('M14 ETag 协商仍工作（304）', notModified.status === 304, String(notModified.status));
+  const since = await fetch(server.base + '/style.css', { headers: { 'if-modified-since': css.lastModified ?? '' } });
+  check('M14b Last-Modified / If-Modified-Since 协商', Boolean(css.lastModified) && since.status === 304, `${css.lastModified} → ${since.status}`);
+  // 精简 CSS 走的是 minify 分支（不支持 Range），Range 用同一出口的图片资源验证。
+  const image = await fetch(server.base + '/og-default.jpg');
+  const imageLM = image.headers.get('last-modified') ?? '';
+  const staleRange = await fetch(server.base + '/og-default.jpg', { headers: { range: 'bytes=0-10', 'if-range': '"stale"' } });
+  check('M14c If-Range 不匹配时回完整 200', staleRange.status === 200 && !staleRange.headers.get('content-range'), String(staleRange.status));
+  const freshRange = await fetch(server.base + '/og-default.jpg', { headers: { range: 'bytes=0-10', 'if-range': imageLM } });
+  check('M14d If-Range 匹配时回 206', freshRange.status === 206 && /^bytes 0-10\//.test(freshRange.headers.get('content-range') ?? ''), `${freshRange.status} ${freshRange.headers.get('content-range')}`);
 
   // 构建期预压缩：Brotli 与 gzip 都不应再让 Hono 每请求现压；identity 仍回未压缩的精简版。
   const br = await fetch(server.base + '/style.css', { headers: { 'accept-encoding': 'br' } });

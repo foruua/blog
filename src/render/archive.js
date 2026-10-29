@@ -49,7 +49,11 @@ ${groups.map((g, i) => monthGroup(g.key, g.items, open && i === 0)).join('\n')}
 
 export function archiveMain(repo, rawKind = 'all') {
   const kind = ['post', 'note'].includes(rawKind) ? rawKind : 'all';
-  const all = repo.archiveEntries().filter((p) => p.kind === kind || kind === 'all').map((p) => ({ ...p, day: formatDay(p.published_at) }));
+  const all = repo.archiveEntries()
+    .filter((p) => p.kind === kind || kind === 'all')
+    .map((p) => ({ ...p, day: formatDay(p.published_at) }))
+    // 手改/导入的畸形日期 formatDay() 返回空串；不把它归进空年份（会渲染成「0 月」）。
+    .filter((p) => p.day);
 
   const byYear = new Map();
   for (const p of all) {

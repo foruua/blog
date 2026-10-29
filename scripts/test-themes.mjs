@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { createChecker } from './_check.mjs';
+import { createChecker, sleep } from './_check.mjs';
 import { cookieJar, createClient, csrfOf, loginAdmin } from './_shared.mjs';
 import { isSafeRelative } from '../src/themes/registry.js';
 
@@ -199,6 +199,16 @@ try {
     const missing = await req('/definitely-not-here');
     const missingHtml = await missing.text();
     check('T3n 404 命中 404.liquid 且保持 404 状态', missing.status === 404 && missingHtml.includes('fx-main'));
+
+    // 404 自带 60s 缓存：模板改动也必须靠主题签名立刻失效，不能等 TTL。
+    const template404 = path.join(themeRoot, 'fixture', 'templates', '404.liquid');
+    const original404 = fs.readFileSync(template404, 'utf8');
+    fs.writeFileSync(template404, `${original404}\n<!-- 404-cache-stamp -->`);
+    await sleep(2200); // themes 扫描 TTL=2s
+    const refreshed404 = await (await req('/definitely-not-here')).text();
+    check('T3n2 404 缓存随主题模板签名失效', refreshed404.includes('404-cache-stamp'), '');
+    fs.writeFileSync(template404, original404);
+    await sleep(2200);
   }
 
   // —— 4. 主题设置 ——

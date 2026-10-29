@@ -63,8 +63,9 @@ export function createHtmlCache({
 
   function set(key, entry) {
     entry.bytes = Buffer.byteLength(entry.body, 'utf8');
-    if (!enabled || entry.bytes > maxBody) return;
+    // 同一 key 的旧条目先删：新版本超过 maxBody 时不能继续把旧版本留在缓存里。
     drop(key);
+    if (!enabled || entry.bytes > maxBody) return;
     while (cache.size >= maxEntries || chars + entry.bytes > maxChars) {
       const first = cache.keys().next();
       if (first.done) break;

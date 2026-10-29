@@ -730,6 +730,8 @@ const page = await (await fetch(`${BASE}/p/${SLUG}/`)).text();
     manifest.name && manifest.start_url === '/' && manifest.icons.length === 3
     && manifest.icons.every((i) => /\.png\?v=[0-9a-f]{10}$/.test(i.src))
     && manifest.icons.some((i) => i.purpose === 'maskable'), '');
+  check('T57c2 manifest 背景/主题色跟随默认配色的纸色',
+    manifest.background_color === '#faf8f4' && manifest.theme_color === '#faf8f4', JSON.stringify({ bg: manifest.background_color, theme: manifest.theme_color }));
 
   const robots = await (await fetch(`${BASE}/robots.txt`)).text();
   check('T57d robots 挡掉后台、审核与检索入口',

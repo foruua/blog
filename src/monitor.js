@@ -66,9 +66,16 @@ export async function probe({ url, token = process.env.MONITOR_TOKEN, maxAgeSec 
   try {
     const headers = token ? { 'x-monitor-token': token } : {};
     const response = await fetch(url, { headers, signal: AbortSignal.timeout(timeoutMs), redirect: 'error' });
-    if (!response.ok) return { ok: false, reason: `HTTP ${response.status}` };
-    const health = await response.json();
-    if (health.ok !== true) return { ok: false, reason: '站点自检失败' };
+    // 503 也带健康原因（磁盘/WAL/备份卡住）；先读 body 再判断 status，别把可执行的诊断丢成裸 HTTP 状态码。
+    let health = null;
+    try { health = await response.json(); } catch { /* 非 JSON 响应按状态码处理 */ }
+    if (!response.ok) {
+      const reason = health?.healthReason ? `HTTP ${response.status}：${health.healthReason}` : `HTTP ${response.status}`;
+      return { ok: false, reason };
+    }
+    if (!health || health.ok !== true) {
+      return { ok: false, reason: health?.healthReason ? `站点自检失败：${health.healthReason}` : '站点自检失败' };
+    }
     const age = health.latestRecoverableBackupAgeSec;
     if (age === undefined) return { ok: false, reason: '读不到备份状态：MONITOR_TOKEN 未配置或与服务端不一致' };
     if (!Number.isFinite(age) || age < 0) return { ok: false, reason: '没有可完整恢复的备份' };

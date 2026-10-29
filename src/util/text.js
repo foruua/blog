@@ -1,5 +1,5 @@
 import { decodeEntities } from './entities.js';
-import { htmlToPlainText, stripHtmlTags } from './html-text.js';
+import { htmlToPlainText } from './html-text.js';
 import { SITE } from '../config.js';
 
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => (
@@ -13,9 +13,6 @@ export const csrfField = (csrf = '') => `<input type="hidden" name="_csrf" value
 export const htmlAttr = (tag, name) => new RegExp(`\\b${name}="([^"]*)"`, 'i').exec(String(tag ?? ''))?.[1] ?? '';
 
 export const nowIso = () => new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
-
-// 去标签：块级标签换空格，script/style/template 整块丢、注释也丢。友圈摘要用它——语料是远端脏 HTML。
-export const stripTags = (input) => stripHtmlTags(input);
 
 export function slugify(s) {
   const out = String(s ?? '').trim().toLowerCase()

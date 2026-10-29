@@ -47,8 +47,8 @@ export function feedRoutes(repo) {
   const responseCache = new Map();
   const FEED_CACHE_TTL = 30_000;
   const FEED_CACHE_MAX_ENTRIES = 24;
-  const FEED_CACHE_MAX_CHARS = 8 * 1024 * 1024;
-  let responseCacheChars = 0;
+  const FEED_CACHE_MAX_BYTES = 8 * 1024 * 1024;
+  let responseCacheBytes = 0;
   // 默认 20 篇；允许 ?limit= 覆盖，夹在 1–50，避免一次拉全站。原始 query 不能直接进 key：
   // `?limit=020`、`?limit=20`、`?limit=+20` 会各自开一个永久条目。
   const limitOf = (c) => {
@@ -61,20 +61,21 @@ export function feedRoutes(repo) {
   function cacheDelete(key) {
     const old = responseCache.get(key);
     if (!old) return;
-    responseCacheChars -= old.body.length;
+    responseCacheBytes -= old.bytes ?? Buffer.byteLength(old.body, 'utf8');
     responseCache.delete(key);
   }
   function cacheSet(key, entry) {
     cacheDelete(key);
-    if (entry.body.length > FEED_CACHE_MAX_CHARS) return;
+    entry.bytes = Buffer.byteLength(entry.body, 'utf8');
+    if (entry.bytes > FEED_CACHE_MAX_BYTES) return;
     while (responseCache.size >= FEED_CACHE_MAX_ENTRIES
-      || responseCacheChars + entry.body.length > FEED_CACHE_MAX_CHARS) {
+      || responseCacheBytes + entry.bytes > FEED_CACHE_MAX_BYTES) {
       const first = responseCache.keys().next();
       if (first.done) break;
       cacheDelete(first.value);
     }
     responseCache.set(key, entry);
-    responseCacheChars += entry.body.length;
+    responseCacheBytes += entry.bytes;
   }
   const feedLimit = createAntispam({ windowMs: 60_000, maxPerWindow: 120 });
   app.use('*', async (c, next) => {

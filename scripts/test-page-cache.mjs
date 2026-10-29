@@ -32,6 +32,11 @@ try {
     VALUES(?,?,?,?,?,?)`).run('cache@example.com', 'cache', 'cache', 'pending', new Date().toISOString(), new Date().toISOString());
   const afterMail = await fetch(`${srv.base}/${probe}`);
   check('T4d1 发信队列写入不冲掉页面缓存', afterMail.headers.get('x-page-cache') === 'HIT', String(afterMail.headers.get('x-page-cache')));
+  // 备份/异地状态同样属于后台数据，043 迁移后不应 bump 内容修订号。
+  db.prepare(`INSERT INTO settings(key, value) VALUES(?, ?)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value`).run('backup_offsite_status', '{"state":"ok"}');
+  const afterBackup = await fetch(`${srv.base}/${probe}`);
+  check('T4d2 备份状态写入不冲掉页面缓存', afterBackup.headers.get('x-page-cache') === 'HIT', String(afterBackup.headers.get('x-page-cache')));
   const search = await fetch(`${srv.base}/search?q=${Date.now()}`);
   check('T4c 内容相关查询参数不进共享缓存', !search.headers.get('x-page-cache'), String(search.headers.get('x-page-cache')));
   const stillCached = await fetch(`${srv.base}/${probe}`);

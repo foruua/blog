@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createChecker } from './_check.mjs';
-import { createWatchdog, offsiteBackupAge, stateFingerprint, pullInProgress } from '../src/monitor.js';
+import { createWatchdog, offsiteBackupAge, stateFingerprint, pullInProgress, probe } from '../src/monitor.js';
 
 const { check, report } = createChecker();
 
@@ -148,6 +148,19 @@ const BAD = { ok: false, reason: '隧道断开' };
     `${expired1} ${expired2} ${http1} ${http2}`);
   check('T17 健康与故障、不同故障类别之间仍是状态变化',
     first !== http1 && http1 !== expired1, `${first} ${http1} ${expired1}`);
+}
+
+{
+  // 503 也必须解析 body 里的 healthReason：外部探针不该把可执行的诊断丢成裸 HTTP 状态码。
+  const original = globalThis.fetch;
+  try {
+    globalThis.fetch = async () => ({ ok: false, status: 503, json: async () => ({ ok: false, healthReason: 'SQLite WAL 过大' }) });
+    const r503 = await probe({ url: 'https://example.invalid/healthz' });
+    check('T18 503 探针带出 healthReason', !r503.ok && r503.reason.includes('SQLite WAL 过大'), r503.reason);
+    globalThis.fetch = async () => ({ ok: true, json: async () => ({ ok: false, healthReason: '数据库读取失败' }) });
+    const rBody = await probe({ url: 'https://example.invalid/healthz' });
+    check('T19 200 但自检失败时也带出 healthReason', !rBody.ok && rBody.reason.includes('数据库读取失败'), rBody.reason);
+  } finally { globalThis.fetch = original; }
 }
 
 process.exit(report() ? 1 : 0);
