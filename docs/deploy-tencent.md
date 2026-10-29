@@ -26,14 +26,14 @@ sudo apt-get update
 sudo apt-get install -y nginx certbot python3-certbot-nginx rsync xz-utils
 ```
 
-Node 用官方二进制，版本和 `.node-version` 保持一致（当前 24.22.1）。**注意：下面命令里的版本号 `24.22.1` 共出现三处，升级 Node 时要与 `.node-version` 逐一对照改齐，漏改一处会导致下载与 SHASUMS 校验不匹配。**
+Node 用官方二进制，版本和 `.node-version` 保持一致（当前 24.22.2）。**注意：下面命令里的版本号 `24.22.2` 共出现三处，升级 Node 时要与 `.node-version` 逐一对照改齐，漏改一处会导致下载与 SHASUMS 校验不匹配。**
 
 ```sh
 cd /tmp
-curl -fsSLO https://npmmirror.com/mirrors/node/v24.22.1/node-v24.22.1-linux-x64.tar.xz
-curl -fsSL https://npmmirror.com/mirrors/node/v24.22.1/SHASUMS256.txt | grep node-v24.22.1-linux-x64.tar.xz | sha256sum -c -
-sudo tar -xJf node-v24.22.1-linux-x64.tar.xz -C /opt
-sudo ln -sfn /opt/node-v24.22.1-linux-x64 /opt/node24
+curl -fsSLO https://npmmirror.com/mirrors/node/v24.22.2/node-v24.22.2-linux-x64.tar.xz
+curl -fsSL https://npmmirror.com/mirrors/node/v24.22.2/SHASUMS256.txt | grep node-v24.22.2-linux-x64.tar.xz | sha256sum -c -
+sudo tar -xJf node-v24.22.2-linux-x64.tar.xz -C /opt
+sudo ln -sfn /opt/node-v24.22.2-linux-x64 /opt/node24
 /opt/node24/bin/node -v
 /opt/node24/bin/npm -v
 ```

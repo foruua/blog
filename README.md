@@ -4,7 +4,7 @@ Hono + Node.js 内置 SQLite，服务端渲染 Markdown。支持文章、笔记�
 
 ## 启动
 
-需要 Node.js ≥ 22.22.2（`jsdom@30` 的下限；22.13–22.21 能跑站但跑不了测试）；CI 覆盖 Node 22 / 24（`.node-version` 固定 24.22.1 LTS），浏览器测试另需 Playwright Chromium。
+需要 Node.js ≥ 22.22.2（`jsdom@30` 的下限；22.13–22.21 能跑站但跑不了测试）；CI 覆盖 Node 22 / 24（`.node-version` 固定 24.22.2 LTS），浏览器测试另需 Playwright Chromium。
 
 ```sh
 npm ci
@@ -38,7 +38,7 @@ BLOG_DEPLOY_NODE=/opt/node24/bin/node \
 ./scripts/deploy-tencent.sh
 ```
 
-默认服务名 `blog`、应用目录 `/srv/blog`、发布目录 `/srv/blog-releases`、Node 路径 `/usr/bin/node`，可分别用 `BLOG_DEPLOY_SERVICE`、`BLOG_DEPLOY_APP_ROOT`、`BLOG_DEPLOY_RELEASE_ROOT`、`BLOG_DEPLOY_NODE` 覆盖；服务运行用户默认 `blog`，用 `BLOG_DEPLOY_USER` 改；保留最近 N 个发布版本用 `BLOG_DEPLOY_KEEP_RELEASES`（默认 5，0 = 不清理）。当前生产用官方 Node 24.22.1，装在 `/opt/node24`，所以发布时传 `BLOG_DEPLOY_NODE`，让 `npm ci`、语法检查、备份和恢复演练都用同一个 Node。发布前会做 Node 语法检查（`.js` 与 `.mjs`）、依赖安装（以服务用户执行，不用 root 跑 postinstall）、静态资源预构建（`npm run build:assets`，随后裁掉 devDependencies）、健康检查，失败自动回滚。
+默认服务名 `blog`、应用目录 `/srv/blog`、发布目录 `/srv/blog-releases`、Node 路径 `/usr/bin/node`，可分别用 `BLOG_DEPLOY_SERVICE`、`BLOG_DEPLOY_APP_ROOT`、`BLOG_DEPLOY_RELEASE_ROOT`、`BLOG_DEPLOY_NODE` 覆盖；服务运行用户默认 `blog`，用 `BLOG_DEPLOY_USER` 改；保留最近 N 个发布版本用 `BLOG_DEPLOY_KEEP_RELEASES`（默认 5，0 = 不清理）。当前生产用官方 Node 24.22.2，装在 `/opt/node24`，所以发布时传 `BLOG_DEPLOY_NODE`，让 `npm ci`、语法检查、备份和恢复演练都用同一个 Node。发布前会做 Node 语法检查（`.js` 与 `.mjs`）、依赖安装（以服务用户执行，不用 root 跑 postinstall）、静态资源预构建（`npm run build:assets`，随后裁掉 devDependencies）、健康检查，失败自动回滚。
 
 生产机的 Nginx 上传上限要覆盖图片上限：服务端默认不限单文件体积，`client_max_body_size`（当前 40m）就是实际上限，要传更大的图就同步调大它；`proxy_read_timeout` / `proxy_send_timeout` 放到 300s。完整装机步骤、DNS/ICP 与异地备份见 [`docs/deploy-tencent.md`](docs/deploy-tencent.md)。
 
