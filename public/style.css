@@ -661,21 +661,19 @@ body.mnav-open .mnav-panel { transform: none; opacity: 1; }
   border-radius: var(--radius-lg);
   padding: clamp(1.2rem, 2.8vw, 1.9rem) clamp(1.2rem, 2.8vw, 1.9rem) clamp(1rem, 2.2vw, 1.35rem);
 }
-/* 首页：纸面版式（默认）直接落在纸上，不套铭牌；素匣版式再把铭牌加回来。
-   两块只差容器：行、标题、链接都走同一套设计。 */
+/* 首页：纸面版式（默认）看上去没有铭牌，但内容仍留在铭牌的内衬里 ——
+   两版式的行宽与起笔位置必须一模一样，换版式时列表不许位移。
+   1px 透明边也留着：铭牌那 1px 边框同样占位，去掉它内容会右移 1px。 */
 body[data-page="home"] .recent {
-  background: none; border: 0; box-shadow: none;
+  background: none; border: 1px solid transparent; box-shadow: none;
   -webkit-backdrop-filter: none; backdrop-filter: none;
-  padding: 0;
 }
 html[data-layout="box"] body[data-page="home"] .recent {
   -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
   background: var(--card-bg);
-  border: 1px solid var(--card-bd);
+  border-color: var(--card-bd);
   box-shadow: var(--card-sh);
-  border-radius: var(--radius-lg);
-  padding: clamp(1.2rem, 2.8vw, 1.9rem) clamp(1.2rem, 2.8vw, 1.9rem) clamp(1rem, 2.2vw, 1.35rem);
 }
 .recent-head {
   display: flex; align-items: center; gap: .7rem;
