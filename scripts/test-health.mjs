@@ -55,7 +55,12 @@ try {
     const r = await fetch(`${broken.base}/healthz`, { headers: { 'x-monitor-token': 'health-test-token' } });
     const b = await r.json();
     return b.backupLastError ? b : null;
-  }, { timeoutMs: 15000, stepMs: 250 });
+  }, {
+    // 这个窗口等的是「服务启动 + 启动补做那一轮（间隔 60s 时约 5s）+ worker 起来后失败落库」。
+    // 15s 在负载高的机器上会踩线（整套顺序跑时实测偶发超时），30s 只是放宽等待，不放松断言：
+    // 备份失败若始终没反映到 /healthz，这里照样会拿到 null 并让 T8–T10 失败。
+    timeoutMs: 30000, stepMs: 250,
+  });
   check('T8 备份失败后 /healthz 暴露 backupLastError',
     Boolean(health?.backupLastError?.reason), JSON.stringify(health?.backupLastError));
   check('T9 失败后安排了下次重试', Number(health?.backupNextRetryInSec) > 0, String(health?.backupNextRetryInSec));
