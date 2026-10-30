@@ -231,16 +231,22 @@ const palettePanelHtml = (cur) => `<div class="pal-panel">
             <output class="pal-hue-out" for="palHue">${cur.seed.hue}°</output>
           </summary>
           <input id="palHue" type="range" class="pal-hue" min="0" max="359" step="1" value="${cur.seed.hue}" aria-label="色相" aria-valuetext="${cur.seed.hue} 度">
-          <div class="pal-row">
-            <label class="pal-lb" for="palChroma">浓淡</label>
-            <output class="pal-chroma-out" for="palChroma">${Math.round(cur.seed.chroma / CHROMA_MAX * 100)}%</output>
+          <div class="pal-io">
+            <div class="pal-ctl">
+              <div class="pal-row">
+                <label class="pal-lb" for="palChroma">浓淡</label>
+                <output class="pal-chroma-out" for="palChroma">${Math.round(cur.seed.chroma / CHROMA_MAX * 100)}%</output>
+              </div>
+              <input id="palChroma" type="range" class="pal-chroma" min="0" max="${CHROMA_MAX}" step="0.001" value="${cur.seed.chroma}" aria-label="浓淡" aria-valuetext="浓淡 ${Math.round(cur.seed.chroma / CHROMA_MAX * 100)}%">
+            </div>
+            <div class="pal-ctl">
+              <div class="pal-row">
+                <label class="pal-lb" for="palPaper">纸色</label>
+                <output class="pal-paper-out" for="palPaper">${Math.round(cur.seed.paper * 100)}%</output>
+              </div>
+              <input id="palPaper" type="range" class="pal-paper" min="0" max="1" step="0.01" value="${cur.seed.paper}" aria-label="纸色" aria-valuetext="纸色 ${Math.round(cur.seed.paper * 100)}%">
+            </div>
           </div>
-          <input id="palChroma" type="range" class="pal-chroma" min="0" max="${CHROMA_MAX}" step="0.001" value="${cur.seed.chroma}" aria-label="浓淡" aria-valuetext="浓淡 ${Math.round(cur.seed.chroma / CHROMA_MAX * 100)}%">
-          <div class="pal-row">
-            <label class="pal-lb" for="palPaper">纸色</label>
-            <output class="pal-paper-out" for="palPaper">${Math.round(cur.seed.paper * 100)}%</output>
-          </div>
-          <input id="palPaper" type="range" class="pal-paper" min="0" max="1" step="0.01" value="${cur.seed.paper}" aria-label="纸色" aria-valuetext="纸色 ${Math.round(cur.seed.paper * 100)}%">
           <p class="pal-fail" role="status" hidden>自定义配色暂时不可用，请刷新重试。</p>
         </details>
       </div>`;

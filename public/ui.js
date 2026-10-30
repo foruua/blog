@@ -429,7 +429,7 @@
     for (const picker of pickers()) {
       const box = picker.querySelector('.pal-custom');
       // 小屏首次打开时把「自定义」折起来，避免纸色滑块落到面板滚动区外；只做一次，
-      // 之后用户自己开合不被同步逻辑打断。
+      // 之后用户自己开合不被同步逻辑打断。桌面默认展开，滑块一直可见。
       if (box && !box.dataset.foldInit) {
         box.dataset.foldInit = '1';
         if (matchMedia?.('(max-width: 620px), (max-height: 620px)').matches) box.open = false;

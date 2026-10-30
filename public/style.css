@@ -2652,8 +2652,8 @@ html:not(.has-js) .pal { display: none; }
   /* 明暗三格 + 六套预设 + 自定义，比早先页脚那版更高：横屏手机 / 分屏上要能自己滚，不能顶出视口。
      上边留出页头的高度，面板从触发器下方展开、向下长。 */
   max-height: calc(100dvh - 8rem); overflow-y: auto; overscroll-behavior: contain;
-  padding: .55rem;
-  /* 预设两列排：六套从 6×44px 压到 3×40px，面板矮 160px。
+  padding: .5rem;
+  /* 预设两列排：六套从 6×44px 压到 3×36px，面板矮 180px。
      列宽由 min-width 兜住 —— 面板总宽仍是 14.5rem（232px），不比单列时宽一像素：
      每列 107px 装得下 20px 色样 + 两个字的色名，剩的留给选中那枚勾。
      明暗 / 版式 / 分隔线 / 自定义各自通栏（见下面那条），所以只有色样那一段分两列。 */
@@ -2695,7 +2695,7 @@ html:not(.has-js) .pal { display: none; }
 .pal-panel .pal-tm {
   display: flex; align-items: center; justify-content: center;
   flex: 1 1 0; min-width: 0;
-  margin: 0; padding: .5rem .2rem; min-height: 2.5rem;
+  margin: 0; padding: .4rem .2rem; min-height: 2.25rem;
   border: 0; border-radius: var(--radius-sm);
   background: var(--bg-soft); color: var(--muted);
   font: inherit;
@@ -2714,7 +2714,7 @@ html:not(.has-js) .pal { display: none; }
 .pal-panel .pal-ly {
   display: flex; align-items: center; justify-content: center; gap: .38rem;
   flex: 1 1 0; min-width: 0;
-  margin: 0; padding: .5rem .3rem; min-height: 2.5rem;
+  margin: 0; padding: .4rem .3rem; min-height: 2.25rem;
   border: 0; border-radius: var(--radius-sm);
   background: var(--bg-soft); color: var(--muted);
   font: inherit; font-size: .82rem; letter-spacing: .02em;
@@ -2727,14 +2727,14 @@ html:not(.has-js) .pal { display: none; }
   background: var(--accent-soft); color: var(--accent-read);
   box-shadow: inset 0 0 0 1px var(--accent-line);
 }
-/* 分隔线通栏：面板左右各有 .55rem 内距，用等量负外边距拉平，才不会被读成某一组的边框。 */
-.pal-rule { height: 1px; margin: .5rem -.55rem; background: var(--rule); }
+/* 分隔线通栏：面板左右各有 .5rem 内距，用等量负外边距拉平，才不会被读成某一组的边框。 */
+.pal-rule { height: 1px; margin: .35rem -.5rem; background: var(--rule); }
 .pal-panel .pal-opt {
   display: flex; align-items: center; gap: .7rem;
   width: 100%;
-  margin: 0; padding: .62rem .7rem; min-height: 2.5rem; border: 0; border-radius: var(--radius-sm);
+  margin: 0; padding: .4rem .6rem; min-height: 2.25rem; border: 0; border-radius: var(--radius-sm);
   background: none; color: var(--fg-soft);
-  font: inherit; font-size: .9rem; letter-spacing: .02em; text-align: left;
+  font: inherit; font-size: .9rem; line-height: 1.3; letter-spacing: .02em; text-align: left;
   cursor: pointer;
   transition: background var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
 }
@@ -2759,9 +2759,9 @@ html:not(.has-js) .pal { display: none; }
    必须和生成器用同一个色相坐标（OKLCH，见下面的 --hue-track）；浓淡与纸色两条只用
    当前强调色，不抢色相条的注意力。 */
 .pal-custom {
-  display: grid; gap: .4rem;
-  margin-top: .35rem;
-  padding: .7rem .7rem .5rem;
+  display: grid; gap: .3rem;
+  margin-top: .3rem;
+  padding: .55rem .55rem .45rem;
   border-top: 1px solid var(--rule);
   /* 色相条是唯一一处彩虹：它是控件不是内容，滑块的值又正好是 OKLCH 色相。
      早先用 HSL 画轨道，两者不是同一个色相坐标 —— 素笺 H=77 的拇指落在黄绿段，
@@ -2811,6 +2811,11 @@ html:not(.has-js) .pal { display: none; }
   font-size: var(--label-size); letter-spacing: var(--label-track);
   color: var(--muted);
 }
+/* 浓淡 / 纸色并排：两条都只是当前强调色的派生量，并排后自定义区由五行降到三行（面板再矮一档）。
+   色相仍是通栏主角，顺序与层次不变；两列各约 102px，标签与读数都放得下。 */
+.pal-io { display: grid; grid-template-columns: 1fr 1fr; gap: .2rem .6rem; }
+.pal-ctl { display: grid; gap: .05rem; min-width: 0; }
+.pal-io .pal-row { gap: .3rem; }
 .pal-custom[data-active] .pal-head { color: var(--accent); }
 /* 自定义生效时也要有 ✓：入口不再显示当前色样，选中态只剩面板里这一个信号 —— 少了它，
    自定义状态下整块面板看起来「什么都没选」。勾挂在标签后面，不挤动右侧的色相读数。 */
@@ -2820,12 +2825,15 @@ html:not(.has-js) .pal { display: none; }
 .pal-custom[data-active] .pal-head output { color: inherit; }
 .pal-custom input[type="range"] {
   -webkit-appearance: none; appearance: none;
-  display: block; width: 100%; height: 2rem; margin: 0;
+  display: block; width: 100%; height: 1.75rem; margin: 0;
   background: transparent; cursor: pointer;
 }
 @media (pointer: coarse) {
-  /* 触屏把滑块命中区补到 44px；鼠标端保持紧凑。 */
+  /* 触屏把滑块命中区补到 44px、三组按钮补回 40px；鼠标端保持紧凑（面板高度优先）。 */
   .pal-custom input[type="range"] { height: 2.75rem; }
+  .pal-panel .pal-tm,
+  .pal-panel .pal-ly,
+  .pal-panel .pal-opt { min-height: 2.5rem; }
 }
 .pal-custom input[type="range"]::-webkit-slider-runnable-track {
   height: .5rem; border-radius: var(--radius-pill);
