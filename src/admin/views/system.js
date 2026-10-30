@@ -20,8 +20,9 @@ export function systemPage({
   // 版式与配色成对：都是「访客默认值」，访客自己选过的存在各自浏览器里、会盖过这里。
   // 字段名用 layoutDefault 而不是 layout —— 下线的「首页封面文字版式」当年就叫 layout，
   // test-admin 的 T8j-4b 还钉着「设置页不许再出现 name="layout"」这条。
+  // 兜底写 'box'（settings.layoutDefault 的默认值）：写 'paper' 会让没有该字段的调用方把选中项显示成纸面。
   const layoutOptions = LAYOUTS
-    .map((l) => `<option value="${esc(l.key)}"${l.key === (site.layout ?? 'paper') ? ' selected' : ''}>${esc(l.name)}</option>`)
+    .map((l) => `<option value="${esc(l.key)}"${l.key === (site.layout ?? 'box') ? ' selected' : ''}>${esc(l.name)}</option>`)
     .join('\n            ');
 
   // 首页轮播图列表：缩略图一行排开，图下编号、第一张标「封面」，末尾一枚虚线「添加」格；点保存才生效。首屏（JS 没跑时）类名与 data-* 要与 admin.js 的 tile() 逐字一致。
