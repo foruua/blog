@@ -443,15 +443,15 @@ await test('版式清单与 CSS 对得上：素匣的每条规则都挂在 html[
     assert.ok(css.includes(sel), `素匣缺少刊头归零选择器：${sel}`);
   }
   // 不变量：素匣规则一律排除首页 —— 首页本来就是「标题 + 一只匣子」，再套一层就是匣中匣。
-  // 唯一例外是首页「最近更新」那块铭牌：素匣版式本来就要它在（纸面版式才收起），
-  // 这条规则必须显式写 body[data-page="home"]，不能靠 :not 排除。
+  // 两处例外都显式写 body[data-page="home"]：①「最近更新」那块铭牌（素匣版式本来就要它在）；
+  // ② 封面 hero 的收尾距离（让匣底到页脚界栏与内页同距，是间距规则，不是给首页套匣）。
   const sels = [...css.matchAll(/html\[data-layout="box"\][^{]*\{/g)].map((m) => m[0]);
   assert.ok(sels.length >= 6, `素匣规则只有 ${sels.length} 条，像是被删过`);
   assert.match(css, /html\[data-layout="box"\] body\[data-page="home"\] \.recent \{/,
     '素匣下首页「最近更新」的铭牌规则不见了');
   for (const sel of sels) {
-    const homeRecent = /body\[data-page="home"\] \.recent/.test(sel);
-    assert.ok(sel.includes('body:not([data-page="home"])') || homeRecent,
+    const homeException = /body\[data-page="home"\] (?:\.recent|\.hero)/.test(sel);
+    assert.ok(sel.includes('body:not([data-page="home"])') || homeException,
       `这条没排除首页：${sel.replace(/\s+/g, ' ')}`);
   }
   // CSS 里只认 box 这一个值；纸面是「不挂属性」，不该再出现 data-layout="paper"。

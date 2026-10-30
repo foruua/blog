@@ -1976,8 +1976,9 @@ html[data-theme="dark"] .c-flash-bad, html[data-theme="dark"] .c-flash-limited, 
 .c-preview { border: 1px solid var(--rule); border-radius: var(--radius); padding: .9rem; background: var(--bg-soft); }
 /* @page-css comments:end */
 
-/* 页脚 · 界栏断开：第一行版权、第二行备案号；顶端界栏在正中断开 2.8rem，缺口里嵌一枚金星 ——
-   金星就是「回到顶部」：32px 透明命中区里只有 8px 的星，悬停放大。原先的右下悬浮钮已撤掉，全站只此一处回顶。 */
+/* 页脚 · 界栏断开：第一行版权、第二行备案号；顶端界栏在正中断开 2.8rem，缺口里嵌一枚金星印钮 ——
+   30px 细金圆环把 11px 金星包成按钮：静默时是「能点的钮」，悬停整枚填金、星反白，250ms 后浮出「回到顶部」题签。
+   原先的右下悬浮钮已撤掉，全站只此一处回顶。 */
 footer.site {
   position: relative;
   margin: var(--sp-5) 0 0;
@@ -1998,27 +1999,68 @@ footer.site::before {
     var(--rule-strong) calc(100% - 24px), transparent 100%);
   opacity: .9;
 }
-/* 星形回顶入口：命中区是按钮尺寸，视觉只有那颗星（与字标里的五角星同形、同色）。 */
+/* 星印回顶入口：30px 圆环（含 1px 边框）落在界栏正中，环底填纸色把界栏截断；
+   圆环回答「能不能点」，题签回答「点了去哪」。命中区与圆环同大（30px ≥ WCAG 2.5.8 的 24px 底线）。 */
 footer.site .foot-seal {
-  position: absolute; top: -16px; left: 50%;
+  position: absolute; top: -15px; left: 50%;
   z-index: 1;
   box-sizing: border-box;
-  width: 32px; height: 32px;
+  width: 30px; height: 30px;
   display: grid; place-items: center;
   transform: translateX(-50%);
   border-radius: 50%;
+  background: var(--bg);
+  border: 1px solid color-mix(in srgb, var(--accent) 54%, transparent);
+  transition: background-color var(--dur-2) var(--ease),
+              border-color var(--dur-2) var(--ease),
+              box-shadow var(--dur-2) var(--ease);
+}
+/* 填金悬停与字标印钮同一套手势：整枚转金、星反白，外扩一圈极淡的金。 */
+footer.site .foot-seal:hover,
+footer.site .foot-seal:focus-visible {
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 footer.site .foot-seal-star {
-  width: 10px; height: 10px;
+  width: 11px; height: 11px;
   background: var(--accent);
   clip-path: polygon(
     50% 4.78%, 61.23% 39.32%, 97.55% 39.32%, 68.16% 60.68%, 79.39% 95.23%,
     50% 73.88%, 20.61% 95.23%, 31.84% 60.68%, 2.45% 39.32%, 38.77% 39.32%
   );
-  transition: transform var(--dur-2) var(--ease);
+  transition: background-color var(--dur-2) var(--ease);
 }
 footer.site .foot-seal:hover .foot-seal-star,
-footer.site .foot-seal:focus-visible .foot-seal-star { transform: scale(1.5); }
+footer.site .foot-seal:focus-visible .foot-seal-star { background: var(--bg); }
+/* 题签：悬停 250ms 后才浮出，鼠标只是划过时不会一闪即逝；离开立即收。
+   用真元素而非 ::after —— 屏幕阅读器只读 aria-label，不会把题签再念一遍。 */
+footer.site .foot-seal-tip {
+  position: absolute;
+  left: 50%; bottom: calc(100% + 9px);
+  transform: translate(-50%, 4px);
+  padding: .34rem .58rem;
+  font-family: var(--sans);
+  font-size: .72rem; font-weight: 500; line-height: 1;
+  letter-spacing: .08em;
+  color: var(--fg-soft);
+  background: var(--bg-elev);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-hair);
+  box-shadow: var(--shadow-sm);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--dur-2) var(--ease), transform var(--dur-2) var(--ease);
+}
+footer.site .foot-seal:hover .foot-seal-tip,
+footer.site .foot-seal:focus-visible .foot-seal-tip {
+  opacity: 1;
+  transform: translate(-50%, 0);
+  transition-delay: var(--dur-2);
+}
+/* 键盘聚焦不该等 250ms：焦点一进就亮。 */
+footer.site .foot-seal:focus-visible .foot-seal-tip { transition-delay: 0s; }
 footer.site .foot-inner {
   box-sizing: border-box;
   /* 页脚始终在 .wrap 里（内置布局与 classic 主题同构）：左右留白已由 .wrap 的 24px 给足，
@@ -2863,6 +2905,17 @@ html[data-layout="box"] body:not([data-page="home"]) main#main > :last-child { m
 html[data-layout="box"] body:not([data-page="home"]) article.post,
 html[data-layout="box"] body:not([data-page="home"]) .page { padding-bottom: 0; }
 
+/* 首页例外：只调「最近更新」匣的收尾距离，不套匣。
+   内页匣底到页脚界栏 = 匣子 margin-bottom（clamp(2rem,4vw,3rem)）+ 页脚 margin-top（--sp-5）；
+   首页页脚 margin-top 归零（见「首页整屏骨架」），这段距离改由 hero 的下内距与匣子的下外边距拼回来。
+   原先 hero 用 justify-content: center，视口一高就把余量对半塞到匣子下方 —— 1440×1400 时约 200px，
+   而内页恒为 90px。贴底后无论视口多高都保持同一段距离。 */
+html[data-layout="box"] body[data-page="home"] .hero {
+  justify-content: flex-end;
+  padding-bottom: var(--sp-5);
+}
+html[data-layout="box"] body[data-page="home"] .recent { margin-bottom: clamp(2rem, 4vw, 3rem); }
+
 @media (max-width: 620px) {
   html[data-layout="box"] body:not([data-page="home"]) .wrap { max-width: none; }
   html[data-layout="box"] body:not([data-page="home"]) main#main {
@@ -2879,6 +2932,8 @@ html[data-layout="box"] body:not([data-page="home"]) .page { padding-bottom: 0; 
   html[data-layout="box"] body:not([data-page="home"]) main#main > .mast,
   html[data-layout="box"] body:not([data-page="home"]) main#main > .page > .mast,
   html[data-layout="box"] body:not([data-page="home"]) main#main > article.post > .post-mast { padding-top: .35rem; }
+  /* 窄屏匣子的下距收成 1.6rem，首页「最近更新」也跟着收，两边保持同距。 */
+  html[data-layout="box"] body[data-page="home"] .recent { margin-bottom: 1.6rem; }
 }
 
 /* 打印：匣子只是屏幕上的分层手段，纸上的底色、圆角与投影都不该印出来。 */
