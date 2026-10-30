@@ -1149,11 +1149,14 @@ body[data-page="archive"] .chron:last-child { border-bottom: 1px solid var(--rul
 
 .lk-wall {
   list-style: none;
-  margin: var(--section-gap) 0 0; padding: 0 0 .85rem;
+  /* 名片墙上下各留一段呼吸位：卡片自带边框与投影，贴住通栏细线会像被线压着；
+     这一档比墙内格距（.85rem）宽一级，上下对称，翻页后也不会忽紧忽松。
+     收尾线仍与首页、友圈同一套收尾法，只是把线与墙的距离交给 --lk-edge 统一管。 */
+  --lk-edge: clamp(1.25rem, 2.6vw, 1.75rem);
+  margin: var(--section-gap) 0 0; padding: 0 0 var(--lk-edge);
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 14.5rem), 1fr));
   gap: .85rem;
-  /* 友链收尾：名片墙最后一排下方补一条通栏细线，与首页、友圈同一套收尾法，间距取墙自身的格距。 */
   border-bottom: 1px solid var(--rule);
 }
 .lk-card {
@@ -2415,8 +2418,9 @@ body[data-page="search"] .list li > .e-main:focus-visible h2 {
   padding-top: var(--section-inset);
 }
 
-/* 横线下面留白到卡片外沿 / 正文首项，而不是算在卡片内部。 */
-.mast + .lk-wall,
+/* 横线下面留白到卡片外沿 / 正文首项，而不是算在卡片内部。
+   友链墙用自己那档 --lk-edge（与收尾线下方对称），其余页面仍走 --section-inset。 */
+.mast + .lk-wall { padding-top: var(--lk-edge); }
 .page .mast + .prose { padding-top: var(--section-inset); }
 .page .mast + .prose > :is(h2, h3, h4):first-child { padding-top: 0; }
 .page .mast + .prose > h2:first-child::before { display: none; }
