@@ -2405,10 +2405,9 @@ body[data-page="search"] .list li > .e-main:focus-visible h2 {
   .arch-filter { gap: 1.15rem; }
 }
 
-/* 换行标题不再为装饰点线让出阅读宽度。 */
-@media (max-width: 640px) {
-  .chron .e-title::after { display: none; }
-}
+/* 归档行不在标题与「文章 / 笔记」之间画点线：类型只是一枚右缘小字，点线在这里只多一道噪声；
+   标题换行时也不必再为它让出阅读宽度。 */
+.chron .e-title::after { display: none; }
 
 /* 日期、数量、状态用可读小字（--info-size 那一档，见文件头字号刻度）。 */
 
