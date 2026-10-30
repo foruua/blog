@@ -453,12 +453,12 @@ ${jsonLdHtml(ctx.structuredData)}
 // 警徽用公安备案那枚官方徽标（public/police-badge.png，按显示尺寸 13×14 的 3 倍存 39×42 带透明通道）。
 // 不内联 base64：塞进每一页的 HTML 不划算，而且每次响应都要重传、也进不了缓存；
 // 走静态资源 + 内容指纹即可长缓存，换图自动换 URL。
-// 两枚徽标都在页脚、首屏之外：lazy 让它们不跟首屏抢带宽，滚动到页脚才请求；宽高已写死，不会引发布局位移。
-const policeBadgeImg = () => `<img class="foot-police-ico" src="/police-badge.png?v=${assetVer('police-badge.png')}" alt="" width="13" height="14" style="aspect-ratio:13/14" loading="lazy" fetchpriority="low" decoding="async">`;
+// 两枚徽标都在页脚、首屏之外；不去懒加载：体积极小，懒加载省不下带宽，反而让 Edge 的控制台打出「图片被占位替换、load 事件推迟」的干预提示。宽高已写死，不会引发布局位移。
+const policeBadgeImg = () => `<img class="foot-police-ico" src="/police-badge.png?v=${assetVer('police-badge.png')}" alt="" width="13" height="14" style="aspect-ratio:13/14" fetchpriority="low" decoding="async">`;
 
 // ICP 徽标用备案 logo（public/icp-badge.png，白底原图经白底反推 alpha 抠成透明，按 15×14 的 3 倍存 45×42）。
-// 与警徽同一规矩：走静态资源 + 内容指纹长缓存，不内联 base64，且同样在页脚 lazy。
-const icpBadgeImg = () => `<img class="foot-icp-ico" src="/icp-badge.png?v=${assetVer('icp-badge.png')}" alt="" width="15" height="14" style="aspect-ratio:15/14" loading="lazy" fetchpriority="low" decoding="async">`;
+// 与警徽同一规矩：走静态资源 + 内容指纹长缓存，不内联 base64，同样不做懒加载。
+const icpBadgeImg = () => `<img class="foot-icp-ico" src="/icp-badge.png?v=${assetVer('icp-badge.png')}" alt="" width="15" height="14" style="aspect-ratio:15/14" fetchpriority="low" decoding="async">`;
 
 /**
  * 页脚的公安联网备案号。号码形如「冀公网安备13060202001368号」，其中末尾那串数字同时是
