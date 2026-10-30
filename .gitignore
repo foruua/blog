@@ -38,3 +38,5 @@ node_modules/
 .idea/
 *.swp
 .sandbox-overlay/
+# Trae 分享方案页时生成的 zip 打包产物：随时可由 docs/*.html 重新生成
+.trae-html-share-packages/
