@@ -28,7 +28,6 @@ const MAX_REDIRECTS = 3;
 
 // 测试用逃生门：本机测试服务器跑在 127.0.0.1，而 SSRF 防护拦的正是它。默认关闭、启动时 configWarnings() 会警告（与 COOKIE_INSECURE 同类）。
 export const ALLOW_PRIVATE_NETWORK = process.env.FEED_ALLOW_PRIVATE === 'true';
-const ALLOW_PRIVATE = ALLOW_PRIVATE_NETWORK;
 
 // 端口白名单：友圈地址来自访客/站主填写的站点，端口不限等于借服务器之手探测任意服务（25、6379、9200…）。
 // 只放常见 Web 端口；友链探活（src/links/check.js）直接复用这一份口径，免得两处规则各自漂移。
@@ -178,12 +177,12 @@ async function resolveTarget(raw, { signal, lookup = defaultLookup } = {}) {
   // 校验顺序：字面量能判的先判，判不了的才解析。内网主机名 / 字面量私网 IP / 非 Web 端口都只看地址
   // 本身，没有 DNS 成本、也不向对方发包。端口放在解析之前还有一个实际好处：报错指的始终是用户写错的
   // 那处 —— 否则本机 DNS 把域名解析到私网（或被投毒）时，「:6379」会被误报成 private-host。
-  if (!ALLOW_PRIVATE && INTERNAL_HOST_RE.test(host)) throw new FeedError(`指向内网地址，已拒绝（${host}）`, 'private-host');
+  if (!ALLOW_PRIVATE_NETWORK && INTERNAL_HOST_RE.test(host)) throw new FeedError(`指向内网地址，已拒绝（${host}）`, 'private-host');
   const literalFamily = net.isIP(host);
-  if (!ALLOW_PRIVATE && literalFamily && isPrivateAddress(host, literalFamily)) {
+  if (!ALLOW_PRIVATE_NETWORK && literalFamily && isPrivateAddress(host, literalFamily)) {
     throw new FeedError(`指向内网或保留地址，已拒绝（${host}）`, 'private-host');
   }
-  if (!ALLOW_PRIVATE && !isPublicWebPort(url.port)) {
+  if (!ALLOW_PRIVATE_NETWORK && !isPublicWebPort(url.port)) {
     throw new FeedError(`地址端口不在允许范围（只允许 80/443/8080/8443，当前 ${url.port}）`, 'bad-port');
   }
   let addresses;
@@ -195,12 +194,8 @@ async function resolveTarget(raw, { signal, lookup = defaultLookup } = {}) {
     throw new FeedError(`域名解析不了：${host}`, 'dns', { cause: error });
   }
   if (!addresses.length) throw new FeedError(`域名解析不了：${host}`, 'dns');
-  if (!ALLOW_PRIVATE && addresses.some((a) => isPrivateAddress(a.address, a.family))) {
+  if (!ALLOW_PRIVATE_NETWORK && addresses.some((a) => isPrivateAddress(a.address, a.family))) {
     throw new FeedError(`指向内网或保留地址，已拒绝（${host}）`, 'private-host');
-  }
-  // 端口白名单放在内网判定之后：私网地址本身更值得优先报出来，而端口检查只看字面量，不会向对方发包。
-  if (!ALLOW_PRIVATE && !isPublicWebPort(url.port)) {
-    throw new FeedError(`地址端口不在允许范围（只允许 80/443/8080/8443，当前 ${url.port}）`, 'bad-port');
   }
   return { url, addresses };
 }
