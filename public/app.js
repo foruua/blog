@@ -395,11 +395,18 @@
       });
       const out = await res.json().catch(() => ({}));
       if (!out.ok || out.status === 'discarded') {
-        notice.textContent = out.error || (out.status === 'limited' ? '提交过于频繁，请稍后重试。' : '提交未成功，请稍后重试。');
+        // 失败改用与成功一致的轻提示；没有轻提示能力时才退回表单内联文案。
+        const message = out.error || (out.status === 'limited' ? '提交过于频繁，请稍后重试。' : '提交未成功，请稍后重试。');
+        if (window.__toast) { notice.remove(); window.__toast(message, 'bad'); }
+        else notice.textContent = message;
         return;
       }
       await refreshComments(form, out.status === 'pending' ? 'pending' : 'ok');
-    } catch { notice.textContent = '连接中断或超时，输入已保留，请重试。'; }
+    } catch {
+      const message = '连接中断或超时，输入已保留，请重试。';
+      if (window.__toast) { notice.remove(); window.__toast(message, 'bad'); }
+      else notice.textContent = message;
+    }
     finally { if (releaseBusy) releaseBusy(); else { form.removeAttribute('aria-busy'); if (btn) { btn.disabled = false; btn.textContent = btnLabel; } } }
 
   });

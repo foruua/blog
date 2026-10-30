@@ -592,6 +592,25 @@ try {
   }
 
   {
+    // 纯英文评论被拒：失败也走与成功一致的轻提示，表单里不再留一行纯文本。
+    const page = await mount(`${BASE}/p/why-single-column/`);
+    const { w } = page;
+    const form = w.document.querySelector('[data-comment-form]');
+    check('T79d 文章页有评论表单可提交', Boolean(form), '');
+    form.querySelector('[name=author]').value = 'English Only';
+    form.querySelector('[name=email]').value = 'english-only@example.com';
+    form.querySelector('[name=body]').value = 'This comment contains no Chinese characters.';
+    await sleep(300);
+    submit(w, form, form.querySelector('button[type=submit]'));
+    await waitFor(() => /纯英文/.test(w.document.getElementById('toast')?.textContent ?? ''), { timeoutMs: 5000 });
+    check('T79e 纯英文评论被拒时弹出轻提示，表单内不留纯文本',
+      w.document.getElementById('toast')?.classList.contains('on') === true
+      && /纯英文/.test(w.document.getElementById('toast')?.textContent ?? '')
+      && !w.document.querySelector('[data-submit-notice]'),
+      w.document.getElementById('toast')?.textContent ?? '（没有提示）');
+  }
+
+  {
     const page = await mount(`${BASE}/p/why-single-column/`, null, {
       commenter: JSON.stringify({ author: '老读者', email: 'old@example.com', website: 'https://old.example' }),
     });
