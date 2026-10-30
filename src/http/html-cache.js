@@ -262,9 +262,8 @@ export function createHtmlCache({
     const language = c.res.headers.get('Content-Language');
     if (language) headers['Content-Language'] = language;
     const entry = { at: Date.now(), revision, tag, body: text, headers, enc: null };
-    const cacheStatus = canCache ? 'MISS' : '';
-    if (cacheStatus) set(key, entry);
-    return respond(c, entry, cacheStatus, key);
+    set(key, entry);
+    return respond(c, entry, 'MISS', key);
   }
 
   return { middleware };

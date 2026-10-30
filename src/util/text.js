@@ -115,11 +115,10 @@ export function formatDay(utcIso, timeZone = SITE_TIME_ZONE) {
 export const dayParts = (day) => [day.slice(0, 4), day.slice(5, 7), day.slice(8)];
 export const dayLabel = ([y, m, d]) => `${y} 年 ${Number(m)} 月 ${Number(d)} 日`;
 
-/** 中文长日期：与文章刊头的「2026 年 10 月 12 日」同一口径。 */
+/** 中文长日期：与文章刊头的「2026 年 10 月 12 日」同一口径（复用上面的拆段/拼段，免得两处格式各自漂移）。 */
 export const formatDayCn = (utcIso, timeZone = SITE_TIME_ZONE) => {
   const day = formatDay(utcIso, timeZone);
-  if (!day) return '';
-  return `${day.slice(0, 4)} 年 ${Number(day.slice(5, 7))} 月 ${Number(day.slice(8, 10))} 日`;
+  return day ? dayLabel(dayParts(day)) : '';
 };
 
 export function formatDateTime(utcIso, timeZone = SITE_TIME_ZONE) {

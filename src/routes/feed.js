@@ -89,12 +89,15 @@ export function feedRoutes(repo) {
     const key = cacheKeyOf(c);
     // 有写入就必须重建：不能为了省一次查询让客户端 30 秒内一直收到旧 ETag。
     const stamp = typeof repo.contentStamp === 'function' ? repo.contentStamp() : (typeof repo.changeStamp === 'function' ? repo.changeStamp() : '');
-    const hit = responseCache.get(key);
-    if (hit && Date.now() - hit.at >= FEED_CACHE_TTL) cacheDelete(key);
-    const fresh = responseCache.get(key);
-    if (fresh && fresh.stamp === stamp) {
-      if (fresh.etag && ifNoneMatch(c, fresh.etag)) return c.body(null, 304, { ETag: fresh.etag });
-      return c.body(fresh.body, 200, { 'Content-Type': fresh.type, ETag: fresh.etag });
+    let hit = responseCache.get(key);
+    if (hit && Date.now() - hit.at >= FEED_CACHE_TTL) { cacheDelete(key); hit = null; }
+    if (hit && hit.stamp === stamp) {
+      // 命中即挪到队尾：Map 按插入序淘汰，不重排的话最热的 /feed.xml?limit=20 反而最先被挤掉。
+      // 只重排、不刷新 at —— TTL 仍须让渲染修订号（媒体变体、渲染器版本）在 30 秒后重新过一遍。
+      responseCache.delete(key);
+      responseCache.set(key, hit);
+      if (hit.etag && ifNoneMatch(c, hit.etag)) return c.body(null, 304, { ETag: hit.etag });
+      return c.body(hit.body, 200, { 'Content-Type': hit.type, ETag: hit.etag });
     }
     // 冷缓存（进程刚重启/条目过期）不能直接让路由走 304：那会把 304 发回客户端却不填充缓存，
     // 之后每个带旧 ETag 的请求仍然 304，缓存可能永远热不起来。先摘掉条件头渲染一份 200 存进去。
@@ -227,7 +230,6 @@ ${entries}
     const etag = `"sitemap-${stampOf(all)}-${stampOf(pages)}-${all.length}-${pages.length}-${siteStamp()}"`;
     if (notModified(c, etag)) return c.body(null, 304, { ETag: etag });
 
-    const newest = (rows) => stampOf(rows);
     const posts = all.filter((p) => p.kind === 'post');
     const notes = all.filter((p) => p.kind === 'note');
     // 年归档 /a/YYYY 也是可索引的入口页；以前只列了 /archive，年份页只能靠站内链接被发现。
@@ -239,12 +241,12 @@ ${entries}
       if (!yearLast.has(year) || at > yearLast.get(year)) yearLast.set(year, at);
     }
     const urls = [
-      { loc: '/', lastmod: newest(all) },
-      { loc: '/posts/', lastmod: newest(posts) },
-      { loc: '/notes/', lastmod: newest(notes) },
+      { loc: '/', lastmod: stampOf(all) },
+      { loc: '/posts/', lastmod: stampOf(posts) },
+      { loc: '/notes/', lastmod: stampOf(notes) },
       { loc: '/friends/', lastmod: null },
       { loc: '/links/', lastmod: null },
-      { loc: '/archive/', lastmod: newest(all) },
+      { loc: '/archive/', lastmod: stampOf(all) },
       ...[...yearLast].map(([year, lastmod]) => ({ loc: `/a/${year}`, lastmod })),
       // 固定页是 /<slug>，逐个列出——以前写死 /about，新增固定页就不进 sitemap。
       ...pages.map((p) => ({ loc: pageUrl(p.slug), lastmod: stampIso(p.updated_at || p.published_at) })),

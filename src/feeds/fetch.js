@@ -175,10 +175,20 @@ async function resolveTarget(raw, { signal, lookup = defaultLookup } = {}) {
   if (!['http:', 'https:'].includes(url.protocol)) throw new FeedError('只支持 http / https 地址', 'bad-scheme');
   if (url.username || url.password) throw new FeedError('地址里不要带账号密码', 'bad-url');
   const host = url.hostname.replace(/^\[|\]$/g, '');
+  // 校验顺序：字面量能判的先判，判不了的才解析。内网主机名 / 字面量私网 IP / 非 Web 端口都只看地址
+  // 本身，没有 DNS 成本、也不向对方发包。端口放在解析之前还有一个实际好处：报错指的始终是用户写错的
+  // 那处 —— 否则本机 DNS 把域名解析到私网（或被投毒）时，「:6379」会被误报成 private-host。
   if (!ALLOW_PRIVATE && INTERNAL_HOST_RE.test(host)) throw new FeedError(`指向内网地址，已拒绝（${host}）`, 'private-host');
+  const literalFamily = net.isIP(host);
+  if (!ALLOW_PRIVATE && literalFamily && isPrivateAddress(host, literalFamily)) {
+    throw new FeedError(`指向内网或保留地址，已拒绝（${host}）`, 'private-host');
+  }
+  if (!ALLOW_PRIVATE && !isPublicWebPort(url.port)) {
+    throw new FeedError(`地址端口不在允许范围（只允许 80/443/8080/8443，当前 ${url.port}）`, 'bad-port');
+  }
   let addresses;
   try {
-    addresses = net.isIP(host) ? [{ address: host, family: net.isIP(host) }]
+    addresses = literalFamily ? [{ address: host, family: literalFamily }]
       : await abortable(lookup(host, { all: true, verbatim: true }), signal);
   } catch (error) {
     if (signal?.aborted) throw signal.reason;
