@@ -602,6 +602,8 @@ try {
     form.querySelector('[name=body]').value = 'This comment contains no Chinese characters.';
     await sleep(300);
     submit(w, form, form.querySelector('button[type=submit]'));
+    check('T79e2 提交瞬间不往表单塞空提示节点（否则表单会变高一下）',
+      !form.querySelector('[data-submit-notice]'), '');
     await waitFor(() => /纯英文/.test(w.document.getElementById('toast')?.textContent ?? ''), { timeoutMs: 5000 });
     check('T79e 纯英文评论被拒时弹出轻提示，表单内不留纯文本',
       w.document.getElementById('toast')?.classList.contains('on') === true
