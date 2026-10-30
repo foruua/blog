@@ -3,7 +3,8 @@
 import { themeCacheStamp } from '../render/layout.js';
 import { mediaRevision } from '../media/revision.js';
 
-export const contentRevisionOf = (repo) => String(repo.contentStamp?.() ?? repo.changeStamp?.() ?? '');
+// 内容修订号的唯一读法：repo 可能为 null（后台/订阅模块允许不注入），故用可选调用。
+export const contentRevisionOf = (repo) => String(repo?.contentStamp?.() ?? '');
 
 /** HTML 页面缓存的修订号；withMedia=false 给不需要媒体变体的短缓存（如 404）用。 */
 export const pageRevisionOf = (repo, { withMedia = true } = {}) =>

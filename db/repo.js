@@ -139,7 +139,6 @@ export function createRepo(db) {
   // 内容修订号单独由 042 的触发器维护：只统计 posts/comments/settings/media/aliases/feeds/feed_items/link_sites，
   // 发信队列等后台写入不再让整站 HTML/Feed 缓存失效。
   const contentStamp = () => String(q.contentRevision.get()?.rev ?? 0);
-  const changeStamp = contentStamp;
   let settingsMap = null;
   let settingsDataVersion = -1;
   let settingsChanges = 0;
@@ -351,7 +350,7 @@ export function createRepo(db) {
 
   return {
 
-    feed, list, getPost, getPostMeta, getAnyLive, resolveWikiLink, allPublished, publishedInYear, changeStamp, contentStamp,
+    feed, list, getPost, getPostMeta, getAnyLive, resolveWikiLink, allPublished, publishedInYear, contentStamp,
     archiveEntries: () => q.archiveAll.all(),
     recentEntries: (limit = 8) => q.recentEntries.all(limit),
     stats, neighbours, findAlias,
