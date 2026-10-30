@@ -158,8 +158,8 @@ const themePaletteAttr = () => {
   return key ? ` data-palette=${key}` : '';
 };
 
-// 站主选的「访客默认版式」：与配色同一条路 —— 服务端直接挂 <html data-layout="box">，
-// 访客自己选过的由 THEME_BOOT 覆盖。纸面是默认，不挂属性（少一个属性，样式里也好写 :not）。
+// 站主选的「访客默认版式」：与配色同一条路 —— 素匣（现行默认）直接挂在 <html data-layout="box">，
+// 纸面则不挂属性（少一个属性，样式里也好写 :not）；访客自己选过的由 THEME_BOOT 覆盖。
 let layoutDefaultOf = () => '';
 export const setLayoutDefault = (fn) => { layoutDefaultOf = typeof fn === 'function' ? fn : () => ''; };
 export const layoutAttr = () => (layoutDefaultOf() === 'box' ? ' data-layout="box"' : '');

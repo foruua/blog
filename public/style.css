@@ -2899,7 +2899,8 @@ html:not(.has-js) .pal { display: none; }
    ② 首页不受影响：首页本来就是「大标题 + 一只匣子」的两段式，再套一层就成了匣中匣。
    ③ 不写 backdrop-filter：整页高的元素挂一层模糊，滚动时每帧都要重算，而匣子后面是纯纸色，
       糊了也看不出差别（首页那块铭牌只有几百像素高，才留得住那层 blur）。
-   纸面（默认）不挂任何属性，所以下面全部以 html[data-layout="box"] 起头。 */
+   素匣是现行默认（服务端直接挂 html[data-layout="box"]），选「纸面」才摘掉这个属性；
+   所以下面全部以 html[data-layout="box"] 起头。 */
 html[data-layout="box"] body:not([data-page="home"]) .wrap {
   max-width: calc(var(--measure-wide) + 5.2rem + 48px);
 }
