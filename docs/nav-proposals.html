@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>导航方案 · uua.me</title>
+<style>
+  /* 从 public/base.css 摘出的令牌与基底（预览页自带一份，单文件打开也不会掉样式） */
+  :root {
+    --shell: 68rem; --measure-wide: 52rem;
+    --radius-hair: 2px; --radius-sm: 5px; --radius: 9px; --radius-lg: 14px; --radius-pill: 999px;
+    --sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB",
+            "Source Han Sans SC", "Noto Sans CJK SC", "Noto Sans SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+    --display: "Songti SC", "Source Han Serif SC", "Noto Serif CJK SC", "Noto Serif SC", "Songti TC", "STSong", "SimSun", Georgia, "Times New Roman", serif;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", "JetBrains Mono", Menlo, Consolas, "Liberation Mono",
+            "PingFang SC", "Hiragino Sans GB", "Source Han Sans SC", "Noto Sans CJK SC", "Noto Sans SC", "Microsoft YaHei", monospace;
+    --body-size: 1.0625rem; --body-leading: 1.82;
+    --dur-1: .2s; --dur-2: .25s; --dur-3: .3s; --dur-4: .45s; --ease: cubic-bezier(.2, .7, .3, 1);
+    --shadow-sm: 0 1px 2px rgba(30, 26, 16, .04), 0 2px 8px -4px rgba(30, 26, 16, .08);
+    --shadow-md: 0 2px 6px -2px rgba(30, 26, 16, .07), 0 14px 30px -18px rgba(30, 26, 16, .22);
+    --shadow-lg: 0 4px 12px -4px rgba(30, 26, 16, .10), 0 30px 60px -30px rgba(30, 26, 16, .30);
+    --bg: #f8f8f8; --bg-soft: #eeeeee; --bg-elev: #fefefe;
+    --fg: #17160f; --fg-soft: #433f37; --muted: #6b665d; --muted-soft: #736e65;
+    --rule: rgba(23, 22, 15, .10); --rule-strong: rgba(23, 22, 15, .24);
+    --accent: #926922; --accent-soft: rgba(146, 105, 34, .10); --accent-line: rgba(146, 105, 34, .34);
+    --mark: linear-gradient(90deg, var(--accent) 0%, color-mix(in srgb, var(--accent) 14%, transparent) 100%);
+    --mark-w: 2.2rem;
+    color-scheme: light;
+  }
+  html[data-theme="dark"] {
+    --bg: #1a1a1a; --bg-soft: #242424; --bg-elev: #202020;
+    --fg: #f4f2ec; --fg-soft: #c6c3b9; --muted: #a09c93; --muted-soft: #908d85;
+    --rule: rgba(244, 242, 236, .12); --rule-strong: rgba(244, 242, 236, .26);
+    --accent: #dcb066; --accent-soft: rgba(220, 176, 102, .13); --accent-line: rgba(220, 176, 102, .36);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, .5);
+    --shadow-md: 0 2px 8px -2px rgba(0, 0, 0, .6), 0 18px 36px -22px rgba(0, 0, 0, .8);
+    --shadow-lg: 0 6px 18px -6px rgba(0, 0, 0, .7), 0 40px 80px -40px rgba(0, 0, 0, .9);
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; background: var(--bg); }
+  body { margin: 0; color: var(--fg); font: var(--body-size) / var(--body-leading) var(--sans); font-kerning: normal; -webkit-font-smoothing: antialiased; background-color: var(--bg); }
+  ::selection { background: color-mix(in srgb, var(--accent) 24%, transparent); color: var(--fg); }
+  a { color: inherit; text-decoration: none; transition: color var(--dur-1) var(--ease); }
+  a:hover { color: color-mix(in srgb, var(--accent) 82%, var(--fg)); }
+  svg { vertical-align: middle; }
+</style>
+<style>
+  /* —— 预览页自身 —— */
+  .pv-head { max-width: 52rem; margin: 0 auto; padding: 3rem 24px 0; }
+  .pv-kicker { font-family: var(--mono); font-size: .72rem; letter-spacing: .18em; color: var(--accent); }
+  .pv-head h1 { font-family: var(--display); font-size: clamp(1.6rem, 3vw, 2rem); letter-spacing: .02em; margin: .5rem 0 .6rem; }
+  .pv-head p { color: var(--muted); font-size: .95rem; max-width: 40rem; margin: 0; }
+  .pv-nav { display: flex; flex-wrap: wrap; gap: .5rem; margin: 1.2rem 0 0; }
+  .pv-nav a { font-family: var(--mono); font-size: .75rem; letter-spacing: .05em; padding: .3rem .7rem; border: 1px solid var(--rule-strong); border-radius: var(--radius-pill); color: var(--muted); }
+  .pv-nav a:hover { color: var(--accent); border-color: var(--accent); }
+  .pv-theme { position: fixed; right: 1rem; top: 1rem; z-index: 5; font-family: var(--mono); font-size: .72rem; padding: .35rem .7rem; border: 1px solid var(--rule-strong); border-radius: var(--radius-pill); background: var(--bg-elev); color: var(--muted); cursor: pointer; }
+  .pv-theme:hover { color: var(--accent); border-color: var(--accent); }
+
+  .demo { max-width: 76rem; margin: 0 auto; padding: 0 24px; }
+  .proposal { margin: 3.2rem 0 0; }
+  .proposal-head { display: flex; align-items: baseline; gap: .8rem; flex-wrap: wrap; border-top: 1px solid var(--rule); padding-top: 1.2rem; }
+  .proposal-head h2 { font-family: var(--display); font-size: 1.35rem; letter-spacing: .03em; margin: 0; }
+  .proposal-head .tag { font-family: var(--mono); font-size: .7rem; letter-spacing: .12em; color: var(--muted-soft); border: 1px solid var(--rule); padding: .16rem .45rem; border-radius: var(--radius-hair); }
+  .proposal-head .idea { color: var(--muted); font-size: .92rem; margin: 0; flex-basis: 100%; max-width: 46rem; }
+  .notes { display: flex; flex-wrap: wrap; gap: .35rem .5rem; margin: .9rem 0 1rem; padding: 0; }
+  .notes li { list-style: none; font-size: .78rem; color: var(--fg-soft); background: var(--accent-soft); border: 1px solid var(--accent-line); border-radius: var(--radius-pill); padding: .26rem .68rem; }
+  .stage-label { font-family: var(--mono); font-size: .7rem; letter-spacing: .14em; color: var(--muted-soft); margin: 0 0 .45rem .2rem; }
+  .stage { background: var(--bg); border: 1px solid var(--rule); border-radius: var(--radius-lg); padding: 0 24px; overflow: hidden; }
+  .stage .shell { max-width: var(--shell); margin: 0 auto; }
+  .tradeoff { font-size: .82rem; color: var(--muted); margin: .9rem 0 0; line-height: 1.85; }
+  .tradeoff b { color: var(--fg-soft); font-weight: 600; margin-right: .2rem; }
+  .tradeoff i { font-style: normal; color: var(--rule-strong); padding: 0 .55em; }
+
+  /* —— 页头骨架（与站点同尺寸） —— */
+  .hd { display: flex; align-items: center; justify-content: space-between; gap: 1.4rem; padding: 1.25rem 0 1rem; border-bottom: 1px solid var(--rule); min-height: 4.85rem; }
+  .brand { display: inline-flex; align-items: center; font-family: var(--display); font-size: 1.34rem; font-weight: 700; letter-spacing: .055em; color: var(--fg); white-space: nowrap; }
+  .brand:hover { color: var(--accent); }
+  .bseal { display: inline-grid; place-items: center; width: 1.1em; height: 1.1em; margin-right: .42em; font-size: .92em; color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 54%, transparent); border-radius: 2px; transform: translateY(-1px); }
+  .bmark { display: inline-block; width: .42em; height: .42em; margin: 0 .17em; background: var(--accent); clip-path: polygon(50% 4.78%, 61.23% 39.32%, 97.55% 39.32%, 68.16% 60.68%, 79.39% 95.23%, 50% 73.88%, 20.61% 95.23%, 31.84% 60.68%, 2.45% 39.32%, 38.77% 39.32%); }
+  .n-ico { display: block; width: 15px; height: 15px; flex: 0 0 auto; }
+  .so-ico { display: block; width: 15px; height: 15px; flex: 0 0 auto; }
+
+  /* —— 正文假景：只为让导航落在真实比例里 —— */
+  .mock { padding: 2rem 0 3.6rem; text-align: center; }
+  .mock-kicker { display: block; font-family: var(--mono); font-size: .64rem; letter-spacing: .38em; color: var(--muted-soft); }
+  .mock-title { margin: .5rem 0 .7rem; font-family: var(--display); font-size: clamp(2rem, 3.6vw, 2.7rem); font-weight: 700; letter-spacing: .02em; line-height: 1.15; }
+  .mock-line { margin: 0; font-size: .8rem; color: var(--muted); letter-spacing: .02em; }
+  .mock-line i { font-style: normal; color: var(--accent); padding: 0 .6em; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+  /* —— 现状 —— */
+  .nav-now { display: flex; align-items: center; gap: clamp(.8rem, 1.25vw, 1.15rem); font-size: .875rem; font-weight: 500; line-height: 1.25; color: var(--muted); }
+  .nav-now a, .nav-now summary { display: inline-flex; align-items: center; gap: .45rem; padding: .44em .12em; letter-spacing: .14em; color: var(--muted); cursor: pointer; list-style: none; }
+  .nav-now summary::-webkit-details-marker { display: none; }
+  .nav-now a:hover, .nav-now summary:hover { color: var(--fg); }
+  .nav-now a:hover .n-ico, .nav-now summary:hover .n-ico { color: var(--accent); }
+  .nav-now a[aria-current="page"] { color: var(--fg); font-weight: 600; }
+  .nav-now a[aria-current="page"] .n-ico { color: var(--accent); }
+  .now-search { display: inline-flex; align-items: center; margin-left: .6rem; padding: .5em .55em; border: 0; border-radius: var(--radius-sm); background: none; color: var(--muted); cursor: pointer; }
+  .now-search:hover { background: var(--accent-soft); color: var(--fg); }
+  .now-search:hover .so-ico { color: var(--accent); }
+
+  /* ================= A · 书眉 ================= */
+  .nav-a { display: flex; align-items: center; gap: clamp(.9rem, 1.7vw, 1.5rem); }
+  .nav-a a, .nav-a summary { position: relative; display: inline-flex; align-items: baseline; gap: .28rem; padding: .58em 0 .66em; font-family: var(--display); font-size: .98rem; font-weight: 600; letter-spacing: .16em; color: var(--muted); cursor: pointer; list-style: none; }
+  .nav-a summary::-webkit-details-marker { display: none; }
+  .nav-a a:hover, .nav-a summary:hover, .nav-a a[aria-current="page"] { color: var(--fg); }
+  .nav-a a::after, .nav-a summary::after {
+    content: ""; position: absolute; left: 50%; bottom: 0; height: 2px; width: 0;
+    translate: -50% 0; background: var(--mark); border-radius: 2px; opacity: .5;
+    transition: width var(--dur-2) var(--ease), opacity var(--dur-2) var(--ease);
+  }
+  .nav-a a:hover::after, .nav-a summary:hover::after { width: 1.2rem; }
+  .nav-a a[aria-current="page"]::after { width: var(--mark-w); opacity: 1; }
+  .nav-a a[aria-current="page"]:hover::after { width: var(--mark-w); opacity: 1; }
+  /* 悬浮是 1.2rem 的半透明短线，当前项是 2.2rem 实线 —— 两个金线不能读成同一档。 */
+  .nav-a .chev { width: 5px; height: 5px; margin-left: .12rem; border-right: 1px solid currentColor; border-bottom: 1px solid currentColor; transform: translateY(-2px) rotate(45deg); opacity: .55; transition: transform var(--dur-2) var(--ease); align-self: center; }
+  .nav-a .nsub[open] .chev { transform: translateY(0) rotate(-45deg); }
+  .a-sep { width: 1px; height: 1.15rem; margin-left: .35rem; background: var(--rule); }
+  .a-search { display: inline-flex; align-items: center; gap: .42rem; color: var(--muted); font-size: .82rem; letter-spacing: .1em; }
+  .a-search:hover { color: var(--fg); }
+  .a-search:hover .so-ico { color: var(--accent); }
+  .a-search kbd { font-family: var(--mono); font-size: .6rem; letter-spacing: .04em; color: var(--muted-soft); border: 1px solid var(--rule); border-radius: 3px; padding: .1rem .28rem; }
+  .a-search:hover kbd { color: var(--muted); border-color: var(--rule-strong); }
+
+  /* 题签式下拉：无圆角浮片，换成一页窄签 */
+  .nsub { position: relative; }
+  .panel-a, .panel-b, .panel-c, .panel-d { position: absolute; top: calc(100% + .55rem); left: 50%; translate: -50% 0; z-index: 10; display: none; }
+  .nsub[open] > .panel-a, .nsub[open] > .panel-b, .nsub[open] > .panel-c, .nsub[open] > .panel-d { display: block; }
+  .nsub[open] > summary { color: var(--fg); }
+  .panel-a::before { content: ""; position: absolute; top: -.6rem; left: 0; right: 0; height: .6rem; }
+  .panel-a { min-width: 8.6rem; padding: .35rem 0; background: var(--bg-elev); border: 1px solid var(--rule-strong); border-radius: 3px; box-shadow: var(--shadow-md); }
+  .panel-a a { display: flex; align-items: center; gap: .5rem; padding: .5rem .9rem; font-family: var(--display); font-size: .9rem; font-weight: 400; letter-spacing: .12em; color: var(--muted); }
+  .panel-a a::before { content: ""; width: 3px; height: 3px; flex: 0 0 auto; background: var(--accent); transform: rotate(45deg); opacity: 0; }
+  .panel-a a:hover { color: var(--fg); }
+  .panel-a a:hover::before { opacity: .45; }
+  .panel-a a[aria-current="page"] { color: var(--fg); }
+  .panel-a a[aria-current="page"]::before { opacity: 1; }
+
+  /* ================= B · 目录 ================= */
+  .nav-b { display: flex; align-items: center; font-size: .875rem; font-weight: 500; letter-spacing: .1em; color: var(--muted); }
+  .nav-b a, .nav-b summary { display: inline-flex; align-items: center; gap: .4rem; padding: .55em .95em; color: var(--muted); cursor: pointer; list-style: none; }
+  .nav-b summary::-webkit-details-marker { display: none; }
+  .nav-b .no { font-family: var(--mono); font-size: .6rem; letter-spacing: .03em; color: var(--muted-soft); transform: translateY(-.42em); transition: color var(--dur-2) var(--ease); }
+  .nav-b a:hover, .nav-b summary:hover { color: var(--fg); }
+  .nav-b a:hover .no, .nav-b summary:hover .no { color: var(--accent); }
+  .nav-b a[aria-current="page"] { color: var(--fg); font-weight: 600; }
+  .nav-b a[aria-current="page"] .no { color: var(--accent); }
+  .b-vrule { width: 1px; height: 1rem; background: color-mix(in srgb, var(--rule-strong) 62%, transparent); }
+  .b-search { display: inline-flex; align-items: center; gap: .4rem; margin-left: .15rem; padding: .55em 0 .55em .9rem; border-left: 1px solid color-mix(in srgb, var(--rule-strong) 62%, transparent); color: var(--muted); font-family: var(--mono); font-size: .66rem; letter-spacing: .1em; }
+  .b-search:hover { color: var(--fg); }
+  .b-search:hover .so-ico { color: var(--accent); }
+  .b-search kbd { font-family: var(--mono); font-size: .62rem; color: var(--muted-soft); border: 1px solid var(--rule); border-radius: 3px; padding: .08rem .26rem; }
+  .panel-b { min-width: 10.6rem; padding: .35rem; background: var(--bg-elev); border: 1px solid var(--rule); border-radius: var(--radius); box-shadow: var(--shadow-md); }
+  .panel-b::before { content: ""; position: absolute; top: -.6rem; left: 0; right: 0; height: .6rem; }
+  .panel-b a { display: flex; align-items: center; gap: .65rem; padding: .48rem .6rem; border-radius: var(--radius-sm); color: var(--muted); }
+  .panel-b a .no { transform: none; font-size: .62rem; }
+  .panel-b a:hover { color: var(--fg); background: var(--accent-soft); }
+  .panel-b a[aria-current="page"] { color: var(--fg); font-weight: 600; }
+  .panel-b a[aria-current="page"] .no { color: var(--accent); }
+
+  /* ================= C · 墨锭 ================= */
+  .nav-c { display: flex; align-items: center; gap: .5rem; }
+  .tray { display: inline-flex; align-items: center; gap: 2px; padding: 3px; background: color-mix(in srgb, var(--bg-elev) 82%, transparent); border: 1px solid var(--rule); border-radius: var(--radius-pill); box-shadow: var(--shadow-sm); }
+  .tray a, .tray summary { display: inline-flex; align-items: center; gap: .42rem; padding: .5em .95em; border-radius: var(--radius-pill); font-size: .82rem; font-weight: 500; letter-spacing: .1em; color: var(--muted); cursor: pointer; list-style: none; transition: background-color var(--dur-2) var(--ease), color var(--dur-2) var(--ease); }
+  .tray summary::-webkit-details-marker { display: none; }
+  .tray a:hover, .tray summary:hover { background: var(--bg-soft); color: var(--fg); }
+  .tray a:hover .n-ico, .tray summary:hover .n-ico { color: var(--accent); }
+  .tray a[aria-current="page"] { background: var(--fg); color: var(--bg); font-weight: 600; }
+  .tray a[aria-current="page"] .n-ico { color: color-mix(in srgb, var(--accent) 82%, var(--bg)); }
+  .tray .n-ico { width: 14px; height: 14px; }
+  .c-search { display: inline-grid; place-items: center; width: 2.1rem; height: 2.1rem; margin-left: .15rem; border: 1px solid var(--rule); border-radius: var(--radius-pill); background: var(--bg-elev); color: var(--muted); cursor: pointer; }
+  .c-search:hover { color: var(--fg); border-color: var(--accent-line); }
+  .c-search:hover .so-ico { color: var(--accent); }
+  .c-search .so-ico { width: 14px; height: 14px; }
+  .panel-c { left: auto; right: 0; translate: 0 0; min-width: 10rem; padding: .4rem; background: var(--bg-elev); border: 1px solid var(--rule); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); }
+  .panel-c::before { content: ""; position: absolute; top: -.6rem; left: 0; right: 0; height: .6rem; }
+  .panel-c a { display: flex; align-items: center; gap: .6rem; padding: .5rem .7rem; border-radius: var(--radius-sm); font-size: .82rem; letter-spacing: .08em; color: var(--muted); }
+  .panel-c a:hover { color: var(--fg); background: var(--accent-soft); }
+  .panel-c a[aria-current="page"] { color: var(--fg); font-weight: 600; }
+  .panel-c a[aria-current="page"] .n-ico { color: var(--accent); }
+  .panel-c .n-ico { width: 14px; height: 14px; }
+
+  /* ================= D · 双层报头 ================= */
+  .hd-d { display: block; padding: 0; gap: 0; min-height: 0; }
+  .d-top { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1.02rem 0 .88rem; }
+  .d-tools { display: flex; align-items: center; gap: 1.1rem; font-family: var(--mono); font-size: .64rem; letter-spacing: .16em; color: var(--muted-soft); }
+  .d-date { white-space: nowrap; }
+  .d-search { display: inline-flex; align-items: center; gap: .38rem; padding: .2rem 0; border: 0; background: none; color: var(--muted); font-family: var(--mono); font-size: .64rem; letter-spacing: .14em; cursor: pointer; }
+  .d-search:hover { color: var(--fg); }
+  .d-search:hover .so-ico { color: var(--accent); }
+  .d-search .so-ico { width: 14px; height: 14px; }
+  .d-band { display: flex; justify-content: center; border-top: 1px solid var(--rule); padding: .5rem 0 .62rem; }
+  .nav-d { display: flex; align-items: center; gap: clamp(1.6rem, 3vw, 2.6rem); }
+  .nav-d a, .nav-d summary { display: inline-flex; flex-direction: column; align-items: center; gap: .14rem; color: var(--muted); cursor: pointer; list-style: none; }
+  .nav-d summary::-webkit-details-marker { display: none; }
+  .nav-d .zh { font-family: var(--display); font-size: .98rem; font-weight: 600; letter-spacing: .16em; transition: color var(--dur-2) var(--ease); }
+  .nav-d .en { font-family: var(--mono); font-size: .55rem; letter-spacing: .2em; color: var(--muted-soft); transition: color var(--dur-2) var(--ease); }
+  .nav-d .en .chev { display: inline-block; width: 4px; height: 4px; margin-left: .18rem; border-right: 1px solid currentColor; border-bottom: 1px solid currentColor; transform: translateY(-2px) rotate(45deg); opacity: .6; vertical-align: middle; }
+  .nav-d .nsub[open] .en .chev { transform: translateY(0) rotate(-45deg); }
+  .nav-d a:hover .zh, .nav-d summary:hover .zh { color: var(--fg); }
+  .nav-d a:hover .en, .nav-d summary:hover .en { color: var(--accent); }
+  .nav-d a[aria-current="page"] .zh { color: var(--accent); }
+  .nav-d a[aria-current="page"] .en { color: var(--fg); }
+  .panel-d { min-width: 9.5rem; padding: .35rem 0; background: var(--bg-elev); border: 1px solid var(--rule-strong); border-radius: 3px; box-shadow: var(--shadow-md); }
+  .panel-d::before { content: ""; position: absolute; top: -.6rem; left: 0; right: 0; height: .6rem; }
+  .panel-d a { display: flex; flex-direction: row; align-items: baseline; justify-content: space-between; gap: 1rem; padding: .48rem .85rem; font-family: var(--display); font-size: .88rem; font-weight: 400; letter-spacing: .1em; color: var(--muted); }
+  .panel-d a em { font-family: var(--mono); font-size: .56rem; font-style: normal; letter-spacing: .14em; color: var(--muted-soft); }
+  .panel-d a:hover { color: var(--fg); }
+  .panel-d a[aria-current="page"] { color: var(--fg); }
+  .panel-d a[aria-current="page"] em { color: var(--accent); }
+
+  /* —— 对比表 —— */
+  .cmp-wrap { max-width: 76rem; margin: 3.6rem auto 0; padding: 0 24px; }
+  .cmp-title { font-family: var(--display); font-size: 1.35rem; letter-spacing: .03em; margin: 0 0 .2rem; border-top: 1px solid var(--rule); padding-top: 1.2rem; }
+  .cmp { width: 100%; margin-top: .8rem; border-collapse: collapse; font-size: .82rem; }
+  .cmp th { font-family: var(--mono); font-size: .66rem; font-weight: 400; letter-spacing: .12em; text-align: left; color: var(--muted-soft); padding: .55rem .6rem; border-bottom: 1px solid var(--rule-strong); }
+  .cmp td { padding: .62rem .6rem; border-bottom: 1px solid var(--rule); color: var(--muted); vertical-align: top; }
+  .cmp td:first-child { font-family: var(--display); font-weight: 600; font-size: .92rem; color: var(--fg); white-space: nowrap; }
+
+  .verdict { max-width: 52rem; margin: 2.4rem auto 4rem; padding: 1.6rem 24px 0; border-top: 1px solid var(--rule); color: var(--muted); font-size: .85rem; line-height: 1.9; }
+  .verdict b { color: var(--fg); }
+
+  @media (max-width: 780px) {
+    .hd, .nav-a, .nav-b, .nav-c { flex-wrap: wrap; row-gap: .4rem; }
+    .d-date { display: none; }
+    .cmp-wrap { overflow-x: auto; }
+    .cmp { min-width: 40rem; }
+  }
+</style>
+</head>
+<body>
+<button class="pv-theme" type="button" id="themeBtn">切换纸面</button>
+
+<header class="pv-head">
+  <span class="pv-kicker">NAVIGATION STUDY · 2026</span>
+  <h1>导航的四个方向</h1>
+  <p>结构不变：三项常驻 + 「页面」下拉 + 检索。四版都在现有令牌里（纸面 --bg、细界 --rule、一处金 --accent），差别在<strong>字体、结构、组件、版式</strong>各取一路。每版都放在真实页头比例里，悬停「页面」可展开下拉，悬停其它项看反馈。</p>
+  <nav class="pv-nav">
+    <a href="#now">现状</a><a href="#a">A · 书眉</a><a href="#b">B · 目录</a><a href="#c">C · 墨锭</a><a href="#d">D · 报头</a><a href="#cmp">对比</a>
+  </nav>
+</header>
+
+<div class="demo">
+
+  <!-- ===== 现状 ===== -->
+  <section class="proposal" id="now">
+    <div class="proposal-head">
+      <h2>现状 · 一条静字</h2>
+      <span class="tag">CURRENT</span>
+      <p class="idea">右端一排 14px 无衬线、图标 15px，当前项靠「金图标 + 600 字重」，检索与导航同重。问题不在配色，在层级：图标与文字是两套信号，当前页只靠颜色，检索不像入口，「页面」看不出还有内容。</p>
+    </div>
+    <ul class="notes">
+      <li>14px · 字距 .14em</li><li>图标 15px + 文字</li><li>当前项 = 金图标 + 600</li><li>检索 = 同重图标</li>
+    </ul>
+    <p class="stage-label">桌面 1280 · 当前页＝文章 · 悬停「页面」展开</p>
+    <div class="stage">
+      <div class="shell">
+        <header class="hd">
+          <a class="brand" href="#now"><span class="bseal">u</span>uua<span class="bmark"></span>me</a>
+          <nav class="nav-now" aria-label="现状导航">
+            <a href="#now"><svg class="n-ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.6 8.9 10 3.7l6.4 5.2"/><path d="M5.4 8.1v8.1h9.2V8.1"/><path d="M8.3 16.2v-4.1h3.4v4.1"/></svg><span>首页</span></a>
+            <a href="#now" aria-current="page"><svg class="n-ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4.4" y="3.2" width="11.2" height="13.6" rx="1.8"/><path d="M7.4 7.4h5.2M7.4 10.4h5.2M7.4 13.4h3"/></svg><span>文章</span></a>
+            <a href="#now"><svg class="n-ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M13.7 3.1a1.8 1.8 0 0 1 2.5 2.5L5.9 15.9l-3.3.8.8-3.3z"/><path d="M12.4 4.4 15.4 7.4"/></svg><span>笔记</span></a>
+            <details class="nsub">
+              <summary><svg class="n-ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.2 6.6c0-.8.6-1.4 1.4-1.4h3l1.6 2h6.2c.8 0 1.4.6 1.4 1.4v6.8c0 .8-.6 1.4-1.4 1.4H4.6c-.8 0-1.4-.6-1.4-1.4z"/></svg><span>页面</span></summary>
+              <div class="panel-a">
+                <a href="#now">友圈</a><a href="#now">友链</a><a href="#now">归档</a><a href="#now">关于</a>
+              </div>
+            </details>
+            <button class="now-search" type="button" aria-label="检索"><svg class="so-ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="8" cy="8" r="5.6"/><path d="M12.3 12.3 17 17"/></svg></button>
+          </nav>
+        </header>
+        <div class="mock">
+          <span class="mock-kicker">UUA · ME</span>
+          <p class="mock-title">uua.me</p>
+          <p class="mock-line">赶场胖东来超市<i>·</i>早餐胡辣汤<i>·</i>兔兔真可爱</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== A ===== -->
+  <section class="proposal" id="a">
+    <div class="proposal-head">
+      <h2>方案 A · 书眉</h2>
+      <span class="tag">TYPOGRAPHIC</span>
+      <p class="idea">导航收回字体本身：宋体题名、字距放宽、去图标。当前页不是换颜色，而是落一条 2.2rem 的金线 —— 就是正文里那条 --mark，位置和长度都跟着字走。检索补上「⌘K」，从一枚同重图标变成可用性入口。</p>
+    </div>
+    <ul class="notes">
+      <li>宋体题名</li><li>去图标</li><li>金线游标</li><li>检索 + ⌘K</li>
+    </ul>
+    <p class="stage-label">桌面 1280 · 当前页＝文章 · 悬停「页面」展开</p>
+    <div class="stage">
+      <div class="shell">
+        <header class="hd">
+          <a class="brand" href="#a"><span class="bseal">u</span>uua<span class="bmark"></span>me</a>
+          <nav class="nav-a" aria-label="书眉导航">
+            <a href="#a">首页</a>
+            <a href="#a" aria-current="page">文章</a>
+            <a href="#a">笔记</a>
+            <details class="nsub">
+              <summary>页面<i class="chev"></i></summary>
+              <div class="panel-a">
+                <a href="#a">友圈</a><a href="#a">友链</a><a href="#a">归档</a><a href="#a">关于</a>
+              </div>
+            </details>
+            <span class="a-sep" aria-hidden="true"></span>
+            <a class="a-search" href="#a"><svg class="so-ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="8" cy="8" r="5.6"/><path d="M12.3 12.3 17 17"/></svg>检索<kbd>⌘K</kbd></a>
+          </nav>
+        </header>
+        <div class="mock">
+          <span class="mock-kicker">UUA · ME</span>
+          <p class="mock-title">uua.me</p>
+          <p class="mock-line">赶场胖东来超市<i>·</i>早餐胡辣汤<i>·</i>兔兔真可爱</p>
+        </div>
+      </div>
+    </div>
+    <p class="tradeoff"><b>优点</b>与字标同一套宋体，最贴站点气质；当前项是一条「界栏」而不是颜色，暗色与低对比屏上都读得出。<b>代价</b>去图标后首次辨识稍慢；宋体小字号在 Windows/SimSun 下偏细，要按字体栈校一档。<i></i><b>落点</b>只改 style.css 的 .nav 段与 layout.js 的 navLink()；检索文案要多一个可见标签。</p>
+  </section>
+
+  <!-- ===== B ===== -->
+  <section class="proposal" id="b">
+    <div class="proposal-head">
+      <h2>方案 B · 目录</h2>
+      <span class="tag">INDEX</span>
+      <p class="idea">把导航当目录排：每项前一枚等宽序号，项与项之间用细竖线分栏，当前页的序号转金、字重升一档。语言直接沿用窄屏抽屉右端那排 01/02/03 —— 抽屉里已经有过，桌面版只是把它收小。</p>
+    </div>
+    <ul class="notes">
+      <li>等宽序号 01—04</li><li>竖线分栏</li><li>「页面」续编 05—08</li><li>检索 + /</li>
+    </ul>
+    <p class="stage-label">桌面 1280 · 当前页＝文章 · 悬停「页面」展开</p>
+    <div class="stage">
+      <div class="shell">
+        <header class="hd">
+          <a class="brand" href="#b"><span class="bseal">u</span>uua<span class="bmark"></span>me</a>
+          <nav class="nav-b" aria-label="目录导航">
+            <a href="#b"><i class="no">01</i>首页</a><span class="b-vrule" aria-hidden="true"></span>
+            <a href="#b" aria-current="page"><i class="no">02</i>文章</a><span class="b-vrule" aria-hidden="true"></span>
+            <a href="#b"><i class="no">03</i>笔记</a><span class="b-vrule" aria-hidden="true"></span>
+            <details class="nsub">
+              <summary><i class="no">04</i>页面</summary>
+              <div class="panel-b">
+                <a href="#b"><i class="no">05</i>友圈</a>
+                <a href="#b"><i class="no">06</i>友链</a>
+                <a href="#b"><i class="no">07</i>归档</a>
+                <a href="#b"><i class="no">08</i>关于</a>
+              </div>
+            </details>
+            <a class="b-search" href="#b"><svg class="so-ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="8" cy="8" r="5.6"/><path d="M12.3 12.3 17 17"/></svg>检索<kbd>/</kbd></a>
+          </nav>
+        </header>
+        <div class="mock">
+          <span class="mock-kicker">UUA · ME</span>
+          <p class="mock-title">uua.me</p>
+          <p class="mock-line">赶场胖东来超市<i>·</i>早餐胡辣汤<i>·</i>兔兔真可爱</p>
+        </div>
+      </div>
+    </div>
+    <p class="tradeoff"><b>优点</b>给每项一个固定的「位置」，扫读时先认序号再认字；和抽屉、归档的编号语言是一条线；项数变多也不慌。<b>代价</b>只有四项时，编号有点像给短句加了目录页码，装备略过头；竖线也把本来留白的一排切碎。<i></i><b>落点</b>改 navHtml() 与 .nav 段；序号要按渲染顺序算，后台改序后自动跟着变。</p>
+  </section>
+
+  <!-- ===== C ===== -->
+  <section class="proposal" id="c">
+    <div class="proposal-head">
+      <h2>方案 C · 墨锭</h2>
+      <span class="tag">COMPONENT</span>
+      <p class="idea">四项装进一只纸屉：一圈细线、一点纸底，当前项落成一枚墨锭 —— 深色胶囊、反白字。导航从此是一个有边界的物件，命中区从 24px 抬到 32px，悬停与当前都靠底色说话，不再靠图标转金。</p>
+    </div>
+    <ul class="notes">
+      <li>纸屉胶囊</li><li>当前项＝墨锭反白</li><li>保留图标</li><li>检索独立圆钮</li>
+    </ul>
+    <p class="stage-label">桌面 1280 · 当前页＝文章 · 悬停「页面」展开</p>
+    <div class="stage">
+      <div class="shell">
+        <header class="hd">
+          <a class="brand" href="#c"><span class="bseal">u</span>uua<span class="bmark"></span>me</a>
+          <nav class="nav-c" aria-label="墨锭导航">
+            <div class="tray">
+              <a href="#c"><svg class="n-ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.6 8.9 10 3.7l6.4 5.2"/><path d="M5.4 8.1v8.1h9.2V8.1"/><path d="M8.3 16.2v-4.1h3.4v4.1"/></svg>首页</a>
+              <a href="#c" aria-current="page"><svg class="n-ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4.4" y="3.2" width="11.2" height="13.6" rx="1.8"/><path d="M7.4 7.4h5.2M7.4 10.4h5.2M7.4 13.4h3"/></svg>文章</a>
+              <a href="#c"><svg class="n-ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M13.7 3.1a1.8 1.8 0 0 1 2.5 2.5L5.9 15.9l-3.3.8.8-3.3z"/><path d="M12.4 4.4 15.4 7.4"/></svg>笔记</a>
+              <details class="nsub">
+                <summary><svg class="n-ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.2 6.6c0-.8.6-1.4 1.4-1.4h3l1.6 2h6.2c.8 0 1.4.6 1.4 1.4v6.8c0 .8-.6 1.4-1.4 1.4H4.6c-.8 0-1.4-.6-1.4-1.4z"/></svg>页面</summary>
+                <div class="panel-c">
+                  <a href="#c"><svg class="n-ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.9" cy="7.5" r="2.5"/><path d="M3.5 16.4c0-2.4 2-4.4 4.4-4.4s4.4 2 4.4 4.4"/><path d="M13.4 5.6a2.3 2.3 0 0 1 0 4.5"/></svg>友圈</a>
+                  <a href="#c"><svg class="n-ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8.3 10.8a4.2 4.2 0 0 0 6.28.45l2.5-2.5a4.2 4.2 0 0 0-5.89-5.89l-1.43 1.43"/><path d="M11.7 9.2a4.2 4.2 0 0 0-6.28-.45l-2.5 2.5a4.2 4.2 0 0 0 5.89 5.89l1.43-1.43"/></svg>友链</a>
+                  <a href="#c"><svg class="n-ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.4" y="4.4" width="13.2" height="3.6" rx="1.1"/><path d="M5.2 8v6.4c0 .9.7 1.6 1.6 1.6h6.4c.9 0 1.6-.7 1.6-1.6V8"/><path d="M8.5 11.2h3"/></svg>归档</a>
+                  <a href="#c"><svg class="n-ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="6.6"/><path d="M10 9.2v4.4"/><path d="M10 6.5h.01"/></svg>关于</a>
+                </div>
+              </details>
+            </div>
+            <button class="c-search" type="button" aria-label="检索"><svg class="so-ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="8" cy="8" r="5.6"/><path d="M12.3 12.3 17 17"/></svg></button>
+          </nav>
+        </header>
+        <div class="mock">
+          <span class="mock-kicker">UUA · ME</span>
+          <p class="mock-title">uua.me</p>
+          <p class="mock-line">赶场胖东来超市<i>·</i>早餐胡辣汤<i>·</i>兔兔真可爱</p>
+        </div>
+      </div>
+    </div>
+    <p class="tradeoff"><b>优点</b>可用性最强：当前页一眼可见，命中区更大，触控和低视力访客都受益；暗色下墨锭与纸屉的关系自然。<b>代价</b>站点目前没有「容器式组件」这一层语言，导航先长出一只盒子会显得像应用；墨色反白也把金色挤成配角。<i></i><b>落点</b>结构要多一层 .tray，style.css 的 .nav 整段重写；检索按钮与抽屉里的搜索仍是同一份表单。</p>
+  </section>
+
+  <!-- ===== D ===== -->
+  <section class="proposal" id="d">
+    <div class="proposal-head">
+      <h2>方案 D · 报头</h2>
+      <span class="tag">MASTHEAD</span>
+      <p class="idea">把页头拆成两层：上层字标与检索、日期，下层一条独立目录带，四项中英双行居中。中文宋体、英文等宽小字，像杂志报头；导航有了自己的整幅界栏，中宽度下也不再和字标抢一条线。</p>
+    </div>
+    <ul class="notes">
+      <li>双层页头</li><li>中英双行</li><li>检索上移</li><li>上下双界栏</li>
+    </ul>
+    <p class="stage-label">桌面 1280 · 当前页＝文章 · 悬停「页面」展开</p>
+    <div class="stage">
+      <div class="shell">
+        <header class="hd hd-d">
+          <div class="d-top">
+            <a class="brand" href="#d"><span class="bseal">u</span>uua<span class="bmark"></span>me</a>
+            <div class="d-tools">
+              <span class="d-date">2026 · 拾月</span>
+              <button class="d-search" type="button"><svg class="so-ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="8" cy="8" r="5.6"/><path d="M12.3 12.3 17 17"/></svg>检索</button>
+            </div>
+          </div>
+          <div class="d-band">
+            <nav class="nav-d" aria-label="报头导航">
+              <a href="#d"><span class="zh">首页</span><span class="en">HOME</span></a>
+              <a href="#d" aria-current="page"><span class="zh">文章</span><span class="en">JOURNAL</span></a>
+              <a href="#d"><span class="zh">笔记</span><span class="en">NOTES</span></a>
+              <details class="nsub">
+                <summary><span class="zh">页面</span><span class="en">PAGES<i class="chev"></i></span></summary>
+                <div class="panel-d">
+                  <a href="#d">友圈<em>CIRCLE</em></a>
+                  <a href="#d">友链<em>LINKS</em></a>
+                  <a href="#d">归档<em>ARCHIVE</em></a>
+                  <a href="#d">关于<em>ABOUT</em></a>
+                </div>
+              </details>
+            </nav>
+          </div>
+        </header>
+        <div class="mock">
+          <span class="mock-kicker">UUA · ME</span>
+          <p class="mock-title">uua.me</p>
+          <p class="mock-line">赶场胖东来超市<i>·</i>早餐胡辣汤<i>·</i>兔兔真可爱</p>
+        </div>
+      </div>
+    </div>
+    <p class="tradeoff"><b>优点</b>导航与字标各占一层，页头有了报头的秩序；英文小字补足字距节奏，也把 uua.me 的双语身份做实；中宽度不再拥挤。<b>代价</b>页头从 82px 长到约 118px，首屏少一行正文；双行与英文给四项加了视觉重量；要动 header 骨架，不只改 .nav。<i></i><b>落点</b>layout.js 的 chrome.header 要重排两层，style.css 新增 .d-band；抽屉结构不变。</p>
+  </section>
+</div>
+
+<div class="cmp-wrap" id="cmp">
+  <h2 class="cmp-title">四版放在一起</h2>
+  <table class="cmp">
+    <thead>
+      <tr><th>方案</th><th>当前页怎么读</th><th>密度</th><th>视觉重量</th><th>改动量</th><th>更适合</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>A · 书眉</td><td>宋体 + 2.2rem 金线</td><td>疏</td><td>轻</td><td>小 · 只改 .nav</td><td>现在这四项，想更像一本书</td></tr>
+      <tr><td>B · 目录</td><td>金色序号 + 600 字重</td><td>中</td><td>中</td><td>小 · .nav + 序号</td><td>导航会变多、想强调结构</td></tr>
+      <tr><td>C · 墨锭</td><td>墨色胶囊反白</td><td>密</td><td>重</td><td>中 · 多一层容器</td><td>可用性优先、触控与低视力</td></tr>
+      <tr><td>D · 报头</td><td>中文转金 + 英文转墨</td><td>疏</td><td>中</td><td>大 · 页头重排</td><td>以后加日期、副题，做杂志报头</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<footer class="verdict">
+  <p><b>如果只选一版：A。</b>它把导航收回字体本身，金线用的还是正文里那条 --mark，最接近站点已有的书卷气质；去图标省下的那点辨识成本，用字距和字重补得回来。</p>
+  <p><b>C 的可用性最强</b>，但会给站点引入一层目前没有的容器语言，建议只在「当前项必须一眼可见」成为硬需求时采用。<b>B</b> 适合导航长到六项以上；<b>D</b> 适合把页头当报头经营、愿意为它让出一行首屏的时候。</p>
+  <p>四版都不动窄屏抽屉与无 JS 兜底；检索仍提交到 /search，「页面」仍是 details，悬停展开只是桌面增强。</p>
+</footer>
+
+<script>
+  const root = document.documentElement;
+  const saved = localStorage.getItem('pv-theme');
+  if (saved === 'dark' || saved === 'light') root.dataset.theme = saved;
+  document.getElementById('themeBtn').addEventListener('click', () => {
+    const dark = root.dataset.theme === 'dark' ? '' : 'dark';
+    root.dataset.theme = dark;
+    localStorage.setItem('pv-theme', dark || 'light');
+  });
+
+  // 桌面演示：悬停「页面」展开，移出收起；点击仍走原生 details（键盘可达）
+  document.querySelectorAll('.demo .nsub').forEach((d) => {
+    d.addEventListener('mouseenter', () => { d.open = true; });
+    d.addEventListener('mouseleave', () => { d.open = false; });
+  });
+</script>
+</body>
+</html>
