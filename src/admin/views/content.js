@@ -220,7 +220,8 @@ ${revRows}
       ${aliases.length ? `<p class="a-dim">301 映射：${aliases.map((a) => `<code>${esc(a)}</code>`).join(' ')}</p>` : ''}
     </details>`;
 
-  const kindWord = post.kind === 'note' ? '笔记' : post.kind === 'page' ? '页面' : '文章';
+  // kindWord 取 KIND_META：这里再写一串三元表达式，新增类型时必漏一处。
+  const kindWord = meta.word;
 
   const address = post.slug ? contentUrl(post) : '';
 

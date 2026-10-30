@@ -112,11 +112,10 @@ export function navItemsOf(read, pages = []) {
 /** 实际渲染用的三份：顶栏、下拉、抽屉（= 两者拼起来）。show=0 的只在这里被滤掉，后台表单仍能看到。 */
 export function visibleNavOf(items) {
   const shown = items.filter((item) => item.show);
-  return {
-    main: shown.filter((item) => item.group === 'main'),
-    more: shown.filter((item) => item.group !== 'main'),
-    all: [...shown.filter((item) => item.group === 'main'), ...shown.filter((item) => item.group !== 'main')],
-  };
+  const main = shown.filter((item) => item.group === 'main');
+  const more = shown.filter((item) => item.group !== 'main');
+  // all 按「顶栏在前、下拉在后」重排：后台允许把两类项交叉排序，抽屉仍要读作一份目录。
+  return { main, more, all: [...main, ...more] };
 }
 
 export const navMoreLabelOf = (read) => clean(read?.(NAV_MORE_LABEL_KEY), NAV_MORE_LABEL_MAX) || '页面';

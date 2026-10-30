@@ -165,10 +165,13 @@ export function relativeDate(utcIso, now = Date.now(), timeZone = SITE_TIME_ZONE
 export const relWhen = (iso, empty = '') => (iso ? esc(relativeDate(iso)) : empty);
 export const relExact = (iso) => (iso ? `${esc(relativeDate(iso))}，${esc(formatDateTime(iso))}` : '');
 
-export const initialMark = (name) => {
+/** 名字首字（印章/头像）：汉字、字母、数字之外的字符落回「·」。大小写由调用方决定。 */
+export const markChar = (name) => {
   const ch = String(name ?? '').trim().slice(0, 1);
-  return (/[\p{Script=Han}\p{Letter}\p{Number}]/u.test(ch) ? ch : '·').toUpperCase();
+  return /[\p{Script=Han}\p{Letter}\p{Number}]/u.test(ch) ? ch : '·';
 };
+
+export const initialMark = (name) => markChar(name).toUpperCase();
 
 export function wordCount(text) {
   const cjk = (String(text ?? '').match(/[\u3400-\u4dbf\u4e00-\u9fff\u3040-\u30ff]/g) ?? []).length;

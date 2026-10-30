@@ -1,5 +1,5 @@
 import { SITE } from '../config.js';
-import { esc, csrfField, toLocalInput } from '../util/text.js';
+import { esc, csrfField, toLocalInput, markChar } from '../util/text.js';
 import { assetVer, THEME_BOOT, paletteAttr } from '../render/layout.js';
 
 // 主题/配色引导与前台共用一份内联（外链会闪白）；server.js 对它算 sha256 放进 CSP 白名单。后台不做选色入口，配色跟随前台。
@@ -76,10 +76,8 @@ ${TABS.map((tab) => {
 </nav>`;
 };
 
-const monogram = () => {
-  const ch = String(SITE.identity ?? '').trim().slice(0, 1);
-  return /[\p{Script=Han}\p{Letter}\p{Number}]/u.test(ch) ? ch : '·';
-};
+// 印章首字与前台 .bseal 同口径（不转大写）：两个字母的都是小写域名，转了大写反而认不出。
+const monogram = () => markChar(SITE.identity);
 
 // title/sub/notice 一律当纯文本，转义统一在这里做，调用方不要再 esc()——这两处曾是注入路：访客可控的评论昵称流进「回复评论」副标题、/admin/feeds?w= 的原样反射。page 给 .a-main 挂页面类（样式微调，别改全局）。
 const headOf = (title) => `<head>
