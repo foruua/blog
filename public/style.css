@@ -929,6 +929,8 @@ body[data-page="home"] .recent .entries { border-bottom: 1px solid var(--rule); 
   scroll-margin-top: 1.6rem;
   border-top: 1px solid var(--rule-strong);
 }
+/* 归档收尾：整页只在最后一个年份块（年份倒序，最新在上）下方补一条通栏细线，把整页收住。 */
+body[data-page="archive"] .chron:last-child { border-bottom: 1px solid var(--rule); padding-bottom: 1rem; }
 .mast + .chron { margin-top: var(--section-gap); }
 .chron-flow { border-left: 1px solid var(--rule); padding-left: 2.6rem; }
 /* padding-right 只兜溢出，不决定竖线位置（年号左对齐，空档由左列宽度定）。 */
@@ -954,8 +956,7 @@ body[data-page="home"] .recent .entries { border-bottom: 1px solid var(--rule); 
 /* 月份行：收起是一条安静的清单行（悬停浮出浅金底，与文章行同款）；展开时下面接 .entries，留点下距。 */
 .mgrp { margin: 0; }
 .mgrp[open] { margin-bottom: .9rem; }
-/* 归档收尾：每个月组就是一册账本，展开的那一本在末行下方补一条底线；收起时名单不在版面上，线随内容一起隐藏。 */
-body[data-page="archive"] .mgrp[open] > .entries { border-bottom: 1px solid var(--rule); }
+
 .mgrp-label {
   display: flex; align-items: center; gap: .6rem;
   margin: 0;
