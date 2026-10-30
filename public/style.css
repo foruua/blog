@@ -1070,20 +1070,22 @@ body[data-page="home"] .recent .entries { border-bottom: 1px solid var(--rule); 
 .fc-stream { margin-top: var(--section-gap); }
 
 .fcg {
+  /* 行间距单独抽出来：收尾线的下留白要跟「上一节末行到下面那条顶线」完全相同，两处共用一份值。 */
+  --fcg-row-gap: clamp(1.3rem, 3vw, 2rem);
   display: grid;
   /* 18rem ≈ 288px：正文栏里排得下两栏，窄到放不下才落一列；min(100%, …) 保证窄屏不撑出页面。 */
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr));
-  gap: clamp(1.3rem, 3vw, 2rem) clamp(1.2rem, 3vw, 2.2rem);
+  gap: var(--fcg-row-gap) clamp(1.2rem, 3vw, 2.2rem);
 }
 
 /* 小节之间只用一条顶线、不套卡片：这一页是「目录」，卡片堆起来比内容还重。 */
 .fcg-sec { border-top: 1px solid var(--rule-strong); padding-top: .7rem; }
 /* 友圈收尾：与首页账本同一条收尾线 —— 每页列表末尾给最后一栏补一条底线，把整页收住。
    单栏时只有最末一节；排成两栏时，最后一行的左右两节都收（节数为奇数时右栏收在上一行）。
-   收尾线要比行距宽出一档：行本身只有 .33rem 下内距，再贴一条 --rule-strong 会压在字脚上。 */
-.fcg-sec:last-child { border-bottom: 1px solid var(--rule-strong); padding-bottom: .8rem; }
+   下留白直接用行间距 --fcg-row-gap：节盒底接着这一段间距才是下一条顶线，收尾线照搬同一段，末行到线的距离与上面一致。 */
+.fcg-sec:last-child { border-bottom: 1px solid var(--rule-strong); padding-bottom: var(--fcg-row-gap); }
 @media (min-width: 43.1rem) {
-  .fcg-sec:nth-last-child(2) { border-bottom: 1px solid var(--rule-strong); padding-bottom: .8rem; }
+  .fcg-sec:nth-last-child(2) { border-bottom: 1px solid var(--rule-strong); padding-bottom: var(--fcg-row-gap); }
 }
 
 .fcg-head { position: relative; display: flex; align-items: baseline; gap: .6rem; margin: 0 0 .95rem; }
