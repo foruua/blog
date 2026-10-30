@@ -612,13 +612,16 @@
     const previous = form.getAttribute('aria-busy');
     const controls = [...form.querySelectorAll('button,input[type=submit],input[type=button]')].map((el) => [el, el.disabled]);
     const label = button?.innerHTML;
+    // 忙碌文案（「提交中…」）通常比常态标签短，胶囊按钮会横向缩一下再弹回。先量当前宽度钉成最小宽度，复位时还原（只防缩，不压长文案）。
+    const minWidth = button?.style.minWidth;
+    const measured = button ? button.getBoundingClientRect().width : 0;
     form.setAttribute('aria-busy', 'true');
     controls.forEach(([el]) => { el.disabled = true; });
-    if (button) button.textContent = form.dataset.pending || '提交中…';
+    if (button) { if (measured) button.style.minWidth = `${measured}px`; button.textContent = form.dataset.pending || '提交中…'; }
     return () => {
       if (previous === null) form.removeAttribute('aria-busy'); else form.setAttribute('aria-busy', previous);
       controls.forEach(([el, disabled]) => { el.disabled = disabled; });
-      if (button) button.innerHTML = label;
+      if (button) { button.innerHTML = label; button.style.minWidth = minWidth ?? ''; }
       // 禁用当前提交键会让焦点掉到 body；提交失败时把焦点还回去，键盘用户不必重新 Tab 找位置。
       if (button && (!document.activeElement || document.activeElement === document.body)) {
         button.focus({ preventScroll: true });

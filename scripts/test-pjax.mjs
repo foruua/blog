@@ -574,8 +574,13 @@ try {
     form.querySelector('[name=author]').value = '无刷新游客';
     form.querySelector('[name=email]').value = 'pjax@example.com';    form.querySelector('[name=body]').value = '这条评论应该原地出现。';
     const pathBefore = w.location.pathname;
+    const submitBtn = form.querySelector('button[type=submit]');
+    submitBtn.getBoundingClientRect = () => ({ width: 96, height: 35 });
     await sleep(300);   // 夹具把最小填表时间压到 200ms
-    submit(w, form, form.querySelector('button[type=submit]'));
+    submit(w, form, submitBtn);
+    check('T77b 提交中把按钮最小宽度钉住（换成较短的「提交中…」也不横向晃）',
+      submitBtn.style.minWidth === '96px' && submitBtn.textContent === '提交中…',
+      submitBtn.style.minWidth || '(未钉住)');
     await waitFor(() => /等待站主确认/.test(w.document.querySelector('.comments')?.textContent ?? ''), { timeoutMs: 8000 });
     check('T78 评论提交后停在原页（没有整页刷新、没有跳走）',
       w.__marker === 'alive' && w.location.pathname === pathBefore && w.location.search === '',
@@ -601,10 +606,15 @@ try {
     form.querySelector('[name=email]').value = 'english-only@example.com';
     form.querySelector('[name=body]').value = 'This comment contains no Chinese characters.';
     await sleep(300);
-    submit(w, form, form.querySelector('button[type=submit]'));
+    const submitBtn = form.querySelector('button[type=submit]');
+    submitBtn.getBoundingClientRect = () => ({ width: 96, height: 35 });
+    submit(w, form, submitBtn);
     check('T79e2 提交瞬间不往表单塞空提示节点（否则表单会变高一下）',
       !form.querySelector('[data-submit-notice]'), '');
     await waitFor(() => /纯英文/.test(w.document.getElementById('toast')?.textContent ?? ''), { timeoutMs: 5000 });
+    check('T79e3 失败复位后按钮最小宽度与标签还原（锁定不残留）',
+      submitBtn.style.minWidth === '' && submitBtn.textContent !== '提交中…',
+      `${submitBtn.style.minWidth || '(空)'} ${submitBtn.textContent}`);
     check('T79e 纯英文评论被拒时弹出轻提示，表单内不留纯文本',
       w.document.getElementById('toast')?.classList.contains('on') === true
       && /纯英文/.test(w.document.getElementById('toast')?.textContent ?? '')
