@@ -954,6 +954,8 @@ body[data-page="home"] .recent .entries { border-bottom: 1px solid var(--rule); 
 /* 月份行：收起是一条安静的清单行（悬停浮出浅金底，与文章行同款）；展开时下面接 .entries，留点下距。 */
 .mgrp { margin: 0; }
 .mgrp[open] { margin-bottom: .9rem; }
+/* 归档收尾：每个月组就是一册账本，展开的那一本在末行下方补一条底线；收起时名单不在版面上，线随内容一起隐藏。 */
+body[data-page="archive"] .mgrp[open] > .entries { border-bottom: 1px solid var(--rule); }
 .mgrp-label {
   display: flex; align-items: center; gap: .6rem;
   margin: 0;
@@ -1146,10 +1148,12 @@ body[data-page="home"] .recent .entries { border-bottom: 1px solid var(--rule); 
 
 .lk-wall {
   list-style: none;
-  margin: var(--section-gap) 0 0; padding: 0;
+  margin: var(--section-gap) 0 0; padding: 0 0 .85rem;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 14.5rem), 1fr));
   gap: .85rem;
+  /* 友链收尾：名片墙最后一排下方补一条通栏细线，与首页、友圈同一套收尾法，间距取墙自身的格距。 */
+  border-bottom: 1px solid var(--rule);
 }
 .lk-card {
   display: grid; gap: .55rem;
@@ -1688,6 +1692,8 @@ article.post-empty.post-404 { padding-bottom: 1rem; }
 .c-list > .comment:first-child {
   padding-top: .5rem; border-top: 0;
 }
+/* 评论收尾：串与串之间画的是顶线，最后一条补一条底线把整列收住；上内距 2.1rem 就是线与字的间距。 */
+.c-list > .comment:last-child { border-bottom: 1px solid var(--rule); }
 .avatar {
   width: var(--c-avatar); height: var(--c-avatar);
   /* 色相掺进纸面的比例 20% → 36%：20% 几乎不成形、像一枚灰污渍；36% 才认得出色相， 且字母对比度反而更高（实测 11.06 → 8.08，门槛 4.5）。 */
