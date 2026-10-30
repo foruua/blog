@@ -19,6 +19,9 @@ import { EMAIL_RE, hasControlChar } from '../util/validation.js';
 
 // 外链 ≥3 就不再让「老读者免审」（退回人工审核）。数链接要同时看渲染后 HTML 与原始 markdown 并去重：只看原文，实体编码能骗过；只看 HTML，linkify 关着裸 URL 数出 0。
 const LINK_LIMIT = 3;
+// 纯英文评论一律拒绝：本站是中文博客，无汉字内容的留言（多为机器人投放的推广/外链）没有交流价值。
+// 只认汉字，中英混排或带一个汉字都放行；作者回复走独立分支，不受此限。
+const HAS_HAN_RE = /\p{Script=Han}/u;
 const LINK_HREF_RE = /<a\b[^>]*\shref="(https?:\/\/[^"]+)"/gi;
 const BARE_URL_RE = /https?:\/\/[^\s<>"'()[\]]+/gi;
 const countLinks = (html, src) => {
@@ -116,6 +119,7 @@ export function commentRoutes({ repo, comments, crypt, auth = null, notifier = c
       : String(payload.author ?? '').normalize('NFC').replace(/\p{Cc}/gu, ' ').trim().slice(0, 40);
     const bodyMd = String(payload.body ?? '').trim().slice(0, 3000);
     if (!author || !bodyMd) return { code: 400, result: 'bad' };
+    if (!asAuthor && !HAS_HAN_RE.test(bodyMd)) return { code: 400, result: 'english' };
     let emailForInsert = null;   // 校验时顺手留下，下面插入复用，不再重新取一遍
     if (!asAuthor) {
       const email = String(payload.email ?? '').trim().slice(0, 120);
@@ -243,7 +247,11 @@ export function commentRoutes({ repo, comments, crypt, auth = null, notifier = c
     if (r.result === 'discarded') return c.json({ ok: true, status: 'discarded' });
 
     const count = r.post ? comments.countOfPost(r.post.id) : undefined;
-    const error = { bad: '请填写昵称和评论内容。', 'bad-email': '请填写有效的邮箱地址。' }[r.result];
+    const error = {
+      bad: '请填写昵称和评论内容。',
+      'bad-email': '请填写有效的邮箱地址。',
+      english: '暂不支持纯英文评论，请用中文留言。',
+    }[r.result];
     return c.json({ ok: r.code === 200, status: r.result, count, error }, r.code === 200 ? 200 : r.code);
   });
 

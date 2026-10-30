@@ -215,6 +215,34 @@ let firstId = 0;
 }
 
 {
+  // 纯英文评论一律拒绝；中英混排照常放行。用独立实例，避免占用主服务器的限流额度（T10 依赖剩余名额）。
+  const { createRepo } = await import('../db/repo.js');
+  const { createCommentRepo } = await import('../db/comments.js');
+  const { commentRoutes } = await import('../src/routes/comments.js');
+  const isolated = commentRoutes({ repo: createRepo(db), comments: createCommentRepo(db), crypt });
+  const postId = db.prepare('SELECT id FROM posts WHERE slug=?').get(SLUG).id;
+  const ts = crypt.sign({ purpose: 'comment-ts', ts: Date.now() - 5000, p: postId }, 3600);
+  const say = async (body) => {
+    const res = await isolated.request('/api/comments', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ slug: SLUG, ...base, ts, hp_fax: '', body }),
+    });
+    return { status: res.status, body: await res.json().catch(() => ({})) };
+  };
+  const before = countComments();
+  const english = await say('Looks great! Thanks for sharing.');
+  check('T4h 纯英文评论被拒绝且不落库',
+    english.status === 400 && english.body.status === 'english' && countComments() === before,
+    `${english.status} ${JSON.stringify(english.body)} ${before} → ${countComments()}`);
+  check('T4i 拒绝纯英文时返回可读的中文提示',
+    typeof english.body.error === 'string' && english.body.error.includes('中文'), String(english.body.error));
+  const mixed = await say('这篇 Nice post，学到了。');
+  check('T4j 中英混排仍可提交', mixed.status === 200 && countComments() === before + 1,
+    `${mixed.status} ${JSON.stringify(mixed.body)}`);
+  if (mixed.body.id) db.prepare('DELETE FROM comments WHERE id = ?').run(mixed.body.id);
+}
+
+{
   const res = await fetch(`${BASE}/p/${SLUG}/`);
   const html = await res.text();
   check('T5 待审核评论不出现在页面上', !html.includes('27 寸屏上会不会显得空'));

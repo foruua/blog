@@ -1853,12 +1853,13 @@ article.post-empty.post-404 { padding-bottom: 1rem; }
   background: color-mix(in srgb, var(--accent) 6%, transparent);
   font-size: .95rem;
 }
-.c-flash-bad, .c-flash-limited { border-left-color: var(--danger); background: var(--danger-soft); }
-html[data-theme="dark"] .c-flash-bad, html[data-theme="dark"] .c-flash-limited { border-left-color: var(--warn); }
+.c-flash-bad, .c-flash-limited, .c-flash-english { border-left-color: var(--danger); background: var(--danger-soft); }
+html[data-theme="dark"] .c-flash-bad, html[data-theme="dark"] .c-flash-limited, html[data-theme="dark"] .c-flash-english { border-left-color: var(--warn); }
 /* 跟随系统深色、又没手动选过主题时上面那条不生效 —— 补一份，否则提示在墨面上仍用浅色 --danger，读不出。 */
 @media (prefers-color-scheme: dark) {
   html:not([data-theme="light"]):not([data-theme="dark"]) .c-flash-bad,
-  html:not([data-theme="light"]):not([data-theme="dark"]) .c-flash-limited { border-left-color: var(--warn); }
+  html:not([data-theme="light"]):not([data-theme="dark"]) .c-flash-limited,
+  html:not([data-theme="light"]):not([data-theme="dark"]) .c-flash-english { border-left-color: var(--warn); }
 }
 
 /* 邮件里的审核页用前台版式，所以这些规则必须在这里（放 admin.css 里既不生效也误导人）。 */

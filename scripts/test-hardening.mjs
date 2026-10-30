@@ -178,7 +178,7 @@ try {
   });
   await test('仅邮箱相同、昵称不同仍待审核', async () => {
     const p=adminRepo.get(saved.id);comments.add({postId:p.id,author:'real',bodyMd:'real',status:'approved',emailHash:crypt.fingerprint('known@example.com')});
-    const r=await cp.request('/api/comments',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({slug:p.slug,author:'fake',email:'known@example.com',body:'fake',ts:crypt.sign({purpose:'comment-ts',ts:Date.now()-4000,p:p.id})})});assert.equal((await r.json()).status,'pending');
+    const r=await cp.request('/api/comments',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({slug:p.slug,author:'fake',email:'known@example.com',body:'冒充者留言',ts:crypt.sign({purpose:'comment-ts',ts:Date.now()-4000,p:p.id})})});assert.equal((await r.json()).status,'pending');
   });
   await test('审核凭证有用途、随机 nonce 和会话代数约束', async () => {
     const c=comments.ofPost(saved.id)[0], ep=Number(repo.getSetting('admin_session_epoch')??0);

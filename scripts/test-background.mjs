@@ -105,7 +105,7 @@ function deferred() {
     assert.equal((await request('/admin/api/preview', { body: 'preview' })).status, 200);
     assert.equal((await request('/admin/save', { title: '并发保存', slug: 'background-save', body: 'saved', draft: '1', kind: 'post' })).status, 303);
     assert.equal((await request('/api/comments', { slug: post.slug, ts: crypt.sign({ purpose: 'comment-ts', ts: Date.now() - 5000, p: post.id }),
-      author: 'concurrent', email: 'concurrent@example.com', body: 'comment' }, false)).status, 200);
+      author: 'concurrent', email: 'concurrent@example.com', body: '并发提交的评论' }, false)).status, 200);
     release.resolve(); assert.equal((await slow).status, 303);
   } finally {
     release.resolve(); await slow.catch(() => {}); close(db); await srv.stop();
