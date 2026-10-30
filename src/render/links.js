@@ -26,7 +26,7 @@ const emptyOf = () => `    <section class="lk-empty">
       <p>这一页还空着 —— 在评论区留下你的网站，审核通过后它就会出现在这里。</p>
     </section>`;
 
-const moreOf = (nextHref) => (nextHref ? `\n    ${moreLink(nextHref, '看更多')}` : '');
+const moreOf = (nextHref) => (nextHref ? `\n    ${moreLink(nextHref, '查看更多')}` : '');
 
 
 const cardOf = (v, thisYear) => {
