@@ -119,13 +119,12 @@ export function createHtmlCache({
     return parts.length ? `${pathname}?${parts.join('&')}` : pathname;
   };
 
-  const cacheable = (c) => {
+  const cacheable = (c, hasAdminCookie) => {
     if (!enabled || c.req.method !== 'GET') return false;
     if (legacyNoteQuery(c)) return false;
     if (NON_HTML_PATH_RE.test(c.req.path) || isImmutableAsset(c.req.path)) return false;
     // 任何后台会话（包括伪造的）都不走缓存：作者表单、CSRF、主题预览只属于这个浏览器。
-    if (ADMIN_COOKIE_RE.test(c.req.header('cookie') ?? '')) return false;
-    return true;
+    return !hasAdminCookie;
   };
 
   // 页面修订号只由会影响 HTML 的东西组成：DB 写入、媒体变体、主题模板签名（拼装口径见 content/revision.js）。
@@ -214,7 +213,9 @@ export function createHtmlCache({
     // 关闭缓存时必须完全透明：早期版本仍会在 next() 后重建 entry/重压正文/改 Cache-Control，
     // 让 HTML_CACHE_TTL_MS=0 看起来关不掉缓存。
     if (!enabled) return next();
-    let canCache = cacheable(c);
+    // 后台 cookie 只判定一次：同一请求里 cacheable() 与下面写缓存前都要用，别为它跑两遍正则。
+    const adminCookie = ADMIN_COOKIE_RE.test(c.req.header('cookie') ?? '');
+    let canCache = cacheable(c, adminCookie);
     let key = canCache ? keyOf(c) : '';
     // 含不可归一化参数的请求不进缓存（见 keyOf）；仍正常渲染，只是不写共享缓存。
     if (key === null) { canCache = false; key = ''; }
@@ -235,7 +236,6 @@ export function createHtmlCache({
     if (!contentType.includes('text/html')) return;
 
     const path = c.req.path;
-    const adminCookie = ADMIN_COOKIE_RE.test(c.req.header('cookie') ?? '');
     // 后台/审核/退订页永远不缓存，保持原行为：后台会话 private, no-store，公开 token 页由安全头兜 no-store。
     if (path.startsWith('/admin') || path.startsWith('/moderate/') || path.startsWith('/unsubscribe/')) {
       if (adminCookie && path.startsWith('/admin')) c.header('Cache-Control', 'private, no-store');

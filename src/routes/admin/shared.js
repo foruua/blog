@@ -24,7 +24,8 @@ export const checked = (b, k) => {
 };
 
 // 页码：默认读 ?page=，也可指定参数名（评论页两个列表各带各的页码）。
-export const pageNumber = (c, name = 'page') => Math.min(100000, Math.max(1, Number.parseInt(c.req.query(name), 10) || 1));
+// 夹取口径收敛在 util/http.js 的 pageParam()，公开列表页（/links）与后台共用同一份。
+export { pageParam as pageNumber } from '../../util/http.js';
 
 /** 列表页脚：一行工具栏（可选搜索框 + 翻页器）。opts：hidePager/hideSearch、status 状态筛选跟着翻页、param 页码参数名、label aria-label、preserve 别的列表页码跟着带下去——翻待审时别把最近评论那页踢回第一页。 */
 export function pagination(base, page, hasMore, search = '', hint = '搜索标题或 slug', {

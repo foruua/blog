@@ -17,7 +17,7 @@ import { commentSection } from '../comments/view.js';
 import { emailMd5 } from '../avatar/md5.js';
 import { decryptEmail } from '../auth.js';
 import { createAntispam } from '../comments/antispam.js';
-import { clientKey } from '../util/http.js';
+import { clientKey, pageParam } from '../util/http.js';
 import { parseReplyId } from '../util/validation.js';
 
 
@@ -539,9 +539,8 @@ ${friendsStream({ items, sources: sources.length, nextHref })}`;
     }
 
     const perPage = LINKS_PER_PAGE;
-    // 上限与后台 pageNumber() 同口径：直接拿巨大整数乘每页条数会把 OFFSET 变成非安全整数，
-    // node:sqlite 会抛 datatype mismatch，匿名请求即可把 /links 打成 500。
-    let page = Math.min(100000, Math.max(1, Number.parseInt(c.req.query('page'), 10) || 1));
+    // 上限与后台同口径：见 util/http.js 的 pageParam()。
+    let page = pageParam(c);
     // 不再先跑一次 publicCount 来夹页：越界页走下面的「空页」分支，用同一条语句算出的 total 夹回来。
     // 常规页（包括第 2 页以后）因此只跑一次聚合；统计与「最近 N 天」都随列表一起返回。
     const recentSince = recentStartIso(MAST_RECENT_DAYS);

@@ -287,6 +287,11 @@ export function ifNoneMatch(c, etag) {
   return validators.includes(bare(etag)) || validators.includes('*');
 }
 
+// 列表页码：夹在 1—100000。直接拿巨大整数乘每页条数会把 OFFSET 变成非安全整数，node:sqlite 会抛
+// datatype mismatch —— 匿名请求即可把列表页打成 500。前后台、各列表页共用这一份口径。
+export const pageParam = (c, name = 'page') =>
+  Math.min(100000, Math.max(1, Number.parseInt(c.req.query(name), 10) || 1));
+
 export function publicWriteRateLimit({ max = 60, windowMs = 60000, capacity = 4096 } = {}) {
   const entries = new Map();
   let sweptAt = Date.now();
