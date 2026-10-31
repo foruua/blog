@@ -852,6 +852,8 @@ body[data-page="home"] .recent .entries { border-bottom: 1px solid var(--rule); 
   flex: none; margin-left: auto; white-space: nowrap; font-variant-numeric: tabular-nums;
   transition: color var(--dur-2) var(--ease);
 }
+/* 评论图标与数字同一档灰；1.08em 让气泡在 13px 等宽字里不显小，负值 vertical-align 把气泡底边拉回基线。 */
+.list .e-comments .e-comments-ico { width: 1.08em; height: 1.08em; margin-right: .34em; vertical-align: -.14em; }
 .list .e-comments:hover { color: var(--accent); }
 
 .list li > .e-main:hover h2 { color: var(--accent); }
@@ -1198,7 +1200,10 @@ body[data-page="archive"] .chron:last-child { border-bottom: 1px solid var(--rul
   font: var(--label-size-lg)/1 var(--mono); letter-spacing: .04em;
   font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap;
 }
+/* 气泡并进「最近日期 … 条数」那一行：与数字同灰，悬停随卡片一起转亮。 */
+.lk-n .e-comments-ico { width: 1.15em; height: 1.15em; margin-right: .28em; vertical-align: -.14em; }
 .lk-n b { font-family: var(--display); font-size: 1.3em; font-weight: var(--display-weight); color: var(--fg-soft); }
+.lk-card:hover .lk-n .e-comments-ico,
 .lk-card:hover .lk-n b { color: var(--fg); }
 
 .lk-empty {

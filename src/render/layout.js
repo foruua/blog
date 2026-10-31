@@ -5,7 +5,7 @@ import { PALETTES, CUSTOM_PALETTE, LAYOUTS } from '../settings.js';
 import { navItemsOf, visibleNavOf } from '../site/nav.js';
 import { lightboxHtml } from './lightbox.js';
 import { emojiPanelTemplate } from '../comments/view.js';
-import { ICON_COPYRIGHT, SEARCH_ICO, PAL_ICO, RSS_ICO, MAIL_ICO, GITHUB_ICO, TM_ICON, LY_ICON, navIco } from './icons.js';
+import { ICON_COPYRIGHT, SEARCH_ICO, PAL_ICO, RSS_ICO, MAIL_ICO, GITHUB_ICO, TM_ICON, LY_ICON, COMMENT_ICO, navIco } from './icons.js';
 import { themeRequest } from '../themes/request.js';
 
 // 带内容指纹的静态资源；server.js 也 import 这份生成「可长期缓存」正则——两处必须同一份，否则新增资源必漏。
@@ -645,8 +645,10 @@ export function dateBadge(day, datetime = day) {
   return `<time datetime="${esc(datetime)}" aria-label="${esc(dayLabel([y, m, d]))}"><b>${esc(d)}</b><small><span>${esc(monthCn(m))}</span><span>${esc(y)}</span></small></time>`;
 }
 
-/** 评论数文案：列表条目只此一处口径（文章与笔记共用同一套列表）。 */
-export const commentLabel = (n) => (n ? `${n} 条评论` : '暂无评论');
+/** 评论数标记：列表条目只此一处口径（文章与笔记共用同一套列表）。可见部分是「气泡 + 数字」，
+ *  语义由 aria-label 补全——只读数字的链接读屏器听不出在说什么。 */
+export const commentLabel = (n) => `${COMMENT_ICO}${n}`;
+const commentAria = (n) => (n ? `${n} 条评论` : '暂无评论');
 
 /** 列表条目 = 编年轨 + 底部元信息行。底部元信息行是 .e-main 的兄弟（评论链接不能嵌进整行链接里）。结构约束：.excerpt 必须是 .e-main 的直接子节点——不许再包一层。
  *  excerpt 可以换掉：检索结果要的是「以命中词为中心」的那段摘要，不是正文开头。换的只是那一个 <p>，
@@ -668,7 +670,7 @@ function listItem(p, showKind, excerpt = leading(p, 2)) {
     <h2>${title}${kindTag}</h2>
 ${excerpt}
   </a>
-  <p class="e-meta"><time class="e-rel" datetime="${esc(p.published_at)}">${esc(relativeDate(p.published_at))}</time><a class="e-comments" href="${commentHref}">${commentLabel(p.comments)}</a></p>
+  <p class="e-meta"><time class="e-rel" datetime="${esc(p.published_at)}">${esc(relativeDate(p.published_at))}</time><a class="e-comments" href="${commentHref}" aria-label="${esc(commentAria(p.comments))}">${commentLabel(p.comments)}</a></p>
 </li>`;
 }
 

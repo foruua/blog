@@ -549,7 +549,7 @@ let firstId = 0;
 }
 
 {
-  // 笔记列表与文章列表完全一致：评论区只在详情页里，按 comments_per_page 分页；列表只留「N 条评论」链接。
+  // 笔记列表与文章列表完全一致：评论区只在详情页里，按 comments_per_page 分页；列表只留「气泡 + 数字」的评论链接。
   const note = db.prepare(
     "SELECT id, slug FROM posts WHERE kind='note' AND draft=0 AND comments_on=1 ORDER BY id",
   ).get();
@@ -564,7 +564,7 @@ let firstId = 0;
   const detail = await (await fetch(`${BASE}${detailUrl}`)).text();
   check('T15j 笔记列表不再内嵌评论抽屉；评论链接直达详情页，详情页评论区按每页条数分页',
     !/data-comment-form/.test(notesHtml) && !/ncp-/.test(notesHtml)
-    && notesHtml.includes(`href="${detailUrl}#comments"`) && notesHtml.includes('8 条评论')
+    && notesHtml.includes(`href="${detailUrl}#comments"`) && notesHtml.includes('aria-label="8 条评论"')
     && /class="c-form"/.test(detail) && /class="c-pager"/.test(detail) && !/ncp-/.test(detail), '');
   db.prepare(`DELETE FROM comments WHERE moderation_nonce LIKE 'nonce-note-pg-%'`).run();
   db.prepare("DELETE FROM settings WHERE key='comments_per_page'").run();

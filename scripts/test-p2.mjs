@@ -48,7 +48,7 @@ const page = await (await fetch(`${BASE}/p/${SLUG}/`)).text();
   check('T4f 列表里不再有缩略图（编年轨上只留文字）',
     !/class="thumb"/.test(listed) && !/has-thumb/.test(listed), '');
   check('T4h 列表里的评论数指向评论位置（…/#comments），而不是死的文字',
-    /<a class="e-comments" href="\/p\/[^"]+#comments">/.test(listed), '');
+    /<a class="e-comments"[^>]*href="\/p\/[^"]+#comments"[^>]*>/.test(listed), '');
   const rowExcerpt = /<a class="e-main" href="\/p\/zz-thumb\/">[\s\S]*?<p class="excerpt">([^<]*)<\/p>/.exec(listed)?.[1] ?? '';
   check('T4g 条目带两行预算的摘要', rowExcerpt.length > 60, `${rowExcerpt.length} 字`);
   {
@@ -93,8 +93,9 @@ const page = await (await fetch(`${BASE}/p/${SLUG}/`)).text();
     && slice.includes('<h2>笔记列测试') && slice.includes('class="excerpt"'), `长度 ${slice.length}`);
   check('T53 笔记列表不再有折叠行、图集与就地评论抽屉',
     !page.includes('nf-fold') && !page.includes('ncp-slot') && !page.includes('class="gallery"'), '');
-  check('T54 评论数直达笔记详情页的评论区',
-    slice.includes('href="/n/zz-note/#comments"') && slice.includes('2 条评论'), slice.slice(-200));
+  check('T54 评论数（气泡 + 数字）直达笔记详情页的评论区',
+    slice.includes('href="/n/zz-note/#comments"') && slice.includes('aria-label="2 条评论"')
+    && slice.includes('e-comments-ico'), slice.slice(-200));
 
   // 评论回刷只保留标准评论区这一套（c-*）；笔记列表不再有抽屉那套（ncp-*）。
   const panel = await (await fetch(`${BASE}/n/zz-note/?partial=comments`)).text();
@@ -242,7 +243,7 @@ const page = await (await fetch(`${BASE}/p/${SLUG}/`)).text();
   }
   const notesHtml = await (await fetch(`${BASE}/notes/`)).text();
   check('T57b 笔记列表的评论链接直达详情页评论区',
-    /<a class="e-comments" href="\/n\/fixture-note\/#comments"[^>]*>/.test(notesHtml), '');
+    /<a class="e-comments"[^>]*href="\/n\/fixture-note\/#comments"[^>]*>/.test(notesHtml), '');
   check('T57 首页/归档/标签页里的笔记链接都指向正文页',
     bad.length === 0 && linked > 0, `旧列表链接 ${bad.length} 条：${bad.slice(0, 2).join(' ')}；正文链接 ${linked} 条`);
 

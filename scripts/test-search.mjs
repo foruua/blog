@@ -215,14 +215,14 @@ try {
     !!searchPostRow && shapeOf(searchPostRow) === postShape,
     `搜索行：${searchPostRow ? shapeOf(searchPostRow) : '(无)'}\n     文章行：${postShape}`);
   const countOf = (li) => li.querySelector('.e-comments')?.textContent;
-  check('M3h 结果行的「N 条评论」是真数，且只算已通过（待审那条不算）', (() => {
+  check('M3h 结果行的评论数字是真数，且只算已通过（待审那条不算）', (() => {
     const row = rows.find((li) => li.querySelector('.e-comments')?.getAttribute('href')?.includes(`/p/${COMMENTED_SLUG}/`));
-    return countOf(row) === '1 条评论';
+    return countOf(row) === '1';
   })(), rows.map(countOf).join(' / '));
   check('M3h2 同一篇的评论数在 /posts/ 与 /search 上口径一致', (() => {
     const postsRow = domOf(postsHtml).querySelector(`ul.list > li a[href="/p/${COMMENTED_SLUG}/"]`)?.closest('li');
     const searchRow = rows.find((li) => li.querySelector('.e-comments')?.getAttribute('href')?.includes(`/p/${COMMENTED_SLUG}/`));
-    return !!postsRow && !!searchRow && countOf(postsRow) === countOf(searchRow) && countOf(postsRow) === '1 条评论';
+    return !!postsRow && !!searchRow && countOf(postsRow) === countOf(searchRow) && countOf(postsRow) === '1';
   })());
   check('M3i 笔记结果带类型方章（与归档那种混合列表同一规矩：文章不挂章）', (() => {
     const notes = rows.filter((li) => li.classList.contains('note'));

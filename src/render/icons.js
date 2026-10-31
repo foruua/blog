@@ -11,6 +11,9 @@ export const ICON_CLOSE = '<svg viewBox="0 0 16 16" fill="none" stroke="currentC
  *  矢量描边版让圆度、笔画粗细三端逐像素一致（与字号标那颗金星同哲学：品牌符号不走字体栈）。 */
 export const ICON_COPYRIGHT = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="8" cy="8" r="6.1" stroke-width="1.15"/><path d="M10.7 5.8A3.5 3.5 0 1 0 10.7 10.2" stroke-width="1.25" stroke-linecap="round"/></svg>';
 
+/** 评论气泡（线性）：列表元信息行与友链名片的「图标 + 数字」共用。20 格画布、1.6 描边，与导航图标同族。 */
+export const COMMENT_ICO = '<svg class="e-comments-ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.4 4.2h9.2a2 2 0 0 1 2 2v5.2a2 2 0 0 1-2 2H9.4L6.6 16v-2.6H5.4a2 2 0 0 1-2-2V6.2a2 2 0 0 1 2-2z"/></svg>';
+
 /** 检索放大镜：导航、抽屉搜索框与 404 页共用。20 格画布、1.6 描边。 */
 export const SEARCH_ICO = '<svg class="so-ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="5.6"/><path d="M12.3 12.3 17 17"/></svg>';
 
