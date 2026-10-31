@@ -649,7 +649,7 @@ export function dateBadge(day, datetime = day) {
 
 /** 评论数标记：列表条目只此一处口径（文章与笔记共用同一套列表）。可见部分是「气泡 + 数字」，
  *  语义由 aria-label 补全——只读数字的链接读屏器听不出在说什么。 */
-export const commentLabel = (n) => `${COMMENT_ICO}${n}`;
+const commentLabel = (n) => `${COMMENT_ICO}${n}`;
 const commentAria = (n) => (n ? `${n} 条评论` : '暂无评论');
 
 /** 列表条目 = 编年轨 + 底部元信息行。底部元信息行是 .e-main 的兄弟（评论链接不能嵌进整行链接里）。结构约束：.excerpt 必须是 .e-main 的直接子节点——不许再包一层。

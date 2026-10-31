@@ -31,7 +31,7 @@ const FACE_ICON = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" st
 
 // 面板本体（80 枚按钮 ≈ 7.4KB）不再跟着每个评论表单走：表单处只留触发键，面板改为整页一份 <template>，首次点开时由 app.js 克隆进对应的 .c-emoji。
 // 无脚本时 .c-emoji 本来就被 CSS 收掉（style.css 的 html:not(.has-js)），所以这一改不影响降级行为。
-export function emojiPicker() {
+function emojiPicker() {
   return `<div class="c-emoji" data-emoji-picker>
           <button class="c-emoji-trigger" type="button" data-emoji-toggle aria-expanded="false" aria-label="选择表情">${FACE_ICON}</button>
         </div>`;
@@ -53,7 +53,7 @@ export function emojiPanelTemplate() {
   return emojiPanelCache;
 }
 
-export const FLASH = {
+const FLASH = {
   ok: '评论已发布。',
   pending: '评论已提交，等待站主确认后显示。',
   bad: '提交失败：请检查昵称与内容是否填写完整。',

@@ -7,17 +7,17 @@ import { pageUrl } from '../util/text.js';
 // 存的是**覆盖量**而不是整份清单：只记顺序、名称、分组、显隐。
 // 固定页不进库 —— 新建一篇页面自动出现在菜单末尾，删掉就自动消失，不需要回后台点一次「同步」。
 
-export const NAV_KEY = 'nav_items';
-export const NAV_MORE_LABEL_KEY = 'nav_more_label';
+const NAV_KEY = 'nav_items';
+const NAV_MORE_LABEL_KEY = 'nav_more_label';
 export const NAV_MORE_LABEL_MAX = 8;
-export const NAV_MAX = 24;
+const NAV_MAX = 24;
 const NAV_LABEL_MAX = 20;
 
 /** 一级项（页头常驻）与二级项（「页面」下拉）的划分由这个字段决定。 */
 export const NAV_GROUPS = ['main', 'more'];
 export const NAV_GROUP_LABEL = { main: '顶栏', more: '「页面」里' };
 
-export const NAV_DEFAULTS = [
+const NAV_DEFAULTS = [
   { key: 'home', label: '首页', href: '/', group: 'main' },
   { key: 'posts', label: '文章', href: '/posts/', group: 'main' },
   { key: 'notes', label: '笔记', href: '/notes/', group: 'main' },
@@ -118,7 +118,7 @@ export function visibleNavOf(items) {
   return { main, more, all: [...main, ...more] };
 }
 
-export const navMoreLabelOf = (read) => clean(read?.(NAV_MORE_LABEL_KEY), NAV_MORE_LABEL_MAX) || '页面';
+const navMoreLabelOf = (read) => clean(read?.(NAV_MORE_LABEL_KEY), NAV_MORE_LABEL_MAX) || '页面';
 
 /** 后台表单状态：完整清单（含隐藏项 + 自定义链接），顺序即渲染顺序。 */
 export function navFormState(read, pages = []) {

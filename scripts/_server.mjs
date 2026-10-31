@@ -7,7 +7,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { once } from 'node:events';
 import { hasFixtures } from './_fixtures.mjs';
 
-export function freePort() {
+function freePort() {
   return new Promise((resolve, reject) => {
     const srv = net.createServer();
     srv.on('error', reject);

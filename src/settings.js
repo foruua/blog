@@ -18,7 +18,7 @@ export const KEYS = {
 // 原先要用它们得去改环境变量或源码常量：关评论、全部先审、放宽限流都要重启进程。
 // 这里只做「站主最常用的三档」，不把 antispam 的每个参数都摊到界面上——
 // 最短填写时间这类反机器人参数调松了就是关防护，不该出现在一个点一下就生效的表单里。
-export const COMMENT_KEYS = {
+const COMMENT_KEYS = {
   open: 'comments_open',
   moderateAll: 'comments_moderate_all',
   rate: 'comments_rate',

@@ -8,7 +8,7 @@ import { EMAIL_LOOSE_RE, hasControlChar } from '../util/validation.js';
 // 地址（SITE.url / SITE.domain）**故意不开放编辑**：它决定会话 cookie 的作用域、canonical、sitemap、
 // RSS 与通知邮件里的绝对链接，填错一处整站链接和登录态一起坏，属于部署参数而不是内容。
 
-export const IDENTITY_KEYS = {
+const IDENTITY_KEYS = {
   title: 'site_title',
   desc: 'site_desc',
   author: 'site_author',

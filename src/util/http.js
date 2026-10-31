@@ -9,7 +9,7 @@ import { envPositive } from './env.js';
 // 真实客户端 IP：仅当 TRUST_PROXY 且直连对端是受信任代理时，才取 X-Forwarded-For 链尾。
 const TRUST_PROXY = process.env.TRUST_PROXY === 'true';
 const trusted = new Set((process.env.TRUSTED_PROXIES ?? '127.0.0.1,::1,::ffff:127.0.0.1').split(',').map((s) => s.trim()));
-export function clientIp(c) {
+function clientIp(c) {
   let remote = '';
   try { remote = getConnInfo(c).remote?.address ?? ''; } catch { /* In-memory requests have no socket. */ }
   if (TRUST_PROXY && trusted.has(remote)) {

@@ -23,5 +23,5 @@ export const SHARP_INPUT_OPTIONS = { limitInputPixels: MAX_INPUT_PIXELS, failOn:
 
 // 头像单独一档：输出只有 96px，却沿用 8000 万像素上限，等于让上游回一张 7000×7000 的图先被完整解出来
 // 再缩成 96px —— 白烧内存与 CPU，还可能成为放大器。2048² 已经远超任何头像源（含 2x 屏与 EXIF 旋转）。
-export const AVATAR_INPUT_PIXELS = Math.min(MAX_INPUT_PIXELS, 2048 * 2048);
+const AVATAR_INPUT_PIXELS = Math.min(MAX_INPUT_PIXELS, 2048 * 2048);
 export const AVATAR_SHARP_OPTIONS = { limitInputPixels: AVATAR_INPUT_PIXELS, failOn: 'warning' };

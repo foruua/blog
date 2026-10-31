@@ -176,7 +176,7 @@ export function createCommentRepo(db) {
 }
 
 // 把扁平行列表还原成任意深度的评论树。入参必须按 created_at,id 升序（SQL 已这么排），同级回复才自然保持时间顺序。
-export function threadOf(comments) {
+function threadOf(comments) {
   const nodes = new Map(comments.map((c) => [c.id, { ...c, replies: [] }]));
   const roots = [];
   for (const c of comments) {
