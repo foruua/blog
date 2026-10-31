@@ -1,0 +1,31 @@
+# 依赖自动升级：audit 只报「已知漏洞」，不报「落后三个月」——后者靠每周一次 PR 补齐。
+# 小版本/补丁合并成一组，避免一次开十几个 PR；CI 会跑 lint + 类型检查 + 全量测试，合不合看结果。
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Shanghai
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+    commit-message:
+      prefix: 依赖
+    groups:
+      minor-and-patch:
+        applies-to: version-updates
+        update-types:
+          - minor
+          - patch
+    ignore:
+      # sharp 是原生模块：major 升级常伴随 libvips ABI 变化，装到生产机前要人工验证解码/缩放。
+      - dependency-name: sharp
+        update-types:
+          - version-update:semver-major
+      # playwright 与浏览器二进制绑定，major 升级要连带重装 chromium 并重跑界面审计。
+      - dependency-name: playwright
+        update-types:
+          - version-update:semver-major
