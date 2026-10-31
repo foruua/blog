@@ -5,7 +5,7 @@ import { PALETTES, CUSTOM_PALETTE, LAYOUTS } from '../settings.js';
 import { navItemsOf, visibleNavOf } from '../site/nav.js';
 import { lightboxHtml } from './lightbox.js';
 import { emojiPanelTemplate } from '../comments/view.js';
-import { ICON_COPYRIGHT, SEARCH_ICO, PAL_ICO, RSS_ICO, MAIL_ICO, GITHUB_ICO, TM_ICON, LY_ICON, COMMENT_ICO, CLOCK_ICO, navIco } from './icons.js';
+import { ICON_COPYRIGHT, SEARCH_ICO, PAL_ICO, RSS_ICO, MAIL_ICO, GITHUB_ICO, TM_ICON, LY_ICON, COMMENT_ICO, navIco } from './icons.js';
 import { themeRequest } from '../themes/request.js';
 
 // 带内容指纹的静态资源；server.js 也 import 这份生成「可长期缓存」正则——两处必须同一份，否则新增资源必漏。
@@ -688,28 +688,14 @@ export const ledgerItem = (p, { relative = false } = {}) => {
   const day = p.day ?? '';
   const [y, m, d] = dayParts(day);
   const note = p.kind === 'note';
-  const comments = Number(p.comments ?? 0);
 
   // 畸形日期经 formatDay() 会变成空串：与 dateBadge 同一条判断，别输出 datetime="" 和「0 月 / 空年」的 aria-label。
   const stamp = day
     ? `<time datetime="${esc(day)}" title="${esc(day)}" aria-label="${esc(dayLabel([y, m, d]))}">${esc(relative ? relativeDate(p.published_at) : d)}</time>`
     : '';
-  // 只有相对时间（首页）挂时钟：归档页显示的是「11」这种日期数字，既不需要图标，也没有横向空间。
-  // <time> 留在最里层 —— 图标只是视觉前缀，datetime 与 aria-label 不能被包壳吃掉。
-  const timeCell = relative && stamp ? `<span class="e-time">${CLOCK_ICO}${stamp}</span>` : stamp;
-
-  // 行尾：首页把「讨论数 · 类型」合成一枚胶囊，0 条时胶囊里只剩类型；归档页保持裸的类型标签
-  // （那里一行更窄，再套一层胶囊会顶到标题）。数字只写纯数字，单位交给 .sr-only：
-  // 读屏听到的是「12 条讨论」，而不是「气泡 12」。
-  const talk = comments > 0
-    ? `<span class="e-talk">${COMMENT_ICO}${comments}<span class="sr-only"> 条讨论</span></span>`
-      + '<span class="e-tail-dot" aria-hidden="true"></span>'
-    : '';
-  const kind = `<span class="e-kind">${note ? '笔记' : '文章'}</span>`;
-  const tail = relative ? `<span class="e-tail">${talk}${kind}</span>` : kind;
 
   // 标题单独包一层：flex 里的裸文本是匿名 flex item，挂不了 text-overflow（.recent 会用到）；<a title> 是截断兜底；地址同样走 contentUrl()。
-  return `<li${note ? ' class="note"' : ''}><a href="${contentUrl(p)}" title="${esc(p.title)}">${timeCell}<span class="e-title"><span class="e-title-text">${esc(p.title)}</span></span>${tail}</a></li>`;
+  return `<li${note ? ' class="note"' : ''}><a href="${contentUrl(p)}" title="${esc(p.title)}">${stamp}<span class="e-title"><span class="e-title-text">${esc(p.title)}</span></span><span class="e-kind">${note ? '笔记' : '文章'}</span></a></li>`;
 };
 
 

@@ -916,37 +916,7 @@ body[data-page="home"] .recent .entries { border-bottom: 1px solid var(--rule); 
 /* 悬停底色是 --accent-soft，所以这里走可读档而不是裸 --accent（见 :root 的 --accent-read）。 */
 .entries a:hover .e-kind { color: var(--accent-read); }
 
-/* 首页的时间列要比归档宽：相对时间前面多一枚时钟，且「4 小时前」比「11」长得多的同时还得定宽，
-   否则每条标题的左边缘会随字数左右跳（账本的竖线就断了）。 */
-.entries-rel a { grid-template-columns: 6.1em minmax(0, 1fr) auto; }
-
-/* —— 首页账本行：时钟 + 行尾胶囊 —— 两组规则都挂在 .entries-rel 下：
-   归档月份组用绝对日期与裸类型标签，别让这里的胶囊外溢到那边。
-   行尾把「讨论数 · 类型」收进一枚胶囊，0 条时胶囊里只剩类型，宽度自然收窄但右边缘不动。 */
-.entries-rel .e-time { display: inline-flex; align-items: center; gap: .34em; white-space: nowrap; }
-.entries-rel .ico-time { width: .92em; height: .92em; flex: none; vertical-align: -.1em; opacity: .8; }
-.entries-rel .e-tail {
-  display: inline-flex; align-items: center; gap: .5em;
-  /* 胶囊里的文字统一到 info 档：类型标签原本是 label-sm，直接套进来会比数字小一号。 */
-  font: var(--info-size)/1.6 var(--mono); letter-spacing: .02em;
-  background: var(--accent-soft);
-  border: 1px solid var(--accent-line);
-  border-radius: var(--radius-pill);
-  padding: .18em .7em;
-  color: color-mix(in srgb, var(--accent) 82%, var(--fg));
-  white-space: nowrap;
-}
-/* 行悬停的底色就是 --accent-soft，和胶囊默认底同色 —— 不给一个纸色底，胶囊会「化」进行里只剩一圈边。 */
-.entries-rel a:hover .e-tail { background: var(--bg-elev); }
-.entries-rel .e-talk { display: inline-flex; align-items: center; gap: .3em; }
-.entries-rel .e-talk svg { width: .95em; height: .95em; flex: none; vertical-align: -.1em; }
-/* 分隔点用 2px 圆点画，不用「·」字符：字符要占一个等宽格，左右留白会不匀。 */
-.entries-rel .e-tail-dot { width: 2px; height: 2px; border-radius: 50%; background: currentColor; opacity: .45; }
-/* 外层已经是胶囊，里面的类型不再套第二层底与框（否则就是胶囊套胶囊）。 */
-.entries-rel .e-tail .e-kind {
-  font: inherit; letter-spacing: .02em;
-  background: transparent; border-color: transparent; margin: 0; padding: 0;
-}
+.entries-rel a { grid-template-columns: 4.7em minmax(0, 1fr) auto; }
 
 /* 归档 */
 
@@ -1095,7 +1065,7 @@ body[data-page="archive"] .chron:last-child { border-bottom: 1px solid var(--rul
   /* 手机上的「最近更新」：铭牌往两边再撑一点，账本行收窄时间列与列距，把宽度让给标题。 */
   .hero { padding-inline: 12px; }
   .entries a { gap: 0 .8rem; }
-  .entries-rel a { grid-template-columns: 5.8em minmax(0, 1fr) auto; }
+  .entries-rel a { grid-template-columns: 4.1em minmax(0, 1fr) auto; }
   .recent .e-title { gap: .6rem; }
   .recent .e-title::after { min-width: .9rem; }   /* 标题被截断时，点线留两三个点的位置就够 */
 }
@@ -2392,10 +2362,8 @@ body[data-page="search"] .list li > .e-main:focus-visible h2 {
   .recent .entries a { grid-template-columns: minmax(0, 1fr) auto; gap: .3rem .75rem; padding-block: .8rem; }
   .recent .e-title { grid-column: 1 / -1; grid-row: 1; display: block; }
   .recent .e-title-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere; line-height: 1.6; }
-  /* 手机上第二行：左边「时钟 + 相对时间」，右边整枚胶囊。定位挂在 .e-time / .e-tail 上——
-     time 现在是 .e-time 的子元素，再给 time 设 grid-column 不会生效。 */
-  .recent .e-time { grid-column: 1; grid-row: 2; white-space: nowrap; letter-spacing: .04em; }
-  .recent .e-tail { grid-column: 2; grid-row: 2; justify-self: end; }
+  .recent .entries time { grid-column: 1; grid-row: 2; white-space: nowrap; letter-spacing: .04em; }
+  .recent .e-kind { grid-column: 2; grid-row: 2; }
 }
 
 /* 类型切换与归档标题同行（年份跳转仍在统计信息下面）。切换器不画底槽、不垫色块：当前项靠一道金色下划线。刊头仍是「标题 + 细线 + 一处金」，靠悬停变色补"可点"暗示。 */
