@@ -695,13 +695,7 @@ export const ledgerItem = (p, { relative = false } = {}) => {
     : '';
 
   // 标题单独包一层：flex 里的裸文本是匿名 flex item，挂不了 text-overflow（.recent 会用到）；<a title> 是截断兜底；地址同样走 contentUrl()。
-  // 行尾是「讨论数 + 类型」并排：数字在左、类型靠右收尾，所以类型的位置不随这一条有没有讨论而变。
-  // 0 条不渲染数字——一个「0」既没信息也不体面。数字只显示纯数字（页码式），语义由 .sr-only 补全。
-  const comments = Number(p.comments ?? 0);
-  const tail = `<span class="e-tail">${
-    comments > 0 ? `<span class="e-talk">${comments}<span class="sr-only"> 条讨论</span></span>` : ''
-  }<span class="e-kind">${note ? '笔记' : '文章'}</span></span>`;
-  return `<li${note ? ' class="note"' : ''}><a href="${contentUrl(p)}" title="${esc(p.title)}">${stamp}<span class="e-title"><span class="e-title-text">${esc(p.title)}</span></span>${tail}</a></li>`;
+  return `<li${note ? ' class="note"' : ''}><a href="${contentUrl(p)}" title="${esc(p.title)}">${stamp}<span class="e-title"><span class="e-title-text">${esc(p.title)}</span></span><span class="e-kind">${note ? '笔记' : '文章'}</span></a></li>`;
 };
 
 

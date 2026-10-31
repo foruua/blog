@@ -908,23 +908,11 @@ body[data-page="home"] .recent .entries { border-bottom: 1px solid var(--rule); 
 }
 .entries a:hover .e-title { color: var(--accent-read); }
 .entries a:hover time { color: var(--fg-soft); }
-/* 行尾：讨论数 + 类型标签。数字在左、类型靠右收尾，所以类型的位置不随这一条有没有讨论而变 ——
-   右对齐的是整组，多出来的数字只会向左长出一点，行尾的收束线始终对齐。
-   数字只写纯数字（页码式），「条讨论」交给 .sr-only，读屏照样听得懂。 */
-.e-tail {
-  display: inline-flex; align-items: baseline; gap: .72em;
+.e-kind {
   font: var(--info-size)/1.75 var(--mono);
   letter-spacing: var(--info-track); color: var(--muted);
-  white-space: nowrap;
+  white-space: nowrap; transition: color var(--dur-2) var(--ease);
 }
-/* 衬线数字：读起来像目录里的页码，而不是仪表盘上的计数。类名避开 .e-comments——
-   那是列表页可点的评论链接（.list .e-comments），同名会把那条链接压成透明。 */
-.e-talk {
-  font-family: Georgia, 'Songti SC', 'Times New Roman', serif;
-  font-size: 14px; letter-spacing: .01em;
-  color: var(--accent-read); font-variant-numeric: tabular-nums;
-}
-.e-kind { transition: color var(--dur-2) var(--ease); }
 /* 悬停底色是 --accent-soft，所以这里走可读档而不是裸 --accent（见 :root 的 --accent-read）。 */
 .entries a:hover .e-kind { color: var(--accent-read); }
 
@@ -2375,7 +2363,7 @@ body[data-page="search"] .list li > .e-main:focus-visible h2 {
   .recent .e-title { grid-column: 1 / -1; grid-row: 1; display: block; }
   .recent .e-title-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere; line-height: 1.6; }
   .recent .entries time { grid-column: 1; grid-row: 2; white-space: nowrap; letter-spacing: .04em; }
-  .recent .e-tail { grid-column: 2; grid-row: 2; }
+  .recent .e-kind { grid-column: 2; grid-row: 2; }
 }
 
 /* 类型切换与归档标题同行（年份跳转仍在统计信息下面）。切换器不画底槽、不垫色块：当前项靠一道金色下划线。刊头仍是「标题 + 细线 + 一处金」，靠悬停变色补"可点"暗示。 */
