@@ -175,12 +175,14 @@ try {
       ? '.' + el.className.trim().split(/\s+/).join('.') : '');
     const main = li.querySelector('.e-main');
     const meta = li.querySelector('.e-meta');
-    return [kid(li), ...[...main.children].map(kid), kid(meta), ...[...meta.children].map(kid)].join(' | ');
+    // 评论链接是有条件的（0 条评论不输出），比骨架时把它排除：否则同一份 listItem
+    // 会因为两行评论数不同被判成「两套标记」。
+    const metaKids = [...meta.children].filter((el) => !el.classList.contains('e-comments'));
+    return [kid(li), ...[...main.children].map(kid), kid(meta), ...metaKids.map(kid)].join(' | ');
   };
   check('M3 结果页有结果行，且每行都是文章列表那一套（编年轨 / 标题 / 摘要 / 元信息行）', rows.length > 0
     && rows.every((li) => li.querySelector('.e-main > time') && li.querySelector('.e-main > h2')
-      && li.querySelector('.e-main > p.excerpt') && li.querySelector('.e-meta > time.e-rel')
-      && li.querySelector('.e-meta > a.e-comments')),
+      && li.querySelector('.e-main > p.excerpt') && li.querySelector('.e-meta > time.e-rel')),
     `${rows.length} 条`);
   check('M3b 结果页不再显示「命中 N 项」统计栏', !doc.querySelector('.mast-stat') && !/命中 <b>/.test(hit.html));
   check('M3c 每条结果都带命中摘要，命中词包在 <mark> 里', rows.length > 0

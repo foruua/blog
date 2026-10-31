@@ -47,8 +47,9 @@ const page = await (await fetch(`${BASE}/p/${SLUG}/`)).text();
     && /<h2>带图测试<\/h2>/.test(listed), '');
   check('T4f 列表里不再有缩略图（编年轨上只留文字）',
     !/class="thumb"/.test(listed) && !/has-thumb/.test(listed), '');
-  check('T4h 列表里的评论数指向评论位置（…/#comments），而不是死的文字',
-    /<a class="e-comments"[^>]*href="\/p\/[^"]+#comments"[^>]*>/.test(listed), '');
+  check('T4h 0 条评论的条目右端不再挂计数（有评论时才输出，见 T54 的正例）',
+    !/<a class="e-comments"[^>]*href="\/p\/zz-thumb\/#comments"/.test(listed)
+    && !/class="e-comments"[^>]*>\s*<svg[^>]*e-comments-ico[^>]*><\/svg>0</.test(listed), '');
   const rowExcerpt = /<a class="e-main" href="\/p\/zz-thumb\/">[\s\S]*?<p class="excerpt">([^<]*)<\/p>/.exec(listed)?.[1] ?? '';
   check('T4g 条目带两行预算的摘要', rowExcerpt.length > 60, `${rowExcerpt.length} 字`);
   {

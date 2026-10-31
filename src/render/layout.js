@@ -648,7 +648,9 @@ export function dateBadge(day, datetime = day) {
 }
 
 /** 评论数标记：列表条目只此一处口径（文章与笔记共用同一套列表）。可见部分是「气泡 + 数字」，
- *  语义由 aria-label 补全——只读数字的链接读屏器听不出在说什么。 */
+ *  语义由 aria-label 补全——只读数字的链接读屏器听不出在说什么。
+ *  0 条时整枚链接都不出：一排「💬 0」是纯噪声，还会把真有讨论的那几行稀释掉。
+ *  （不写成「留一个空链再 display:none」——那会留下一个键盘能聚焦却看不见的目标。） */
 const commentLabel = (n) => `${COMMENT_ICO}${n}`;
 const commentAria = (n) => (n ? `${n} 条评论` : '暂无评论');
 
@@ -663,6 +665,10 @@ function listItem(p, showKind, excerpt = leading(p, 2)) {
 
 
   const commentHref = `${contentUrl(p)}#comments`;
+  // 0 条评论的条目右端什么都不挂（见 commentLabel 上方那段）。
+  const commentLink = p.comments
+    ? `<a class="e-comments" href="${commentHref}" aria-label="${esc(commentAria(p.comments))}">${commentLabel(p.comments)}</a>`
+    : '';
   // 检索结果会把命中词包进 <mark>（titleHtml 已是转义后的 HTML）；普通列表仍走 esc。
   const title = p.titleHtml ?? esc(p.title);
 
@@ -672,7 +678,7 @@ function listItem(p, showKind, excerpt = leading(p, 2)) {
     <h2>${title}${kindTag}</h2>
 ${excerpt}
   </a>
-  <p class="e-meta"><time class="e-rel" datetime="${esc(p.published_at)}">${esc(relativeDate(p.published_at))}</time><a class="e-comments" href="${commentHref}" aria-label="${esc(commentAria(p.comments))}">${commentLabel(p.comments)}</a></p>
+  <p class="e-meta"><time class="e-rel" datetime="${esc(p.published_at)}">${esc(relativeDate(p.published_at))}</time>${commentLink}</p>
 </li>`;
 }
 
