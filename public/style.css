@@ -1473,7 +1473,10 @@ html[data-theme="dark"] :is(.hero-figure, .prose) img { filter: brightness(var(-
   border: 1px solid var(--rule); border-radius: var(--radius);
   overflow: hidden;
 }
-.prose th, .prose td { text-align: left; padding: .6em .8em; border-bottom: 1px solid var(--rule); }
+/* 横向内距用 rem、纵向用 em：th 与 td 的字号不同（12px / 14.57px），
+   .8em 在两边会算成 9.6px 与 11.66px，表头与表体的首列就差 2px —— 表头看起来「偏左」。
+   纵向仍留给 em（它要跟着行高走），横向钉成 rem，两列文字才共用一条左边缘。 */
+.prose th, .prose td { text-align: left; padding-block: .6em; padding-inline: .8rem; border-bottom: 1px solid var(--rule); }
 .prose th {
   font: var(--label-size)/1.4 var(--mono);
   letter-spacing: .1em; text-transform: uppercase;
