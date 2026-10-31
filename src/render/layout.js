@@ -9,7 +9,7 @@ import { ICON_COPYRIGHT, SEARCH_ICO, PAL_ICO, RSS_ICO, MAIL_ICO, GITHUB_ICO, TM_
 import { themeRequest } from '../themes/request.js';
 
 // 带内容指纹的静态资源；server.js 也 import 这份生成「可长期缓存」正则——两处必须同一份，否则新增资源必漏。
-export const VERSIONED_ASSETS = ['base.css', 'style.css', 'style-lite.css', 'style-article.css', 'site.js', 'app.js', 'nav.js', 'admin.css', 'admin.js', 'admin-editor.js', 'media-picker.js', 'editor.js', 'favicon.svg', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png', 'og-default.jpg', 'police-badge.png', 'icp-badge.png', 'request.js', 'ui.js', 'search.js', 'palette.js'];
+export const VERSIONED_ASSETS = ['base.css', 'style.css', 'style-lite.css', 'site.js', 'app.js', 'nav.js', 'admin.css', 'admin.js', 'admin-editor.js', 'media-picker.js', 'editor.js', 'favicon.svg', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png', 'og-default.jpg', 'police-badge.png', 'icp-badge.png', 'request.js', 'ui.js', 'search.js', 'palette.js'];
 
 // —— 主题钩子 ——
 // server.js 在启动时注入「当前请求该用哪套主题」和「如何渲染主题模板」；测试或未启用主题时保持内置渲染。
@@ -392,6 +392,9 @@ function withMainContext(ctx, main) {
 }
 
 // 页面级样式表与脚本 bundle 的构建产物探测已收在 render/assets.js。
+// 只切「轻量」一档：列表/归档/友链等页面去掉评论区。文章页不再单独切一份——
+// 它此前是 drop 空数组的全量副本（与 style.css 只差两行注释），压完只差 0.2KB，
+// 多一份产物只增加构建与部署成本；评论区本来也是文章页的一部分，没有可删的段。
 const PAGE_CSS_LITE = new Set(['home', 'list', 'archive', 'friends', 'links', 'search', '404']);
 
 function styleFileFor(ctx) {
@@ -403,8 +406,7 @@ function styleFileFor(ctx) {
     if (theme && theme.id !== 'classic') return 'style.css';
   } catch { /* 无请求上下文（测试直调）按无主题处理 */ }
   if (PAGE_CSS_LITE.has(ctx.page)) return 'style-lite.css';
-  if (ctx.page === 'page' || ctx.themeType === 'post' || ctx.themeType === 'note') return 'style-article.css';
-  // 审核页等未知页面保守用全量。
+  // 文章/笔记内页、固定页，以及审核页等未知页面：全量。
   return 'style.css';
 }
 

@@ -173,8 +173,8 @@ try {
     w.__pjaxHooks.length >= 2, `注册了 ${w.__pjaxHooks.length} 个`);
 
   {
-    // 有构建产物时页面按类型只发 lite/article 变体；pjax 只换 #app、不换 <head>，
-    // 所以换到文章内页必须把缺的样式补进 head，否则会看到裸评论表单。
+    // 有构建产物时页面按类型只发 lite 变体；pjax 只换 #app、不换 <head>，
+    // 所以换到文章内页必须把缺的全量样式补进 head，否则会看到裸评论表单。
     const light = await mount(`${BASE}/`);
     const lite = /style-lite\.css/.test(light.html);
     await light.w.__nav.navigate(`${BASE}/notes/`);
@@ -191,8 +191,8 @@ try {
     await list.w.__nav.navigate(`${BASE}/p/why-single-column/`);
     const postCss = [...list.w.document.querySelectorAll('link[rel="stylesheet"]')]
       .map((link) => link.href || '');
-    check('T3e pjax 从轻量样式页换到文章页会补文章/评论区样式',
-      !listLite || postCss.some((href) => /\/style-article\.css\?/.test(href)),
+    check('T3e pjax 从轻量样式页换到文章页会补全量样式（评论区规则在 style.css 里）',
+      !listLite || postCss.some((href) => /\/style\.css\?/.test(href)),
       postCss.join(' '));
     check('T3f 换到文章页后评论表单已在 DOM', Boolean(list.w.document.querySelector('.c-form')));
   }

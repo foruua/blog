@@ -1714,7 +1714,7 @@ article.post-empty.post-404 { padding-bottom: 1rem; }
   object-fit: cover;
 }
 /* @page-css comments:start —— 以下到 comments:end 只有内页/固定页的评论区用得到。
-   build:assets 会据此生成 style-lite.css（列表/归档/友链等页面不加载）与 style-article.css。
+   build:assets 会据此生成 style-lite.css（列表/归档/友链等页面不加载）。
    标记必须留在源码里：切出来的版本与全量 style.css 逐字节同序，层叠行为不变。 */
 .c-main { min-width: 0; }
 /* 第一行：头像 + 昵称（+ 作者徽章 / 深层的「回复 @某人」），垂直居中 —— 并成一枚"落款"。 */

@@ -266,8 +266,8 @@
   }
 
   /* —— pjax 换页后的样式表 ——
-     页面按类型只发 lite / article / 全量三档；#app 换了但 <head> 不换，
-     从列表页点进文章或笔记内页时会缺评论区规则。三档是包含关系（lite ⊂ article ⊂ full），
+     页面按类型只发 lite / 全量两档；#app 换了但 <head> 不换，
+     从列表页点进文章或笔记内页时会缺评论区规则。两档是包含关系（lite ⊂ full），
      所以只补不删：把目标页缺的 <link> 追加进来，等 onload 再换 DOM，既不闪裸表单，也不用回退全量。 */
   function stylesheetHrefs(root) {
     return Array.prototype.map.call(root.querySelectorAll('link[rel="stylesheet"][href]'), function (link) {
@@ -283,12 +283,11 @@
     return null;
   }
 
-  /* 三档样式表是包含关系：lite ⊂ article ⊂ 全量 style.css。
+  /* 两档样式表是包含关系：lite ⊂ 全量 style.css。
      只看文件名，不看指纹查询串（?v= 每次构建都会变）。返回 0 = 不参与包含关系判定。 */
   function styleTier(absolute) {
     var name = String(absolute).split('?')[0].split('#')[0].split('/').pop();
-    if (name === 'style.css') return 3;
-    if (name === 'style-article.css') return 2;
+    if (name === 'style.css') return 2;
     if (name === 'style-lite.css') return 1;
     return 0;
   }
@@ -316,8 +315,8 @@
       if (stylePending.has(absolute)) { pending.push(stylePending.get(absolute)); return; }
       if (have[absolute]) return;
       var tier = styleTier(absolute);
-      // 已经有更高级的样式表就跳过：从内页（全量/文章档）回列表页时再补一份 lite，
-      // 既多下载约 12.5KB(br)，又因为子集排在全量之后，让同特异性规则的层叠顺序反过来。
+      // 已经有更高级的样式表就跳过：从内页（全量档）回列表页时再补一份 lite，
+      // 既多下载约 12KB(br)，又因为子集排在全量之后，让同特异性规则的层叠顺序反过来。
       // 同级不跳：同档但 ?v= 不同说明构建换了指纹（内容已更新），这份新的必须补上，
       // 追加在同类规则之后正是「新版本覆盖旧版本」应有的顺序。
       if (tier > 0 && tier < haveTier) return;

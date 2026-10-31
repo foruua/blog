@@ -33,13 +33,18 @@ const files = VERSIONED_ASSETS.filter((name) => /\.(?:css|js)$/i.test(name))
 // public/style.css 里用 /* @page-css <name>:start|end */ 标出「只有某类页面才用」的段。
 // 这里按同一份源切出变体，规则顺序与全量逐字节一致，层叠行为不变：
 //   style-lite.css    首页/列表/归档/友圈/友链/检索/404：去掉评论区（笔记列表也是普通列表，走这一份）
-//   style-article.css 文章/笔记内页与固定页
+// 文章页不切变体：评论区本来就是文章页的一部分，没有可删的段。以前那份 style-article.css 是
+// drop 空数组的全量副本（与 style.css 只差两行注释，压完差 0.2KB），纯属多一份产物，已删除。
 // 无构建产物时服务端自动回退全量 style.css。
 const PAGE_CSS_VARIANTS = {
   lite: { file: 'style-lite.css', drop: ['comments'] },
-  article: { file: 'style-article.css', drop: [] },
 };
 const PAGE_CSS_STAMP = path.join(BUILD_DIR, 'page-css.json');
+
+// 变体必须真的更小，否则它只是「换个文件名的全量副本」：既没省字节，又让部署多维护一份。
+// 3% 是底线而不是目标（lite 当前比全量小 10% 源 / 12% 压后）；真掉到这条线以下，
+// 说明那个段已经不构成页面差异，该考虑删掉变体而不是继续背着它。
+const MIN_VARIANT_SAVING = 0.03;
 
 // 标记必须严格配对：以前 style.css 里多出一个 notes:end，让已删除的笔记流段提前闭合、样式漏进两份变体。
 // 那段代码已经删除，但配对检查必须留着：任何未闭合、重复闭合、嵌套都会让构建直接失败，
@@ -69,10 +74,17 @@ function stripPageCss(source, drop) {
 
 function pageCssSources() {
   const source = fs.readFileSync(path.join(PUBLIC_DIR, 'style.css'), 'utf8');
-  return {
-    sourceHash: sha256(source),
-    variants: Object.fromEntries(Object.entries(PAGE_CSS_VARIANTS).map(([key, { file, drop }]) => [key, { file, text: stripPageCss(source, drop) }])),
-  };
+  const sourceBytes = Buffer.byteLength(source);
+  const variants = {};
+  for (const [key, { file, drop }] of Object.entries(PAGE_CSS_VARIANTS)) {
+    const text = stripPageCss(source, drop);
+    const saving = 1 - Buffer.byteLength(text) / sourceBytes;
+    if (saving < MIN_VARIANT_SAVING) {
+      throw new Error(`${file} 只比全量 style.css 小 ${(saving * 100).toFixed(1)}%（下限 ${MIN_VARIANT_SAVING * 100}%）：这个变体已经没有收益，删掉它，或者让 drop 的段真的能砍下体积`);
+    }
+    variants[key] = { file, text };
+  }
+  return { sourceHash: sha256(source), variants };
 }
 
 function syncPageCss(checkOnly) {
@@ -201,6 +213,42 @@ if (previous?.files && !checkOnly) {
     }
   }
 }
+
+// —— 传输体积预算 ——
+// Brotli 后的字节才是访客真正付出的成本。阈值按当前实测上浮约 10%，用意不是「不许长大」，
+// 而是逼每次增长都被看见：真要加 3KB，就把预算一并改上去并在提交信息里说明值不值。
+const SIZE_BUDGET = {
+  'base.css': 5 * 1024,
+  'style.css': 15 * 1024,
+  'style-lite.css': 14 * 1024,
+  'site.js': 22 * 1024,
+  // 后台不在首屏关键路径上，但同样别让它悄悄翻倍。
+  'admin.css': 15 * 1024,
+  'admin.js': 10 * 1024,
+};
+// 首屏阻塞资源（HTML 之外）：首页 = base + lite + site；文章页 = base + 全量 + site。
+const FIRST_SCREEN_BUDGET = 42 * 1024;
+
+function assertBudgets() {
+  const kb = (n) => `${(n / 1024).toFixed(1)}K`;
+  const problems = [];
+  for (const [name, limit] of Object.entries(SIZE_BUDGET)) {
+    const bytes = manifest.files[name]?.brBytes;
+    if (bytes > limit) problems.push(`${name} ${kb(bytes)} 超预算 ${kb(limit)}`);
+  }
+  const firstScreen = (styleName) => ['base.css', styleName, 'site.js']
+    .reduce((sum, name) => sum + (manifest.files[name]?.brBytes ?? 0), 0);
+  for (const [label, styleName] of [['首页', 'style-lite.css'], ['文章页', 'style.css']]) {
+    const bytes = firstScreen(styleName);
+    if (bytes > FIRST_SCREEN_BUDGET) problems.push(`${label}首屏 ${kb(bytes)} 超预算 ${kb(FIRST_SCREEN_BUDGET)}`);
+  }
+  if (!problems.length) return;
+  console.error(`✗ 传输体积超出预算：\n  ${problems.join('\n  ')}\n`
+    + '  确认这份增长值得之后，再调高 scripts/build-assets.mjs 里的 SIZE_BUDGET / FIRST_SCREEN_BUDGET。');
+  process.exit(1);
+}
+
+assertBudgets();
 
 if (checkOnly) {
   // 当前文件集合也必须和旧清单一致：只比较逐个文件会漏掉「旧版构建出来的、新版已不再生成的」

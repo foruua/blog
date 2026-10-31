@@ -40,8 +40,7 @@ export function hasPageCss() {
     const stamp = JSON.parse(fs.readFileSync(path.join(PUBLIC_DIR, '.build', 'page-css.json'), 'utf8'));
     const source = fs.readFileSync(path.join(PUBLIC_DIR, 'style.css'));
     pageCssReady = stamp?.sourceHash === crypto.createHash('sha256').update(source).digest('hex')
-      && fs.existsSync(path.join(PUBLIC_DIR, 'style-lite.css'))
-      && fs.existsSync(path.join(PUBLIC_DIR, 'style-article.css'));
+      && fs.existsSync(path.join(PUBLIC_DIR, 'style-lite.css'));
   } catch { pageCssReady = false; }
   return pageCssReady;
 }
