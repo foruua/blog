@@ -19,6 +19,12 @@ export function createLimiter(limit = 4) {
  *    inFlight——若期间又起了自动轮，继续排队而不是并行开第二轮。
  * runRound(opts) 返回整轮的 promise；force 之外的原样透传。
  */
+/**
+ * @param {object} options
+ * @param {(opts: any) => Promise<any>} options.runRound
+ * @param {(line: string) => void} [options.log]
+ * @param {string} [options.tag]
+ */
 export function createRoundRunner({ runRound, log = () => {}, tag = 'ROUND' }) {
   let inFlight = null;
   let forced = null;

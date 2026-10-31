@@ -267,7 +267,8 @@ export function createRepo(db) {
         ?? (rec.filePath ? q.byFilePath.get(rec.filePath) : null)
         ?? (rec.slug ? q.bySlug.get(rec.slug) : null);
       if (force && existing && expectedVersion !== null && Number(expectedVersion) !== existing.version) {
-        const error = new Error('文章已在其他页面更新，请比较版本后再保存'); error.status = 409; throw error;
+        // 409 挂在 error 上供路由层判断；Object.assign 一步建好，类型上也说得清。
+        throw Object.assign(new Error('文章已在其他页面更新，请比较版本后再保存'), { status: 409 });
       }
       if (!force && existing?.file_path && rec.filePath !== existing.file_path && !rec.allowMove) {
         throw new Error(`slug 已被其他文件占用：${rec.slug}`);

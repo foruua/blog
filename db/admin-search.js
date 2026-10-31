@@ -12,6 +12,10 @@ const TRIGGER_NAMES = [
 const VERSION_KEY = 'admin_search_fts_version';
 const VERSION = '2';
 
+/**
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {{ log?: (line: string) => void }} [options]
+ */
 export function createAdminSearch(db, { log = () => {} } = {}) {
   let ready = false;
   try {

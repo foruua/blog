@@ -1,0 +1,21 @@
+// 渐进式类型检查：只覆盖纯逻辑层（数据访问 + 工具函数 + 配置/设置），不碰 HTML 渲染与路由。
+// 全量 src 会带出约 170 个错误，绝大多数是渲染层拼接 HTML 字符串时的弱类型对象属性访问
+// （比如 `log = () => {}` 推断成零参、`SITE.identity` 这类运行期补的字段），修起来是纯噪音。
+// 想扩大范围时，先把那段代码补上 JSDoc，再把它加进 include —— 一次加一层，别一次全开。
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "target": "ES2023",
+    "lib": ["ES2023"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "types": ["node"],
+    "skipLibCheck": true,
+    "strict": false,
+    "noImplicitAny": false,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["db/**/*.js", "src/util/**/*.js", "src/settings.js", "src/config.js"]
+}

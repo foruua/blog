@@ -3,6 +3,11 @@ import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
 const connections = new Map();
+
+// 连接对象上挂的三个标记（文件路径、已关闭、SQLite 版本）是运行期自用的，node:sqlite 的类型里没有。
+// 用一个交叉类型声明，避免每处 `db.__file` 都要 as any。
+/** @typedef {import('node:sqlite').DatabaseSync & { __file?: string, __closed?: boolean, __sqliteVersion?: string }} TaggedDb */
+
 export function assertDatabaseClosed(file) {
   if (connections.get(path.resolve(file))) throw new Error('恢复前必须关闭所有数据库连接');
 }
@@ -14,6 +19,7 @@ export function open(file) {
   // 默认 0755 会让同机其他用户列目录名（备份/上传子目录一并暴露）。已存在的目录不改权限——
   // 那是运维自己的选择，别替人改。
   fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
+  /** @type {TaggedDb} */
   const db = new DatabaseSync(file);
   db.__file = file;
   connections.set(path.resolve(file), (connections.get(path.resolve(file)) ?? 0) + 1);

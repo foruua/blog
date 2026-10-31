@@ -13,6 +13,17 @@ const COMPLETE_TAG = /<\/?[A-Za-z][^>]*>/g;
 // 未闭合的标签（远端 HTML 截断）也要吃掉，否则半截 `<a href="...` 会进摘要。
 const UNCLOSED_TAG = /<\/?[A-Za-z][^>]*/g;
 
+/**
+ * @typedef {object} StripOptions
+ * @property {boolean} [dropPre] 整块丢掉 pre
+ * @property {boolean} [blockBoundaries] 块级闭合标签换成空格
+ * @property {string} [tagReplacement] 行内标签替换成什么
+ */
+
+/**
+ * @param {string} input
+ * @param {StripOptions} [options]
+ */
 export function stripHtmlTags(input, {
   dropPre = false, blockBoundaries = false, tagReplacement = ' ',
 } = {}) {
@@ -24,6 +35,10 @@ export function stripHtmlTags(input, {
   return text.replace(UNCLOSED_TAG, tagReplacement);
 }
 
+/**
+ * @param {string} input
+ * @param {StripOptions & { decodePasses?: number }} [options]
+ */
 export function htmlToPlainText(input, { decodePasses = 1, ...options } = {}) {
   let text = stripHtmlTags(input, options);
   for (let i = 0; i < Math.max(0, decodePasses); i++) text = decodeEntities(text);

@@ -50,6 +50,8 @@ export const SITE = {
     ? `https://${DOMAIN}`
     : `http://${HOST}:${PORT}`)).replace(/\/$/, ''),
   domain: DOMAIN,
+  // 由 applySiteIdentity() 原地改写；先占位，保证类型稳定（别的字段来自 .env，只有它是算出来的）。
+  identity: '',
 };
 
 SITE.identity = SITE.title || SITE.domain;

@@ -11,7 +11,7 @@ function runCommand(command, args, { timeoutMs = 60000 } = {}) {
       timedOut = true;
       try { process.kill(process.platform === 'win32' ? child.pid : -child.pid, 'SIGKILL'); } catch { child.kill('SIGKILL'); }
     }, timeoutMs); timer.unref?.();
-    child.once('error', (e) => { clearTimeout(timer); resolve({ ok: false, reason: e.code }); });
+    child.once('error', (/** @type {any} */ e) => { clearTimeout(timer); resolve({ ok: false, reason: e.code }); });
     child.once('exit', (code, signal) => { clearTimeout(timer); resolve({ ok: code === 0 && !signal && !timedOut,
       reason: timedOut ? 'timeout' : signal || error.trim().split('\n')[0] || String(code) }); });
   });

@@ -112,6 +112,7 @@ export function formatDay(utcIso, timeZone = SITE_TIME_ZONE) {
 }
 
 /** 站内时区的 YYYY-MM-DD 拆成 [年, 月, 日]；列表、归档与友链共用同一口径。 */
+/** @returns {[string, string, string]} 年 / 月 / 日，三段原样字符串（月日补零）。 */
 export const dayParts = (day) => [day.slice(0, 4), day.slice(5, 7), day.slice(8)];
 export const dayLabel = ([y, m, d]) => `${y} 年 ${Number(m)} 月 ${Number(d)} 日`;
 

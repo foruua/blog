@@ -1,4 +1,8 @@
 // 只记错误类别与堆栈位置；错误文本可能含邮箱、密码或签名 URL。
+/**
+ * @param {any} error
+ * @param {{ event?: string, requestId?: string, method?: string, route?: string }} [meta]
+ */
 export function errorRecord(error, { event = 'request.failed', requestId, method, route } = {}) {
   const safeLabel = (value, fallback) => /^[A-Za-z0-9_.-]{1,80}$/.test(String(value ?? '')) ? String(value) : fallback;
   const frames = String(error?.stack ?? '').split('\n').filter((line) => /^\s+at /.test(line))

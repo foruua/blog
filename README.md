@@ -121,7 +121,7 @@ npx playwright install chromium
 npm test
 ```
 
-`npm test` 先执行 ESLint，再运行隔离的功能回归与浏览器审计；不会读取 `.env` 或修改真实内容和上传目录。单跑一个套件用 `npm test -- --only test-comments`（套件清单只维护在 `scripts/_suites.mjs`，`package.json` 不再为每个套件保留别名）。功能套件各自有独立 fixture，可用 `npm run test:parallel`（`TEST_CONCURRENCY=2`，或 `--concurrency 3`）并行提速；浏览器审计仍串行。浏览器审计缺少运行依赖时明确报告跳过，CI 可使用 `UI_AUDIT_REQUIRED=1 npm test` 要求它必须运行。`test-lifecycle` / `test-maintenance` 里有真实浏览器用例，也需要先装 Chromium；想在无浏览器的机器上只跑功能回归，可用 `UI_AUDIT=off npm test`（仍会执行不需要浏览器的套件）。
+`npm test` 先执行 ESLint、`tsc --noEmit`（只检查 `db/`、`src/util/` 与 `config` / `settings` 这些纯逻辑层，见 `tsconfig.json`）与配色一致性检查，再运行隔离的功能回归与浏览器审计；不会读取 `.env` 或修改真实内容和上传目录。单跑一个套件用 `npm test -- --only test-comments`（套件清单只维护在 `scripts/_suites.mjs`，`package.json` 不再为每个套件保留别名）。功能套件各自有独立 fixture，可用 `npm run test:parallel`（`TEST_CONCURRENCY=2`，或 `--concurrency 3`）并行提速；浏览器审计仍串行。浏览器审计缺少运行依赖时明确报告跳过，CI 可使用 `UI_AUDIT_REQUIRED=1 npm test` 要求它必须运行。`test-lifecycle` / `test-maintenance` 里有真实浏览器用例，也需要先装 Chromium；想在无浏览器的机器上只跑功能回归，可用 `UI_AUDIT=off npm test`（仍会执行不需要浏览器的套件）。只想跑类型检查：`npm run typecheck`。
 
 ## 备份与恢复
 

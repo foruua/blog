@@ -129,7 +129,9 @@ export function createFeedRepo(db) {
     return cursor ? { ts: cursor.ts, feedId: cursor.id } : null;
   }
 
-  function friendsPageFeeds({ perPage, before = null } = {}) {
+  // 必须有 perPage：以前默认 {} 兜底，无参调用会算出 NaN 分页而不是报错，不如直接要求传。
+  /** @param {{ perPage: number, before?: string | null }} options */
+  function friendsPageFeeds({ perPage, before = null }) {
     const cursor = parseCursor(before);
     const rows = cursor
       ? q.friendsQueueAfter.all(cursor.ts, cursor.ts, cursor.feedId, perPage + 1)
