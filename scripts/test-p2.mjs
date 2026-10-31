@@ -117,8 +117,7 @@ const page = await (await fetch(`${BASE}/p/${SLUG}/`)).text();
 
   const homeHtml = await (await fetch(`${BASE}/`)).text();
   check('T56 首页的笔记条目仍是账本行（没被笔记流样式撑高）',
-    /<li class="note"><a[^>]*href="\/n\//.test(homeHtml)
-    || /<li class="note"><a[^>]*href="\/n\//.test(homeHtml), '');
+    /<li class="note[^"]*"><a[^>]*href="\/n\//.test(homeHtml), '');
 
   db.prepare("DELETE FROM posts WHERE slug = 'zz-note'").run();
 }

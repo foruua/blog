@@ -695,7 +695,13 @@ export const ledgerItem = (p, { relative = false } = {}) => {
     : '';
 
   // 标题单独包一层：flex 里的裸文本是匿名 flex item，挂不了 text-overflow（.recent 会用到）；<a title> 是截断兜底；地址同样走 contentUrl()。
-  return `<li${note ? ' class="note"' : ''}><a href="${contentUrl(p)}" title="${esc(p.title)}">${stamp}<span class="e-title"><span class="e-title-text">${esc(p.title)}</span></span><span class="e-kind">${note ? '笔记' : '文章'}</span></a></li>`;
+  // 行尾两枚文字叠在同一格：静止是类型，悬停换成评论数（规则在 style.css 的 .e-tail）。
+  // 0 条不渲染评论数——悬停出一个「0 条讨论」既没信息也不体面；has-comments 让 CSS 只对有讨论的行生效。
+  const comments = Number(p.comments ?? 0);
+  const classes = [note ? 'note' : '', comments > 0 ? 'has-comments' : ''].filter(Boolean).join(' ');
+  const tail = `<span class="e-tail"><span class="e-kind">${note ? '笔记' : '文章'}</span>${
+    comments > 0 ? `<span class="e-talk">${comments} 条讨论</span>` : ''}</span>`;
+  return `<li${classes ? ` class="${classes}"` : ''}><a href="${contentUrl(p)}" title="${esc(p.title)}">${stamp}<span class="e-title"><span class="e-title-text">${esc(p.title)}</span></span>${tail}</a></li>`;
 };
 
 
