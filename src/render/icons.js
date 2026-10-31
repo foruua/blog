@@ -14,6 +14,9 @@ export const ICON_COPYRIGHT = '<svg viewBox="0 0 16 16" fill="none" stroke="curr
 /** 评论气泡（线性）：列表元信息行与友链名片的「图标 + 数字」共用。20 格画布、1.6 描边，与导航图标同族。 */
 export const COMMENT_ICO = '<svg class="e-comments-ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.4 4.2h9.2a2 2 0 0 1 2 2v5.2a2 2 0 0 1-2 2H9.4L6.6 16v-2.6H5.4a2 2 0 0 1-2-2V6.2a2 2 0 0 1 2-2z"/></svg>';
 
+/** 时钟：首页账本行相对时间的前缀。同一套 20 格画布与 1.6 描边，缩到 12px 仍读得出是表盘。 */
+export const CLOCK_ICO = '<svg class="ico-time" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="10" r="7"/><path d="M10 6v4.2l2.7 1.6"/></svg>';
+
 /** 检索放大镜：导航、抽屉搜索框与 404 页共用。20 格画布、1.6 描边。 */
 export const SEARCH_ICO = '<svg class="so-ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="5.6"/><path d="M12.3 12.3 17 17"/></svg>';
 

@@ -38,8 +38,10 @@ export function createRepo(db) {
       ORDER BY published_at DESC, id DESC LIMIT ?`),
     // body_head 只取前 480 字符：首页「最近更新」与 404 的主题数据要 excerpt，
     // 但不该为一小段摘要把整篇正文拖出来。
-    recentEntries: db.prepare(`SELECT id, slug, kind, title, lang, published_at, substr(body_html, 1, 480) AS body_head FROM posts
-      WHERE ${LIVE_ANY} ORDER BY published_at DESC, id DESC LIMIT ?`),
+    // 首页「最近更新」也要讨论数：先给 posts 起别名 p，才能复用按 p.id 关联的 COMMENT_COUNT。
+    recentEntries: db.prepare(`SELECT p.id, p.slug, p.kind, p.title, p.lang, p.published_at,
+        substr(p.body_html, 1, 480) AS body_head, ${COMMENT_COUNT}
+      FROM posts p WHERE ${LIVE_ANY} ORDER BY p.published_at DESC, p.id DESC LIMIT ?`),
     feedAfter: db.prepare(`SELECT ${FEED_COLS} FROM posts
       WHERE ${LIVE_ANY} AND ${CURSOR_AFTER}
       ORDER BY published_at DESC, id DESC LIMIT ?`),
