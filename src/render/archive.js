@@ -9,9 +9,11 @@ function head({ total, posts, notes, years, kind }) {
     mark: 'Archive',
     title: '归档',
     stats: [
-      `<span><b>${total}</b> 篇</span>`,
-      `<span><b>${posts}</b> 文章</span>`,
-      `<span><b>${notes}</b> 笔记</span>`,
+      // 三条统计共用一种语序（名词在前、数字加粗）：原来写作「32 篇 / 14 文章 / 18 笔记」，
+      // 第一条有量词、后两条把名词当量词用，「14 文章」读起来是断的。
+      `<span>共 <b>${total}</b> 篇</span>`,
+      `<span>文章 <b>${posts}</b></span>`,
+      `<span>笔记 <b>${notes}</b></span>`,
 
       span ? `<span class="mast-span">${esc(span)}</span>` : '',
     ].filter(Boolean),

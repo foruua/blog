@@ -753,8 +753,11 @@ ${emptyPage('这一年还没有内容', `换一年看看，或者去 <a href="/a
     const recentRows = repo.recentEntries(3);
     const recentCounts = recentRows.length ? comments.countsOf(recentRows.map((row) => row.id)) : new Map();
     const recent = recentRows.map((row) => shape({ ...row, comments: recentCounts.get(row.id) ?? 0 }));
+    // 光一个「404」两个数字是把人晾在原地：补一句人话和两条出口。
+    // 版式复用 .post-empty 现成的「标题 + 引言」那套（.post-empty .prose 已备好居中与金色下划线），不新增组件。
     const notFoundMain = `<article class="post post-empty post-404">
       <h1 class="post-empty-title">404</h1>
+      <div class="prose"><p>这个地址没有内容，可能被改过名字，也可能从来没存在过。回<a href="/">首页</a>，或者去<a href="/archive/">归档</a>里翻翻。</p></div>
     </article>
     <form class="s-form post-404-search" action="/search" method="get" role="search">
       <div class="s-field">

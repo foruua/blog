@@ -298,9 +298,23 @@ export function snippetAround(text, terms, { radius = 40, max = 120 } = {}) {
     const gap = chars.slice(from, end).lastIndexOf(' ');
     if (gap >= 0) end = Math.max(from + gap + 1, Math.min(chars.length, atEndCp));
   }
+  // 起点落在句尾会切出「…惯。第二条很主观」这种孤字开头（中文没有空格，上面那步退不动）。
+  // 再往前推到最近的句读之后，最多 16 个码点 —— 推太远说明这句比窗口还长，硬推会把命中词挤出画面。
+  // 推到句读之后就不再补前省略号：片段从一句完整的话开始，那个「…」只会让人以为正文被截断在词中间。
+  let atSentence = false;
+  if (start > 0) {
+    if ('。！？；!?;'.includes(chars[start - 1])) {
+      atSentence = true;
+    } else {
+      const stop = Math.min(atCp, start + 16);
+      for (let i = start; i < stop; i += 1) {
+        if ('。！？；!?;'.includes(chars[i])) { start = i + 1; atSentence = true; break; }
+      }
+    }
+  }
   // 两端各 trim 一次：按空格边界退位后，窗口末尾常会剩一个空格（`…charlie …`）。
   const body = chars.slice(start, end).join('').trim();
-  return `${start > 0 ? '…' : ''}${body}${end < chars.length ? '…' : ''}`;
+  return `${start > 0 && !atSentence ? '…' : ''}${body}${end < chars.length ? '…' : ''}`;
 }
 
 // 把命中的词包进 <mark>，其余部分转义。先转义、后包标签，顺序不能反：反过来会把转义出来的 `&amp;`
