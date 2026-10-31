@@ -1409,8 +1409,8 @@ article.post .prose,
   color: var(--fg-soft); font: var(--label-size-sm)/1.3 var(--mono); letter-spacing: .04em;
   cursor: pointer; opacity: .62; transition: opacity .15s, color .15s, border-color .15s;
 }
-.code-copy:hover, .code-copy:focus-visible { opacity: 1; color: var(--accent-read); border-color: var(--accent); }
-.code-copy.is-done { opacity: 1; color: var(--accent-read); border-color: var(--accent); }
+/* 悬停/键盘聚焦与「复制成功」是同一个高亮态，合成一条：三者的声明本来就一模一样。 */
+.code-copy:hover, .code-copy:focus-visible, .code-copy.is-done { opacity: 1; color: var(--accent-read); border-color: var(--accent); }
 /* 复制按钮浮在代码右上角：上方留出一条工具带，代码第一行从按钮下方开始。
    只加右内距挡不住长行 —— 代码横向溢出时会穿过 padding，仍然压在按钮下面（390px 实测）。
    只对已注入按钮的 pre 生效，无 JS 时保持原来的代码尺寸。 */
@@ -2128,9 +2128,9 @@ footer.site .foot-police:hover { color: var(--accent); }
    链接必须保持普通 inline —— inline-flex 的基线取第一个子项（那张图）的底边，
    会让这条链接按「图片底边」去对齐别人的文字基线，实测文字比 ICP 那行高 3.2px，两个备案号看着不齐。
    保持 inline 后，链接的基线就是它自己的文字基线，三段的字自然落在同一条线上；
-   图标位置改用 vertical-align 微调，只影响图标本身。 */
-footer.site .foot-police-ico { height: 14px; width: auto; vertical-align: -.22em; margin-right: .32rem; }
-/* ICP 徽标与警徽同一套对齐：链接保持 inline（基线是文字的），图标单独 vertical-align 微调。 */
+   图标位置改用 vertical-align 微调，只影响图标本身。
+   两枚图标（警徽 / ICP）同一套对齐，故共用一条规则。 */
+footer.site .foot-police-ico,
 footer.site .foot-icp-ico { height: 14px; width: auto; vertical-align: -.22em; margin-right: .32rem; }
 
 
@@ -2803,6 +2803,9 @@ html:not(.has-js) .pal { display: none; }
   /* 触屏把滑块命中区补到 44px；鼠标端保持紧凑。 */
   .pal-custom input[type="range"] { height: 2.75rem; }
 }
+/* 轨道的 webkit / moz 两份必须分开写，不能合成一条选择器列表：
+   一个列表里只要有当前浏览器不认识的伪元素，整条规则会被丢弃 —— Chrome 看到 ::-moz-range-track
+   就整条作废，滑块轨道样式直接消失。下面三组「看起来重复」的规则都是这个原因，别合并。 */
 .pal-custom input[type="range"]::-webkit-slider-runnable-track {
   height: .5rem; border-radius: var(--radius-pill);
   background: var(--hue-track);
