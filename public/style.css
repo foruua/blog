@@ -515,27 +515,10 @@ body.mnav-open .mnav-panel { transform: none; opacity: 1; }
 }
 .hero-slide { position: relative; }
 
-/* 封面视频与图同宽同圆角：服务端已统一 16:9，首帧海报由 media.thumbnail 提供。
-   自动播放被策略拦下、或播放器卡住时，脚本会把 video 换成同一位置的 .hero-fallback 海报。 */
-.hero-figure video {
-  display: block; margin: 0 auto;
-  width: 100%; height: auto; aspect-ratio: var(--hero-ar);
-  object-fit: cover;
-  background: #000;
-  border-radius: calc(var(--radius) - var(--hero-frame-pad) - 1px);
-}
-.hero-figure video[hidden] { display: none; }
-.hero-figure .hero-fallback { width: 100%; }
-/* 鸿蒙 ArkWeb 把 <video> 画在独立原生层上，z-index 压不住：抽屉/模态打开时把封面视频移出合成，
-   只留海报/页面本身；关闭后照常恢复。 */
-html.modal-open .hero-figure video,
-body.mnav-open .hero-figure video { visibility: hidden; }
-
 /* 轮播的几张 slide 叠在同一网格单元（见 .hero-track）。这条 width: 100% 是**审计硬要求**：Chrome 判「图有没有尺寸」看计算样式 IsUnsizedImage()，img 基础规则的 width:auto 在轮播里就成了「没尺寸」；补百分比宽度配合行内 aspect-ratio 才算有尺寸。 */
 .hero-figure .hero-slide { width: 100%; }
 /* 封面图可点（开灯箱，data-lightbox="hero"）：光标得说出来。与正文插图同一规矩 —— 只在 .has-js 下给 zoom-in（没有 JS 时 data-lightbox 只是没人理的属性，光标不该骗人）。 多图轮播时只有当前那张接指针，所以也只有露出来的那张会变放大镜。 */
 .has-js .hero-figure img[data-lightbox] { cursor: zoom-in; }
-.has-js .hero-figure video[data-lightbox] { cursor: pointer; }
 
 /* 首页封面轮播（后台多张图才有）。slide 叠成一层，CSS 默认只露第一张 —— 无 JS 读者看到 一张安静封面；控制条本来 hidden，由 app.js 揭开，不会出现按了没反应的假按钮。
    切换走「先出后入」两段，不做交叉淡入 —— 交叉淡入的半途两张封面同时半透明（实测 0.494 / 0.506 并存），
@@ -2212,19 +2195,6 @@ footer.site .foot-icp-ico { height: 14px; width: auto; vertical-align: -.22em; m
 }
 .lb-img.is-zoomed { cursor: grab; }
 .lb-img.is-zoomed:active { cursor: grabbing; }
-/* 灯箱视频：比例与图片同一套算法（84vh 折算高度上限，--lb-ar 由脚本按源文件写）。
-   原生控制条自己管播放/音量/全屏，不挂图片那套缩放手势。 */
-.lb-video {
-  display: block;
-  width: auto; height: auto;
-  max-width: min(92vw, calc(84vh * var(--lb-ar, 1000))); max-height: 84vh;
-  margin: 0 auto;
-  object-fit: contain;
-  border-radius: var(--radius);
-  background: #000;
-  box-shadow: 0 40px 90px -40px rgba(0, 0, 0, .9);
-}
-.lb-video[hidden], .lb-zoom[hidden] { display: none; }
 .lb-close, .lb-nav, .lb-zoom {
   position: fixed; z-index: 2;
   display: grid; place-items: center;

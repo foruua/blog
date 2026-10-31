@@ -3,13 +3,12 @@ import { esc, decodeHtmlAttribute, htmlAttr } from '../util/text.js';
 import { ICON_CLOSE } from './icons.js';
 import { IMG_TAG_RE, aspectRatioStyle } from './media-tag.js';
 
-/** 灯箱（点图看大图 / 点封面视频播放）。弹窗纯静态，交互全在 public/app.js（监听 [data-lightbox]、用 data-full 取展示图或视频、按 data-lightbox 串同组媒体翻页）；哪些媒体能点完全由标记决定。 */
+/** 灯箱（点图看大图）。弹窗纯静态，交互全在 public/app.js（监听 [data-lightbox]、用 data-full 取展示图、按 data-lightbox 串同组图片翻页）；哪些图片能点完全由标记决定。 */
 
-export const lightboxHtml = `  <dialog class="lightbox" id="lightbox" aria-label="媒体查看">
-    <button type="button" class="lb-close" data-lb-close aria-label="关闭媒体查看">${ICON_CLOSE}</button>
+export const lightboxHtml = `  <dialog class="lightbox" id="lightbox" aria-label="图片查看">
+    <button type="button" class="lb-close" data-lb-close aria-label="关闭图片查看">${ICON_CLOSE}</button>
     <button type="button" class="lb-nav lb-prev" data-lb-prev aria-label="上一张">‹</button>
     <img class="lb-img" alt="">
-    <video class="lb-video" controls playsinline hidden></video>
     <button type="button" class="lb-nav lb-next" data-lb-next aria-label="下一张">›</button>
     <!-- 「第 3 / 12 张」由 app.js 的 lbShow() 改写，所以这里要是个 live region：
          翻页时视觉上看得到换了张，读屏不播报就等于什么都没发生。 -->

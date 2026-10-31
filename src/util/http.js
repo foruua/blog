@@ -4,7 +4,6 @@ import os from 'node:os';
 import path from 'node:path';
 import { getConnInfo } from '@hono/node-server/conninfo';
 import { SITE, MAX_THEME_ZIP } from '../config.js';
-import { MAX_COVER_VIDEO_BYTES } from '../media/video.js';
 import { envPositive } from './env.js';
 
 // 真实客户端 IP：仅当 TRUST_PROXY 且直连对端是受信任代理时，才取 X-Forwarded-For 链尾。
@@ -194,13 +193,11 @@ async function spoolRawUpload(c, { limit, timeoutMs }) {
   }
 }
 
-// 请求体上限规则集中一处：raw 走流式落盘，沿用 MAX_UPLOAD（默认不限）；封面视频用独立 40MB 上限；
+// 请求体上限规则集中一处：上传的两条路径上限不同——raw 走流式落盘，沿用 MAX_UPLOAD（默认不限）；
 // multipart 整块进内存，用独立的保守上限兜底，避免旧表单一次误用就吃掉整个堆。
 const MEDIA_WRITE_RE = /\/comment$|^\/moderate\//;
 export function bodyLimitFor({ path: p, contentType, isUpload = false, isThemeUpload = false }) {
   const isMultipart = contentType.includes('multipart/form-data');
-  // 封面视频有独立上限：raw/multipart 都在读流阶段就拦住，别先落盘再拒。
-  if (p === '/admin/api/hero-video') return MAX_COVER_VIDEO_BYTES + 65536;
   if (isUpload) return (isMultipart ? MAX_MULTIPART_UPLOAD : MAX_UPLOAD) + 65536;
   if (isThemeUpload) return MAX_THEME_ZIP + 65536;
   if (p === '/admin/login') return 4096;
@@ -229,11 +226,10 @@ export function boundedBody() {
     // 路径先归一化尾斜杠再比较：Hono 开了 strict:false，/admin/api/upload/ 也会命中上传处理器，
     // 否则它会落到默认分支、把合法上传按 1MB 快速拒绝。
     const p = c.req.path.replace(/\/+$/, '');
-    // 首页封面视频也走原始二进制直传：同样要流式落临时文件，不能按普通表单的 1MB 上限拒掉。
-    const isUpload = p === '/admin/api/upload' || p === '/admin/api/hero-video';
+    const isUpload = p === '/admin/api/upload';
     // 主题 ZIP 也是文件上传：不能落进普通表单的 1MB 上限（截图稍大一点就传不上去）。
     const isThemeUpload = p === '/admin/themes/upload';
-    // 这些上传都在鉴权之前读请求体，必须共用并发闸门：否则未登录请求也能用大文件打内存/磁盘。
+    // 两者都在鉴权之前整块读请求体，必须共用并发闸门：否则未登录请求也能用 10MB 主题包打内存。
     const needsUploadSlot = isUpload || isThemeUpload;
     const releaseUpload = needsUploadSlot ? enterUploadSlot() : null;
     if (needsUploadSlot && !releaseUpload) {

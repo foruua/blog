@@ -27,9 +27,9 @@
   window.__reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   // 原始文件直传（编辑器插图、首页封面共用）：服务端流式落临时文件，走 600 秒窗口，
-  // 别被 15 秒的默认超时先掐断。视频走 endpoint 指定的转码接口，返回服务端 JSON，调用方自己判 out.ok。
-  window.__uploadRaw = async (file, { signal, endpoint = '/admin/api/upload' } = {}) => {
-    const res = await window.__request(endpoint, {
+  // 别被 15 秒的默认超时先掐断。返回服务端 JSON，调用方自己判 out.ok。
+  window.__uploadRaw = async (file, { signal } = {}) => {
+    const res = await window.__request('/admin/api/upload', {
       method: 'POST',
       headers: {
         'x-csrf-token': window.__csrf(),

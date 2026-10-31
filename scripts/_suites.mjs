@@ -9,4 +9,4 @@ const SUITE_GROUPS = {
 
 export const FUNCTIONAL_SUITES = Object.values(SUITE_GROUPS).flat();
 export const BROWSER_SUITES = ['test-media-browser', 'test-popup-buttons', 'test-dialog-scroll',
-  'test-lightbox', 'test-hero-a11y', 'test-hero-video', 'test-ui-improvements', 'test-ui-contract'];
+  'test-lightbox', 'test-hero-a11y', 'test-ui-improvements', 'test-ui-contract'];

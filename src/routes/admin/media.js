@@ -2,8 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { ADMIN_PAGE_SIZE, UPLOADS_DIR, DATA_DIR } from '../../config.js';
 import { mediaPage, mediaDeletePage, mediaDetailPage, mediaDetailContent } from '../../admin/views/media.js';
-import { variantFile, thumbnailFile, previewSrcsetOf, previewSourceOf, originalPathOf, parseVariants, serializeVariants, expandMediaPaths, isVideoMedia } from '../../media/variants.js';
-import { transcodeHeroVideo, HERO_VIDEO_MAX_SOURCE_BYTES } from '../../media/transcode.js';
+import { variantFile, thumbnailFile, previewSrcsetOf, previewSourceOf, originalPathOf, parseVariants, serializeVariants, expandMediaPaths } from '../../media/variants.js';
 import { deleteWithFiles } from '../../content/commit.js';
 import { mediaFile } from '../../media/paths.js';
 import { MAX_UPLOAD } from '../../util/http.js';
@@ -214,105 +213,6 @@ export function registerMediaRoutes(app, { repo, adminRepo, mutate = (fn) => fn(
         console.warn(JSON.stringify({ event: 'media.variant-failed', width: v.width, message: v.message, path: rel }));
       }
       return c.json({ ok: true, url: rel, thumbnail: thumbnailFile(rel), width: size?.width, height: size?.height, bytes });
-    });
-  });
-
-  // 首页封面视频：源文件只做一次转码，产出统一的 16:9 MP4 + 首帧海报，再按图片同一套哈希命名入库。
-  // 与图片上传共用并发闸门与临时文件；转码在写队列外完成，只有落盘后的短事务进 mutate。
-  const VIDEO_ERRORS = {
-    UNSUPPORTED_VIDEO: ['只支持 MP4 / WebM / MOV 视频', 415],
-    VIDEO_OUTPUT_TOO_LARGE: ['视频转码后仍超过 3MB，请缩短或换更简单的画面', 413],
-    VIDEO_TIMEOUT: ['视频转码超时，请换一个更短的视频', 408],
-    FFMPEG_MISSING: ['服务器缺少 ffmpeg，暂时无法转码视频', 503],
-    VIDEO_ENCODE_FAILED: '视频解码失败或格式不支持，请换一个 MP4 再试',
-  };
-  externalWrite(app, '/admin/api/hero-video', async (c) => {
-    const temp = c.get('uploadTemp');
-    if (!temp) return c.json({ ok: false, error: '请用原始文件上传视频' }, 400);
-    if (!(temp.size > 0)) return c.json({ ok: false, error: '视频文件是空的' }, 400);
-    if (temp.size > HERO_VIDEO_MAX_SOURCE_BYTES) {
-      return c.json({ ok: false, error: `视频超过 ${Math.round(HERO_VIDEO_MAX_SOURCE_BYTES / 1048576)}MB` }, 413);
-    }
-    let filename = c.req.header('x-file-name') ?? '';
-    try { filename = decodeURIComponent(filename).slice(0, 200); } catch { filename = filename.slice(0, 200); }
-    const hash = await sha256File(temp.file);
-
-    const dup = adminRepo.mediaByHash(hash);
-    if (dup && isVideoMedia(dup) && mediaComplete(dup)) {
-      return mutate(() => {
-        if (!dup.original_bytes) adminRepo.mediaSetOriginalBytes(dup.id, temp.size);
-        return c.json({
-          ok: true, url: dup.path, thumbnail: previewSourceOf(dup), width: dup.width, height: dup.height,
-          bytes: dup.bytes, duration: 0, deduped: true,
-        });
-      });
-    }
-
-    let converted;
-    try { converted = await transcodeHeroVideo(temp.file); }
-    catch (error) {
-      const mapped = VIDEO_ERRORS[error?.code] ?? VIDEO_ERRORS.VIDEO_ENCODE_FAILED;
-      const [message, status] = Array.isArray(mapped) ? mapped : [mapped, 415];
-      if (error?.code && error.code !== 'UNSUPPORTED_VIDEO' && error.code !== 'VIDEO_OUTPUT_TOO_LARGE') {
-        console.warn(JSON.stringify({ event: 'hero.video-transcode-failed', code: error.code, message: String(error.message ?? '').slice(0, 200) }));
-      }
-      return c.json({ ok: false, error: message }, status);
-    }
-
-    const now = new Date();
-    const y = String(now.getUTCFullYear());
-    const m = String(now.getUTCMonth() + 1).padStart(2, '0');
-    const dir = path.join(UPLOADS_DIR, y, m);
-    const abs = path.join(dir, `${hash.slice(0, 16)}.mp4`);
-    const posterAbs = `${abs}.poster.webp`;
-    const rel = `/uploads/${y}/${m}/${path.basename(abs)}`;
-    const posterRel = `${rel}.poster.webp`;
-    const createdFiles = [];
-    const cleanupOnError = () => { for (const f of createdFiles) fs.rmSync(f, { force: true }); };
-
-    try {
-      fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-      mediaFile(rel);
-      mediaFile(posterRel);
-      fs.mkdirSync(dir, { recursive: true });
-      await writeIfAbsentAsync(abs, converted.buffer, createdFiles);
-      await writeIfAbsentAsync(posterAbs, converted.poster, createdFiles);
-      syncDirectory(dir);
-    } catch (e) {
-      cleanupOnError();
-      throw e;
-    }
-
-    return mutate(() => {
-      const again = adminRepo.mediaByHash(hash);
-      if (again && isVideoMedia(again) && mediaComplete(again)) {
-        const keep = new Set(expandMediaPaths(again)
-          .map((p) => path.join(UPLOADS_DIR, p.replace(/^\/uploads\//, ''))));
-        for (const f of createdFiles) if (!keep.has(f)) fs.rmSync(f, { force: true });
-        return c.json({
-          ok: true, url: again.path, thumbnail: previewSourceOf(again), width: again.width, height: again.height,
-          bytes: again.bytes, duration: 0, deduped: true,
-        });
-      }
-      try {
-        repo.transaction(() => {
-          if (again) adminRepo.mediaDelete(again.id);
-          adminRepo.mediaAdd({
-            path: rel, thumbnail: posterRel, width: converted.width, height: converted.height,
-            bytes: converted.buffer.length, originalBytes: temp.size,
-            mime: 'video/mp4', hash, filename, variants: null, animated: false,
-          });
-          bumpMediaRevision(repo);
-        });
-      } catch (e) {
-        cleanupOnError();
-        throw e;
-      }
-      return c.json({
-        ok: true, url: rel, thumbnail: posterRel, width: converted.width, height: converted.height,
-        bytes: converted.buffer.length, sourceBytes: temp.size, duration: converted.duration,
-        truncated: converted.truncated,
-      });
     });
   });
 

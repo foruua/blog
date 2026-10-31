@@ -34,8 +34,6 @@ export function expandMediaPaths(row) {
 
 export const IMAGE_PLACEHOLDER = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
 
-export const isVideoMedia = (media) => String(media?.mime ?? '').startsWith('video/');
-
 /** 媒体表没有这一行时退回原图（只接受站内路径）；外站/数据地址才用占位图。 */
 export const mediaFallback = (original) => (typeof original === 'string'
   && original.startsWith('/') && !original.startsWith('//') ? original : IMAGE_PLACEHOLDER);
@@ -53,13 +51,10 @@ function staticVariants(media, parsed = parseVariants(media?.variants)) {
 
 // parsed 可由调用方传入复用（info.js 一次要算四处，避免四次 JSON.parse）。
 export function previewSrcsetOf(media, maxWidth = 960, parsed) {
-  if (isVideoMedia(media)) return '';
   return srcsetOf(media?.path, staticVariants(media, parsed), Math.min(media?.width || maxWidth, maxWidth));
 }
 
 export function previewSourceOf(media, preferredWidth = 480, parsed) {
-  // 视频没有静态变体：媒体库/封面/选择器统一用转码时抽出来的首帧海报。
-  if (isVideoMedia(media)) return media?.thumbnail ?? IMAGE_PLACEHOLDER;
   const variants = staticVariants(media, parsed).sort((a, b) => a.w - b.w);
   return variants.find((v) => v.w >= preferredWidth)?.path
     ?? variants.at(-1)?.path
@@ -71,8 +66,6 @@ export function previewSourceOf(media, preferredWidth = 480, parsed) {
 // animated 为 NULL 是加这列之前的老记录，GIF 保守视为可能动画。其余一律用最大档 WebP 变体：同分辨率下体积
 // 通常只有原图（常见是 PNG 截图）的个位数百分比，且缩略图/正文里大概率已下过同名文件、能命中浏览器缓存。
 export function fullSourceOf(media, parsed) {
-  // 视频的「完整展示图」只能是海报：正文/分享图仍按图片口径，视频本身由封面视频链路直接取 path。
-  if (isVideoMedia(media)) return media?.thumbnail ?? IMAGE_PLACEHOLDER;
   const animates = media?.animated == null ? media?.mime === 'image/gif' : Boolean(media.animated);
   if (animates) return media?.path ?? IMAGE_PLACEHOLDER;
   const variants = staticVariants(media, parsed);

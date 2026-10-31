@@ -18,7 +18,7 @@ const release = apply ? acquireMaintenanceLock([DB_FILE, CONTENT_DIR, UPLOADS_DI
 const db = apply ? open(DB_FILE) : new DatabaseSync(DB_FILE, { readOnly: true });
 if (apply) migrate(db, { log() {} });
 
-// 只补图片。视频行（mime=video/*，首页封面用）由转码链路自己维护原片与首帧海报，这里跳过。
+// 只补图片。视频支持已下线，库里残留的非图片记录（历史数据）跳过后仍留在列表里，好让人能删掉。
 const rows = db.prepare("SELECT id, path, width, height, thumbnail, variants, animated FROM media WHERE COALESCE(mime, '') = '' OR mime LIKE 'image/%' ORDER BY id").all();
 const update = db.prepare('UPDATE media SET thumbnail = ?, variants = ?, width = ?, height = ?, animated = ? WHERE id = ? AND path = ? AND thumbnail IS ? AND variants IS ?');
 const absOf = mediaFile;

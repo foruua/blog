@@ -358,14 +358,12 @@
     const form = $('heroForm');
     if (!form) return;
     const file = $('heroFile');
-    const videoFile = $('heroVideoFile');
     const input = $('heroImages');
     const list = $('heroList');
     const x = $('heroX');
     const state = $('heroState');
-    // 图片选择器仍只收图片：也挡住把 .mp4 改名成 .png 混进来的情况。视频走独立的转码接口。
+    // 封面只收图片。上传接口已只收图片，这里再挡一道：也挡住把 .mp4 改名成 .png 混进来的情况。
     const NON_IMAGE_RE = /\.(?:mp4|webm|mov|m4v)(?:$|[?#])/i;
-    const VIDEO_RE = NON_IMAGE_RE;
     const MAX = 8;
     let items = [];
     try { items = JSON.parse(input.value).filter((it) => it && it.path); } catch { items = []; }
@@ -433,21 +431,16 @@
       btn.setAttribute('aria-label', `从列表移除第 ${i + 1} 项`);
       btn.textContent = '×';
       fig.append(shot, cap, btn);
-      if (VIDEO_RE.test(it.path)) {
-        const kind = document.createElement('span');
-        kind.className = 'a-hero-kind';
-        kind.textContent = '视频';
-        fig.append(kind);
-      }
       return fig;
     };
 
     // 末尾「添加」格：空列表铺满一行；到上限就没有（跟服务端同一套）
-    const addTile = (id, label) => {
+    const addTile = () => {
+      if (items.length >= MAX) return null;
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'a-hero-add';
-      btn.id = id;
+      btn.id = 'heroPick';
       if (!items.length) btn.dataset.wide = '1';
       const plus = document.createElement('span');
       plus.className = 'a-hero-add-plus';
@@ -455,18 +448,16 @@
       plus.textContent = '＋';
       const txt = document.createElement('span');
       txt.className = 'a-hero-add-txt';
-      txt.textContent = label;
+      txt.textContent = '添加图片';
       btn.append(plus, txt);
       return btn;
     };
-    const addTiles = () => (items.length >= MAX
-      ? []
-      : [addTile('heroPick', '添加图片'), addTile('heroPickVideo', '添加视频')]);
 
     const render = () => {
       input.value = JSON.stringify(items);
       list.style.setProperty('--hero-ar', '16 / 9');
-      list.replaceChildren(...items.map(tile), ...addTiles());
+      const add = addTile();
+      list.replaceChildren(...items.map(tile), ...(add ? [add] : []));
       list.classList.toggle('is-empty', !items.length);
       x.hidden = !items.length;
     };
@@ -493,10 +484,6 @@
     // 缩略格与「添加」格每次重画，监听挂容器上（委托），别挂节点上
     list.addEventListener('click', (e) => {
       if (suppressClick) return;
-      if (e.target.closest?.('#heroPickVideo')) {
-        videoFile?.click();
-        return;
-      }
       if (e.target.closest?.('#heroPick')) {
         if (heroPicker) heroPicker.open();
         else file?.click();
@@ -613,31 +600,6 @@
       render();
       if (added) state.textContent = `已加 ${added} 项 —— 记得点保存${failed ? `（${failed} 项失败）` : ''}`;
       else if (!failed) state.textContent = '';
-    });
-
-    // 视频：上传后在服务端转成统一的 16:9 MP4 + 首帧海报，返回与图片同样的 {url,width,height,thumbnail}。
-    videoFile?.addEventListener('change', async () => {
-      const picked = [...(videoFile.files ?? [])][0];
-      videoFile.value = '';
-      if (!picked) return;
-      if (items.length >= MAX) { state.textContent = `最多 ${MAX} 项，先移掉几项再传`; return; }
-      state.textContent = `上传并转码 ${picked.name}…`;
-      try {
-        const out = await window.__uploadRaw(picked, { endpoint: '/admin/api/hero-video' });
-        if (!out.ok) { state.textContent = `视频上传失败：${out.error}`; return; }
-        if (items.some((it) => it.path === out.url)) {
-          state.textContent = '这个视频已经在列表里了';
-          return;
-        }
-        items.push({ path: out.url, w: String(out.width ?? ''), h: String(out.height ?? '') });
-        thumbs[out.url] = out.thumbnail || '';
-        render();
-        const note = out.truncated ? '，已截取前 8 秒' : '';
-        state.textContent = `已加视频（${Number(out.duration) > 0 ? `${Math.round(Number(out.duration) * 10) / 10} 秒` : '时长未知'}${note}）—— 记得点保存`;
-        (list.querySelector('#heroPick') ?? [...list.querySelectorAll('[data-hero-remove]')].at(-1))?.focus();
-      } catch (err) {
-        state.textContent = `视频上传失败：${err.message}`;
-      }
     });
 
     render();

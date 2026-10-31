@@ -40,7 +40,7 @@ BLOG_DEPLOY_NODE=/opt/node24/bin/node \
 
 默认服务名 `blog`、应用目录 `/srv/blog`、发布目录 `/srv/blog-releases`、Node 路径 `/usr/bin/node`，可分别用 `BLOG_DEPLOY_SERVICE`、`BLOG_DEPLOY_APP_ROOT`、`BLOG_DEPLOY_RELEASE_ROOT`、`BLOG_DEPLOY_NODE` 覆盖；服务运行用户默认 `blog`，用 `BLOG_DEPLOY_USER` 改；保留最近 N 个发布版本用 `BLOG_DEPLOY_KEEP_RELEASES`（默认 5，0 = 不清理）。当前生产用官方 Node 24.22.2，装在 `/opt/node24`，所以发布时传 `BLOG_DEPLOY_NODE`，让 `npm ci`、语法检查、备份和恢复演练都用同一个 Node。发布前会做 Node 语法检查（`.js` 与 `.mjs`）、依赖安装（以服务用户执行，不用 root 跑 postinstall）、静态资源预构建（`npm run build:assets`，随后裁掉 devDependencies）、健康检查，失败自动回滚。
 
-生产机的 Nginx 上传上限要覆盖图片/封面视频上限：服务端默认不限单文件体积，`client_max_body_size`（当前 40m）就是实际上限，要传更大的文件就同步调大它；封面视频源文件也限 40MB。`proxy_read_timeout` / `proxy_send_timeout` 放到 300s。完整装机步骤、DNS/ICP 与异地备份见 [`docs/deploy-tencent.md`](docs/deploy-tencent.md)。
+生产机的 Nginx 上传上限要覆盖图片上限：服务端默认不限单文件体积，`client_max_body_size`（当前 40m）就是实际上限，要传更大的图就同步调大它；`proxy_read_timeout` / `proxy_send_timeout` 放到 300s。完整装机步骤、DNS/ICP 与异地备份见 [`docs/deploy-tencent.md`](docs/deploy-tencent.md)。
 
 ### 发布回滚
 
@@ -97,7 +97,7 @@ date: 2026-10-11 10:00
 
 后台「外观」页可以安装、启用、预览和配置主题。所有主题统一放在 `themes/<id>/`，没有「内置 / 用户安装」两套目录：上传的主题直接进 `themes/`，随完整备份一起归档。站点始终有一个主题在用；使用中的主题不能删除，必须先启用其它主题。主题是 Liquid 模板包，不执行服务端 JavaScript；按 `home`、`single-post`、`page`、`archive`、`search`、`404` 等模板层级覆盖页面，缺失的模板会回退，渲染失败也会自动兜底，不会白屏。仓库自带的 `classic` 主题只提供 layout 外壳，页面正文由内置渲染输出；结构、模板层级、上下文与安全边界见 [`docs/themes.md`](docs/themes.md)，`scripts/fixtures/fixture/` 是覆盖全部模板层级的可运行骨架，复制到 `themes/<id>/` 改名即可起步。
 
-首页封面是一组图片/视频（可轮播，最多 8 项），只收站内上传的文件。视频限 8 秒、40MB，服务端用 ffmpeg 统一转成 960×540 H.264 MP4（无音轨）并抽首帧海报；封面静音自动循环，点击打开灯箱播放。转码默认用可选依赖 `ffmpeg-static`（随 `npm ci` 安装；装不上时用 `FFMPEG_PATH` 指向系统 ffmpeg）。
+首页封面是一组图片（可轮播，最多 8 张），只收站内上传的图片。
 
 后台「设置」页按「改得最勤的放最前」排列，每块是独立表单，保存即生效、不必重启进程：
 
@@ -112,7 +112,7 @@ date: 2026-10-11 10:00
 
 图片灯箱支持点击图片或按钮放大、拖动查看、滚轮缩放，键盘 `+` / `-` 缩放、`0` 还原。手机支持双指缩放；还原状态下左右滑动切换同组照片，放大状态下单指拖动查看。切图或关闭会重置缩放，后台原图查看也支持放大。
 
-后台「插入图片」支持 PNG / JPEG / GIF / WebP（不接受 SVG：它可携带脚本），按内容哈希原样存进 `data/uploads`，正文里写成 `![说明](地址)`；`/uploads/*` 支持 Range 分片。体积默认不限（`MAX_UPLOAD_BYTES` 设正数可恢复上限）；解码默认有 8000 万像素的保护上限（`MAX_INPUT_PIXELS` 可调，防解码占内存），动画按全部帧的像素总量计。后台新上传路径会把原始请求体流式落到临时文件再处理，避免大文件整块占满 Node 堆。首页封面视频走独立的 `/admin/api/hero-video` 转码入口，不会让正文插图接口接受视频。
+后台「插入图片」支持 PNG / JPEG / GIF / WebP（不接受 SVG：它可携带脚本），按内容哈希原样存进 `data/uploads`，正文里写成 `![说明](地址)`；`/uploads/*` 支持 Range 分片。体积默认不限（`MAX_UPLOAD_BYTES` 设正数可恢复上限）；解码默认有 8000 万像素的保护上限（`MAX_INPUT_PIXELS` 可调，防解码占内存），动画按全部帧的像素总量计。后台新上传路径会把原始请求体流式落到临时文件再处理，避免大文件整块占满 Node 堆。
 
 ## 验证
 

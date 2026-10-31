@@ -12,7 +12,6 @@ import {
 import { systemPage } from '../../admin/views/system.js';
 import { EMAIL_LOOSE_RE } from '../../util/validation.js';
 import { isSafeUploadPath } from '../../util/url.js';
-import { isVideoSource } from '../../media/video.js';
 import { smtpTestLetter } from '../../email/letters.js';
 
 
@@ -175,25 +174,25 @@ export function registerSettingsRoutes(app, { repo, crypt, adminRepo, mutate = (
     return isSafeUploadPath(u);
   }
 
-  // 封面收图片或服务端转码后的视频：优先看媒体库记录的 MIME；记录已被清掉的老路径退回扩展名判断。
-  const MEDIA_EXT_RE = /\.(?:png|jpe?g|gif|webp|avif|mp4|webm|mov)(?:$|[?#])/i;
-  function heroMediaOk(path) {
+  // 封面只能是图片：优先看媒体库记录的 MIME；记录已被清掉的老路径退回扩展名判断。
+  const IMAGE_EXT_RE = /\.(?:png|jpe?g|gif|webp|avif)(?:$|[?#])/i;
+  function heroImageOk(path) {
     if (!heroUrlOk(path)) return false;
     const mime = String(adminRepo.mediaByPath(path)?.mime ?? '');
-    return mime ? (mime.startsWith('image/') || mime.startsWith('video/')) : MEDIA_EXT_RE.test(path);
+    return mime ? mime.startsWith('image/') : IMAGE_EXT_RE.test(path);
   }
 
   function heroFormState() {
     return {
       images: heroImages(repo).map((im) => {
         const item = adminRepo.mediaByPath(im.path);
-        return { ...im, thumbnail: previewSourceOf(item, 960), video: isVideoSource(im.path) };
+        return { ...im, thumbnail: previewSourceOf(item, 960) };
       }),
       overlay: heroOverlay(repo),
     };
   }
 
-  /** 表单里那份 JSON：只收 {path,w,h}，路径必须是站内上传的图片或视频地址，同一项不重复。 */
+  /** 表单里那份 JSON：只收 {path,w,h}，路径必须是站内上传的图片地址，同一张图不重复。 */
   function parseHeroList(raw) {
     let data;
     try { data = JSON.parse(raw); } catch { return '首页封面数据不是合法的 JSON'; }
@@ -204,7 +203,7 @@ export function registerSettingsRoutes(app, { repo, crypt, adminRepo, mutate = (
       const path = String(it?.path ?? '').trim();
       if (!path) return '首页封面列表里有空的地址';
       if (!heroUrlOk(path)) return `首页封面只能用站内上传的地址（/uploads/…）：${path}`;
-      if (!heroMediaOk(path)) return `首页封面只能用图片或视频：${path}`;
+      if (!heroImageOk(path)) return `首页封面只能用图片：${path}`;
       if (seen.has(path)) return `同一项重复出现：${path}`;
       seen.add(path);
       const dim = (v) => (/^\d{1,5}$/.test(String(v ?? '').trim()) ? String(v).trim() : '');
@@ -224,7 +223,7 @@ export function registerSettingsRoutes(app, { repo, crypt, adminRepo, mutate = (
     } else {
       const url = val(b, 'url').trim();
       if (url && !heroUrlOk(url)) return `首页封面只能用站内上传的地址（/uploads/…）：${url}`;
-      if (url && !heroMediaOk(url)) return `首页封面只能用图片或视频：${url}`;
+      if (url && !heroImageOk(url)) return `首页封面只能用图片：${url}`;
       const dim = (k) => (/^\d{1,5}$/.test(val(b, k).trim()) ? val(b, k).trim() : '');
       list = url ? [{ path: url, w: dim('w'), h: dim('h') }] : [];
     }
@@ -252,16 +251,16 @@ export function registerSettingsRoutes(app, { repo, crypt, adminRepo, mutate = (
       const data = JSON.parse(val(body, 'images') || '[]');
       if (Array.isArray(data)) images = data.map((it) => ({
         path: String(it?.path ?? ''), w: String(it?.w ?? ''), h: String(it?.h ?? ''),
-      })).filter((it) => it.path && heroMediaOk(it.path));
+      })).filter((it) => it.path && heroImageOk(it.path));
     } catch { /* 保留空列表，至少显示错误 */ }
     if (!images.length) {
       const url = val(body, 'url').trim();
-      if (url && heroMediaOk(url)) images = [{ path: url, w: val(body, 'w'), h: val(body, 'h') }];
+      if (url && heroImageOk(url)) images = [{ path: url, w: val(body, 'w'), h: val(body, 'h') }];
     }
     const hero = {
       images: images.map((im) => {
         const item = adminRepo.mediaByPath(im.path);
-        return { ...im, thumbnail: previewSourceOf(item, 960), video: isVideoSource(im.path) };
+        return { ...im, thumbnail: previewSourceOf(item, 960) };
       }),
       overlay: val(body, 'overlay').trim().slice(0, HERO_OVERLAY_MAX),
     };

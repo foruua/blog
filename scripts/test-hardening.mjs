@@ -691,18 +691,14 @@ await test('T15a 代码读取的每个环境变量都在 .env.example 里有说�
   assert.deepEqual(missing, [], `以下环境变量被代码读取但未写进 .env.example：${missing.join(', ')}`);
 });
 
-await test('T15b 旧 multipart 上传有独立上限，raw 路径不受它约束；封面视频另有 40MB 上限', async () => {
+await test('T15b 旧 multipart 上传有独立上限，raw 路径不受它约束', async () => {
   const { bodyLimitFor, MAX_MULTIPART_UPLOAD, MAX_UPLOAD } = await import('../src/util/http.js');
   const { MAX_THEME_ZIP } = await import('../src/config.js');
-  const { MAX_COVER_VIDEO_BYTES } = await import('../src/media/video.js');
   const mp = { path: '/admin/api/upload', contentType: 'multipart/form-data; boundary=x', isUpload: true };
   const raw = { path: '/admin/api/upload', contentType: 'application/octet-stream', isUpload: true };
   assert.equal(bodyLimitFor(mp), MAX_MULTIPART_UPLOAD + 65536, 'multipart 必须走独立上限');
   assert.equal(bodyLimitFor(raw), MAX_UPLOAD + 65536, 'raw 流式上传不该被 multipart 上限误伤');
   assert.equal(bodyLimitFor({ path: '/admin/themes/upload', contentType: 'multipart/form-data; boundary=x', isThemeUpload: true }), MAX_THEME_ZIP + 65536);
-  // 封面视频在 raw 与 multipart 两条路径都按 40MB 上限读，不能沿用无界的 MAX_UPLOAD。
-  assert.equal(bodyLimitFor({ path: '/admin/api/hero-video', contentType: 'video/mp4', isUpload: true }), MAX_COVER_VIDEO_BYTES + 65536);
-  assert.equal(bodyLimitFor({ path: '/admin/api/hero-video', contentType: 'multipart/form-data; boundary=x', isUpload: true }), MAX_COVER_VIDEO_BYTES + 65536);
   assert.ok(MAX_MULTIPART_UPLOAD <= 32 * 1024 * 1024, 'multipart 默认上限不该继续无界');
 });
 

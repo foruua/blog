@@ -121,274 +121,37 @@
     if (close) { closeEmoji(close.closest('[data-emoji-picker]'), true); return; }
   });
 
-  /* 正文插图/封面视频的「点开」是 JS 能力：role/tabindex 也由 JS 补，写死在 HTML 里会让禁 JS 的读者拿到假按钮。
+  /* 正文插图的「点开大图」是 JS 能力：role/tabindex 也由 JS 补，写死在 HTML 里会让禁 JS 的读者拿到假按钮。
      首页封面那张是 <h1> 唯一内容：只补 role/tabindex，不加 aria-label，否则会改掉标题可访问名。 */
   function decorateLightbox(root = document) {
-    for (const node of root.querySelectorAll('img[data-lightbox]:not([role]), video[data-lightbox]:not([role])')) {
+    for (const node of root.querySelectorAll('img[data-lightbox]:not([role])')) {
       node.setAttribute('role', 'button');
       node.setAttribute('tabindex', '0');
       const alt = node.dataset.alt || node.getAttribute('aria-label') || node.getAttribute('alt') || '';
-      const label = node.tagName === 'VIDEO'
-        ? (alt ? `播放视频：${alt}` : '播放视频')
-        : (alt ? `查看大图：${alt}` : '查看大图');
-      // 标题即图片/视频时只补 role/tabindex，补 aria-label 会改掉 <h1> 的可访问名。
-      if (!node.closest('h1')) node.setAttribute('aria-label', label);
+      // 标题即图片时只补 role/tabindex，补 aria-label 会改掉 <h1> 的可访问名。
+      if (!node.closest('h1')) node.setAttribute('aria-label', alt ? `查看大图：${alt}` : '查看大图');
     }
   }
 
-  /* —— 首页封面视频：静音自动循环 ——
-     只靠 HTML 的 autoplay/muted 在部分移动内核（鸿蒙 ArkWeb、X5/WebView）上会被静默忽略。
-     这里落成 IDL 再显式 play()；被自动播放策略拦下时等一次手势；播放卡住（原生层没出帧）时
-     彻底退回首帧海报，避免视频层盖住封面文字/抽屉。点击封面始终进灯箱播放，不在这里抢播放控制。 */
+  /* 首页轮播（多于一张图才渲染）。5 秒一张自动推进，悬停/聚焦/切走标签页/「减弱动态效果」暂停。 */
   const reduceMotion = window.__reducedMotion;
   const HERO_AUTO_MS = 5000;
-  const HERO_VIDEO_MAX_MS = 8000;
   let heroTimer = null;
   // 灯箱打开要停住轮播：对话框不置 document.hidden，否则关灯箱时已不是当时那张。
   let heroControl = null;
-  let heroSchedule = null;
-  let heroAdvance = null;
-  let heroVideos = [];
-  let heroGesture = null;
-  let heroWatchdog = null;
-  let heroEventsBound = false;
   // 灯箱开着时不能自动播：否则关灯箱时浏览器会把焦点还原给触发的那张封面，而它可能已被切走并标了 aria-hidden
   // （触发 Chrome「Blocked aria-hidden …」告警，读屏也会突然失焦）。开灯箱时已 stop()，这里拦住 pointerleave 触发的重启。
   const lightboxOpen = () => Boolean(document.getElementById('lightbox')?.open);
-  const heroSaveData = () => Boolean(navigator.connection?.saveData);
-  const heroAutoAllowed = () => !document.hidden && !lightboxOpen() && !reduceMotion() && !heroSaveData();
-  const heroVideoSingle = (video) => !video.closest('.hero-slide');
-  const heroVideoActive = (video) => {
-    const slide = video.closest('.hero-slide');
-    return !slide || slide.classList.contains('is-active');
-  };
-  const settleHeroPlay = (video) => {
-    video.__heroPending = false;
-    clearTimeout(video.__heroPendingTimer);
-    video.__heroPendingTimer = 0;
-  };
-
-  const armHeroGesture = () => {
-    if (heroGesture || typeof AbortController !== 'function') return;
-    const controller = new AbortController();
-    heroGesture = controller;
-    const retry = () => {
-      controller.abort();
-      if (heroGesture === controller) heroGesture = null;
-      for (const video of heroVideos) if (heroVideoActive(video)) playHeroVideo(video, { gesture: true });
-    };
-    for (const type of ['pointerdown', 'touchstart', 'keydown']) {
-      document.addEventListener(type, retry, { capture: true, passive: true, signal: controller.signal });
-    }
-  };
-
-  function playHeroVideo(video, { gesture = false } = {}) {
-    if (!video?.isConnected || video.__heroFrozen || !heroAutoAllowed() || !heroVideoActive(video)) return;
-    // 属性在部分内核里不足以让自动播放生效；muted 必须在 play() 之前就是 true。
-    video.muted = true;
-    video.defaultMuted = true;
-    video.playsInline = true;
-    video.setAttribute('webkit-playsinline', 'webkit-playsinline');
-    // 单视频无限循环；轮播里播一遍就交给下一张。
-    video.loop = heroVideoSingle(video);
-    if (gesture) video.__heroBlocked = false;
-    if (video.__heroPending) return;
-    if (video.__heroBlocked) { armHeroGesture(); return; }
-    video.__heroPending = true;
-    video.__heroPlayAt = performance.now();
-    let played;
-    try {
-      played = video.play();
-    } catch {
-      settleHeroPlay(video);
-      video.__heroBlocked = true;
-      armHeroGesture();
-      return;
-    }
-    if (!played || typeof played.then !== 'function') { settleHeroPlay(video); return; }
-    played.then(
-      () => {
-        settleHeroPlay(video);
-        video.__heroBlocked = false;
-        video.__heroStarted = !video.paused;
-        heroSchedule?.();
-      },
-      (error) => {
-        settleHeroPlay(video);
-        // 只有自动播放策略拦截需要等手势；其它错误（AbortError、解码失败）交给 canplay / 看门狗。
-        if (error && error.name === 'NotAllowedError') {
-          video.__heroBlocked = true;
-          armHeroGesture();
-          heroSchedule?.();
-        }
-      },
-    );
-    // 个别内核会返回一个永不落定的 Promise：留超时，别让 __heroPending 永久卡死。
-    video.__heroPendingTimer = setTimeout(() => settleHeroPlay(video), 5000);
-  }
-
-  function pauseHeroVideos() {
-    for (const video of heroVideos) {
-      settleHeroPlay(video);
-      video.pause();
-    }
-  }
-
-  function resumeActiveHeroVideo() {
-    for (const video of heroVideos) if (heroVideoActive(video)) playHeroVideo(video);
-  }
-
-  // 播放卡住时不再重试原生播放器：直接换成首帧海报，视频层彻底退出合成，封面文字/抽屉就不会被盖住。
-  function freezeHeroVideo(video) {
-    if (!video || video.__heroFrozen) return;
-    video.__heroFrozen = true;
-    video.pause();
-    const poster = video.dataset.poster || video.getAttribute('poster') || '';
-    video.dataset.heroFrozen = '1';
-    heroSchedule?.();
-    if (!poster || !video.isConnected) return;
-    const fallback = document.createElement('img');
-    fallback.className = 'hero-fallback';
-    fallback.src = poster;
-    fallback.alt = '';
-    fallback.decoding = 'async';
-    const w = Number(video.dataset.w) || Number(video.getAttribute('width')) || 0;
-    const h = Number(video.dataset.h) || Number(video.getAttribute('height')) || 0;
-    if (w > 0 && h > 0) {
-      fallback.width = w; fallback.height = h;
-      fallback.style.aspectRatio = `${w} / ${h}`;
-      fallback.dataset.w = String(w); fallback.dataset.h = String(h);
-    }
-    for (const key of ['lightbox', 'media', 'full', 'poster', 'alt']) {
-      const value = video.dataset[key];
-      if (value) fallback.dataset[key] = value;
-    }
-    // 隐藏的原视频不能再留在灯箱组/键盘序里，否则翻页会翻到一个看不见的视频。
-    for (const key of ['lightbox', 'media', 'full']) video.removeAttribute(`data-${key}`);
-    video.tabIndex = -1;
-    video.setAttribute('aria-hidden', 'true');
-    video.hidden = true;
-    video.after(fallback);
-    decorateLightbox(fallback);
-    fallback.tabIndex = heroVideoActive(video) ? 0 : -1;
-  }
-
-  function setupHeroVideo(video) {
-    if (video.dataset.heroReady) return;
-    video.dataset.heroReady = '1';
-    video.setAttribute('webkit-playsinline', 'webkit-playsinline');
-    video.setAttribute('x5-playsinline', 'x5-playsinline');
-    video.addEventListener('loadedmetadata', () => {
-      if (heroVideoActive(video)) playHeroVideo(video);
-      heroSchedule?.();
-    });
-    video.addEventListener('canplay', () => { if (heroVideoActive(video)) playHeroVideo(video); });
-    video.addEventListener('playing', () => {
-      settleHeroPlay(video);
-      video.__heroBlocked = false;
-      video.__heroStarted = true;
-      video.__stuck = 0;
-      video.__heroProbe = null;
-      if (!video.loop) video.loop = heroVideoSingle(video);
-      if (!video.muted) video.muted = true;
-      heroSchedule?.();
-    });
-    video.addEventListener('pause', () => settleHeroPlay(video));
-    video.addEventListener('ended', () => {
-      settleHeroPlay(video);
-      video.__heroStarted = false;
-      if (heroVideoSingle(video)) {
-        try { video.currentTime = 0; } catch { /* 有些内核此时禁止 seek，直接 play() 也会从头开始 */ }
-        playHeroVideo(video);
-        return;
-      }
-      // 轮播里的视频播完就交给下一张（悬停/灯箱/切页时由 heroAdvance 里的条件拦住）。
-      heroAdvance?.();
-    });
-    video.addEventListener('error', () => freezeHeroVideo(video));
-  }
-
-  function getDecodedFrames(video) {
-    try {
-      return Number(video.getVideoPlaybackQuality?.().totalVideoFrames ?? video.webkitDecodedFrameCount ?? video.mozDecodedFrames ?? -1);
-    } catch { return -1; }
-  }
-
-  function ensureHeroPlayback() {
-    if (!heroVideos.length) return;
-    for (const video of heroVideos) {
-      if (!video.isConnected || video.__heroFrozen || !heroVideoActive(video)) continue;
-      const frames = getDecodedFrames(video);
-      const time = video.currentTime;
-      const probe = video.__heroProbe;
-      // 播放器「声称在播」但时间与解码帧两拍都不动：鸿蒙原生层没有出帧，继续等只会一直盖着页面。
-      if (!video.paused && video.readyState >= 2
-          && probe && Math.abs(time - probe.time) < 0.02 && (frames < 0 || frames === probe.frames)) {
-        video.__stuck = (video.__stuck ?? 0) + 1;
-      } else {
-        video.__stuck = 0;
-      }
-      video.__heroProbe = { time, frames };
-      if (video.__stuck >= 2) { freezeHeroVideo(video); continue; }
-      // 起播请求已经过了一段时间却连首帧都没出来，也不再等。
-      if (!video.paused && !video.__heroBlocked && video.__heroPlayAt
-          && performance.now() - video.__heroPlayAt > 3500 && time < 0.05 && (frames <= 0)) {
-        freezeHeroVideo(video);
-        continue;
-      }
-      // 只恢复「确实起播过、后来被系统打断」的视频；首次起播交给 canplay / 手势，避免反复 play() 顶掉加载。
-      if (video.__heroStarted && video.paused && !video.__heroPending && !video.__heroBlocked && video.readyState >= 3) {
-        playHeroVideo(video);
-      }
-    }
-  }
-
-  function setupHeroVideos(root = document) {
-    heroGesture?.abort();
-    heroGesture = null;
-    if (heroWatchdog) { clearInterval(heroWatchdog); heroWatchdog = null; }
-    heroVideos = [...root.querySelectorAll('.hero-figure video')];
-    if (!heroEventsBound) {
-      heroEventsBound = true;
-      // 上一次被自动播放策略拒掉不代表这次还会被拒：回到前台/从 bfcache 回来都当成一次全新的起播机会。
-      const retryOnReturn = () => {
-        for (const video of heroVideos) video.__heroBlocked = false;
-        resumeActiveHeroVideo();
-      };
-      document.addEventListener('visibilitychange', () => {
-        if (document.hidden) pauseHeroVideos();
-        else retryOnReturn();
-      });
-      // bfcache 回退不一定会发 visibilitychange，补一次 pageshow。
-      addEventListener('pageshow', retryOnReturn);
-    }
-    for (const video of heroVideos) {
-      setupHeroVideo(video);
-      video.loop = heroVideoSingle(video);
-      if (heroVideoActive(video)) playHeroVideo(video);
-    }
-    if (!heroVideos.length) return;
-    armHeroGesture();
-    heroWatchdog = setInterval(ensureHeroPlayback, 1500);
-  }
-
-  /* 首页轮播（多于一张媒体才渲染）。图片 5 秒，视频按自身时长（服务端封顶 8 秒）播完推进；
-     悬停/聚焦/切走标签页/灯箱打开/「减弱动态效果」暂停。 */
   function setupHeroCarousel() {
     heroControl = null;
-    heroSchedule = null;
-    heroAdvance = null;
-    if (heroTimer) { clearTimeout(heroTimer); heroTimer = null; }
+    if (heroTimer) { clearInterval(heroTimer); heroTimer = null; }
     const root = document.querySelector('[data-hero-carousel]');
     if (!root) return;
     const slides = [...root.querySelectorAll('.hero-slide')];
     if (slides.length < 2) return;
     let at = Math.max(0, slides.findIndex((s) => s.classList.contains('is-active')));
-    // 悬停时不自动播：手动点击会调 start()，它必须尊重这个状态位，否则悬停着点一下又自己动。
+    // 悬停时不自动播：手动点击会调 start()，它必须尊重这个状态位，否则悬停着点一下 5 秒后又自己动。
     let hovering = false;
-    const videoOf = (slide) => (slide?.tagName === 'VIDEO'
-      ? slide
-      : (slide?.querySelector?.('video') ?? null));
     // 非当前张在服务端只发 240w 占位小图 + data-src/data-srcset：5 张封面叠在同一视口，
     // loading=lazy 不会真的延迟。轮到它之前再升级成正式候选集；占位图先显示，不会白一下。
     const hydrate = (slide) => {
@@ -403,29 +166,6 @@
       if (window.requestIdleCallback) window.requestIdleCallback(() => hydrate(slide), { timeout: 2500 });
       else setTimeout(() => hydrate(slide), 1200);
     };
-    const clearTimer = () => { if (heroTimer) { clearTimeout(heroTimer); heroTimer = null; } };
-    const focusInCarousel = () => {
-      const f = document.activeElement;
-      return Boolean(f && root.contains(f) && f.matches?.(':focus-visible'));
-    };
-    const dwellOf = () => {
-      const video = videoOf(slides[at]);
-      if (!video || video.__heroFrozen || video.__heroBlocked || !video.__heroStarted) return HERO_AUTO_MS;
-      const duration = Number(video.duration);
-      return duration > 0 ? Math.min(HERO_VIDEO_MAX_MS, Math.max(1000, Math.round(duration * 1000))) : HERO_AUTO_MS;
-    };
-    const schedule = () => {
-      clearTimer();
-      if (!heroAutoAllowed() || hovering) return;
-      heroTimer = setTimeout(() => {
-        heroTimer = null;
-        if (!heroAutoAllowed() || hovering) { schedule(); return; }
-        // 焦点在轮播里（键盘 Tab 到封面）时暂停推进：用户正读着那张，别抽走。
-        if (focusInCarousel()) { schedule(); return; }
-        show(at + 1);
-      }, dwellOf());
-    };
-    heroSchedule = schedule;
     const show = (i) => {
       at = (i + slides.length) % slides.length;
       hydrate(slides[at]);
@@ -435,57 +175,38 @@
       const refocus = hidden !== -1 && hidden !== at;
       slides.forEach((s, k) => {
         const on = k === at;
-        const video = videoOf(s);
         s.classList.toggle('is-active', on);
-        // 不可见的那几张必须同时移出 Tab 序与无障碍树：灯箱装饰会给每张图/视频补 role/tabindex，
+        // 不可见的那几张必须同时移出 Tab 序与无障碍树：灯箱装饰会给每张图补 role/tabindex，
         // 不在这里收掉的话键盘要连按 5 次、读屏会听到 5 个同名按钮。
-        if (video) {
-          s.tabIndex = -1;
-          video.tabIndex = on ? 0 : -1;
-          const fallback = s.querySelector?.('.hero-fallback');
-          if (fallback) fallback.tabIndex = on ? 0 : -1;
-          if (!on) {
-            video.pause();
-            try { video.currentTime = 0; } catch { /* 有些内核此时禁止 seek */ }
-            video.__heroProbe = null;
-            video.__stuck = 0;
-          }
-        } else {
-          s.tabIndex = on ? 0 : -1;
-        }
+        s.tabIndex = on ? 0 : -1;
       });
-      if (refocus) {
-        const fallback = slides[at].querySelector?.('.hero-fallback');
-        const target = fallback ?? videoOf(slides[at]) ?? slides[at];
-        try { target.focus({ preventScroll: true }); } catch { target.focus?.(); }
-      }
+      if (refocus) slides[at].focus({ preventScroll: true });
       slides.forEach((s, k) => {
         if (k === at) s.removeAttribute('aria-hidden'); else s.setAttribute('aria-hidden', 'true');
       });
-      root.setAttribute('aria-label', `首页封面，第 ${at + 1} 项，共 ${slides.length} 项`);
-      // 提前把下一张升级好：空闲时足够下完；手动跳远张时也会在 show() 里当场升级。
+      root.setAttribute('aria-label', `首页封面，第 ${at + 1} 张，共 ${slides.length} 张`);
+      // 提前把下一张升级好：自动轮播 5 秒一张，空闲时足够下完；手动跳远张时也会在 show() 里当场升级。
       warm(slides[(at + 1) % slides.length]);
-      const activeVideo = videoOf(slides[at]);
-      if (activeVideo && !activeVideo.__heroFrozen) playHeroVideo(activeVideo);
-      schedule();
     };
-    const stop = () => clearTimer();
+    const stop = () => { if (heroTimer) { clearInterval(heroTimer); heroTimer = null; } };
     const start = () => {
-      clearTimer();
-      if (!heroAutoAllowed() || hovering) return;
-      // 视频在悬停期间已经播完：松手后直接翻页，别再等一整段视频时长。
-      const activeVideo = videoOf(slides[at]);
-      if (activeVideo?.ended && !focusInCarousel()) { show(at + 1); return; }
-      schedule();
-    };
-    heroAdvance = () => {
-      if (!heroAutoAllowed() || hovering || focusInCarousel()) return;
-      show(at + 1);
+      stop();
+      if (lightboxOpen()) return;
+      if (hovering) return;
+      if (reduceMotion()) return;
+      heroTimer = setInterval(() => {
+        if (document.hidden) return;
+        // 焦点在轮播里（键盘 Tab 到封面）时暂停推进：用户正读着那张，别抽走。
+        const f = document.activeElement;
+        if (f && root.contains(f) && f.matches?.(':focus-visible')) return;
+        show(at + 1);
+      }, HERO_AUTO_MS);
     };
     root.addEventListener('pointerenter', () => { hovering = true; stop(); });
     root.addEventListener('pointerleave', () => { hovering = false; start(); });
     show(at);
     heroControl = { stop, start };
+    start();
   }
 
   function setupPage() {
@@ -496,7 +217,6 @@
     lbItems = []; lbAt = 0; lbTrigger = null;
     fillWho();
     decorateLightbox();
-    setupHeroVideos();
     setupHeroCarousel();
     setupCodeCopy();
 
@@ -771,28 +491,12 @@
   let lbItems = [], lbAt = 0;
   let lbTrigger = null;
 
-  const lbVideo = () => lb()?.querySelector('.lb-video');
-  // 切图/关灯箱时把视频彻底停住：只 pause 不摘 src，部分浏览器会继续缓冲；下一次播放从头上开始也更符合直觉。
-  const stopLbVideo = () => {
-    const video = lbVideo();
-    if (!video) return;
-    video.pause();
-    video.hidden = true;
-    video.removeAttribute('src');
-    video.removeAttribute('poster');
-    video.removeAttribute('width');
-    video.removeAttribute('height');
-    video.style.removeProperty('--lb-ar');
-    try { video.load(); } catch { /* 某些浏览器在没有 src 时 load 会抛，无关紧要 */ }
-  };
-
   function lbShow(i) {
     const box = lb();
     if (!box || !lbItems.length) return;
     lbAt = (i + lbItems.length) % lbItems.length;
     const cur = lbItems[lbAt];
     const img = box.querySelector('.lb-img');
-    const video = box.querySelector('.lb-video');
     // 被点的这张此刻多半已经在列表里加载好、在浏览器缓存里：拿它的实际地址当占位，点开先秒显，再换大图。
     const shown = cur.tagName === 'IMG' ? cur : cur.querySelector?.('img');
     // 第三方主题/手写正文可能只有 <img data-lightbox>（没有 href/data-full）：回退到图片自身地址，
@@ -800,35 +504,12 @@
     const src = cur.dataset.full || cur.getAttribute?.('href') || shown?.currentSrc || shown?.src || '';
     if (!src) return;
     const alt = cur.dataset.alt || cur.getAttribute?.('alt') || shown?.getAttribute?.('alt') || '';
-    const isVideo = cur.dataset.media === 'video';
+    const placeholder = shown && !shown.hidden ? (shown.currentSrc || shown.src || '') : '';
     // 第 5 张起的占位 span 没有可见 <img>，尺寸要优先从 data-w/data-h 取，否则灯箱会先空白再跳。
     const width = Number(cur.dataset?.w) || Number(shown?.getAttribute?.('width')) || 0;
     const height = Number(cur.dataset?.h) || Number(shown?.getAttribute?.('height')) || 0;
-    if (video) video.pause();
-    if (isVideo) {
-      // 图片那条线要连 loader 一起取消，否则慢图下完还会把 <img> 顶到视频旁边。
-      window.__ui?.clearImage?.(box);
-      img.hidden = true;
-      if (width > 0 && height > 0) {
-        video.width = width; video.height = height;
-        video.style.setProperty('--lb-ar', `${width} / ${height}`);
-      } else {
-        video.removeAttribute('width'); video.removeAttribute('height');
-        video.style.removeProperty('--lb-ar');
-      }
-      const poster = cur.dataset.poster || '';
-      if (poster) video.setAttribute('poster', poster); else video.removeAttribute('poster');
-      video.hidden = false;
-      video.setAttribute('aria-label', alt || '视频');
-      if (video.getAttribute('src') !== src) { video.src = src; video.load(); }
-      // 点击/键盘进入灯箱都是用户手势，允许播放；被浏览器拦下时控制条仍可手动播。
-      video.play().catch(() => {});
-    } else {
-      stopLbVideo();
-      const placeholder = shown && !shown.hidden ? (shown.currentSrc || shown.src || '') : '';
-      if (window.__ui) window.__ui.loadImage(box, src, alt, { placeholder, width, height });
-      else { img.src = src; img.alt = alt; img.hidden = false; }
-    }
+    if (window.__ui) window.__ui.loadImage(box, src, alt, { placeholder, width, height });
+    else { img.src = src; img.alt = alt; img.hidden = false; }
     box.querySelector('.lb-count').textContent = `${lbAt + 1} / ${lbItems.length}`;
     const many = lbItems.length > 1;
     box.querySelector('.lb-prev').hidden = !many;
@@ -847,8 +528,6 @@
       // __ui.open() 已 sync 过滚动锁；缺 ui.js 的原生兜底才需自己补一次。
       window.__openDialog(box);
       heroControl?.stop();
-      // 模态后面的封面视频先停：既省流量，也避免和灯箱里的视频同时占着解码器。
-      pauseHeroVideos();
       return;
     }
     const box = lb();
@@ -874,8 +553,6 @@
     }
     const box = lb();
     if (box?.open) {
-      // 视频控制条自己要用左右键快退/快进；焦点在视频上时让给原生控件，别同时切下一条。
-      if (e.target?.closest?.('.lb-video') && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) return;
       if (e.key === 'ArrowLeft') lbShow(lbAt - 1);
       if (e.key === 'ArrowRight') lbShow(lbAt + 1);
       return;
@@ -892,10 +569,7 @@
   // Esc 的键盘模态点亮 :focus-visible，全局规则会在插图外画金框（Chromium 无此问题），故程序性移焦不画圈。
   document.addEventListener('close', (e) => {
     if (e.target !== lb()) return;
-    stopLbVideo();
     heroControl?.start();
-    // 回到页面时恢复封面视频：轮播里只恢复当前那一条，单视频直接续播。
-    resumeActiveHeroVideo();
     const t = lbTrigger;
     if (!t?.isConnected) return;
     // 触发的那张若已被切走（落在 aria-hidden 子树里），别再把焦点还原上去：改交给当前可见的那张。

@@ -851,7 +851,6 @@ html[data-theme="dark"] .a-select {
 .a-media-shot { position: relative; display: grid; place-items: center; aspect-ratio: 4 / 3; padding: 0; background: var(--bg-soft); overflow: hidden; }
 .a-media .a-media-shot img { display: block; width: 100%; height: 100%; min-height: 0; object-fit: cover; border: 0; border-radius: 0; }
 .a-media-flag { position: absolute; top: .6rem; left: .6rem; padding: .2rem .5rem; border: 1px solid var(--rule); border-radius: var(--radius-pill); font-size: var(--a-fs-label); color: var(--fg); background: var(--bg-elev); }
-.a-media-kind { left: auto; right: .6rem; }
 .a-media figcaption { min-width: 0; padding: .85rem; }
 .a-media-name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--a-fs-sm); font-weight: 500; color: var(--fg); }
 .a-media-meta { display: flex; justify-content: space-between; flex-wrap: wrap; gap: .2rem .5rem; margin: .3rem 0 .75rem; color: var(--muted); font-size: var(--a-fs-label); letter-spacing: var(--info-track); font-variant-numeric: tabular-nums; }
@@ -964,12 +963,6 @@ html[data-theme="dark"] .a-select {
 }
 .a-hero-item.is-dragging { opacity: .45; }
 .a-hero-item.is-dragging img { cursor: grabbing; }
-.a-hero-kind {
-  position: absolute; top: .3rem; left: .3rem; z-index: 1;
-  padding: .15rem .45rem; border: 1px solid var(--rule); border-radius: var(--radius-pill);
-  font: var(--a-fs-label)/1.4 var(--mono); letter-spacing: .08em;
-  color: var(--fg); background: var(--bg-elev);
-}
 /* 落点提示：在将要插到的那一格左缘竖一条金线（拖动时不动拖拽源，只给这个提示）。 */
 .a-hero-item.is-drop-before::before {
   content: ''; position: absolute; top: 0; bottom: 0; left: -.5rem;

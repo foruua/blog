@@ -309,10 +309,7 @@ ${listHtml}
       themeData: {
         hero_html: homeMain,
         hero: {
-          images: heroImgsOf(c).map(({ path, w, h }) => {
-            const media = mediaOf(path);
-            return { path, w, h, video: Boolean(media?.video), poster: media?.poster ?? '' };
-          }),
+          images: heroImgsOf(c).map(({ path, w, h }) => ({ path, w, h })),
         },
         stats: statsOf(c),
         recent: recentRows.map(themePost),
