@@ -908,40 +908,25 @@ body[data-page="home"] .recent .entries { border-bottom: 1px solid var(--rule); 
 }
 .entries a:hover .e-title { color: var(--accent-read); }
 .entries a:hover time { color: var(--fg-soft); }
-/* 行尾两枚文字叠在同一格：静止是「文章 / 笔记」，悬停换成「N 条讨论」。
-   首页把那格的宽度按评论数定死（见 .recent .e-tail），切换时标题可用宽度不变 ——
-   否则长标题会在悬停的瞬间重算一次截断位置，整行看着抖一下。 */
+/* 行尾：讨论数 + 类型标签。数字在左、类型靠右收尾，所以类型的位置不随这一条有没有讨论而变 ——
+   右对齐的是整组，多出来的数字只会向左长出一点，行尾的收束线始终对齐。
+   数字只写纯数字（页码式），「条讨论」交给 .sr-only，读屏照样听得懂。 */
 .e-tail {
-  display: inline-grid; justify-items: end;
+  display: inline-flex; align-items: baseline; gap: .72em;
   font: var(--info-size)/1.75 var(--mono);
   letter-spacing: var(--info-track); color: var(--muted);
   white-space: nowrap;
 }
-/* 两枚文字瞬切，不加过渡：它们宽度不同（「文章」两字 vs 「12 条讨论」五字），
-   交叉淡化时中间帧必然是两串字叠在一起，读起来像乱码。悬停是翻页式的一下，比叠影干净。 */
-.e-tail > * { grid-area: 1 / 1; }
-.e-kind { transition: color var(--dur-2) var(--ease); }
-/* 衬线数字：读起来像目录的页码，而不是仪表盘上的计数。类名避开 .e-comments——
+/* 衬线数字：读起来像目录里的页码，而不是仪表盘上的计数。类名避开 .e-comments——
    那是列表页可点的评论链接（.list .e-comments），同名会把那条链接压成透明。 */
 .e-talk {
   font-family: Georgia, 'Songti SC', 'Times New Roman', serif;
-  font-size: 12.5px; letter-spacing: .02em;
-  color: var(--accent-read); opacity: 0;
+  font-size: 14px; letter-spacing: .01em;
+  color: var(--accent-read); font-variant-numeric: tabular-nums;
 }
-.recent .e-tail { min-width: 4.6em; }
+.e-kind { transition: color var(--dur-2) var(--ease); }
 /* 悬停底色是 --accent-soft，所以这里走可读档而不是裸 --accent（见 :root 的 --accent-read）。 */
 .entries a:hover .e-kind { color: var(--accent-read); }
-/* 只对有讨论的行做替换：0 条的行悬停时类型不该消失，否则行尾会空一块。 */
-@media (hover: hover) {
-  .entries li.has-comments a:hover .e-kind { opacity: 0; }
-  .entries li.has-comments a:hover .e-talk { opacity: 1; }
-}
-/* 触屏没有悬停：有讨论的行直接把评论数摆出来。这里不按文章/笔记分叉——
-   版式一旦分叉，同一套账本行迟早会长成两种东西（见 test-p2 的 T40）。 */
-@media (hover: none) {
-  .entries li.has-comments .e-kind { display: none; }
-  .entries li.has-comments .e-talk { opacity: 1; }
-}
 
 .entries-rel a { grid-template-columns: 4.7em minmax(0, 1fr) auto; }
 
