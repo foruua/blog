@@ -1648,6 +1648,9 @@ article.post-empty.post-404 { padding-bottom: 1rem; }
 .s-form.post-404-search { margin-top: clamp(1.6rem, 4vw, 2.4rem); padding-top: 0; }
 .s-form.post-404-search::before { display: none; }
 .recent-404 { margin-top: clamp(2rem, 4vw, 2.8rem); }
+/* 「最近更新」跟着正文栏走 46rem：这一页的检索框与 .post 都在 272px 起笔，
+   铭牌若还吃 52rem 就会比上面两块各宽出 48px，一页里出现两条左边缘。 */
+.recent.recent-404 { max-width: var(--measure); margin-inline: auto; }
 
 .pager-more {
   margin: clamp(2.4rem, 5vw, 3.4rem) 0 0;
@@ -2450,7 +2453,8 @@ html:not(.has-js) .c-emoji { display: none; }
 /* 刊头下沿那条线画在这里（.mast-stat 只管上沿，下沿落在"内容起始处"）。 */
 .s-form {
   position: relative;
-  margin: 0; padding-top: var(--section-inset);
+  max-width: var(--measure);
+  margin: 0 auto; padding-top: var(--section-inset);
 }
 .s-form::before {
   content: ""; position: absolute; top: 0; left: 0; right: 0;
@@ -2893,12 +2897,16 @@ html:not(.has-js) .pal { display: none; }
    素匣是现行默认（服务端直接挂 html[data-layout="box"]），选「纸面」才摘掉这个属性；
    所以下面全部以 html[data-layout="box"] 起头。 */
 html[data-layout="box"] body:not([data-page="home"]) .wrap {
-  max-width: calc(var(--measure-wide) + 5.2rem + 48px);
+  max-width: calc(var(--measure-wide) + 48px);
 }
 html[data-layout="box"] body:not([data-page="home"]) main#main {
   --sheet-pad: clamp(1.35rem, 2.6vw, 2.6rem);
   width: 100%;
-  max-width: calc(var(--measure-wide) + 5.2rem);
+  /* 匣面收到 52rem：内页纸片的左右边缘与首页那块铭牌落在同一条线上（224px @1280）。
+     原先这里是 calc(52rem + 5.2rem)，为了让内衬吃满 2.6rem 后「内容」仍是 52rem；
+     但内衬是 clamp，1280 下只有 2.03rem，内容实际 53rem —— 同一站里出现 848 / 832 / 736 三档。
+     现在固定匣面宽度，内容跟着内衬走（1280 下 765），正文栏 .post 仍是 46rem，位置不动。 */
+  max-width: var(--measure-wide);
   margin: clamp(1.3rem, 2.8vw, 2.2rem) auto clamp(2rem, 4vw, 3rem);
   padding: var(--sheet-pad);
   background: var(--card-bg);
