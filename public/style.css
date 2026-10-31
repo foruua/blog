@@ -661,6 +661,14 @@ body.mnav-open .mnav-panel { transform: none; opacity: 1; }
   border-radius: var(--radius-lg);
   padding: clamp(1.2rem, 2.8vw, 1.9rem) clamp(1.2rem, 2.8vw, 1.9rem) clamp(1rem, 2.2vw, 1.35rem);
 }
+/* 深色下这张铭牌要「浮」起来：纸面与底色只差 3 级，投影又是黑色压在近黑底上，两层线索同时失效，
+   卡片就退化成「一片画了横线的区域」。这里只调 .recent 自己的三个局部令牌，不动全局 --card-*
+   （后台的纸片共用那一套，改全局会连带整个后台）。 */
+html[data-theme="dark"] .recent {
+  --card-bg: color-mix(in srgb, var(--bg-elev) 55%, #2a2a2a);
+  --card-bd: color-mix(in srgb, var(--rule-strong) 55%, transparent);
+  --card-sh: inset 0 1px 0 rgba(255, 255, 255, .06), 0 24px 48px -34px rgba(0, 0, 0, .95);
+}
 /* 首页：纸面版式（默认）看上去没有铭牌，但内容仍留在铭牌的内衬里 ——
    两版式的行宽与起笔位置必须一模一样，换版式时列表不许位移。
    1px 透明边也留着：铭牌那 1px 边框同样占位，去掉它内容会右移 1px。 */
