@@ -3,10 +3,12 @@
 import { SITE } from '../config.js';
 import { esc, formatDay, postUrl, relativeDate, cleanExcerpt, excerptOfText } from '../util/text.js';
 
-/** 目录：有 toc 才出，序号由 CSS 计数器补零（不写进 HTML）。 */
+/** 目录：有 toc 才出，序号由 CSS 计数器补零（不写进 HTML）。
+ *  末尾那枚 .toc-cue 是展开提示：summary 本体是一条与正文分隔线同款的金发丝线，
+ *  不给箭头的话读者只会把它当装饰（它确实是 <details> 的开关）。箭头由边框画，撑开时翻转。 */
 export function tocHtml(toc) {
   if (!toc?.length) return '';
-  return `      <details class="toc"><summary>目录（${toc.length} 节）</summary>
+  return `      <details class="toc"><summary>目录（${toc.length} 节）<span class="toc-cue" aria-hidden="true"></span></summary>
         <ol>${toc.map((t) => `<li class="lvl-${t.level}"><a href="#${esc(t.id)}">${esc(t.text)}</a></li>`).join('')}</ol>
       </details>`;
 }

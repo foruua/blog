@@ -1528,7 +1528,16 @@ details.toc summary {
   transition: color var(--dur-2) var(--ease);
 }
 details.toc summary::-webkit-details-marker { display: none; }
-details.toc summary::before { display: none; }              
+details.toc summary::before { display: none; }
+/* 展开提示：这条抬头长得和正文分隔线一模一样，只靠 hover 变色（触屏上根本没有）读者不会去点。
+   箭头用两条边框画，不增节点也不占字宽：rotate 45° 是「收起」，225° 是「展开」。 */
+details.toc summary .toc-cue {
+  flex: none; width: .46em; height: .46em; margin-left: -.42rem;
+  border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor;
+  transform: translateY(-.12em) rotate(45deg);
+  transition: transform var(--dur-2) var(--ease);
+}
+details.toc[open] summary .toc-cue { transform: translateY(-.12em) rotate(225deg); }
 details.toc summary::after {
   content: ""; flex: 1 1 auto; height: 1px; background: var(--rule);
   transition: background var(--dur-3) var(--ease);

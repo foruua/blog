@@ -138,8 +138,8 @@ const page = await (await fetch(`${BASE}/p/${SLUG}/`)).text();
   // 令牌（:root / 明暗 / 配色预设）在 base.css，组件在 style.css；下面 T66f 要同时读到两层，按加载顺序拼。
   const css = (await Promise.all(['base.css', 'style.css'].map(async (f) => (await fetch(`${BASE}/${f}`)).text()))).join('\n');
 
-  check('T66 文章页的目录仍是「一行抬头 + 两级条目」这套标记（序号不写进 HTML）',
-    /<details class="toc"><summary>目录（\d+ 节）<\/summary>/.test(page)
+  check('T66 文章页的目录仍是「一行抬头 + 两级条目」这套标记（序号不写进 HTML，抬头带一枚展开箭头）',
+    /<details class="toc"><summary>目录（\d+ 节）<span class="toc-cue" aria-hidden="true"><\/span><\/summary>/.test(page)
     && /<li class="lvl-2"><a href="#[^"]+">[^<]+<\/a><\/li>/.test(page)
     && !/<li class="lvl-2"><a href="#[^"]+">\s*\d\d/.test(page), '');
 
