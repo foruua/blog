@@ -249,15 +249,6 @@
     return true;
   }
 
-  var loadTimer = 0;
-  function setLoading(on) {
-    clearTimeout(loadTimer);
-    var bar = document.getElementById('progress');
-    if (!bar) return;
-    if (on) loadTimer = setTimeout(function () { bar.classList.add('is-loading'); }, 150);
-    else bar.classList.remove('is-loading');
-  }
-
   function syncHead(doc) {
     ['meta[name="description"]', 'meta[name="robots"]', 'meta[property^="og:"]', 'meta[property^="article:"]', 'meta[name^="twitter:"]'].forEach(function (selector) {
       document.head.querySelectorAll(selector).forEach(function (el) { el.remove(); });
@@ -409,8 +400,6 @@
       renderedUrl = location.href;
       index = Number(history.state && history.state.blogIndex) || 0;
 
-      setLoading(false);
-
       // 先跑页面钩子再算滚动：评论锚点/输入框聚焦都要在钩子里处理，否则 scrollToHash 找不到目标；
       // 钩子也可能把焦点交给 ?reply= 的输入框，下面 focus main 时要检测并让位。
       (window.__pjaxHooks || []).forEach(function (fn) {
@@ -461,7 +450,6 @@
     if (activeController) activeController.abort();
     activeController = new AbortController();
     var controller = activeController;
-    setLoading(true);
     var cached = freshCached(url); cache.delete(url);
     var done = function (html, at) {
       if (requestId !== serial) return;
@@ -485,7 +473,7 @@
         return res.text().then(function (html) { return { html: html, url: at }; });
       }).then(function (out) { if (out && requestId === serial) { done(out.html, out.url); } })
       .catch(function () { if (requestId === serial) location.href = url; })
-      .finally(function () { clearTimeout(timeout); if (requestId === serial) { setLoading(false); activeController = null; } });
+      .finally(function () { clearTimeout(timeout); if (requestId === serial) { activeController = null; } });
   }
 
   /* —— 表单：GET 当作换页，POST 走 fetch 并跟随 303 —— */
@@ -532,7 +520,6 @@
     if (activeController) activeController.abort();
     activeController = new AbortController();
     var controller = activeController;
-    setLoading(true);
 
     var btn = submitter || form.querySelector('[type="submit"]');
     var wasDisabled = Boolean(btn && btn.disabled);
@@ -548,7 +535,7 @@
       pendingForms.delete(form);
       if (releaseBusy) releaseBusy();
       else if (btn && !wasDisabled && btn.isConnected) { btn.disabled = false; if (wasLabel) btn.textContent = wasLabel; }
-      if (requestId === serial) { setLoading(false); activeController = null; }
+      if (requestId === serial) { activeController = null; }
     };
 
     return fetch(url.href, {

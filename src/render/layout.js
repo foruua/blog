@@ -477,7 +477,6 @@ function chromeOf(ctx) {
   return {
     head: `<head>\n${headHtmlOf(ctx)}\n</head>`,
     skip: '<a class="skip" href="#main">跳到正文</a>',
-    progress: '<div id="progress" aria-hidden="true"></div>',
     top: '<span id="top"></span>',
     header: `<header class="site">
   <div class="shell">
@@ -533,7 +532,6 @@ ${chrome.head}
 <body data-page="${esc(ctx.page)}">
 ${chrome.top}
 ${chrome.skip}
-${chrome.progress}
 
 <div id="app">
 ${chrome.header}

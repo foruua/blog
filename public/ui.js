@@ -19,7 +19,7 @@
     return list;
   };
   // 一次 document 级 observer 就够；只在真有弹层打开时才有意义，故先廉价判一下有没有 open 的 dialog，避免每次随便一个 class 变化都走一趟 closest。
-  // **刻意不监听 style**：#progress 每帧重写 style.width，放进 attributeFilter 会让回调每帧被唤醒几十次。
+  // **刻意不监听 style**：滚动等高频路径会反复重写 style，放进 attributeFilter 会让回调每帧被唤醒几十次。
   new MutationObserver((records) => {
     if (!document.querySelector('dialog[open]')) return;
     for (const record of records) {

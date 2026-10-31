@@ -351,7 +351,7 @@ html.modal-open body { padding-right: var(--modal-lock-pad, 0px); }
 }
 
 
-/* —— 共用浮层：提示条与顶部进度条。前台 app.js 与后台 admin.js 都会用（window.__toast / #progress），
+/* —— 共用浮层：提示条。前台 app.js 与后台 admin.js 都会用（window.__toast），
    所以放基座里，后台不再依赖前台组件样式。 */
 /* fixed 控件不受 body 的 padding 补偿影响，位置须单独扣除新增的视口宽度。 */
 #toast {
@@ -375,14 +375,6 @@ html.modal-open body { padding-right: var(--modal-lock-pad, 0px); }
 #toast.on { opacity: 1; visibility: visible; transform: translate(-50%, 0); }
 #toast.toast-bad { border-left-color: var(--danger); }
 @media print { #toast { display: none; } }
-
-#progress {
-  position: fixed; top: 0; left: 0; height: 2px; width: 0;
-  background: var(--gold); z-index: 60; opacity: 0;
-  box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 55%, transparent);
-  transition: opacity var(--dur-3) var(--ease);
-}
-#progress.on { opacity: .95; }
 
 /* 访客配色（html[data-palette]）：与 data-theme（明暗）正交 —— 明暗管纸的明暗，配色管墨的色调。
    纸色一律为无（各套预设的纸面是无彩色，只靠明度差区分），染色只留给墨与强调色。每套写三块（① 浅色/显式深色时的底 ② 显式深色 ③ 系统深色）。本层在所有明暗块**之后**：① 同权重靠后取胜，②③ 权重更高。test-palette.mjs 断言 ②③ 两段逐字相同 —— 改深色值时两处必须一起改。每套只动色彩令牌，版式令牌不碰。 */

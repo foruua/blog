@@ -103,7 +103,6 @@ ${headOf(`${title} · ${SITE.identity} 后台`)}
 <body class="admin${page ? ` page-${esc(page)}` : ''}"
       data-admin-editor-src="/admin-editor.js?v=${assetVer('admin-editor.js')}"
       data-editor-src="/editor.js?v=${assetVer('editor.js')}"${page === 'is-editor' ? ' data-editor-inline="1"' : ''}>
-<div id="progress" aria-hidden="true"></div>
 <div id="app">
 ${mobileBar()}
 <div class="a-app">

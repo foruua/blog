@@ -1,7 +1,6 @@
 (() => {
   'use strict';
   const request = window.__request;
-  const $ = (s) => document.querySelector(s);
   // 修饰键/中键点击交给浏览器（新标签、下载、系统菜单），别被对话/灯箱的捕获处理器吞掉。
   const isPlainClick = (e) => e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey;
 
@@ -13,30 +12,6 @@
       requestAnimationFrame(() => { queued = false; fn(); });
     };
   };
-
-  const bar = $('#progress');
-  if (bar) {
-    /* scroll 回调里不再读 scrollHeight —— 那是同步布局，写一次 width 就 invalidate 一次，
-       下一帧的 scroll 再读回来，等于每帧强制重排一次。可滚动高度只在「内容或视口变了」时变，
-       交给 ResizeObserver（展开面板、图片落位、pjax 换页都会触发），滚动只剩读 scrollTop。 */
-    let scrollable = 1;
-    const measure = () => {
-      const h = document.documentElement;
-      return Math.max(1, h.scrollHeight - h.clientHeight);
-    };
-    const paintProgress = () => {
-      const h = document.documentElement;
-      bar.style.width = `${(h.scrollTop / scrollable * 100).toFixed(2)}%`;
-      bar.classList.toggle('on', h.scrollTop > 40);
-    };
-    const queueProgress = perFrame(paintProgress);
-    const remeasure = perFrame(() => { scrollable = measure(); paintProgress(); });
-    scrollable = measure();
-    if (typeof ResizeObserver === 'function') new ResizeObserver(remeasure).observe(document.body);
-    addEventListener('scroll', queueProgress, { passive: true });
-    addEventListener('resize', remeasure, { passive: true });
-    paintProgress();
-  }
 
   let openPicker = null;
   // 面板不再随每个表单输出，整页只有一份 <template data-emoji-tpl>（见 src/comments/view.js）。
@@ -95,7 +70,7 @@
   }, true);
 
   window.addEventListener('resize', closeAllEmoji);
-  // 面板跟随入口，与进度条同一套 perFrame 节流；scrollTarget 把当帧滚动目标带进 rAF（面板自身滚动时要用）。
+  // 面板跟随入口，用 perFrame 节流；scrollTarget 把当帧滚动目标带进 rAF（面板自身滚动时要用）。
   let scrollTarget = null;
   const followEmoji = perFrame(() => {
     const target = scrollTarget;

@@ -231,9 +231,6 @@ try {
     const target = link.getAttribute('href');
     click(w, link);
 
-    check('T14b 快速换页不显示加载指示（延迟 150ms 才出现）',
-      !w.document.getElementById('progress').classList.contains('is-loading'));
-
     await sleep(500);
 
     check('T14c 换页不使用 View Transition（整页快照交叉溶解会被看成"跳一下"）',
@@ -249,8 +246,6 @@ try {
     check('T14d 换页不抑制入场动画：点击与手动刷新共用同一条浮入路径',
       !/nav-swap/.test(navjsSrc) && !/nav-swap/.test(cssSrc)
       && !w.document.documentElement.classList.contains('no-entry-anim'), '');
-    check('T14e 换页过程中和之后都没有残留加载态',
-      !w.document.getElementById('progress').classList.contains('is-loading'));
 
     const reveals = [...w.document.querySelectorAll('[data-reveal]')];
     check('T14f 文章页不再有 [data-reveal]（相关区块已移除）', reveals.length === 0, `${reveals.length} 个`);
@@ -267,7 +262,6 @@ try {
     check('T17 URL 已更新为文章地址', w.location.pathname === target, `${w.location.pathname} vs ${target}`);
     check('T18 标题已更新', w.document.title !== beforeTitle && w.document.title.length > 0, w.document.title);
     check('T19 文章正文已进入 DOM', /class="prose"/.test(w.document.getElementById('app').innerHTML));
-    check('T21 加载状态已复位', !w.document.getElementById('progress').classList.contains('is-loading'));
   }
 
   let articlePath;
@@ -1051,7 +1045,6 @@ try {
   if (!failures) {
     console.log('  换页动画相关（本次改动的重点）：');
     console.log('    · 已断言换页不使用 View Transition（避免两份文档交叉溶解看成"跳一下"）');
-    console.log('    · 已断言快请求不显示加载指示（延迟 150ms）');
     console.log('    · 已断言换页后列表立刻可见，没有残留入场动画');
     console.log('');
     console.log('  无刷新提交相关：');

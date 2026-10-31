@@ -2254,26 +2254,9 @@ body[data-page="home"] .wrap { flex: 0 0 auto; }
 body[data-page="home"] footer.site { margin-top: 0; }
 /* 首页页头与内页同构：左站名、右导航（窄屏是抽屉按钮），无脚本时也一样。 封面那行 .hero-mark 是落款，不是页头站名的替代。 */
 
-/* 请求进度提示 */
-
-#progress.is-loading {
-  opacity: .95;
-  width: 100% !important;
-  background: linear-gradient(90deg, transparent, var(--accent), transparent);
-  background-size: 38% 100%;
-  background-repeat: no-repeat;
-  animation: progress-sweep .85s linear infinite;
-}
-@keyframes progress-sweep {
-  from { background-position: -38% 0; }
-  to   { background-position: 138% 0; }
-}
 @media (prefers-reduced-motion: reduce) {
-  #progress.is-loading { animation: none; background: var(--accent); }
   *, *::before, *::after { transition: none !important; animation: none !important; }
 }
-
-
 
 /* —— 金色点缀：统一成「尾端收束的渐隐条」—— 金线条尾收在纸里，不用纯色块"断头"。 */
 .prose h2::before, .mast-mark::after, .recent-head::after, .comments h2::after,
@@ -2321,7 +2304,7 @@ article.post-empty::before {
 /* 打印 */
 
 @media print {
-  header.site, footer.site, #progress, .comments, details.toc, .nav { display: none !important; }
+  header.site, footer.site, .comments, details.toc, .nav { display: none !important; }
   /* 打印使用确切日期，选择器对应当前文章刊头结构。 */
   .post-mast .meta::after { content: "（" attr(data-day) "）"; }
   body { font-size: 11pt; background: #fff; color: #000; background-image: none; }
