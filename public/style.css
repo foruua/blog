@@ -917,8 +917,10 @@ body[data-page="home"] .recent .entries { border-bottom: 1px solid var(--rule); 
   letter-spacing: var(--info-track); color: var(--muted);
   white-space: nowrap;
 }
-.e-tail > * { grid-area: 1 / 1; transition: opacity var(--dur-1) var(--ease); }
-.e-kind { transition: color var(--dur-2) var(--ease), opacity var(--dur-1) var(--ease); }
+/* 两枚文字瞬切，不加过渡：它们宽度不同（「文章」两字 vs 「12 条讨论」五字），
+   交叉淡化时中间帧必然是两串字叠在一起，读起来像乱码。悬停是翻页式的一下，比叠影干净。 */
+.e-tail > * { grid-area: 1 / 1; }
+.e-kind { transition: color var(--dur-2) var(--ease); }
 /* 衬线数字：读起来像目录的页码，而不是仪表盘上的计数。类名避开 .e-comments——
    那是列表页可点的评论链接（.list .e-comments），同名会把那条链接压成透明。 */
 .e-talk {
