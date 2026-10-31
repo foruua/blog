@@ -1187,7 +1187,7 @@ body[data-page="archive"] .chron:last-child { border-bottom: 1px solid var(--rul
   font: var(--label-size)/1.5 var(--mono); letter-spacing: .06em; color: var(--muted);
 }
 .lk-foot {
-  display: flex; align-items: baseline; justify-content: space-between; gap: .6rem;
+  display: flex; align-items: baseline; justify-content: flex-end; gap: .6rem;
   margin-top: .1rem; padding-top: .55rem;
   border-top: 1px solid var(--rule);
 }
@@ -1195,16 +1195,6 @@ body[data-page="archive"] .chron:last-child { border-bottom: 1px solid var(--rul
   font: 0.75rem/1.4 var(--mono);
   letter-spacing: var(--label-track); color: var(--muted);
 }
-/* 条数贴在右端、等宽数字：一列数字对齐，谁来得勤一眼看得出来 —— 这是这一页的排序本身。 */
-.lk-n {
-  font: var(--label-size-lg)/1 var(--mono); letter-spacing: .04em;
-  font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap;
-}
-/* 气泡并进「最近日期 … 条数」那一行：与数字同灰，悬停随卡片一起转亮。 */
-.lk-n .e-comments-ico { width: 1.15em; height: 1.15em; margin-right: .28em; vertical-align: -.14em; }
-.lk-n b { font-family: var(--display); font-size: 1.3em; font-weight: var(--display-weight); color: var(--fg-soft); }
-.lk-card:hover .lk-n .e-comments-ico,
-.lk-card:hover .lk-n b { color: var(--fg); }
 
 .lk-empty {
   margin: var(--section-gap) 0 0;
@@ -1219,9 +1209,8 @@ body[data-page="archive"] .chron:last-child { border-bottom: 1px solid var(--rul
   /* 窄屏固定两列：靠 auto-fill 的话 390px 只放得下一张卡，一面墙就变成一条竖列了。 */
   .lk-wall { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .7rem; }
   .lk-card { padding: .85rem .85rem; gap: .45rem; }
-  /* 两列后每张卡只剩 ~144px 内容宽：底栏收掉评论条数，宽度全留给日期，也不再写「最近」。 */
+  /* 两列后每张卡只剩 ~144px 内容宽：收掉「最近」二字，日期靠右。 */
   .lk-since-lbl { display: none; }
-  .lk-n { display: none; }
 }
 /* 360px 以下两列只剩 ~103px 内容宽：姓名/域名被截成「似…」，日期也折行，改成单列。 */
 @media (max-width: 360px) {

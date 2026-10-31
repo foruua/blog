@@ -571,8 +571,9 @@ try {
     wallNow.includes('class="lk-wall"') && !wallNow.includes('lk-roster') && !wallNow.includes('lk-row'));
   check('G1b 名单没跟着丢（域名与昵称都还在）',
     wallNow.includes('class="lk-host">alpha.example<') && wallNow.includes('class="lk-name">'));
-  check('G1c 窄屏名片收掉评论条数，底栏只留日期',
-    /@media \(max-width: 620px\)[\s\S]*?\.lk-n\s*\{\s*display:\s*none;?\s*\}/.test(await html('/style.css')));
+  check('G1c 友链名片不再显示评论条数，底栏日期靠右',
+    !wallNow.includes('class="lk-n"')
+    && /\.lk-foot \{[^}]*justify-content:\s*flex-end/.test(await html('/style.css')));
 
   const adminLinksNow = await html('/admin/links');
   check('G2 后台不再有版式切换（连同那一排按钮的样式钩子一起消失）',
