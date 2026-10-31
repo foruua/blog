@@ -30,8 +30,9 @@ export function systemPage({
     const dim = /^\d+$/.test(String(im.w ?? '')) && /^\d+$/.test(String(im.h ?? ''))
       ? ` width="${im.w}" height="${im.h}"` : '';
     const shot = `<img class="a-hero-shot" decoding="async" draggable="false" src="${esc(im.thumbnail || im.path)}" alt=""${dim}>`;
+    const kind = im.video ? '<span class="a-hero-kind">视频</span>' : '';
     return `        <figure class="a-hero-item" draggable="true" data-path="${esc(im.path)}" title="拖动排序">
-          ${shot}
+          ${shot}${kind}
           <figcaption class="a-hero-cap">
             <span class="a-hero-grip" aria-hidden="true"></span>
             <span class="a-hero-idx">${String(i + 1).padStart(2, '0')}</span>
@@ -50,6 +51,9 @@ export function systemPage({
 
   const heroAdd = hero.images.length >= HERO_MAX ? '' : `        <button type="button" class="a-hero-add" id="heroPick"${hero.images.length ? '' : ' data-wide="1"'}>
           <span class="a-hero-add-plus" aria-hidden="true">＋</span><span class="a-hero-add-txt">添加图片</span>
+        </button>
+        <button type="button" class="a-hero-add" id="heroPickVideo"${hero.images.length ? '' : ' data-wide="1"'}>
+          <span class="a-hero-add-plus" aria-hidden="true">＋</span><span class="a-hero-add-txt">添加视频</span>
         </button>`;
   // data-thumbs 给 JS「路径 → 预览图」对照。整段 JSON 一次 esc：结构引号在属性值里也必须转义，否则属性会被截断。
   const heroThumbs = esc(JSON.stringify(Object.fromEntries(hero.images.map((im) => [im.path, im.thumbnail || '']))));
@@ -66,6 +70,7 @@ ${hero.images.length ? heroItems + '\n' : ''}${heroAdd}
         <input class="a-input" id="heroOverlay" name="overlay" type="text" maxlength="${HERO_OVERLAY_MAX}"
                value="${esc(hero.overlay ?? '')}" autocomplete="off">
       </div>
+      <p class="a-dim">视频最长 8 秒、40MB，服务端统一转成 16:9；封面静音自动循环，点击打开灯箱播放。</p>
       <input type="hidden" id="heroImages" name="images" value="${esc(heroValue)}" data-thumbs="${heroThumbs}">
       <div class="a-actions">
         <button type="submit" class="a-btn">保存</button>
@@ -74,11 +79,12 @@ ${hero.images.length ? heroItems + '\n' : ''}${heroAdd}
                 title="移除全部首页封面（文件保留在媒体库）" aria-label="移除全部首页封面"
                 data-modal-title="移除全部首页封面？"
                 data-modal-body="首页会回到显示站名。"
-                data-modal-note="只移除首页展示，图片仍保留在媒体库和正文中。"
+                data-modal-note="只移除首页展示，文件仍保留在媒体库。"
                 data-modal-ok="全部移除"
                 ${hero.images.length ? '' : 'hidden'}>全部移除</button>
       </div>
       <input type="file" id="heroFile" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden>
+      <input type="file" id="heroVideoFile" accept="video/mp4,video/webm,video/quicktime" hidden>
     </form>
     </div>`;
 

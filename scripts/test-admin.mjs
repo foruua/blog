@@ -1,6 +1,9 @@
 import './_test-env.mjs';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
+import ffmpegStatic from 'ffmpeg-static';
 import { cookieJar, createClient, csrfOf, loginAdmin } from './_shared.mjs';
 import { open } from '../db/driver.js';
 import { CONTENT_DIR, UPLOADS_DIR, DATA_DIR } from '../src/config.js';
@@ -54,6 +57,7 @@ const FAKE_MP4 = Buffer.concat([
 
 const created = [];
 const createdFiles = [];
+let heroVideoUrl = '';
 
 console.log('\n后台端到端测试');
 console.log('────────────────────────────────────────────');
@@ -294,7 +298,7 @@ let uploadedRawUrl = '';
     edPicker.includes('id="a-picker"') && edPicker.includes('id="a-picker-upload"')
     && edPicker.includes('data-picker-cancel'), '');
 
-  // 视频支持已下线：上传接口只收图片，multipart 与 raw 两条路径都把视频挡在门外。
+  // 普通图片上传接口仍只收图片；封面视频走独立的 /admin/api/hero-video 转码入口。
   const fdV = new FormData();
   fdV.append('_csrf', csrf);
   fdV.append('file', new Blob([FAKE_MP4], { type: 'video/mp4' }), 'clip.mp4');
@@ -308,6 +312,34 @@ let uploadedRawUrl = '';
   const rawVideoJson = await rawVideo.json();
   check('T8v2 视频上传被拒（原始二进制路径）', rawVideo.status === 415 && rawVideoJson.ok === false,
     `status=${rawVideo.status} ${JSON.stringify(rawVideoJson).slice(0, 140)}`);
+
+  // 封面视频走独立入口：真 MP4 → 转码成 960×540 MP4 + 首帧海报 → media 记录（mime=video/mp4）。
+  const sourceVideo = path.join(os.tmpdir(), `blog-cover-test-${process.pid}.mp4`);
+  execFileSync(ffmpegStatic, [
+    '-hide_banner', '-loglevel', 'error', '-y', '-f', 'lavfi',
+    '-i', 'testsrc2=size=640x360:rate=24:duration=2', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', sourceVideo,
+  ], { stdio: 'ignore' });
+  const heroVideoRes = await req('/admin/api/hero-video', {
+    method: 'POST',
+    headers: { 'x-csrf-token': csrf, 'content-type': 'video/mp4', 'x-file-name': 'cover.mp4' },
+    body: fs.readFileSync(sourceVideo),
+  });
+  const heroVideoJson = await heroVideoRes.json();
+  heroVideoUrl = heroVideoJson.url ?? '';
+  const heroVideoRow = heroVideoUrl ? db.prepare('SELECT * FROM media WHERE path = ?').get(heroVideoUrl) : null;
+  const heroVideoFiles = heroVideoRow
+    ? [heroVideoRow.path, heroVideoRow.thumbnail].map((p) => path.join(UPLOADS_DIR, p.replace(/^\/uploads\//, '')))
+    : [];
+  check('T8v3 封面视频转码入库：960×540 MP4 + 首帧海报，media 记录标 video/mp4',
+    heroVideoRes.status === 200 && heroVideoJson.ok === true
+    && /\.mp4$/.test(heroVideoUrl) && /\.poster\.webp$/.test(heroVideoJson.thumbnail ?? '')
+    && heroVideoJson.width === 960 && heroVideoJson.height === 540
+    && Number(heroVideoJson.duration) > 0 && Number(heroVideoJson.duration) <= 2.1
+    && heroVideoJson.truncated === false
+    && heroVideoRow?.mime === 'video/mp4'
+    && heroVideoFiles.every((f) => fs.existsSync(f)),
+    `status=${heroVideoRes.status} ${JSON.stringify(heroVideoJson).slice(0, 200)}`);
+  fs.rmSync(sourceVideo, { force: true });
 
   const fd3 = new FormData();
   fd3.append('_csrf', csrf);
@@ -334,9 +366,10 @@ let uploadedRawUrl = '';
     && !page.includes('id="heroUrl"') && !page.includes('图片地址') && !page.includes('替代文字') && !page.includes('id="heroAlt"')
     && !page.includes('上传图片'), '');
 
-  check('T8j-1a 空列表：只有一枚铺满行的「添加」格，没有缩略格，也没有常驻的说明文字',
+  check('T8j-1a 空列表：图片/视频两枚铺满行的添加入口，没有缩略格',
     page.includes('a-hero-list is-empty') && !page.includes('class="a-hero-item"')
     && /id="heroPick"[^>]*data-wide/.test(page)
+    && /id="heroPickVideo"[^>]*data-wide/.test(page)
     && !page.includes('id="heroHint"') && !page.includes('只有一张时不轮播'), '');
 
   check('T8j-1c 首页封面可以从媒体库选择（与编辑器共用选择器）',
@@ -426,20 +459,32 @@ let uploadedRawUrl = '';
     !rowGone && !xTrash && (await fetch(BASE + xUrl)).status === 200,
     `row=${rowGone} trash=${xTrash}`);
 
-  // 封面只收图片：视频路径写进首页封面会被服务端拒收，设置页也不再有视频/文字相关的控件。
+  // 封面现在也收视频：服务端转码后的 .mp4 可以写进封面列表；设置页有独立的视频上传入口，
+  // 但旧的「播放方式 / 封面文字」控件仍然不存在。
   const savedVideoHero = await save({ images: JSON.stringify([{ path: `${uploadedUrl}.mp4`, w: '1920', h: '1080' }]) });
-  // 拒收是把表单重渲染回来（不是 303），提示只在这一次响应里，所以要在 POST 的响应体里找。
-  const videoPostHtml = await savedVideoHero.text();
   const sysVideo = await html('/admin/system');
-  check('T8j-6v 非图片不能当封面：服务端拒收并给出提示，设置页没有视频文件类型/播放开关/文字弹窗',
-    savedVideoHero.status === 200
-    && videoPostHtml.includes('首页封面只能用图片')
-    && sysVideo.includes('accept="image/png,image/jpeg,image/gif,image/webp"')
-    && !sysVideo.includes('video/mp4')
+  check('T8j-6v 视频可以写进首页封面；设置页有视频上传入口，但没有旧播放方式/文字弹窗',
+    savedVideoHero.status === 303
+    && sysVideo.includes('id="heroVideoFile"')
+    && sysVideo.includes('accept="video/mp4')
     && !sysVideo.includes('id="heroVideoModeRow"')
     && !sysVideo.includes('id="heroTextDialog"')
     && !sysVideo.includes('id="heroTone"'),
-    `status=${savedVideoHero.status} err=${videoPostHtml.includes('首页封面只能用图片')}`);
+    `status=${savedVideoHero.status} videoFile=${sysVideo.includes('id="heroVideoFile"')}`);
+
+  // 真正转码入库的那条视频设为封面：首页必须出 <video> + 首帧海报 + 灯箱标记，而不是当图片渲染。
+  const savedRealVideoHero = await save({ images: JSON.stringify([{ path: heroVideoUrl, w: '960', h: '540' }]) });
+  const homeWithVideo = await html('/');
+  check('T8j-6w 封面视频渲染为静音循环 video，带海报与灯箱标记',
+    savedRealVideoHero.status === 303
+    && homeWithVideo.includes('class="hero-video"')
+    && homeWithVideo.includes('muted')
+    && homeWithVideo.includes('loop')
+    && homeWithVideo.includes('playsinline')
+    && homeWithVideo.includes('data-lightbox="hero" data-media="video"')
+    && /poster="[^"]*\.poster\.webp"/.test(homeWithVideo)
+    && !homeWithVideo.includes(`<img src="${heroVideoUrl}"`),
+    `status=${savedRealVideoHero.status} video=${homeWithVideo.includes('class="hero-video"')}`);
 
   const PNG_2x2 = await sharp({ create: { width: 2, height: 2, channels: 4, background: '#0033ff' } }).png().toBuffer();
   const fdY = new FormData();

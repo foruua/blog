@@ -5,6 +5,7 @@ import { SITE } from '../config.js';
 import { esc } from '../util/text.js';
 import { HERO_IMAGE_SIZES } from './icons.js';
 import { IMAGE_PLACEHOLDER, mediaFallback } from '../media/variants.js';
+import { isVideoSource } from '../media/video.js';
 
 /**
  * 首页封面整块（含「最近更新」）。
@@ -27,6 +28,26 @@ export function heroBlock({ imgs = [], overlay = '', mediaOf = () => null, recen
   // 首页所有封面统一按 16:9 取景；图片用 CSS object-fit: cover 裁切，灯箱仍打开完整图。
   const heroRatio = '16/9';
   const heroArStyle = '--hero-ar: 16 / 9';
+
+  // 封面视频：服务端已统一成 16:9 MP4，首帧海报存 media.thumbnail。视频直接播放原文件；
+  // 海报同时用于 LCP、preload 与播放被拦截/卡住时的静态回退。
+  const videoTag = (im, { slide = false, active = false } = {}) => {
+    const shot = mediaOf(im.path);
+    const poster = shot?.poster ?? shot?.thumbnail ?? '';
+    const w = im.w > 0 ? im.w : Number(shot?.width) || 0;
+    const h = im.h > 0 ? im.h : Number(shot?.height) || 0;
+    const dims = w > 0 && h > 0 ? ` width="${w}" height="${h}" style="aspect-ratio:${heroRatio}"` : '';
+    // 不写 autoplay：那会绕过「减弱动态效果 / 省流」判断，部分内核还会在脚本之前抢跑。
+    // 起播统一交给 app.js 显式 play()（静音是前提），无 JS 时至少能看到首帧海报。
+    // 单视频无限循环；轮播里播一遍就交给下一张（按视频时长推进），loop 由脚本再校准。
+    const loop = !slide;
+    return `<video class="hero-video" src="${esc(im.path)}"${dims}${poster ? ` poster="${esc(poster)}"` : ''}`
+      + ` muted${loop ? ' loop' : ''} playsinline webkit-playsinline`
+      + ` preload="${!slide || active ? 'metadata' : 'none'}" disablepictureinpicture disableremoteplayback`
+      + ` data-lightbox="hero" data-media="video" data-full="${esc(im.path)}"`
+      + `${poster ? ` data-poster="${esc(poster)}"` : ''}${w > 0 && h > 0 ? ` data-w="${w}" data-h="${h}"` : ''}`
+      + ` data-alt="${esc(heroAlt)}"></video>`;
+  };
 
   // 首屏图被 CSS 限在 480px 内，故 sizes 封顶 480——不写浏览器按 100vw 选，桌面端挑最大档，白下十倍字节。
   const slideAttrs = (im) => {
@@ -51,15 +72,22 @@ export function heroBlock({ imgs = [], overlay = '', mediaOf = () => null, recen
   let title;
   if (imgs.length === 1) {
     const im = imgs[0];
-    // 单图也要 --hero-ar：相框与图片的宽都按这套比例算死，不依赖文件有没有到（见 .hero-figure img）。
+    // 单图/单视频也要 --hero-ar：相框与媒体的宽都按这套比例算死，不依赖文件有没有到（见 .hero-figure img）。
     const ar = ` style="${heroArStyle}"`;
-    const { src, srcsetValue, dims, full } = slideAttrs(im);
-    title = `<h1 class="hero-title hero-figure"${ar}${copyAria}><img src="${src}"${srcsetValue ? ` srcset="${srcsetValue}" sizes="${HERO_IMAGE_SIZES}"` : ''} data-full="${full}" data-lightbox="hero" alt="${esc(heroAlt)}"${dims} fetchpriority="high" decoding="async">${copy}</h1>`;
+    if (isVideoSource(im.path)) {
+      title = `<h1 class="hero-title hero-figure"${ar}${copyAria}>${videoTag(im, { active: true })}${copy}</h1>`;
+    } else {
+      const { src, srcsetValue, dims, full } = slideAttrs(im);
+      title = `<h1 class="hero-title hero-figure"${ar}${copyAria}><img src="${src}"${srcsetValue ? ` srcset="${srcsetValue}" sizes="${HERO_IMAGE_SIZES}"` : ''} data-full="${full}" data-lightbox="hero" alt="${esc(heroAlt)}"${dims} fetchpriority="high" decoding="async">${copy}</h1>`;
+    }
   } else if (imgs.length > 1) {
-    // 多图轮播：图叠在 .hero-track（CSS 只露第一张），5 秒一张自动推进；无手动控制条。
+    // 图片/视频混合轮播：媒体叠在 .hero-track（CSS 只露第一张）；视频按自身时长推进，图片固定 5 秒。
     const slides = imgs.map((im, i) => {
-      const { src, srcsetValue, dims, full, tiny } = slideAttrs(im);
       const active = i === 0;
+      if (isVideoSource(im.path)) {
+        return `<span class="hero-slide${active ? ' is-active' : ''}"${active ? '' : ' tabindex="-1" aria-hidden="true"'}>${videoTag(im, { slide: true, active })}</span>`;
+      }
+      const { src, srcsetValue, dims, full, tiny } = slideAttrs(im);
       // 第一张照常直出；其余只放 240w 小图 + data-src/data-srcset，由 app.js 在空闲或切换前升级。
       const source = active
         ? ` src="${src}"${srcsetValue ? ` srcset="${srcsetValue}" sizes="${HERO_IMAGE_SIZES}"` : ''} fetchpriority="high" decoding="async"`
@@ -68,7 +96,7 @@ export function heroBlock({ imgs = [], overlay = '', mediaOf = () => null, recen
     }).join('');
     // 图幅比 --hero-ar 交给 CSS：轮播整层宽高必须由样式先算，不能等图片固有尺寸，否则 CSS 那条 width 失效、退回 auto。
     const ar = ` style="${heroArStyle}"`;
-    title = `<div class="hero-carousel"${ar} data-hero-carousel role="group" aria-roledescription="图片轮播">
+    title = `<div class="hero-carousel"${ar} data-hero-carousel role="group" aria-roledescription="封面轮播">
         <h1 class="hero-title hero-figure" aria-label="${esc(heroAlt)}"><span class="hero-track">${slides}</span></h1>
         ${copy}
       </div>`;
@@ -96,6 +124,11 @@ ${toolsHtml ? `      <div class="hero-meta">
 export function heroPreload({ imgs = [], mediaOf = () => null }) {
   if (!imgs.length) return '';
   const shot = mediaOf(imgs[0].path);
+  // 视频不抢在解析前下整段 MP4：首屏 LCP 交给首帧海报，视频由 autoplay 自己按需拉流。
+  if (isVideoSource(imgs[0].path)) {
+    const poster = shot?.poster ?? shot?.thumbnail;
+    return poster ? `<link rel="preload" as="image" href="${esc(poster)}" fetchpriority="high">` : '';
+  }
   if (!shot?.srcset) return '';
   const href = esc(shot.preview ?? shot.thumbnail ?? IMAGE_PLACEHOLDER);
   const sizes = HERO_IMAGE_SIZES;

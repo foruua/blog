@@ -632,7 +632,7 @@
   const imageViewer = (dialog) => {
     const image = dialog.querySelector('.lb-img');
     const zoom = document.createElement('button');
-    zoom.type = 'button'; zoom.className = 'lb-zoom'; zoom.disabled = true;
+    zoom.type = 'button'; zoom.className = 'lb-zoom'; zoom.disabled = true; zoom.hidden = true;
     // 放大镜图标固定，倍率读数由数字承担。
     zoom.innerHTML = '<svg class="z-ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="5.6"/><path d="M12.3 12.3 17 17"/></svg><span class="z-num"></span>';
     const reading = zoom.querySelector('.z-num');
@@ -668,7 +668,7 @@
     };
     const reset = () => {
       clearGestures();
-      scale = 1; x = y = 0; zoom.disabled = true; boxW = boxH = 0; render();
+      scale = 1; x = y = 0; zoom.disabled = true; zoom.hidden = true; boxW = boxH = 0; render();
     };
     zoom.addEventListener('click', () => {
       const zoomed = scale > 1;
@@ -737,7 +737,7 @@
     });
     dialog.addEventListener('close', () => { reset(); ignoreClickUntil = 0; });
     render();
-    return { reset, ready: () => { zoom.disabled = false; render(); } };
+    return { reset, ready: () => { zoom.disabled = false; zoom.hidden = false; render(); } };
   };
   const pendingImages = new Map();
   const cancelImage = (dialog, state) => {
@@ -801,6 +801,28 @@
       loader.onerror?.(); loader.onload = null; loader.onerror = null; loader.src = '';
     }, 15000);
     loader.src = src;
+  };
+  // 灯箱切到视频时把图片这条线（含在飞 loader、加载文案、缩放按钮）整条收起，
+  // 否则慢图下完还会把 <img> 顶到视频旁边。
+  const clearImage = (dialog) => {
+    const state = imageLoads.get(dialog);
+    if (state) {
+      cancelImage(dialog, state);
+      state.viewer.reset();
+      const status = state.feedback.querySelector('p');
+      const retry = state.feedback.querySelector('button');
+      if (status) status.textContent = '';
+      if (retry) retry.hidden = true;
+    }
+    const image = dialog.querySelector('.lb-img');
+    if (image) {
+      image.hidden = true;
+      image.removeAttribute('src');
+      image.style.width = '';
+      image.style.removeProperty('--lb-ar');
+    }
+    const zoom = dialog.querySelector('.lb-zoom');
+    if (zoom) zoom.hidden = true;
   };
   /* —— 浏览器界面色（theme-color meta）—— 服务端写两条带 media 的固定 hex（无脚本时按系统偏好兜底）；访客手动切暗色或挑配色后那两条就不再是实际纸色。
      这里读 <html> 实算底色写进唯一那条无 media 的 meta，此后主题/配色/系统偏好/换页都跟着更新（--bg 挂在 :root）。 */
@@ -948,5 +970,5 @@
   maybeUpgradeCustom();
 
   window.__copyText = copyText;
-  window.__ui = { open, confirm, busy, loadImage, copyText };
+  window.__ui = { open, confirm, busy, loadImage, clearImage, copyText };
 })();

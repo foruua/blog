@@ -86,7 +86,7 @@ themes/<id>/
 
 | `page.type` | `data` 字段 |
 | --- | --- |
-| `home` | `hero_html` `hero{}`（`images[]`：`path` `w` `h`）`stats[]`（每项 `kind` `n` `words` `first` `last`）`recent[]` `has_recent` |
+| `home` | `hero_html` `hero{}`（`images[]`：`path` `w` `h` `video` `poster`；视频项的 `path` 是 MP4，`poster` 是首帧海报）`stats[]`（每项 `kind` `n` `words` `first` `last`）`recent[]` `has_recent` |
 | `posts` | `kind` `title` `mark` `posts[]` `has_more` `more_html` `masthead_html` `list_html` `empty`（`/notes/` 与 `/posts/` 同一套数据，用 `kind` 区分） |
 | `post` / `note` | `post{...}` `toc_html` `pager_html` `comments_html` `body_html` `words` `reading_minutes` `day_cn` |
 | `page` | `page{...}` `comments_html` `stats[]`（已渲染的 HTML 片段）`page_html` |

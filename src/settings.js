@@ -186,8 +186,8 @@ export function parseLayoutDefault(raw) {
 // 首页封面列表的读取侧（前台渲染、后台表单、媒体库守卫共用）。宽松解析：JSON 坏了或挑不出时回落旧单图键
 // （存量站点免迁移）；单条坏只丢那条。路径只认 /uploads/，越界直接扔。
 // 每条只有 path/w/h：封面文字（标题/副标题/按钮/颜色/版式）已整块下线，历史数据里多出来的字段直接忽略。
-// 只收图片：视频支持已下线，库里若还留着视频路径（历史数据），这里统一滤掉，首页直接回落站名。
-const HERO_IMAGE_EXT_RE = /\.(?:png|jpe?g|gif|webp|avif)(?:$|[?#])/i;
+// 图片与视频都收：视频由服务端统一转成 16:9 MP4，首帧海报送媒体库，前台按扩展名分流渲染。
+const HERO_MEDIA_EXT_RE = /\.(?:png|jpe?g|gif|webp|avif|mp4|webm|mov)(?:$|[?#])/i;
 export function heroImages(repo) {
   const raw = String(repo.getSetting(KEYS.heroImages) ?? '').trim();
   if (raw) {
@@ -195,7 +195,7 @@ export function heroImages(repo) {
       const data = JSON.parse(raw);
       if (Array.isArray(data)) {
         const list = data
-          .filter((it) => it && typeof it === 'object' && isSafeUploadPath(it.path) && HERO_IMAGE_EXT_RE.test(it.path))
+          .filter((it) => it && typeof it === 'object' && isSafeUploadPath(it.path) && HERO_MEDIA_EXT_RE.test(it.path))
           .slice(0, HERO_MAX)
           .map((it) => ({
             path: it.path,
@@ -207,7 +207,7 @@ export function heroImages(repo) {
     } catch { /* 落到旧键 */ }
   }
   const legacy = String(repo.getSetting(HERO_LEGACY_KEYS.url) ?? '').trim();
-  if (!isSafeUploadPath(legacy) || !HERO_IMAGE_EXT_RE.test(legacy)) return [];
+  if (!isSafeUploadPath(legacy) || !HERO_MEDIA_EXT_RE.test(legacy)) return [];
   const w = String(repo.getSetting(HERO_LEGACY_KEYS.w) ?? '');
   const h = String(repo.getSetting(HERO_LEGACY_KEYS.h) ?? '');
   return [{
